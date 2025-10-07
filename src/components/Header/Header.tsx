@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { ShoppingCart, User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign } from 'lucide-react';
 
 const Header: React.FC = () => {
@@ -24,13 +25,13 @@ const Header: React.FC = () => {
               <a href="/support" className="text-gray-600 hover:text-gray-900">
                 Hỗ trợ
               </a>
-              <a href="/login" className="font-black text-black hover:text-gray-900">
+              <Link to="/auth/login" className="font-black text-black hover:text-gray-900">
                 Đăng nhập
-              </a>
+              </Link>
               <span className="text-gray-400">/</span>
-              <a href="/register" className="font-black text-black hover:text-gray-900">
+              <Link to="/auth/register" className="font-black text-black hover:text-gray-900">
                 Đăng ký
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -41,12 +42,12 @@ const Header: React.FC = () => {
         <div className="flex items-center justify-between py-4">
           {/* Logo */}
           <div className="flex items-center">
-            <a href="/" className="flex items-center space-x-2">
+            <Link to="/" className="flex items-center space-x-2">
               <span className="text-2xl font-bold">
                 <span className="text-orange-500">Audio</span>
                 <span className="text-blue-600">Shop</span>
               </span>
-            </a>
+            </Link>
           </div>
 
           {/* Search bar */}
@@ -94,10 +95,10 @@ const Header: React.FC = () => {
             {/* Top row - Trang chủ, Tài khoản, Giỏ hàng */}
             <div className="flex items-center space-x-4">
               {/* Trang chủ */}
-              <a href="/" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
+              <Link to="/" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
                 <Home className="w-5 h-5" />
                 <span className="text-sm">Trang chủ</span>
-              </a>
+              </Link>
 
               {/* Divider */}
               <span className="text-gray-300">|</span>

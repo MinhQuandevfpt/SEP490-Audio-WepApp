@@ -1,11 +1,11 @@
 import React from 'react';
-import Layout from '../components/Layout';
-import Sidebar from '../components/Sidebar';
-import BannerSlider from '../components/BannerSlider';
-import FlashSale from '../components/FlashSale';
-import TopDeals from '../components/TopDeals';
-import FeaturedBrands from '../components/FeaturedBrands';
-import ProductSuggestions from '../components/ProductSuggestions';
+import Layout from '../../components/Layout';
+import Sidebar from '../../components/Sidebar';
+import BannerSlider from '../../components/BannerSlider';
+import FlashSale from '../../components/FlashSale';
+import TopDeals from '../../components/TopDeals';
+import FeaturedBrands from '../../components/FeaturedBrands';
+import ProductSuggestions from '../../components/ProductSuggestions';
 
 const HomePage: React.FC = () => {
   return (
