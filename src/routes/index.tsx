@@ -7,6 +7,7 @@ import SellerRegister from '../pages/Seller/Register';
 import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import Profile from '../pages/Customer/Profile';
+import ProductDetail from '../pages/Customer/ProductDetail';
 
 export const router = createBrowserRouter([
   {
@@ -16,6 +17,10 @@ export const router = createBrowserRouter([
   {
     path: '/account',
     element: <Profile />
+  },
+  {
+    path: '/product/:id',
+    element: <ProductDetail />
   },
   {
     path: '/auth',
