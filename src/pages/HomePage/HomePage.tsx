@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Layout from '../../components/Layout';
 import Sidebar from '../../components/Sidebar';
 import BannerSlider from '../../components/BannerSlider';
@@ -6,8 +6,31 @@ import FlashSale from '../../components/FlashSale';
 import TopDeals from '../../components/TopDeals';
 import FeaturedBrands from '../../components/FeaturedBrands';
 import ProductSuggestions from '../../components/ProductSuggestions';
+import { showCenterSuccess } from '../../utils/notification';
 
 const HomePage: React.FC = () => {
+  // Check for welcome message after login
+  useEffect(() => {
+    const welcomeData = sessionStorage.getItem('welcomeMessage');
+    if (welcomeData) {
+      try {
+        const { userName, showWelcome } = JSON.parse(welcomeData);
+        if (showWelcome) {
+          showCenterSuccess(
+            `Chào mừng ${userName} trở lại!`,
+            'Đăng nhập thành công!',
+            3000
+          );
+          // Clear the welcome message after showing
+          sessionStorage.removeItem('welcomeMessage');
+        }
+      } catch (error) {
+        console.error('Error parsing welcome message:', error);
+        sessionStorage.removeItem('welcomeMessage');
+      }
+    }
+  }, []);
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
