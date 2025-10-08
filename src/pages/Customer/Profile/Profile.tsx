@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../../../components/Layout';
-import UserInfoCard from '../../../components/ProfilePageComponents/UserInfoCard';
-import OrderHistory from '../../../components/ProfilePageComponents/OrderHistory';
-import AddressBook from '../../../components/ProfilePageComponents/AddressBook';
-import { loadProfileData, saveProfileData, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned } from 'lucide-react';
+import { UserInfoCard } from '../../../components/ProfilePageComponents/UserInfoCard';
+import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHistory';
+import { AddressBook } from '../../../components/ProfilePageComponents/AddressBook';
+import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
+import { loadProfileData, saveProfileData, updatePassword, type ProfileData } from '../../../data/profiledata';
+import { User, Package, MapPinned, Lock } from 'lucide-react';
 
 const Profile: React.FC = () => {
   const [data, setData] = useState<ProfileData | null>(null);
@@ -70,12 +71,20 @@ const Profile: React.FC = () => {
     saveProfileData(updated);
   };
 
-  const [active, setActive] = useState<'info' | 'orders' | 'addresses'>('info');
+  // Password management function
+  const handleUpdatePassword = (newPassword: string) => {
+    updatePassword(newPassword);
+    // Reload data to reflect changes
+    setData(loadProfileData());
+  };
+
+  const [active, setActive] = useState<'info' | 'orders' | 'addresses' | 'password'>('info');
 
   const navItems = useMemo(() => ([
     { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
     { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
     { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
+    { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
   ]), []);
 
   return (
@@ -113,6 +122,7 @@ const Profile: React.FC = () => {
                   phone={data.user.phone} 
                   gender={data.user.gender} 
                   dateOfBirth={data.user.dateOfBirth}
+                  avatar={data.user.avatar}
                   onUpdate={(next) => handleUpdateUser(next)}
                 />
               )}
@@ -128,6 +138,12 @@ const Profile: React.FC = () => {
                   onEditAddress={handleEditAddress}
                   onDeleteAddress={handleDeleteAddress}
                   onSetDefault={handleSetDefaultAddress}
+                />
+              )}
+
+              {active === 'password' && (
+                <ChangePassword 
+                  onUpdatePassword={handleUpdatePassword}
                 />
               )}
             </section>

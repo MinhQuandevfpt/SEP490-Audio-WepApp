@@ -1,5 +1,5 @@
 import React from 'react';
-import { loadProfileData } from '../../data/profiledata';
+import { loadProfileData } from '../../../data/profiledata';
 
 interface OrderItem {
   id: string;
