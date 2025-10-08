@@ -13,9 +13,9 @@ const Header: React.FC = () => {
               <a href="/seller" className="text-blue-600 hover:text-gray-900">
                 Chăm sóc khách hàng
               </a>
-              <a href="/about" className="text-blue-600 hover:text-gray-900">
+              <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
                 Bán hàng cùng AudioShop
-              </a>
+              </Link>
             </div>
             <div className="flex space-x-6">
               <a href="/notifications" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
