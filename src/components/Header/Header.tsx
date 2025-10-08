@@ -104,10 +104,10 @@ const Header: React.FC = () => {
               <span className="text-gray-300">|</span>
 
               {/* User Account */}
-              <a href="/account" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
+              <Link to="/account" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
                 <User className="w-5 h-5" />
                 <span className="text-sm">Tài khoản</span>
-              </a>
+              </Link>
 
               {/* Shopping Cart */}
               <a href="/cart" className="relative group">
