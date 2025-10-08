@@ -20,6 +20,56 @@ const Profile: React.FC = () => {
     saveProfileData(updated);
   };
 
+  // Address management functions
+  const handleAddAddress = (newAddress: Omit<ProfileData['addresses'][0], 'id'>) => {
+    if (!data) return;
+    const addressWithId = {
+      ...newAddress,
+      id: `ADDR${Date.now()}`, // Simple ID generation
+    };
+    const updated: ProfileData = {
+      ...data,
+      addresses: [...data.addresses, addressWithId]
+    };
+    setData(updated);
+    saveProfileData(updated);
+  };
+
+  const handleEditAddress = (id: string, updatedAddress: Omit<ProfileData['addresses'][0], 'id'>) => {
+    if (!data) return;
+    const updated: ProfileData = {
+      ...data,
+      addresses: data.addresses.map(addr => 
+        addr.id === id ? { ...updatedAddress, id } : addr
+      )
+    };
+    setData(updated);
+    saveProfileData(updated);
+  };
+
+  const handleDeleteAddress = (id: string) => {
+    if (!data) return;
+    const updated: ProfileData = {
+      ...data,
+      addresses: data.addresses.filter(addr => addr.id !== id)
+    };
+    setData(updated);
+    saveProfileData(updated);
+  };
+
+  const handleSetDefaultAddress = (id: string) => {
+    if (!data) return;
+    const updated: ProfileData = {
+      ...data,
+      addresses: data.addresses.map(addr => ({
+        ...addr,
+        isDefault: addr.id === id
+      }))
+    };
+    setData(updated);
+    saveProfileData(updated);
+  };
+
   const [active, setActive] = useState<'info' | 'orders' | 'addresses'>('info');
 
   const navItems = useMemo(() => ([
@@ -72,7 +122,13 @@ const Profile: React.FC = () => {
               )}
 
               {active === 'addresses' && (
-                <AddressBook addresses={data.addresses} />
+                <AddressBook 
+                  addresses={data.addresses}
+                  onAddAddress={handleAddAddress}
+                  onEditAddress={handleEditAddress}
+                  onDeleteAddress={handleDeleteAddress}
+                  onSetDefault={handleSetDefaultAddress}
+                />
               )}
             </section>
           </div>
