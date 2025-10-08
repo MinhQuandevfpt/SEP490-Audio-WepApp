@@ -422,9 +422,7 @@ const SellerRegister: React.FC = () => {
             onChange={handleInputChange}
             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
           />
-          <span className="ml-3 text-sm text-gray-600">
-            Tôi muốn nhận thông tin về chương trình hỗ trợ Seller và ưu đãi đặc biệt
-          </span>
+         
         </label>
       </div>
     </div>

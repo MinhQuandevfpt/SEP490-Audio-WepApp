@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, Phone, Calendar } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Mail, Lock, User, Phone, Loader2 } from 'lucide-react';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
+import { showCenterSuccess, showCenterError } from '../../../utils/notification';
+import type { ApiError } from '../../../types/api';
 
 const Register: React.FC = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
-    dateOfBirth: '',
-    gender: '',
     password: '',
     confirmPassword: '',
     agreeTerms: false,
@@ -27,14 +31,65 @@ const Register: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Xử lý đăng ký
+    
+    // Basic validation
     if (formData.password !== formData.confirmPassword) {
-      alert('Mật khẩu xác nhận không khớp!');
+      showCenterError('Mật khẩu xác nhận không khớp!', 'Lỗi xác thực');
       return;
     }
-    console.log('Register data:', formData);
+
+    if (!formData.agreeTerms) {
+      showCenterError('Bạn phải đồng ý với điều khoản dịch vụ để tiếp tục!', 'Thiếu thông tin');
+      return;
+    }
+
+    // Prepare API data
+    const registerData = {
+      name: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      password: formData.password
+    };
+
+    // Client-side validation
+    const validationErrors = CustomerAuthService.validateRegisterData(registerData);
+    if (validationErrors.length > 0) {
+      showCenterError(validationErrors[0], 'Thông tin không hợp lệ');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await CustomerAuthService.register(registerData);
+      
+      if (response.status === 201) {
+        showCenterSuccess(
+          'Bạn sẽ được chuyển đến trang đăng nhập sau 3 giây...',
+          'Đăng ký thành công!',
+          3000
+        );
+        
+        // Wait 3 seconds then redirect to login
+        setTimeout(() => {
+          navigate('/auth/login', { 
+            state: { 
+              message: 'Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.', 
+              email: response.data.email 
+            } 
+          });
+        }, 3000);
+      }
+    } catch (error) {
+      const apiError = error as ApiError;
+      const errorMessage = CustomerAuthService.formatApiError(apiError);
+      showCenterError(errorMessage, 'Lỗi đăng ký');
+      console.error('Registration error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -107,44 +162,6 @@ const Register: React.FC = () => {
               placeholder="Nhập số điện thoại"
               required
             />
-          </div>
-        </div>
-
-        {/* Date of Birth & Gender */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ngày sinh
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Calendar className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="date"
-                name="dateOfBirth"
-                value={formData.dateOfBirth}
-                onChange={handleInputChange}
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Giới tính
-            </label>
-            <select
-              name="gender"
-              value={formData.gender}
-              onChange={handleInputChange}
-              className="block w-full py-3 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              <option value="">Chọn giới tính</option>
-              <option value="male">Nam</option>
-              <option value="female">Nữ</option>
-              <option value="other">Khác</option>
-            </select>
           </div>
         </div>
 
@@ -237,26 +254,27 @@ const Register: React.FC = () => {
             </span>
           </label>
           
-          <label className="flex items-start">
-            <input
-              type="checkbox"
-              name="agreePromotions"
-              checked={formData.agreePromotions}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded mt-1"
-            />
-            <span className="ml-3 text-sm text-gray-600">
-              Tôi muốn nhận thông tin khuyến mãi và ưu đãi đặc biệt từ AudioShop
-            </span>
-          </label>
+         
         </div>
 
         {/* Register Button */}
         <button
           type="submit"
-          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all transform hover:scale-[1.02]"
+          disabled={isLoading}
+          className={`w-full py-3 px-4 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all transform ${
+            isLoading 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-[1.02]'
+          }`}
         >
-          Đăng ký
+          {isLoading ? (
+            <div className="flex items-center justify-center">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span>Đang đăng ký...</span>
+            </div>
+          ) : (
+            'Đăng ký'
+          )}
         </button>
 
         {/* Divider */}

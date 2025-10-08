@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, Mail, Lock, Phone, Loader2 } from 'lucide-react';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
+import { showCenterError } from '../../../utils/notification';
+import type { ApiError } from '../../../types/api';
 
 const Login: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
+  const [isLoading, setIsLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
     password: '',
     rememberMe: false
   });
+
+  // Check for message from registration - just pre-fill email if provided
+  useEffect(() => {
+    if (location.state?.email) {
+      setFormData(prev => ({ ...prev, email: location.state.email }));
+    }
+  }, [location.state]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -20,10 +34,54 @@ const Login: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Xử lý đăng nhập
-    console.log('Login data:', formData);
+    
+    // Prepare login data - Backend chỉ cần email và password
+    const loginData = {
+      email: loginMethod === 'email' ? formData.email : '', // Nếu dùng phone thì có thể cần API khác
+      password: formData.password
+    };
+
+    // Basic validation
+    if (loginMethod === 'email' && !loginData.email) {
+      showCenterError('Vui lòng nhập email!', 'Thiếu thông tin');
+      return;
+    }
+    
+    if (loginMethod === 'phone' && !formData.phone) {
+      showCenterError('Vui lòng nhập số điện thoại!', 'Thiếu thông tin');
+      return;
+    }
+    
+    if (!loginData.password) {
+      showCenterError('Vui lòng nhập mật khẩu!', 'Thiếu thông tin');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await CustomerAuthService.login(loginData);
+      
+      if (response.status === 200) {
+        // Store user info for welcome message on homepage
+        sessionStorage.setItem('welcomeMessage', JSON.stringify({
+          userName: response.data.user.fullName,
+          showWelcome: true
+        }));
+        
+        // Redirect to homepage immediately without showing notification here
+        navigate('/');
+      }
+    } catch (error) {
+      const apiError = error as ApiError;
+      const errorMessage = CustomerAuthService.formatApiError(apiError);
+      showCenterError(errorMessage, 'Lỗi đăng nhập');
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -148,9 +206,21 @@ const Login: React.FC = () => {
         {/* Login Button */}
         <button
           type="submit"
-          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all transform hover:scale-[1.02]"
+          disabled={isLoading}
+          className={`w-full py-3 px-4 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all transform ${
+            isLoading 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-[1.02]'
+          }`}
         >
-          Đăng nhập
+          {isLoading ? (
+            <div className="flex items-center justify-center">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span>Đang đăng nhập...</span>
+            </div>
+          ) : (
+            'Đăng nhập'
+          )}
         </button>
 
         {/* Divider */}

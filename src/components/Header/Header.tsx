@@ -1,8 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign } from 'lucide-react';
+import { ShoppingCart, User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
+import { CustomerAuthService } from '../../services/customer/Authcustomer';
 
 const Header: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const authStatus = CustomerAuthService.isAuthenticated();
+      const user = CustomerAuthService.getCurrentUser();
+      setIsAuthenticated(authStatus);
+      setCurrentUser(user);
+    };
+
+    checkAuth();
+    
+    // Listen for storage changes (when user logs in/out)
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+
+  const handleLogout = () => {
+    CustomerAuthService.logout();
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    window.location.href = '/'; // Hard refresh to clear any cached state
+  };
   return (
     <header className="bg-white border-b border-gray-200">
       {/* Top bar */}
@@ -25,13 +50,31 @@ const Header: React.FC = () => {
               <a href="/support" className="text-gray-600 hover:text-gray-900">
                 Hỗ trợ
               </a>
-              <Link to="/auth/login" className="font-black text-black hover:text-gray-900">
-                Đăng nhập
-              </Link>
-              <span className="text-gray-400">/</span>
-              <Link to="/auth/register" className="font-black text-black hover:text-gray-900">
-                Đăng ký
-              </Link>
+              
+              {isAuthenticated ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-600">
+                    Xin chào, <span className="font-medium text-gray-800">{currentUser?.fullName}</span>
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center text-gray-600 hover:text-red-600 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4 mr-1" />
+                    <span className="text-sm">Đăng xuất</span>
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Link to="/auth/login" className="font-black text-black hover:text-gray-900">
+                    Đăng nhập
+                  </Link>
+                  <span className="text-gray-400">/</span>
+                  <Link to="/auth/register" className="font-black text-black hover:text-gray-900">
+                    Đăng ký
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
