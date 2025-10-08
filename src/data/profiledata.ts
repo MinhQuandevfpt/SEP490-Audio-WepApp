@@ -28,6 +28,16 @@ export interface ProfileData {
     changedAt: string;
     isCurrent: boolean;
   }>;
+  bankCards?: Array<{
+    id: string;
+    bankName: string;
+    cardNumber: string;
+    cardHolderName: string;
+    expiryDate: string;
+    isDefault: boolean;
+    isVerified: boolean;
+    cardType: 'debit' | 'credit';
+  }>;
 }
 
 export const PROFILE_DATA_STORAGE_KEY = 'audioshop_profile_data_v1';
@@ -76,6 +86,38 @@ export const defaultProfileData: ProfileData = {
       isCurrent: false 
     },
   ],
+  bankCards: [
+    {
+      id: 'CARD001',
+      bankName: 'Vietcombank',
+      cardNumber: '1234567890123456',
+      cardHolderName: 'NGUYEN VAN A',
+      expiryDate: '12/26',
+      isDefault: true,
+      isVerified: true,
+      cardType: 'debit'
+    },
+    {
+      id: 'CARD002',
+      bankName: 'BIDV',
+      cardNumber: '9876543210987654',
+      cardHolderName: 'NGUYEN VAN A',
+      expiryDate: '08/27',
+      isDefault: false,
+      isVerified: true,
+      cardType: 'credit'
+    },
+    {
+      id: 'CARD003',
+      bankName: 'Techcombank',
+      cardNumber: '4567891234567890',
+      cardHolderName: 'NGUYEN VAN A',
+      expiryDate: '03/25',
+      isDefault: false,
+      isVerified: false,
+      cardType: 'debit'
+    }
+  ],
 };
 
 export const loadProfileData = (): ProfileData => {
@@ -99,6 +141,7 @@ export const loadProfileData = (): ProfileData => {
         : defaultProfileData.orders,
       addresses: parsed?.addresses ?? defaultProfileData.addresses,
       passwordHistory: parsed?.passwordHistory ?? defaultProfileData.passwordHistory,
+      bankCards: parsed?.bankCards ?? defaultProfileData.bankCards,
     };
 
     // Persist merged data back to storage to keep schema up-to-date
@@ -174,6 +217,72 @@ export const validateCurrentPassword = (password: string): boolean => {
     return currentData.user.password === password;
   } catch (e) {
     return false;
+  }
+};
+
+export const addBankCard = (card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>): void => {
+  try {
+    const currentData = loadProfileData();
+    const newCard = {
+      ...card,
+      id: `CARD${Date.now()}`
+    };
+    
+    const updatedData: ProfileData = {
+      ...currentData,
+      bankCards: [...(currentData.bankCards || []), newCard]
+    };
+    
+    saveProfileData(updatedData);
+  } catch (e) {
+    console.error('Error adding bank card:', e);
+  }
+};
+
+export const updateBankCard = (id: string, card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>): void => {
+  try {
+    const currentData = loadProfileData();
+    const updatedData: ProfileData = {
+      ...currentData,
+      bankCards: (currentData.bankCards || []).map(c => 
+        c.id === id ? { ...card, id } : c
+      )
+    };
+    
+    saveProfileData(updatedData);
+  } catch (e) {
+    console.error('Error updating bank card:', e);
+  }
+};
+
+export const deleteBankCard = (id: string): void => {
+  try {
+    const currentData = loadProfileData();
+    const updatedData: ProfileData = {
+      ...currentData,
+      bankCards: (currentData.bankCards || []).filter(c => c.id !== id)
+    };
+    
+    saveProfileData(updatedData);
+  } catch (e) {
+    console.error('Error deleting bank card:', e);
+  }
+};
+
+export const setDefaultBankCard = (id: string): void => {
+  try {
+    const currentData = loadProfileData();
+    const updatedData: ProfileData = {
+      ...currentData,
+      bankCards: (currentData.bankCards || []).map(c => ({
+        ...c,
+        isDefault: c.id === id
+      }))
+    };
+    
+    saveProfileData(updatedData);
+  } catch (e) {
+    console.error('Error setting default bank card:', e);
   }
 };
 

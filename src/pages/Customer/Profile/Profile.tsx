@@ -4,8 +4,9 @@ import { UserInfoCard } from '../../../components/ProfilePageComponents/UserInfo
 import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHistory';
 import { AddressBook } from '../../../components/ProfilePageComponents/AddressBook';
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
-import { loadProfileData, saveProfileData, updatePassword, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned, Lock } from 'lucide-react';
+import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
+import { loadProfileData, saveProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
+import { User, Package, MapPinned, Lock, CreditCard } from 'lucide-react';
 
 const Profile: React.FC = () => {
   const [data, setData] = useState<ProfileData | null>(null);
@@ -78,13 +79,35 @@ const Profile: React.FC = () => {
     setData(loadProfileData());
   };
 
-  const [active, setActive] = useState<'info' | 'orders' | 'addresses' | 'password'>('info');
+  // Bank card management functions
+  const handleAddBankCard = (card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>) => {
+    addBankCard(card);
+    setData(loadProfileData());
+  };
+
+  const handleEditBankCard = (id: string, card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>) => {
+    updateBankCard(id, card);
+    setData(loadProfileData());
+  };
+
+  const handleDeleteBankCard = (id: string) => {
+    deleteBankCard(id);
+    setData(loadProfileData());
+  };
+
+  const handleSetDefaultBankCard = (id: string) => {
+    setDefaultBankCard(id);
+    setData(loadProfileData());
+  };
+
+  const [active, setActive] = useState<'info' | 'orders' | 'addresses' | 'password' | 'bank'>('info');
 
   const navItems = useMemo(() => ([
     { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
     { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
     { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
     { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
+    { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
   ]), []);
 
   return (
@@ -144,6 +167,16 @@ const Profile: React.FC = () => {
               {active === 'password' && (
                 <ChangePassword 
                   onUpdatePassword={handleUpdatePassword}
+                />
+              )}
+
+              {active === 'bank' && (
+                <BankConnect 
+                  bankCards={data.bankCards || []}
+                  onAddCard={handleAddBankCard}
+                  onEditCard={handleEditBankCard}
+                  onDeleteCard={handleDeleteBankCard}
+                  onSetDefault={handleSetDefaultBankCard}
                 />
               )}
             </section>
