@@ -146,6 +146,8 @@ const Profile: React.FC = () => {
                   gender={data.user.gender} 
                   dateOfBirth={data.user.dateOfBirth}
                   avatar={data.user.avatar}
+                  membershipPoints={data.user.membershipPoints}
+                  membershipLevel={data.user.membershipLevel}
                   onUpdate={(next) => handleUpdateUser(next)}
                 />
               )}
