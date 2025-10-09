@@ -8,6 +8,50 @@ import type {
   ApiError
 } from '../../types/api';
 
+// Lightweight JWT helpers scoped to this file
+function base64UrlDecode(input: string): string {
+  try {
+    const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '==='.slice((base64.length + 3) % 4);
+    if (typeof window !== 'undefined' && typeof window.atob === 'function') {
+      return decodeURIComponent(
+        Array.prototype.map
+          .call(window.atob(padded), (c: string) => `%${('00' + c.charCodeAt(0).toString(16)).slice(-2)}`)
+          .join('')
+      );
+    }
+    // @ts-ignore Node fallback if available
+    return Buffer.from(padded, 'base64').toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  const payloadStr = base64UrlDecode(parts[1]);
+  if (!payloadStr) return null;
+  try {
+    return JSON.parse(payloadStr) as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
+function extractAccountIdFromToken(token: string): string | null {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+  const possibleKeys = ['accountId', 'account_id', 'accId', 'aid', 'id', 'sub'];
+  for (const key of possibleKeys) {
+    if (payload[key] !== undefined && payload[key] !== null) {
+      return String(payload[key]);
+    }
+  }
+  return null;
+}
+
 // Base API configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_TIMEOUT = 10000; // 10 seconds
@@ -149,6 +193,21 @@ export class CustomerAuthService {
         localStorage.setItem('customer_token', response.data.accessToken);
         localStorage.setItem('customer_user', JSON.stringify(response.data.user));
         localStorage.setItem('token_type', response.data.tokenType);
+
+        // Decode accountId from token and store/log it
+        const accountId = extractAccountIdFromToken(response.data.accessToken);
+        if (accountId) {
+          localStorage.setItem('account_id', accountId);
+          console.log('👤 Account ID:', accountId);
+        }
+
+        // Also decode and log userId if present in token payload
+        const payload = decodeJwtPayload(response.data.accessToken);
+        const customerId = payload?.customerId ?? payload?.uid ?? null;
+        if (customerId) {
+          localStorage.setItem('customer_id', String(customerId));
+          console.log('🆔 Customer ID:', String(customerId));
+        }
       }
       
       return response;
@@ -223,6 +282,19 @@ export class CustomerAuthService {
    */
   static getToken(): string | null {
     return localStorage.getItem('customer_token');
+  }
+
+  /**
+   * Get decoded account id (from token or cache)
+   */
+  static getAccountId(): string | null {
+    const cached = localStorage.getItem('account_id');
+    if (cached) return cached;
+    const token = this.getToken();
+    if (!token) return null;
+    const accountId = extractAccountIdFromToken(token);
+    if (accountId) localStorage.setItem('account_id', accountId);
+    return accountId;
   }
 
   /**

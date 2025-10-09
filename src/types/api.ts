@@ -34,6 +34,8 @@ export interface CustomerLoginResponse {
     accessToken: string;
     user: {
       email: string;
+      accountId: string;
+      userId: string;
       fullName: string;
       role: string;
     };
@@ -68,5 +70,61 @@ export interface CustomerProfile {
   createdAt?: string;
   updatedAt?: string;
 }
+
+// Customer profile response from API (detailed payload)
+export interface CustomerProfileResponse {
+  id: string;
+  fullName: string;
+  userName: string;
+  email: string;
+  phoneNumber: string;
+  gender: string | null;
+  dateOfBirth: string | null;
+  avatarURL: string | null;
+  status: 'active' | string;
+  twoFactorEnabled: boolean;
+  kycStatus: 'none' | string;
+  lastLogin: string | null;
+  addressCount: number;
+  loyaltyPoints: number;
+  loyaltyLevel: string | null;
+  voucherCount: number;
+  orderCount: number;
+  cancelCount: number;
+  returnCount: number;
+  unpaidOrderCount: number;
+  lastOrderDate: string | null;
+  preferredCategory: string | null;
+}
+
+// Customer Profile Request
+export interface CustomerProfileRequest {
+  userId: string;
+}
+
+
+// update customer profile request
+export interface UpdateCustomerRequest {
+  userId: string; // bắt buộc
+  fullName?: string;
+  userName?: string;
+  email?: string;
+  phoneNumber?: string;
+  gender?: 'male' | 'female' | 'other' | null;
+  dateOfBirth?: string | null; // ISO yyyy-MM-dd
+  avatarURL?: string | null;
+  status?: 'active' | 'inactive' | 'suspended' | null;
+  twoFactorEnabled?: boolean;
+  kycStatus?: 'none' | 'pending' | 'verified' | null;
+  preferredCategory?: string | null;
+  loyaltyPoints?: number;
+  loyaltyLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | null;
+}
+
+
+
+
+
+
 
 export default {};

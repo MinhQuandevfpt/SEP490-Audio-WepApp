@@ -7,6 +7,7 @@ import { ChangePassword } from '../../../components/ProfilePageComponents/Change
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
 import { loadProfileData, saveProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
 import { User, Package, MapPinned, Lock, CreditCard } from 'lucide-react';
+// UserInfoCard đã tự xử lý dữ liệu và gọi API, trang Profile không còn xử lý
 
 const Profile: React.FC = () => {
   const [data, setData] = useState<ProfileData | null>(null);
@@ -139,17 +140,7 @@ const Profile: React.FC = () => {
             {/* Right content */}
             <section className="lg:col-span-2 space-y-6">
               {active === 'info' && (
-                <UserInfoCard 
-                  fullName={data.user.fullName} 
-                  email={data.user.email} 
-                  phone={data.user.phone} 
-                  gender={data.user.gender} 
-                  dateOfBirth={data.user.dateOfBirth}
-                  avatar={data.user.avatar}
-                  membershipPoints={data.user.membershipPoints}
-                  membershipLevel={data.user.membershipLevel}
-                  onUpdate={(next) => handleUpdateUser(next)}
-                />
+                <UserInfoCard />
               )}
 
               {active === 'orders' && (

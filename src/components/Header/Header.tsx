@@ -28,6 +28,17 @@ const Header: React.FC = () => {
     setCurrentUser(null);
     window.location.href = '/'; // Hard refresh to clear any cached state
   };
+
+  const getEncodedCustomerParam = () => {
+    try {
+      const id = localStorage.getItem('customer_id');
+      if (!id) return '';
+      const encoded = btoa(id).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+      return `?u=${encoded}`;
+    } catch {
+      return '';
+    }
+  };
   return (
     <header className="bg-white border-b border-gray-200">
       {/* Top bar */}
@@ -147,7 +158,7 @@ const Header: React.FC = () => {
               <span className="text-gray-300">|</span>
 
               {/* User Account */}
-              <Link to="/account" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
+              <Link to={`/account${getEncodedCustomerParam()}`} className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
                 <User className="w-5 h-5" />
                 <span className="text-sm">Tài khoản</span>
               </Link>

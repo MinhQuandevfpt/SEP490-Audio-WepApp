@@ -1,5 +1,9 @@
 import React from 'react';
 import { User as UserIcon, Camera, Upload, X, Check, Star, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import ProfileCustomerService from '../../../services/customer/Profilecustomer';
+import { loadProfileData, saveProfileData, type ProfileData } from '../../../data/profiledata';
 
 interface UserInfoCardProps {
   fullName: string;
@@ -13,7 +17,8 @@ interface UserInfoCardProps {
   onUpdate?: (nextUser: { fullName: string; email: string; phone: string; gender: 'male' | 'female' | 'other'; dateOfBirth: string; avatar?: string; membershipPoints?: number; membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'; }) => void;
 }
 
-const UserInfoCard: React.FC<UserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
+// Presentational component
+export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     const first = parts[0]?.charAt(0) ?? '';
@@ -462,6 +467,113 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ fullName, email, phone, gen
         </div>
       )}
     </div>
+  );
+};
+
+// Container component: handles fetching/merging data and renders PresentationalUserInfoCard
+const UserInfoCard: React.FC = () => {
+  const location = useLocation();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [apiProfile, setApiProfile] = useState<{
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    gender?: 'male' | 'female' | 'other';
+    dateOfBirth?: string;
+    avatar?: string;
+    membershipPoints?: number;
+    membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+  } | null>(null);
+  const [baseUser, setBaseUser] = useState<ProfileData['user'] | null>(null);
+  const [hasCustomerId, setHasCustomerId] = useState<boolean>(false);
+
+  useEffect(() => {
+    // load local baseline
+    const local = loadProfileData();
+    setBaseUser(local?.user ?? null);
+
+    // decode ?u from query
+    const params = new URLSearchParams(location.search);
+    const encoded = params.get('u');
+    let customerId = localStorage.getItem('customer_id');
+    if (encoded) {
+      try {
+        const padded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+        const b64 = padded + '==='.slice((padded.length + 3) % 4);
+        const decoded = atob(b64);
+        if (decoded) customerId = decoded;
+      } catch {
+        // ignore
+      }
+    }
+    if (!customerId) return;
+    setHasCustomerId(true);
+    setLoading(true);
+    ProfileCustomerService.getByCustomerId(customerId)
+      .then((p) => {
+        const gender = (p.gender || '').toString().toLowerCase();
+        const mappedGender: 'male' | 'female' | 'other' = gender === 'male' ? 'male' : gender === 'female' ? 'female' : 'other';
+        const level = (p.loyaltyLevel || '').toString().toLowerCase();
+        const mappedLevel: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | undefined =
+          level === 'bronze' || level === 'silver' || level === 'gold' || level === 'platinum' || level === 'diamond' ? (level as any) : undefined;
+        setApiProfile({
+          fullName: p.fullName,
+          email: p.email,
+          phone: p.phoneNumber,
+          gender: mappedGender,
+          dateOfBirth: p.dateOfBirth ?? undefined,
+          avatar: p.avatarURL ?? undefined,
+          membershipPoints: p.loyaltyPoints ?? 0,
+          membershipLevel: mappedLevel || 'bronze',
+        });
+      })
+      .finally(() => setLoading(false));
+  }, [location.search]);
+
+  const handleLocalUpdate = (nextUser: { fullName: string; email: string; phone: string; gender: 'male' | 'female' | 'other'; dateOfBirth: string; avatar?: string; membershipPoints?: number; membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'; }) => {
+    const current = loadProfileData();
+    if (!current) return;
+    const updated: ProfileData = { ...current, user: { ...current.user, ...nextUser } } as ProfileData;
+    saveProfileData(updated);
+    setBaseUser(updated.user);
+  };
+
+  if (!baseUser) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
+        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+        <div className="h-4 bg-gray-200 rounded w-2/3" />
+      </div>
+    );
+  }
+
+  if (hasCustomerId && (loading || !apiProfile)) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
+        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+        <div className="h-4 bg-gray-200 rounded w-2/3" />
+      </div>
+    );
+  }
+
+  const merged = {
+    fullName: apiProfile?.fullName ?? baseUser.fullName,
+    email: apiProfile?.email ?? baseUser.email,
+    phone: apiProfile?.phone ?? baseUser.phone,
+    gender: apiProfile?.gender ?? baseUser.gender,
+    dateOfBirth: apiProfile?.dateOfBirth ?? baseUser.dateOfBirth,
+    avatar: apiProfile?.avatar ?? baseUser.avatar,
+    membershipPoints: apiProfile?.membershipPoints ?? baseUser.membershipPoints,
+    membershipLevel: apiProfile?.membershipLevel ?? baseUser.membershipLevel,
+  } as UserInfoCardProps;
+
+  return (
+    <PresentationalUserInfoCard
+      {...merged}
+      onUpdate={handleLocalUpdate}
+    />
   );
 };
 
