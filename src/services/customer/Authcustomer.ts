@@ -76,12 +76,23 @@ class HttpClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
+      // Get token from localStorage for authenticated requests
+      const token = localStorage.getItem('customer_token');
+      const defaultHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': '*/*',
+      };
+      
+      // Add Authorization header if token exists
+      if (token) {
+        defaultHeaders['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': '*/*',
+          ...defaultHeaders,
           ...options.headers,
         },
       });
@@ -191,7 +202,6 @@ export class CustomerAuthService {
       // Store token in localStorage
       if (response.data?.accessToken) {
         localStorage.setItem('customer_token', response.data.accessToken);
-        localStorage.setItem('customer_user', JSON.stringify(response.data.user));
         localStorage.setItem('token_type', response.data.tokenType);
 
         // Decode accountId from token and store/log it
@@ -208,6 +218,15 @@ export class CustomerAuthService {
           localStorage.setItem('customer_id', String(customerId));
           console.log('🆔 Customer ID:', String(customerId));
         }
+        
+        // Convert API response to match database schema (fullName -> full_name)
+        const userDataForStorage = {
+          ...response.data.user,
+          full_name: response.data.user.fullName // Convert to snake_case to match database
+        };
+        
+        console.log('📝 Storing user info with full_name:', userDataForStorage);
+        localStorage.setItem('customer_user', JSON.stringify(userDataForStorage));
       }
       
       return response;
@@ -221,9 +240,23 @@ export class CustomerAuthService {
    * Logout customer
    */
   static logout(): void {
+    // Remove customer auth tokens
     localStorage.removeItem('customer_token');
     localStorage.removeItem('customer_user');
     localStorage.removeItem('token_type');
+    localStorage.removeItem('account_id');      // New from thongln branch
+    localStorage.removeItem('customer_id');     // New from thongln branch
+    
+    // Remove OAuth2 related data
+    localStorage.removeItem('token');
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('accountId');
+    localStorage.removeItem('customerId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('authStateChanged');
+    
     console.log('👋 Customer logged out');
   }
 

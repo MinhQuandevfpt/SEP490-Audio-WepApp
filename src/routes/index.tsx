@@ -8,6 +8,8 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
+import OAuth2Callback from '../pages/OAuth2Callback';
+import OAuth2Success from '../pages/OAuth2Success';
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +23,14 @@ export const router = createBrowserRouter([
   {
     path: '/product/:id',
     element: <ProductDetail />
+  },
+  {
+    path: '/oauth2/callback',
+    element: <OAuth2Callback />
+  },
+  {
+    path: '/oauth-success',
+    element: <OAuth2Success />
   },
   {
     path: '/auth',

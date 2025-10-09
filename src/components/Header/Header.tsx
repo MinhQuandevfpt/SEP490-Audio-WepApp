@@ -19,7 +19,20 @@ const Header: React.FC = () => {
     
     // Listen for storage changes (when user logs in/out)
     window.addEventListener('storage', checkAuth);
-    return () => window.removeEventListener('storage', checkAuth);
+    
+    // Check for auth state changes every 500ms (for OAuth2 flow)
+    const authCheckInterval = setInterval(() => {
+      const authStateChanged = localStorage.getItem('authStateChanged');
+      if (authStateChanged) {
+        localStorage.removeItem('authStateChanged');
+        checkAuth();
+      }
+    }, 500);
+    
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+      clearInterval(authCheckInterval);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -65,7 +78,7 @@ const Header: React.FC = () => {
               {isAuthenticated ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-600">
-                    Xin chào, <span className="font-medium text-gray-800">{currentUser?.fullName}</span>
+                    Xin chào, <span className="font-medium text-gray-800">{currentUser?.full_name}</span>
                   </span>
                   <button
                     onClick={handleLogout}

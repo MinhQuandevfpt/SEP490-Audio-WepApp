@@ -36,7 +36,7 @@ export interface CustomerLoginResponse {
       email: string;
       accountId: string;
       userId: string;
-      fullName: string;
+      fullName: string;    // API login trả về fullName (camelCase)
       role: string;
     };
     tokenType: string;
@@ -58,10 +58,10 @@ export interface ApiError {
   errors?: Record<string, string[]>;
 }
 
-// User Profile
+// User Profile (consistent with database schema)
 export interface CustomerProfile {
   email: string;
-  fullName: string;
+  full_name: string;   // Primary field - matches database column
   role: string;
   phone?: string;
   dateOfBirth?: string;

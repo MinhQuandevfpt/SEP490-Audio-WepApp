@@ -69,7 +69,7 @@ Response (200):
     "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
     "user": {
       "email": "quan12345@gmail.com",
-      "fullName": "Thái Trần Minh Quân", 
+      "name": "Thái Trần Minh Quân", 
       "role": "CUSTOMER"
     },
     "tokenType": "Bearer "

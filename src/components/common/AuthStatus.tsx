@@ -18,7 +18,7 @@ const AuthStatus: React.FC<AuthStatusProps> = ({ children }) => {
     <div className="relative">
       {/* User info overlay - có thể show ở header */}
       <div className="hidden" id="user-info">
-        <p>Logged in as: {currentUser?.fullName}</p>
+        <p>Logged in as: {currentUser?.full_name}</p>
         <p>Email: {currentUser?.email}</p>
         <p>Role: {currentUser?.role}</p>
       </div>

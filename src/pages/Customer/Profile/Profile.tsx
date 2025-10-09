@@ -16,12 +16,13 @@ const Profile: React.FC = () => {
     setData(loadProfileData());
   }, []);
 
-  const handleUpdateUser = (next: ProfileData['user']) => {
-    if (!data) return;
-    const updated: ProfileData = { ...data, user: next };
-    setData(updated);
-    saveProfileData(updated);
-  };
+  // TODO: This function is not used yet, will be needed for profile updates
+  // const handleUpdateUser = (next: ProfileData['user']) => {
+  //   if (!data) return;
+  //   const updated: ProfileData = { ...data, user: next };
+  //   setData(updated);
+  //   saveProfileData(updated);
+  // };
 
   // Address management functions
   const handleAddAddress = (newAddress: Omit<ProfileData['addresses'][0], 'id'>) => {

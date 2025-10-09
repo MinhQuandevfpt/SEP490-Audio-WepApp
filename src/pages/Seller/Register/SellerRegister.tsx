@@ -11,7 +11,7 @@ const SellerRegister: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     // Step 1: Personal Info
-    fullName: '',
+    name: '',
     email: '',
     phone: '',
     password: '',
@@ -107,7 +107,7 @@ const SellerRegister: React.FC = () => {
           <input
             type="text"
             name="fullName"
-            value={formData.fullName}
+            value={formData.name}
             onChange={handleInputChange}
             className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Nhập họ và tên"
