@@ -114,7 +114,7 @@ const Register: React.FC = () => {
             </div>
             <input
               type="text"
-              name="fullName"
+              name="name"
               value={formData.name}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"

@@ -221,11 +221,14 @@ export class CustomerAuthService {
         
         // Convert API response to match database schema (fullName -> full_name)
         const userDataForStorage = {
-          ...response.data.user,
-          full_name: response.data.user.fullName // Convert to snake_case to match database
+          email: response.data.user.email,
+          full_name: response.data.user.fullName, // Convert to snake_case to match database
+          role: response.data.user.role,
+          accountId: accountId,
+          userId: response.data.user.userId
         };
         
-        console.log('📝 Storing user info with full_name:', userDataForStorage);
+        console.log('📝 Storing user info with full_name only:', userDataForStorage);
         localStorage.setItem('customer_user', JSON.stringify(userDataForStorage));
       }
       

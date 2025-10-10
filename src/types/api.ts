@@ -1,6 +1,3 @@
-// API Types for Customer Authentication
-
-// Register Request
 export interface CustomerRegisterRequest {
   name: string;
   password: string;
@@ -21,8 +18,7 @@ export interface CustomerRegisterResponse {
 
 // Login Request
 export interface CustomerLoginRequest {
-  email?: string;
-  phone?: string;
+  email: string;      // Required as per swagger
   password: string;
 }
 
@@ -36,7 +32,7 @@ export interface CustomerLoginResponse {
       email: string;
       accountId: string;
       userId: string;
-      fullName: string;    // API login trả về fullName (camelCase)
+      fullName: string;    
       role: string;
     };
     tokenType: string;
@@ -61,11 +57,11 @@ export interface ApiError {
 // User Profile (consistent with database schema)
 export interface CustomerProfile {
   email: string;
-  full_name: string;   // Primary field - matches database column
+  full_name: string;   
   role: string;
   phone?: string;
   dateOfBirth?: string;
-  gender?: 'male' | 'female' | 'other';
+  gender?: 'MALE' | 'FEMALE';
   avatar?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -78,16 +74,16 @@ export interface CustomerProfileResponse {
   userName: string;
   email: string;
   phoneNumber: string;
-  gender: string | null;
+  gender: 'MALE' | 'FEMALE' | null;
   dateOfBirth: string | null;
   avatarURL: string | null;
-  status: 'active' | string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   twoFactorEnabled: boolean;
-  kycStatus: 'none' | string;
+  kycStatus: 'NONE' | 'PENDING' | 'VERIFIED';
   lastLogin: string | null;
   addressCount: number;
   loyaltyPoints: number;
-  loyaltyLevel: string | null;
+  loyaltyLevel: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
   voucherCount: number;
   orderCount: number;
   cancelCount: number;
@@ -110,15 +106,15 @@ export interface UpdateCustomerRequest {
   userName?: string;
   email?: string;
   phoneNumber?: string;
-  gender?: 'male' | 'female' | 'other' | null;
+  gender?: 'MALE' | 'FEMALE' | null;
   dateOfBirth?: string | null; // ISO yyyy-MM-dd
   avatarURL?: string | null;
-  status?: 'active' | 'inactive' | 'suspended' | null;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | null;
   twoFactorEnabled?: boolean;
-  kycStatus?: 'none' | 'pending' | 'verified' | null;
+  kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | null;
   preferredCategory?: string | null;
   loyaltyPoints?: number;
-  loyaltyLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | null;
+  loyaltyLevel?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
 }
 
 

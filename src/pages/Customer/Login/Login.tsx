@@ -38,20 +38,21 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Prepare login data - Backend chỉ cần email và password
+    // Prepare login data - API chỉ support email login
     const loginData = {
-      email: loginMethod === 'email' ? formData.email : '', // Nếu dùng phone thì có thể cần API khác
+      email: formData.email,
       password: formData.password
     };
 
     // Basic validation
-    if (loginMethod === 'email' && !loginData.email) {
+    if (!loginData.email) {
       showCenterError('Vui lòng nhập email!', 'Thiếu thông tin');
       return;
     }
     
-    if (loginMethod === 'phone' && !formData.phone) {
-      showCenterError('Vui lòng nhập số điện thoại!', 'Thiếu thông tin');
+    // Note: Phone login not supported by current API
+    if (loginMethod === 'phone') {
+      showCenterError('Đăng nhập bằng số điện thoại chưa được hỗ trợ!', 'Chức năng chưa có');
       return;
     }
     
