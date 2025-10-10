@@ -31,7 +31,7 @@ export interface CustomerLoginResponse {
     user: {
       email: string;
       accountId: string;
-      userId: string;
+      customerId: string;
       fullName: string;    
       role: string;
     };
@@ -95,13 +95,13 @@ export interface CustomerProfileResponse {
 
 // Customer Profile Request
 export interface CustomerProfileRequest {
-  userId: string;
+  customerId: string;
 }
 
 
 // update customer profile request
 export interface UpdateCustomerRequest {
-  userId: string; // bắt buộc
+  customerId: string; // bắt buộc
   fullName?: string;
   userName?: string;
   email?: string;

@@ -225,7 +225,7 @@ export class CustomerAuthService {
           full_name: response.data.user.fullName, // Convert to snake_case to match database
           role: response.data.user.role,
           accountId: accountId,
-          userId: response.data.user.userId
+          customerId: customerId
         };
         
         console.log('📝 Storing user info with full_name only:', userDataForStorage);
