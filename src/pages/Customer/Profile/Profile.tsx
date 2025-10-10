@@ -5,7 +5,7 @@ import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHis
 import { AddressBook } from '../../../components/ProfilePageComponents/AddressBook';
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
-import { loadProfileData, saveProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
+import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
 import { User, Package, MapPinned, Lock, CreditCard } from 'lucide-react';
 // UserInfoCard đã tự xử lý dữ liệu và gọi API, trang Profile không còn xử lý
 
@@ -24,55 +24,6 @@ const Profile: React.FC = () => {
   //   saveProfileData(updated);
   // };
 
-  // Address management functions
-  const handleAddAddress = (newAddress: Omit<ProfileData['addresses'][0], 'id'>) => {
-    if (!data) return;
-    const addressWithId = {
-      ...newAddress,
-      id: `ADDR${Date.now()}`, // Simple ID generation
-    };
-    const updated: ProfileData = {
-      ...data,
-      addresses: [...data.addresses, addressWithId]
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
-
-  const handleEditAddress = (id: string, updatedAddress: Omit<ProfileData['addresses'][0], 'id'>) => {
-    if (!data) return;
-    const updated: ProfileData = {
-      ...data,
-      addresses: data.addresses.map(addr => 
-        addr.id === id ? { ...updatedAddress, id } : addr
-      )
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
-
-  const handleDeleteAddress = (id: string) => {
-    if (!data) return;
-    const updated: ProfileData = {
-      ...data,
-      addresses: data.addresses.filter(addr => addr.id !== id)
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
-
-  const handleSetDefaultAddress = (id: string) => {
-    if (!data) return;
-    const updated: ProfileData = {
-      ...data,
-      addresses: data.addresses.map(addr => ({
-        ...addr,
-        isDefault: addr.id === id
-      }))
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
 
   // Password management function
   const handleUpdatePassword = (newPassword: string) => {
@@ -149,13 +100,7 @@ const Profile: React.FC = () => {
               )}
 
               {active === 'addresses' && (
-                <AddressBook 
-                  addresses={data.addresses}
-                  onAddAddress={handleAddAddress}
-                  onEditAddress={handleEditAddress}
-                  onDeleteAddress={handleDeleteAddress}
-                  onSetDefault={handleSetDefaultAddress}
-                />
+                <AddressBook />
               )}
 
               {active === 'password' && (

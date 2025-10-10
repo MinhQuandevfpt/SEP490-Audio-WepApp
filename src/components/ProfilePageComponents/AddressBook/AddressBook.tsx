@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Edit, MapPin, Trash2, Check } from 'lucide-react';
+import ProfileCustomerService from '../../../services/customer/Profilecustomer';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 
 interface AddressItem {
   id: string;
@@ -9,44 +11,136 @@ interface AddressItem {
   isDefault?: boolean;
 }
 
-interface AddressBookProps {
-  addresses: AddressItem[];
-  onAddAddress?: (address: Omit<AddressItem, 'id'>) => void;
-  onEditAddress?: (id: string, address: Omit<AddressItem, 'id'>) => void;
-  onDeleteAddress?: (id: string) => void;
-  onSetDefault?: (id: string) => void;
-}
-
-const AddressBook: React.FC<AddressBookProps> = ({ 
-  addresses, 
-  onAddAddress, 
-  onEditAddress, 
-  onDeleteAddress, 
-  onSetDefault 
-}) => {
+const AddressBook: React.FC = () => {
+  const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    country: 'Việt Nam',
+    province: '',
+    district: '',
+    ward: '',
+    street: '',
     addressLine: '',
+    postalCode: '',
+    note: '',
     isDefault: false
   });
 
-  const handleAddAddress = () => {
-    if (onAddAddress && formData.name && formData.phone && formData.addressLine) {
-      onAddAddress(formData);
-      setFormData({ name: '', phone: '', addressLine: '', isDefault: false });
-      setShowAddForm(false);
+  useEffect(() => {
+    const cid = localStorage.getItem('customer_id');
+    if (!cid) return;
+    ProfileCustomerService.getAddresses(cid)
+      .then((list) => {
+        const mapped = list.map((a) => ({
+          id: a.id,
+          name: a.receiverName,
+          phone: a.phoneNumber,
+          addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
+          isDefault: !!a.default,
+        }));
+        setAddresses(mapped);
+      })
+      .catch(() => {
+        // silent
+      });
+  }, []);
+
+  // Load provinces list on mount (VN public API)
+  const [provinceOptions, setProvinceOptions] = useState<Array<{ code: number; name: string }>>([]);
+  const [districtOptions, setDistrictOptions] = useState<Array<{ code: number; name: string }>>([]);
+  const [wardOptions, setWardOptions] = useState<Array<{ code: number; name: string }>>([]);
+  useEffect(() => {
+    fetch('https://provinces.open-api.vn/api/p/')
+      .then((r) => r.json())
+      .then((data: Array<{ code: number; name: string }>) => setProvinceOptions(data))
+      .catch(() => setProvinceOptions([]));
+  }, []);
+
+  // When province changes, load districts
+  useEffect(() => {
+    const selected = provinceOptions.find((p) => p.name === formData.province);
+    if (!selected) {
+      setDistrictOptions([]);
+      setWardOptions([]);
+      return;
     }
+    fetch(`https://provinces.open-api.vn/api/p/${selected.code}?depth=2`)
+      .then((r) => r.json())
+      .then((data: { districts?: Array<{ code: number; name: string }> }) => {
+        setDistrictOptions(data?.districts || []);
+        setWardOptions([]);
+      })
+      .catch(() => {
+        setDistrictOptions([]);
+        setWardOptions([]);
+      });
+  }, [formData.province, provinceOptions]);
+
+  // When district changes, load wards
+  useEffect(() => {
+    const district = districtOptions.find((d) => d.name === formData.district);
+    if (!district) {
+      setWardOptions([]);
+      return;
+    }
+    fetch(`https://provinces.open-api.vn/api/d/${district.code}?depth=2`)
+      .then((r) => r.json())
+      .then((data: { wards?: Array<{ code: number; name: string }> }) => setWardOptions(data?.wards || []))
+      .catch(() => setWardOptions([]));
+  }, [formData.district, districtOptions]);
+
+  const handleAddAddress = () => {
+    const cid = localStorage.getItem('customer_id');
+    if (!cid || !formData.name || !formData.phone || !formData.addressLine) return;
+    const payload = {
+      receiverName: formData.name,
+      phoneNumber: formData.phone,
+      label: 'HOME' as const,
+      country: formData.country,
+      province: formData.province,
+      district: formData.district,
+      ward: formData.ward,
+      street: formData.street,
+      addressLine: formData.addressLine,
+      postalCode: formData.postalCode,
+      note: formData.note,
+      isDefault: !!formData.isDefault,
+    };
+    ProfileCustomerService.addAddress(cid, payload)
+      .then((resp) => {
+        const a: any = resp?.data;
+        if (!a) return;
+        const item: AddressItem = {
+          id: a.id,
+          name: a.receiverName,
+          phone: a.phoneNumber,
+          addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
+          isDefault: !!(a.default ?? a.isDefault),
+        };
+        setAddresses((prev) => [...prev, item]);
+        showCenterSuccess('Thêm địa chỉ thành công', 'Thành công');
+        setFormData({ name: '', phone: '', country: '', province: '', district: '', ward: '', street: '', addressLine: '', postalCode: '', note: '', isDefault: false });
+        setShowAddForm(false);
+      })
+      .catch((e) => showCenterError(e?.message || 'Thêm địa chỉ thất bại', 'Lỗi'));
   };
 
   const handleEditAddress = (address: AddressItem) => {
     setFormData({
       name: address.name,
       phone: address.phone,
+      country: '',
+      province: '',
+      district: '',
+      ward: '',
+      street: '',
       addressLine: address.addressLine,
+      postalCode: '',
+      note: '',
       isDefault: address.isDefault || false
     });
     setEditingAddress(address.id);
@@ -54,30 +148,55 @@ const AddressBook: React.FC<AddressBookProps> = ({
   };
 
   const handleSaveEdit = () => {
-    if (onEditAddress && editingAddress && formData.name && formData.phone && formData.addressLine) {
-      onEditAddress(editingAddress, formData);
-      setEditingAddress(null);
-      setFormData({ name: '', phone: '', addressLine: '', isDefault: false });
-    }
+    const cid = localStorage.getItem('customer_id');
+    if (!cid || !editingAddress || !formData.name || !formData.phone || !formData.addressLine) return;
+    const payload = {
+      receiverName: formData.name,
+      phoneNumber: formData.phone,
+      label: 'HOME' as const,
+      country: formData.country,
+      province: formData.province,
+      district: formData.district,
+      ward: formData.ward,
+      street: formData.street,
+      addressLine: formData.addressLine,
+      postalCode: formData.postalCode,
+      note: formData.note,
+      isDefault: !!formData.isDefault,
+    };
+    ProfileCustomerService.updateAddress(cid, editingAddress, payload)
+      .then((a) => {
+        const item: AddressItem = {
+          id: a.id,
+          name: a.receiverName,
+          phone: a.phoneNumber,
+          addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
+          isDefault: !!(a.default ?? (a as any).isDefault),
+        };
+        setAddresses((prev) => prev.map(addr => addr.id === editingAddress ? item : addr));
+        showCenterSuccess('Cập nhật địa chỉ thành công', 'Thành công');
+        setEditingAddress(null);
+        setFormData({ name: '', phone: '', country: '', province: '', district: '', ward: '', street: '', addressLine: '', postalCode: '', note: '', isDefault: false });
+      })
+      .catch((e) => showCenterError(e?.message || 'Cập nhật địa chỉ thất bại', 'Lỗi'));
   };
 
   const handleCancel = () => {
     setShowAddForm(false);
     setEditingAddress(null);
-    setFormData({ name: '', phone: '', addressLine: '', isDefault: false });
+    setFormData({ name: '', phone: '', country: '', province: '', district: '', ward: '', street: '', addressLine: '', postalCode: '', note: '', isDefault: false });
   };
 
   const handleDeleteAddress = (id: string) => {
-    if (onDeleteAddress && window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này?')) {
-      onDeleteAddress(id);
-      setSelectedAddress(null);
-    }
+    if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này?')) return;
+    // Chưa có API xóa -> cập nhật local
+    setAddresses((prev) => prev.filter(a => a.id !== id));
+    setSelectedAddress(null);
   };
 
   const handleSetDefault = (id: string) => {
-    if (onSetDefault) {
-      onSetDefault(id);
-    }
+    // Nếu backend có endpoint, có thể gọi updateAddress với isDefault=true
+    setAddresses((prev) => prev.map(a => ({ ...a, isDefault: a.id === id })));
   };
 
   return (
@@ -125,16 +244,94 @@ const AddressBook: React.FC<AddressBookProps> = ({
                 placeholder="Nhập số điện thoại"
               />
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Địa chỉ *
-              </label>
-              <textarea
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia</label>
+              <input
+                type="text"
+                value={formData.country}
+                disabled
+                className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tỉnh/Thành phố *</label>
+              <select
+                value={formData.province}
+                onChange={(e) => setFormData({ ...formData, province: e.target.value, district: '', ward: '' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+              >
+                <option value="">-- Chọn Tỉnh/Thành --</option>
+                {provinceOptions.map((p) => (
+                  <option key={p.code} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quận/Huyện *</label>
+              <select
+                value={formData.district}
+                onChange={(e) => setFormData({ ...formData, district: e.target.value, ward: '' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+                disabled={!formData.province}
+              >
+                <option value="">-- Chọn Quận/Huyện --</option>
+                {districtOptions.map((d) => (
+                  <option key={d.code} value={d.name}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phường/Xã *</label>
+              <select
+                value={formData.ward}
+                onChange={(e) => setFormData({ ...formData, ward: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+                disabled={!formData.district}
+              >
+                <option value="">-- Chọn Phường/Xã --</option>
+                {wardOptions.map((w) => (
+                  <option key={w.code} value={w.name}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Đường *</label>
+              <input
+                type="text"
+                value={formData.street}
+                onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="Ví dụ: Hà Huy Giáp"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Số nhà/Địa chỉ chi tiết *</label>
+              <input
+                type="text"
                 value={formData.addressLine}
                 onChange={(e) => setFormData({ ...formData, addressLine: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="Nhập địa chỉ chi tiết"
-                rows={3}
+                placeholder="Ví dụ: 58/4"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mã bưu chính</label>
+              <input
+                type="text"
+                value={formData.postalCode}
+                onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="Ví dụ: 70004"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+              <input
+                type="text"
+                value={formData.note}
+                onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="Ghi chú thêm (nếu có)"
               />
             </div>
             <div className="md:col-span-2">

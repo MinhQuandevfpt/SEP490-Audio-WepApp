@@ -1,4 +1,5 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import HomePage from '../pages/HomePage/HomePage';
 import Login from '../pages/Customer/Login';
 import Register from '../pages/Customer/Register';
@@ -10,6 +11,15 @@ import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
+import { CustomerAuthService } from '../services/customer/Authcustomer';
+
+function ProtectedRoute({ element }: { element: ReactElement }) {
+  const isAuthenticated = CustomerAuthService.isAuthenticated();
+  if (!isAuthenticated) {
+    return <Navigate to="/auth/login" replace />;
+  }
+  return element;
+}
 
 export const router = createBrowserRouter([
   {
@@ -18,7 +28,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/account',
-    element: <Profile />
+    element: <ProtectedRoute element={<Profile />} />
   },
   {
     path: '/product/:id',

@@ -117,6 +117,92 @@ export interface UpdateCustomerRequest {
   loyaltyLevel?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
 }
 
+// Customer Address
+export type AddressLabel = 'HOME' | 'WORK' | 'OTHER';
+
+export interface AddCustomerAddressRequest {
+  customerId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string;
+  isDefault: boolean;
+}
+
+export interface CustomerAddress {
+  id: string;
+  customerId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string | null;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AddCustomerAddressResponse extends ApiResponse<CustomerAddress> {}
+
+// Get customer addresses (request requires customerId)
+export interface GetCustomerAddressesRequest {
+  customerId: string;
+}
+
+// API may return an array with 'default' instead of 'isDefault'
+export interface CustomerAddressApiItem {
+  id: string;
+  customerId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string;
+  default: boolean;
+}
+
+export type GetCustomerAddressesResponse = CustomerAddressApiItem[];
+
+// Update customer address
+export interface UpdateCustomerAddressRequest {
+  customerId: string;
+  addressId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string;
+  isDefault: boolean;
+}
+
+// Response returns a single address object using 'default' flag
+export type UpdateCustomerAddressResponse = CustomerAddressApiItem;
+
 
 
 
