@@ -1,37 +1,30 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
-  Eye, EyeOff, Mail, Lock, User, Phone, MapPin, 
-  Building, FileText, CreditCard, Store, CheckCircle 
+  Eye, 
+  EyeOff, 
+  User, 
+  Mail, 
+  Phone, 
+  Lock, 
+  Store,
 } from 'lucide-react';
+import { showTikiNotification } from '../../../utils/notification';
+import { SellerAuthService, type SellerRegisterRequest } from '../../../services/seller/AuthSeller';
 
 const SellerRegister: React.FC = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
-    // Step 1: Personal Info
+    // Basic account info only
     name: '',
     email: '',
     phone: '',
     password: '',
     confirmPassword: '',
-    
-    // Step 2: Business Info
-    storeName: '',
-    businessType: '',
-    businessRegistration: '',
-    taxCode: '',
-    address: '',
-    
-    // Step 3: Bank Info
-    bankName: '',
-    bankAccount: '',
-    accountHolder: '',
-    
-    // Agreements
     agreeTerms: false,
-    agreePolicy: false,
     agreeMarketing: false
   });
 
@@ -45,59 +38,65 @@ const SellerRegister: React.FC = () => {
     }));
   };
 
-  const handleNext = () => {
-    if (currentStep < 3) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Basic validation
     if (formData.password !== formData.confirmPassword) {
-      alert('Mật khẩu xác nhận không khớp!');
+      showTikiNotification('Mật khẩu xác nhận không khớp!', 'Lỗi', 'error');
       return;
     }
-    console.log('Seller register data:', formData);
+
+    if (formData.password.length < 6) {
+      showTikiNotification('Mật khẩu phải có ít nhất 6 ký tự!', 'Lỗi', 'error');
+      return;
+    }
+
+    if (!formData.agreeTerms) {
+      showTikiNotification('Bạn phải đồng ý với điều khoản dịch vụ để tiếp tục!', 'Lỗi', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Prepare registration data
+      const registerData: SellerRegisterRequest = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+      };
+
+      // Call seller register API
+      const response = await SellerAuthService.register(registerData);
+      
+      if (response.status === 201) {
+        showTikiNotification(
+          'Đăng ký thành công! Bạn sẽ được chuyển đến trang đăng nhập.', 
+          'Thành công', 
+          'success',
+          3000
+        );
+        
+        // Redirect to login page after successful registration
+        setTimeout(() => {
+          navigate('/seller/login');
+        }, 1500);
+      } else {
+        throw new Error(response.message || 'Đăng ký thất bại');
+      }
+    } catch (error: any) {
+      console.error('Registration failed:', error);
+      const errorMessage = error.message || 'Đăng ký thất bại. Vui lòng thử lại!';
+      showTikiNotification(errorMessage, 'Lỗi', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const renderStepIndicator = () => (
-    <div className="flex items-center justify-center mb-8">
-      {[1, 2, 3].map((step) => (
-        <React.Fragment key={step}>
-          <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-            currentStep >= step 
-              ? 'bg-blue-600 border-blue-600 text-white' 
-              : 'border-gray-300 text-gray-400'
-          }`}>
-            {currentStep > step ? (
-              <CheckCircle className="w-6 h-6" />
-            ) : (
-              <span className="font-semibold">{step}</span>
-            )}
-          </div>
-          {step < 3 && (
-            <div className={`w-16 h-1 mx-2 ${
-              currentStep > step ? 'bg-blue-600' : 'bg-gray-300'
-            }`} />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-
-  const renderStep1 = () => (
+  const renderRegisterForm = () => (
     <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-gray-800">Thông tin cá nhân</h3>
-        <p className="text-gray-600">Nhập thông tin cá nhân để tạo tài khoản</p>
-      </div>
-
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Họ và tên *
@@ -106,7 +105,7 @@ const SellerRegister: React.FC = () => {
           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            name="fullName"
+            name="name"
             value={formData.name}
             onChange={handleInputChange}
             className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -210,167 +209,6 @@ const SellerRegister: React.FC = () => {
           </button>
         </div>
       </div>
-    </div>
-  );
-
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-gray-800">Thông tin kinh doanh</h3>
-        <p className="text-gray-600">Cung cấp thông tin về cửa hàng của bạn</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Tên cửa hàng *
-        </label>
-        <div className="relative">
-          <Store className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            name="storeName"
-            value={formData.storeName}
-            onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Nhập tên cửa hàng"
-            required
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Loại hình kinh doanh *
-        </label>
-        <div className="relative">
-          <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <select
-            name="businessType"
-            value={formData.businessType}
-            onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            required
-          >
-            <option value="">Chọn loại hình kinh doanh</option>
-            <option value="individual">Cá nhân</option>
-            <option value="company">Công ty</option>
-            <option value="partnership">Hộ kinh doanh</option>
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Số giấy phép kinh doanh
-        </label>
-        <div className="relative">
-          <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            name="businessRegistration"
-            value={formData.businessRegistration}
-            onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Nhập số giấy phép (nếu có)"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Mã số thuế
-        </label>
-        <div className="relative">
-          <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            name="taxCode"
-            value={formData.taxCode}
-            onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Nhập mã số thuế (nếu có)"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Địa chỉ kinh doanh *
-        </label>
-        <div className="relative">
-          <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-          <textarea
-            name="address"
-            value={formData.address}
-            onChange={handleInputChange}
-            rows={3}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            placeholder="Nhập địa chỉ cửa hàng"
-            required
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-gray-800">Thông tin thanh toán</h3>
-        <p className="text-gray-600">Thông tin tài khoản để nhận thanh toán</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Tên ngân hàng *
-        </label>
-        <select
-          name="bankName"
-          value={formData.bankName}
-          onChange={handleInputChange}
-          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          required
-        >
-          <option value="">Chọn ngân hàng</option>
-          <option value="vietcombank">Vietcombank</option>
-          <option value="techcombank">Techcombank</option>
-          <option value="bidv">BIDV</option>
-          <option value="vietinbank">VietinBank</option>
-          <option value="sacombank">Sacombank</option>
-          <option value="acb">ACB</option>
-          <option value="other">Khác</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Số tài khoản *
-        </label>
-        <input
-          type="text"
-          name="bankAccount"
-          value={formData.bankAccount}
-          onChange={handleInputChange}
-          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Nhập số tài khoản"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Tên chủ tài khoản *
-        </label>
-        <input
-          type="text"
-          name="accountHolder"
-          value={formData.accountHolder}
-          onChange={handleInputChange}
-          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          placeholder="Nhập tên chủ tài khoản"
-          required
-        />
-      </div>
 
       {/* Agreements */}
       <div className="space-y-4 pt-4 border-t border-gray-200">
@@ -392,38 +230,7 @@ const SellerRegister: React.FC = () => {
           </span>
         </label>
 
-        <label className="flex items-start">
-          <input
-            type="checkbox"
-            name="agreePolicy"
-            checked={formData.agreePolicy}
-            onChange={handleInputChange}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-            required
-          />
-          <span className="ml-3 text-sm text-gray-600">
-            Tôi đồng ý với{' '}
-            <Link to="/seller/policy" className="text-blue-600 hover:text-blue-700 font-medium">
-              Chính sách bán hàng
-            </Link>{' '}
-            và{' '}
-            <Link to="/seller/fees" className="text-blue-600 hover:text-blue-700 font-medium">
-              Chính sách phí
-            </Link>{' '}
-            *
-          </span>
-        </label>
-
-        <label className="flex items-start">
-          <input
-            type="checkbox"
-            name="agreeMarketing"
-            checked={formData.agreeMarketing}
-            onChange={handleInputChange}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-          />
-         
-        </label>
+       
       </div>
     </div>
   );
@@ -439,45 +246,19 @@ const SellerRegister: React.FC = () => {
         <p className="text-gray-600">Bắt đầu kinh doanh cùng AudioShop</p>
       </div>
 
-      {/* Step Indicator */}
-      {renderStepIndicator()}
-
       {/* Form Content */}
       <form onSubmit={handleSubmit}>
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
+        {renderRegisterForm()}
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8">
-          {currentStep > 1 ? (
-            <button
-              type="button"
-              onClick={handlePrev}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Quay lại
-            </button>
-          ) : (
-            <div />
-          )}
-
-          {currentStep < 3 ? (
-            <button
-              type="button"
-              onClick={handleNext}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all"
-            >
-              Tiếp tục
-            </button>
-          ) : (
-            <button
-              type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all"
-            >
-              Hoàn thành đăng ký
-            </button>
-          )}
+        {/* Submit Button */}
+        <div className="mt-8">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
+          </button>
         </div>
       </form>
 

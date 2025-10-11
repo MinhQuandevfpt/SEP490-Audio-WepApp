@@ -68,12 +68,12 @@ const Register: React.FC = () => {
       
       if (response.status === 201) {
         showCenterSuccess(
-          'Bạn sẽ được chuyển đến trang đăng nhập sau 3 giây...',
+          'Bạn sẽ được chuyển đến trang đăng nhập',
           'Đăng ký thành công!',
-          3000
+          2000
         );
         
-        // Wait 3 seconds then redirect to login
+        // Wait 2 seconds then redirect to login
         setTimeout(() => {
           navigate('/auth/login', { 
             state: { 

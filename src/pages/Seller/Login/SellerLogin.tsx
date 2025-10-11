@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Store, Shield, CheckCircle } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
+import { showTikiNotification } from '../../../utils/notification';
+import { SellerAuthService, type SellerLoginRequest } from '../../../services/seller/AuthSeller';
 
 const SellerLogin: React.FC = () => {
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -18,10 +22,49 @@ const SellerLogin: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Xử lý đăng nhập seller
-    console.log('Seller login data:', formData);
+    
+    // Basic validation
+    if (!formData.email || !formData.password) {
+      showTikiNotification('Vui lòng điền đầy đủ thông tin!', 'Lỗi', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Prepare login data
+      const loginData: SellerLoginRequest = {
+        email: formData.email,
+        password: formData.password,
+      };
+
+      // Call seller login API
+      const response = await SellerAuthService.login(loginData);
+      
+      if (response.status === 200) {
+        showTikiNotification(
+          'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.', 
+          'Thành công', 
+          'success',
+          2000
+        );
+        
+        // Redirect to seller onboarding after successful login
+        setTimeout(() => {
+          navigate('/seller/onboarding');
+        }, 1000);
+      } else {
+        throw new Error(response.message || 'Đăng nhập thất bại');
+      }
+    } catch (error: any) {
+      console.error('Login failed:', error);
+      const errorMessage = error.message || 'Thông tin đăng nhập không chính xác!';
+      showTikiNotification(errorMessage, 'Lỗi', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -121,35 +164,13 @@ const SellerLogin: React.FC = () => {
         {/* Login Button */}
         <button
           type="submit"
-          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+          disabled={isLoading}
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
-          Đăng nhập vào Seller Center
+          {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập vào Seller Center'}
         </button>
 
-        {/* Features for Sellers */}
-        <div className="mt-6 space-y-3">
-          <div className="text-sm text-gray-600 font-medium mb-3">
-            Tính năng dành cho Seller:
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <div className="flex items-center text-sm text-gray-600">
-              <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <span>Dashboard thống kê doanh thu real-time</span>
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <span>Quản lý sản phẩm và kho hàng</span>
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <span>Công cụ marketing và khuyến mãi</span>
-            </div>
-            <div className="flex items-center text-sm text-gray-600">
-              <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-              <span>Hỗ trợ khách hàng 24/7</span>
-            </div>
-          </div>
-        </div>
+       
 
         {/* Divider */}
         <div className="relative my-8">
@@ -163,7 +184,7 @@ const SellerLogin: React.FC = () => {
 
         {/* Quick Registration CTA */}
         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6 text-center">
-          <h3 className="font-semibold text-gray-800 mb-2">Chưa có tài khoản Seller?</h3>
+          <h3 className="font-semibold text-gray-800 mb-2">Chưa có tài khoản?</h3>
           <p className="text-sm text-gray-600 mb-4">
             Đăng ký ngay để bắt đầu kinh doanh cùng AudioShop
           </p>
