@@ -5,76 +5,103 @@ import {
   FileText, 
   CreditCard, 
   Store, 
-  MapPin,
   CheckCircle,
   ArrowRight,
   ArrowLeft,
   Upload,
   Camera,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 import { showTikiNotification } from '../../../utils/notification';
+import { KycService } from '../../../services/seller/KycService';
+import type { KycRequest } from '../../../services/seller/KycService';
+import { FileUploadService } from '../../../services/FileUploadService';
 
 interface OnboardingData {
-  // Business Information
+  // Business Information (matching API schema)
   storeName: string;
-  businessType: string;
-  businessRegistration: string;
+  phoneNumber: string;
+  businessLicenseNumber: string;
   taxCode: string;
-  address: string;
   
-  // Payment Information  
+  // Payment Information (matching API schema)
   bankName: string;
-  bankAccount: string;
-  accountHolder: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
   
   // Identity Information
   frontIdImage: File | null;
   backIdImage: File | null;
+  businessLicenseImage: File | null;
   
-  // Agreements
-  agreePolicy: boolean;
+  // Official status
+  isOfficial: boolean;
 }
 
 const SellerOnboarding: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState<OnboardingData>({
     storeName: '',
-    businessType: '',
-    businessRegistration: '',
+    phoneNumber: '',
+    businessLicenseNumber: '',
     taxCode: '',
-    address: '',
     bankName: '',
-    bankAccount: '',
-    accountHolder: '',
+    bankAccountNumber: '',
+    bankAccountName: '',
     frontIdImage: null,
     backIdImage: null,
-    agreePolicy: false,
+    businessLicenseImage: null,
+    isOfficial: false,
   });
+
+  // Phone number validation
+  const validatePhoneNumber = (phone: string): boolean => {
+    const phoneRegex = /^(0|\+84)[3|5|7|8|9][0-9]{8}$/;
+    return phoneRegex.test(phone);
+  };
+
+  // Helper function to clear error when user starts typing
+  const clearError = (fieldName: string) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
+    const newValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]: newValue
     }));
+
+    // Clear error when user starts typing
+    clearError(name);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'frontIdImage' | 'backIdImage') => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'frontIdImage' | 'backIdImage' | 'businessLicenseImage') => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        showTikiNotification('Vui lòng chọn file hình ảnh hợp lệ', 'Lỗi', 'error');
-        return;
-      }
+      // Validate file using FileUploadService
+      let allowedTypes: string[] = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      let maxSize = 10 * 1024 * 1024; // 10MB
       
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        showTikiNotification('Kích thước file không được vượt quá 5MB', 'Lỗi', 'error');
+      if (field === 'businessLicenseImage') {
+        allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+      }
+
+      const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+      
+      if (!validation.isValid) {
+        setErrors(prev => ({ ...prev, [field]: validation.error || 'File không hợp lệ' }));
         return;
       }
       
@@ -82,14 +109,56 @@ const SellerOnboarding: React.FC = () => {
         ...prev,
         [field]: file
       }));
+
+      // Clear error when user uploads file
+      clearError(field);
     }
   };
 
-  const removeFile = (field: 'frontIdImage' | 'backIdImage') => {
+  const removeFile = (field: 'frontIdImage' | 'backIdImage' | 'businessLicenseImage') => {
     setFormData(prev => ({
       ...prev,
       [field]: null
     }));
+  };
+
+  const validateCurrentStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    switch (currentStep) {
+      case 1:
+        if (!formData.storeName.trim()) {
+          newErrors.storeName = 'Vui lòng nhập tên cửa hàng';
+        }
+        if (!formData.phoneNumber.trim()) {
+          newErrors.phoneNumber = 'Vui lòng nhập số điện thoại';
+        } else if (!validatePhoneNumber(formData.phoneNumber)) {
+          newErrors.phoneNumber = 'Số điện thoại không đúng định dạng';
+        }
+        break;
+      case 2:
+        if (!formData.bankName) {
+          newErrors.bankName = 'Vui lòng chọn ngân hàng';
+        }
+        if (!formData.bankAccountNumber.trim()) {
+          newErrors.bankAccountNumber = 'Vui lòng nhập số tài khoản';
+        }
+        if (!formData.bankAccountName.trim()) {
+          newErrors.bankAccountName = 'Vui lòng nhập tên chủ tài khoản';
+        }
+        break;
+      case 3:
+        if (!formData.frontIdImage) {
+          newErrors.frontIdImage = 'Vui lòng tải lên ảnh mặt trước CCCD/CMND';
+        }
+        if (!formData.backIdImage) {
+          newErrors.backIdImage = 'Vui lòng tải lên ảnh mặt sau CCCD/CMND';
+        }
+        break;
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleNext = () => {
@@ -100,35 +169,6 @@ const SellerOnboarding: React.FC = () => {
 
   const handlePrev = () => {
     setCurrentStep(prev => prev - 1);
-  };
-
-  const validateCurrentStep = () => {
-    switch (currentStep) {
-      case 1:
-        if (!formData.storeName || !formData.businessType || !formData.address) {
-          showTikiNotification('Vui lòng điền đầy đủ thông tin kinh doanh', 'Lỗi', 'error');
-          return false;
-        }
-        return true;
-      case 2:
-        if (!formData.bankName || !formData.bankAccount || !formData.accountHolder) {
-          showTikiNotification('Vui lòng điền đầy đủ thông tin thanh toán', 'Lỗi', 'error');
-          return false;
-        }
-        if (!formData.agreePolicy) {
-          showTikiNotification('Vui lòng đồng ý với chính sách bán hàng', 'Lỗi', 'error');
-          return false;
-        }
-        return true;
-      case 3:
-        if (!formData.frontIdImage || !formData.backIdImage) {
-          showTikiNotification('Vui lòng tải lên ảnh mặt trước và mặt sau của CCCD/CMND', 'Lỗi', 'error');
-          return false;
-        }
-        return true;
-      default:
-        return true;
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -143,22 +183,66 @@ const SellerOnboarding: React.FC = () => {
       return;
     }
 
+    // If we're at step 3, submit the form
     setIsLoading(true);
 
     try {
-      // TODO: Call seller onboarding API
-      console.log('Seller onboarding data:', formData);
+      // Upload files to Cloudinary first
+      let idCardFrontUrl = '';
+      let idCardBackUrl = '';
+      let businessLicenseUrl = '';
+
+      if (formData.frontIdImage) {
+        const uploadResult = await FileUploadService.uploadImage(formData.frontIdImage, 'Audio/kyc');
+        idCardFrontUrl = uploadResult.url;
+      }
+      if (formData.backIdImage) {
+        const uploadResult = await FileUploadService.uploadImage(formData.backIdImage, 'Audio/kyc');
+        idCardBackUrl = uploadResult.url;
+      }
+      if (formData.businessLicenseImage) {
+        const uploadResult = await FileUploadService.uploadImage(formData.businessLicenseImage, 'Audio/kyc');
+        businessLicenseUrl = uploadResult.url;
+      }
+
+      // Prepare KYC data
+      const kycData: KycRequest = {
+        storeName: formData.storeName,
+        phoneNumber: formData.phoneNumber,
+        businessLicenseNumber: formData.businessLicenseNumber,
+        taxCode: formData.taxCode,
+        bankName: formData.bankName,
+        bankAccountName: formData.bankAccountName,
+        bankAccountNumber: formData.bankAccountNumber,
+        idCardFrontUrl,
+        idCardBackUrl,
+        businessLicenseUrl,
+        isOfficial: formData.isOfficial,
+      };
+
+      // Submit KYC request
+      await KycService.submitKyc(kycData);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Move to step 4 (completion step)
+      setCurrentStep(4);
       
-      showTikiNotification('Thiết lập cửa hàng thành công!', 'Hoàn thành', 'success');
+    } catch (error: any) {
+      console.error('KYC submission failed:', error);
       
-      // Redirect to seller dashboard
-      navigate('/seller/dashboard');
-    } catch (error) {
-      console.error('Onboarding failed:', error);
-      showTikiNotification('Thiết lập thất bại. Vui lòng thử lại!', 'Lỗi', 'error');
+      let errorMessage = 'Gửi yêu cầu KYC thất bại. Vui lòng thử lại!';
+      
+      // Handle specific upload errors
+      if (error.message?.includes('upload') || error.message?.includes('Cloudinary')) {
+        errorMessage = 'Lỗi tải file lên. Vui lòng kiểm tra kết nối mạng và thử lại!';
+      } else if (error.message?.includes('token')) {
+        errorMessage = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!';
+      }
+      
+      showTikiNotification(
+        error.message || errorMessage, 
+        'Lỗi', 
+        'error'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -169,7 +253,8 @@ const SellerOnboarding: React.FC = () => {
       {[
         { step: 1, title: 'Thông tin kinh doanh', icon: Building },
         { step: 2, title: 'Thông tin thanh toán', icon: CreditCard },
-        { step: 3, title: 'Thông tin định danh', icon: Camera }
+        { step: 3, title: 'Thông tin định danh', icon: Camera },
+        { step: 4, title: 'Hoàn tất', icon: CheckCircle }
       ].map(({ step, title, icon: Icon }) => (
         <React.Fragment key={step}>
           <div className="flex flex-col items-center">
@@ -197,7 +282,7 @@ const SellerOnboarding: React.FC = () => {
               </div>
             </div>
           </div>
-          {step < 3 && (
+          {step < 4 && (
             <div className={`w-24 h-1 mx-6 rounded-full transition-all ${
               currentStep > step ? 'bg-gradient-to-r from-blue-600 to-indigo-600' : 'bg-gray-300'
             }`} />
@@ -206,6 +291,19 @@ const SellerOnboarding: React.FC = () => {
       ))}
     </div>
   );
+
+  // Component to render error message
+  const ErrorMessage = ({ fieldName }: { fieldName: string }) => {
+    if (!errors[fieldName]) return null;
+    return (
+      <p className="mt-1 text-sm text-red-600 flex items-center">
+        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        {errors[fieldName]}
+      </p>
+    );
+  };
 
   const renderStep1 = () => (
     <div className="space-y-6">
@@ -226,54 +324,78 @@ const SellerOnboarding: React.FC = () => {
             name="storeName"
             value={formData.storeName}
             onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onBlur={() => {
+              if (!formData.storeName.trim()) {
+                setErrors(prev => ({ ...prev, storeName: 'Vui lòng nhập tên cửa hàng' }));
+              }
+            }}
+            className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.storeName ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Nhập tên cửa hàng"
             required
           />
         </div>
+        <ErrorMessage fieldName="storeName" />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Loại hình kinh doanh *
+          Số điện thoại *
         </label>
         <div className="relative">
           <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <select
-            name="businessType"
-            value={formData.businessType}
+          <input
+            type="tel"
+            name="phoneNumber"
+            value={formData.phoneNumber}
             onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onBlur={() => {
+              if (!formData.phoneNumber.trim()) {
+                setErrors(prev => ({ ...prev, phoneNumber: 'Vui lòng nhập số điện thoại' }));
+              } else if (!validatePhoneNumber(formData.phoneNumber)) {
+                setErrors(prev => ({ ...prev, phoneNumber: 'Số điện thoại không đúng định dạng' }));
+              }
+            }}
+            className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="Nhập số điện thoại (VD: 0987654321)"
             required
-          >
-            <option value="">Chọn loại hình kinh doanh</option>
-            <option value="individual">Cá nhân</option>
-            <option value="company">Công ty</option>
-            <option value="partnership">Hộ kinh doanh</option>
-          </select>
+          />
         </div>
+        <ErrorMessage fieldName="phoneNumber" />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Số giấy phép kinh doanh
+          Số giấy phép kinh doanh *
         </label>
         <div className="relative">
           <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            name="businessRegistration"
-            value={formData.businessRegistration}
+            name="businessLicenseNumber"
+            value={formData.businessLicenseNumber}
             onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Nhập số giấy phép (nếu có)"
+            onBlur={() => {
+              if (!formData.businessLicenseNumber.trim()) {
+                setErrors(prev => ({ ...prev, businessLicenseNumber: 'Vui lòng nhập số giấy phép kinh doanh' }));
+              }
+            }}
+            className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.businessLicenseNumber ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="Nhập số giấy phép kinh doanh"
+            required
           />
         </div>
+        <ErrorMessage fieldName="businessLicenseNumber" />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Mã số thuế
+          Mã số thuế *
         </label>
         <div className="relative">
           <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -282,29 +404,22 @@ const SellerOnboarding: React.FC = () => {
             name="taxCode"
             value={formData.taxCode}
             onChange={handleInputChange}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Nhập mã số thuế (nếu có)"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Địa chỉ kinh doanh *
-        </label>
-        <div className="relative">
-          <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-          <textarea
-            name="address"
-            value={formData.address}
-            onChange={handleInputChange}
-            rows={3}
-            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            placeholder="Nhập địa chỉ cửa hàng"
+            onBlur={() => {
+              if (!formData.taxCode.trim()) {
+                setErrors(prev => ({ ...prev, taxCode: 'Vui lòng nhập mã số thuế' }));
+              }
+            }}
+            className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.taxCode ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="Nhập mã số thuế"
             required
           />
         </div>
+        <ErrorMessage fieldName="taxCode" />
       </div>
+
+      
     </div>
   );
 
@@ -324,18 +439,26 @@ const SellerOnboarding: React.FC = () => {
           name="bankName"
           value={formData.bankName}
           onChange={handleInputChange}
-          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          onBlur={() => {
+            if (!formData.bankName) {
+              setErrors(prev => ({ ...prev, bankName: 'Vui lòng chọn ngân hàng' }));
+            }
+          }}
+          className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            errors.bankName ? 'border-red-500' : 'border-gray-300'
+          }`}
           required
         >
           <option value="">Chọn ngân hàng</option>
-          <option value="vietcombank">Vietcombank</option>
-          <option value="techcombank">Techcombank</option>
-          <option value="bidv">BIDV</option>
-          <option value="vietinbank">VietinBank</option>
-          <option value="sacombank">Sacombank</option>
-          <option value="acb">ACB</option>
-          <option value="other">Khác</option>
+          <option value="Vietcombank">Vietcombank</option>
+          <option value="Techcombank">Techcombank</option>
+          <option value="BIDV">BIDV</option>
+          <option value="VietinBank">VietinBank</option>
+          <option value="Sacombank">Sacombank</option>
+          <option value="ACB">ACB</option>
+          <option value="Other">Khác</option>
         </select>
+        <ErrorMessage fieldName="bankName" />
       </div>
 
       <div>
@@ -344,13 +467,21 @@ const SellerOnboarding: React.FC = () => {
         </label>
         <input
           type="text"
-          name="bankAccount"
-          value={formData.bankAccount}
+          name="bankAccountNumber"
+          value={formData.bankAccountNumber}
           onChange={handleInputChange}
-          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          onBlur={() => {
+            if (!formData.bankAccountNumber.trim()) {
+              setErrors(prev => ({ ...prev, bankAccountNumber: 'Vui lòng nhập số tài khoản' }));
+            }
+          }}
+          className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            errors.bankAccountNumber ? 'border-red-500' : 'border-gray-300'
+          }`}
           placeholder="Nhập số tài khoản"
           required
         />
+        <ErrorMessage fieldName="bankAccountNumber" />
       </div>
 
       <div>
@@ -359,38 +490,21 @@ const SellerOnboarding: React.FC = () => {
         </label>
         <input
           type="text"
-          name="accountHolder"
-          value={formData.accountHolder}
+          name="bankAccountName"
+          value={formData.bankAccountName}
           onChange={handleInputChange}
-          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          onBlur={() => {
+            if (!formData.bankAccountName.trim()) {
+              setErrors(prev => ({ ...prev, bankAccountName: 'Vui lòng nhập tên chủ tài khoản' }));
+            }
+          }}
+          className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            errors.bankAccountName ? 'border-red-500' : 'border-gray-300'
+          }`}
           placeholder="Nhập tên chủ tài khoản"
           required
         />
-      </div>
-
-      {/* Policy Agreement */}
-      <div className="pt-4 border-t border-gray-200">
-        <label className="flex items-start">
-          <input
-            type="checkbox"
-            name="agreePolicy"
-            checked={formData.agreePolicy}
-            onChange={handleInputChange}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-            required
-          />
-          <span className="ml-3 text-sm text-gray-600">
-            Tôi đồng ý với{' '}
-            <a href="/seller/policy" className="text-blue-600 hover:text-blue-700 font-medium">
-              Chính sách bán hàng
-            </a>{' '}
-            và{' '}
-            <a href="/seller/fees" className="text-blue-600 hover:text-blue-700 font-medium">
-              Chính sách phí
-            </a>{' '}
-            *
-          </span>
-        </label>
+        <ErrorMessage fieldName="bankAccountName" />
       </div>
     </div>
   );
@@ -403,13 +517,15 @@ const SellerOnboarding: React.FC = () => {
         <p className="text-gray-600">Tải lên ảnh CCCD/CMND để xác thực danh tính</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Front ID Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Ảnh mặt trước CCCD/CMND *
           </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+          <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors ${
+            errors.frontIdImage ? 'border-red-500' : 'border-gray-300'
+          }`}>
             {formData.frontIdImage ? (
               <div className="relative">
                 <img
@@ -430,7 +546,7 @@ const SellerOnboarding: React.FC = () => {
               <div>
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-600 mb-2">Tải lên ảnh mặt trước</p>
-                <p className="text-xs text-gray-500">PNG, JPG tối đa 5MB</p>
+                <p className="text-xs text-gray-500">PNG, JPG, WEBP tối đa 10MB</p>
                 <input
                   type="file"
                   accept="image/*"
@@ -447,6 +563,7 @@ const SellerOnboarding: React.FC = () => {
               </div>
             )}
           </div>
+          <ErrorMessage fieldName="frontIdImage" />
         </div>
 
         {/* Back ID Image */}
@@ -454,7 +571,9 @@ const SellerOnboarding: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Ảnh mặt sau CCCD/CMND *
           </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+          <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors ${
+            errors.backIdImage ? 'border-red-500' : 'border-gray-300'
+          }`}>
             {formData.backIdImage ? (
               <div className="relative">
                 <img
@@ -475,7 +594,7 @@ const SellerOnboarding: React.FC = () => {
               <div>
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-600 mb-2">Tải lên ảnh mặt sau</p>
-                <p className="text-xs text-gray-500">PNG, JPG tối đa 5MB</p>
+                <p className="text-xs text-gray-500">PNG, JPG, WEBP tối đa 10MB</p>
                 <input
                   type="file"
                   accept="image/*"
@@ -485,6 +604,52 @@ const SellerOnboarding: React.FC = () => {
                 />
                 <label
                   htmlFor="back-id-upload"
+                  className="mt-3 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                >
+                  Chọn file
+                </label>
+              </div>
+            )}
+          </div>
+          <ErrorMessage fieldName="backIdImage" />
+        </div>
+
+        {/* Business License Image */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Giấy phép kinh doanh
+          </label>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+            {formData.businessLicenseImage ? (
+              <div className="relative">
+                <img
+                  src={URL.createObjectURL(formData.businessLicenseImage)}
+                  alt="Giấy phép kinh doanh"
+                  className="w-full h-32 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeFile('businessLicenseImage')}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <p className="text-sm text-gray-600 mt-2">{formData.businessLicenseImage.name}</p>
+              </div>
+            ) : (
+              <div>
+                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600 mb-2">Tải lên giấy phép</p>
+                <p className="text-xs text-gray-500">PNG, JPG, WEBP, PDF tối đa 10MB</p>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => handleFileUpload(e, 'businessLicenseImage')}
+                  className="hidden"
+                  id="business-license-upload"
+                />
+                <label
+                  htmlFor="business-license-upload"
                   className="mt-3 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
                 >
                   Chọn file
@@ -518,6 +683,56 @@ const SellerOnboarding: React.FC = () => {
     </div>
   );
 
+  const renderStep4 = () => (
+    <div className="space-y-6 text-center">
+      <div className="mb-8">
+        <CheckCircle className="w-24 h-24 text-green-500 mx-auto mb-6" />
+        <h3 className="text-3xl font-bold text-gray-800 mb-4">Đã gửi yêu cầu thành công!</h3>
+        <p className="text-lg text-gray-600 mb-6">
+          Yêu cầu xác minh KYC của bạn đã được gửi đến hệ thống.
+        </p>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+        <div className="flex items-center justify-center mb-4">
+          <Clock className="w-8 h-8 text-blue-600 mr-3" />
+          <h4 className="text-xl font-semibold text-blue-800">Đang chờ xét duyệt</h4>
+        </div>
+        <p className="text-blue-700 mb-4">
+          Hệ thống sẽ xét duyệt yêu cầu của bạn trong vòng <strong>1-3 ngày làm việc</strong>.
+        </p>
+        <p className="text-sm text-blue-600">
+          Bạn sẽ nhận được thông báo qua email khi có kết quả xét duyệt.
+        </p>
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+        <h5 className="text-lg font-semibold text-gray-800 mb-4">Thông tin đã gửi:</h5>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+          <div>
+            <p className="text-sm text-gray-600"><strong>Tên cửa hàng:</strong> {formData.storeName}</p>
+            <p className="text-sm text-gray-600"><strong>Số điện thoại:</strong> {formData.phoneNumber}</p>
+            <p className="text-sm text-gray-600"><strong>Số giấy phép:</strong> {formData.businessLicenseNumber}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600"><strong>Ngân hàng:</strong> {formData.bankName}</p>
+            <p className="text-sm text-gray-600"><strong>Số tài khoản:</strong> {formData.bankAccountNumber}</p>
+            <p className="text-sm text-gray-600"><strong>Chủ tài khoản:</strong> {formData.bankAccountName}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-center mt-8">
+        <button
+          onClick={() => navigate('/seller/dashboard')}
+          className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 font-medium"
+        >
+          Về trang chủ
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8 px-4">
       <div className="max-w-4xl mx-auto">
@@ -541,58 +756,51 @@ const SellerOnboarding: React.FC = () => {
         <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
           <div className="p-8 md:p-12">
             <form onSubmit={handleSubmit}>
-            {currentStep === 1 && renderStep1()}
-            {currentStep === 2 && renderStep2()}
-            {currentStep === 3 && renderStep3()}
+              {currentStep === 1 && renderStep1()}
+              {currentStep === 2 && renderStep2()}
+              {currentStep === 3 && renderStep3()}
+              {currentStep === 4 && renderStep4()}
 
-            {/* Navigation Buttons */}
-            <div className="flex justify-between mt-12 pt-8 border-t border-gray-100">
-              {currentStep > 1 ? (
-                <button
-                  type="button"
-                  onClick={handlePrev}
-                  className="flex items-center px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all font-medium"
-                >
-                  <ArrowLeft className="w-5 h-5 mr-3" />
-                  Quay lại
-                </button>
-              ) : (
-                <div />
-              )}
+              {/* Navigation Buttons */}
+              {currentStep < 4 && (
+                <div className="flex justify-between mt-12 pt-8 border-t border-gray-100">
+                  {currentStep > 1 ? (
+                    <button
+                      type="button"
+                      onClick={handlePrev}
+                      className="flex items-center px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all font-medium"
+                    >
+                      <ArrowLeft className="w-5 h-5 mr-3" />
+                      Quay lại
+                    </button>
+                  ) : (
+                    <div />
+                  )}
 
-              {currentStep < 3 ? (
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 font-medium"
-                >
-                  Tiếp tục
-                  <ArrowRight className="w-5 h-5 ml-3" />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex items-center px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none font-medium"
-                >
-                  {isLoading ? 'Đang thiết lập...' : 'Hoàn thành thiết lập'}
-                  {!isLoading && <CheckCircle className="w-5 h-5 ml-3" />}
-                </button>
+                  {currentStep < 3 ? (
+                    <button
+                      type="button"
+                      onClick={handleNext}
+                      className="flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 font-medium"
+                    >
+                      Tiếp tục
+                      <ArrowRight className="w-5 h-5 ml-3" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="flex items-center px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none font-medium"
+                    >
+                      {isLoading ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu'}
+                      {!isLoading && <CheckCircle className="w-5 h-5 ml-3" />}
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
-      </div>
-
-      {/* Skip Option */}
-      <div className="mt-8 text-center">
-        <button
-          onClick={() => navigate('/seller/dashboard')}
-          className="text-gray-500 hover:text-gray-700 text-lg transition-colors"
-        >
-          Bỏ qua và thiết lập sau
-        </button>
-      </div>
       </div>
     </div>
   );
