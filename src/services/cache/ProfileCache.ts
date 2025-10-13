@@ -69,7 +69,7 @@ class ProfileCache {
     provinces?: any[];
   }> {
     const cacheKey = `preload_${customerId}`;
-    const cached = this.get(cacheKey);
+    const cached = this.get<{ userProfile?: any; addresses?: any[]; provinces?: any[] }>(cacheKey);
     if (cached) return cached;
 
     try {
@@ -97,11 +97,11 @@ class ProfileCache {
   // Individual data getters with caching
   async getUserProfile(customerId: string): Promise<any> {
     const cacheKey = ProfileCache.KEYS.USER_PROFILE(customerId);
-    const cached = this.get(cacheKey);
+    const cached = this.get<any>(cacheKey);
     if (cached) return cached;
 
     // Import here to avoid circular dependency
-    const { ProfileCustomerService } = await import('../customer/Profilecustomer');
+    const { default: ProfileCustomerService } = await import('../customer/Profilecustomer');
     const data = await ProfileCustomerService.getByCustomerId(customerId);
     this.set(cacheKey, data, 3 * 60 * 1000); // 3 minutes
     return data;
@@ -109,10 +109,10 @@ class ProfileCache {
 
   async getAddresses(customerId: string): Promise<any[]> {
     const cacheKey = ProfileCache.KEYS.ADDRESSES(customerId);
-    const cached = this.get(cacheKey);
+    const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const { ProfileCustomerService } = await import('../customer/Profilecustomer');
+    const { default: ProfileCustomerService } = await import('../customer/Profilecustomer');
     const data = await ProfileCustomerService.getAddresses(customerId);
     this.set(cacheKey, data, 5 * 60 * 1000); // 5 minutes
     return data;
@@ -120,7 +120,7 @@ class ProfileCache {
 
   async getProvinces(): Promise<any[]> {
     const cacheKey = ProfileCache.KEYS.PROVINCES;
-    const cached = this.get(cacheKey);
+    const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
 
     const response = await fetch('https://provinces.open-api.vn/api/p/');
@@ -131,7 +131,7 @@ class ProfileCache {
 
   async getDistricts(provinceCode: number): Promise<any[]> {
     const cacheKey = ProfileCache.KEYS.DISTRICTS(provinceCode);
-    const cached = this.get(cacheKey);
+    const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
 
     const response = await fetch(`https://provinces.open-api.vn/api/p/${provinceCode}?depth=2`);
@@ -142,7 +142,7 @@ class ProfileCache {
 
   async getWards(districtCode: number): Promise<any[]> {
     const cacheKey = ProfileCache.KEYS.WARDS(districtCode);
-    const cached = this.get(cacheKey);
+    const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
 
     const response = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}?depth=2`);

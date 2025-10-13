@@ -10,6 +10,7 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
+import ShoppingCart from '../pages/Customer/Cart';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
   {
     path: '/product/:id',
     element: <ProductDetail />
+  },
+  {
+    path: '/cart',
+    element: <ShoppingCart />
   },
   {
     path: '/oauth2/callback',
