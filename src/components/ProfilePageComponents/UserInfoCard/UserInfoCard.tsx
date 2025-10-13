@@ -5,8 +5,9 @@ import { useLocation } from 'react-router-dom';
 import ProfileCustomerService from '../../../services/customer/Profilecustomer';
 import { loadProfileData, saveProfileData, type ProfileData } from '../../../data/profiledata';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
+import LoadingSkeleton from '../../common/LoadingSkeleton';
 
-interface UserInfoCardProps {
+interface PresentationalUserInfoCardProps {
   fullName: string;
   email: string;
   phone: string;
@@ -19,7 +20,7 @@ interface UserInfoCardProps {
 }
 
 // Presentational component
-export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
+export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     const first = parts[0]?.charAt(0) ?? '';
@@ -456,7 +457,12 @@ export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullNa
 };
 
 // Container component: handles fetching/merging data and renders PresentationalUserInfoCard
-const UserInfoCard: React.FC = () => {
+interface UserInfoCardProps {
+  preloadedData?: any;
+  customerId?: string | null;
+}
+
+const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }) => {
   const location = useLocation();
   const [loading, setLoading] = useState<boolean>(false);
   const [apiProfile, setApiProfile] = useState<{
@@ -478,25 +484,48 @@ const UserInfoCard: React.FC = () => {
     const local = loadProfileData();
     setBaseUser(local?.user ?? null);
 
-    // decode ?u from query
+    // Use preloaded data if available, otherwise fetch
+    if (preloadedData) {
+      const gender = (preloadedData.gender || '').toString().toLowerCase();
+      const mappedGender: 'male' | 'female' | 'other' = gender === 'male' ? 'male' : gender === 'female' ? 'female' : 'other';
+      const level = (preloadedData.loyaltyLevel || '').toString().toLowerCase();
+      const mappedLevel: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | undefined =
+        level === 'bronze' || level === 'silver' || level === 'gold' || level === 'platinum' || level === 'diamond' ? (level as any) : undefined;
+      
+      setApiProfile({
+        fullName: preloadedData.fullName,
+        email: preloadedData.email,
+        phone: preloadedData.phoneNumber,
+        gender: mappedGender,
+        dateOfBirth: preloadedData.dateOfBirth ?? undefined,
+        avatar: preloadedData.avatarURL ?? undefined,
+        membershipPoints: preloadedData.loyaltyPoints ?? 0,
+        membershipLevel: mappedLevel || 'bronze',
+      });
+      setHasCustomerId(true);
+      setCustomerIdState(customerId || null);
+      return;
+    }
+
+    // Fallback: decode ?u from query and fetch if no preloaded data
     const params = new URLSearchParams(location.search);
     const encoded = params.get('u');
-    let customerId = localStorage.getItem('customer_id');
+    let customerIdFromStorage = localStorage.getItem('customer_id');
     if (encoded) {
       try {
         const padded = encoded.replace(/-/g, '+').replace(/_/g, '/');
         const b64 = padded + '==='.slice((padded.length + 3) % 4);
         const decoded = atob(b64);
-        if (decoded) customerId = decoded;
+        if (decoded) customerIdFromStorage = decoded;
       } catch {
         // ignore
       }
     }
-    if (!customerId) return;
+    if (!customerIdFromStorage) return;
     setHasCustomerId(true);
-    setCustomerIdState(customerId);
+    setCustomerIdState(customerIdFromStorage);
     setLoading(true);
-    ProfileCustomerService.getByCustomerId(customerId)
+    ProfileCustomerService.getByCustomerId(customerIdFromStorage)
       .then((p) => {
         const gender = (p.gender || '').toString().toLowerCase();
         const mappedGender: 'male' | 'female' | 'other' = gender === 'male' ? 'male' : gender === 'female' ? 'female' : 'other';
@@ -515,7 +544,7 @@ const UserInfoCard: React.FC = () => {
         });
       })
       .finally(() => setLoading(false));
-  }, [location.search]);
+  }, [location.search, preloadedData, customerId]);
 
   // removed unused local-only update handler; updates are now done via API
 
@@ -586,23 +615,11 @@ const UserInfoCard: React.FC = () => {
   };
 
   if (!baseUser) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-2/3" />
-      </div>
-    );
+    return <LoadingSkeleton type="profile" />;
   }
 
   if (hasCustomerId && (loading || !apiProfile)) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-2/3" />
-      </div>
-    );
+    return <LoadingSkeleton type="profile" />;
   }
 
   const merged = {
@@ -614,7 +631,7 @@ const UserInfoCard: React.FC = () => {
     avatar: apiProfile?.avatar ?? baseUser.avatar,
     membershipPoints: apiProfile?.membershipPoints ?? baseUser.membershipPoints,
     membershipLevel: apiProfile?.membershipLevel ?? baseUser.membershipLevel,
-  } as UserInfoCardProps;
+  } as PresentationalUserInfoCardProps;
 
   return (
     <PresentationalUserInfoCard

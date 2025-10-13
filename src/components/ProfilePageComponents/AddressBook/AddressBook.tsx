@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Edit, MapPin, Trash2, Check } from 'lucide-react';
 import ProfileCustomerService from '../../../services/customer/Profilecustomer';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
+import LoadingSkeleton from '../../common/LoadingSkeleton';
 
 interface AddressItem {
   id: string;
@@ -11,7 +12,15 @@ interface AddressItem {
   isDefault?: boolean;
 }
 
-const AddressBook: React.FC = () => {
+interface AddressBookProps {
+  preloadedData?: {
+    addresses?: any[];
+    provinces?: any[];
+  };
+  customerId?: string | null;
+}
+
+const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) => {
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -31,8 +40,28 @@ const AddressBook: React.FC = () => {
   });
 
   useEffect(() => {
-    const cid = localStorage.getItem('customer_id');
-    if (!cid) return;
+    // Use preloaded data if available
+    if (preloadedData?.addresses) {
+      const mapped = preloadedData.addresses.map((a) => ({
+        id: a.id,
+        name: a.receiverName,
+        phone: a.phoneNumber,
+        addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
+        isDefault: !!a.default,
+      }));
+      setAddresses(mapped);
+      setIsLoading(false);
+      return;
+    }
+
+    // Fallback: fetch from API
+    const cid = customerId || localStorage.getItem('customer_id');
+    if (!cid) {
+      setIsLoading(false);
+      return;
+    }
+    
+    setIsLoading(true);
     ProfileCustomerService.getAddresses(cid)
       .then((list) => {
         const mapped = list.map((a) => ({
@@ -46,19 +75,31 @@ const AddressBook: React.FC = () => {
       })
       .catch(() => {
         // silent
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
-  }, []);
+  }, [preloadedData, customerId]);
 
   // Load provinces list on mount (VN public API)
   const [provinceOptions, setProvinceOptions] = useState<Array<{ code: number; name: string }>>([]);
   const [districtOptions, setDistrictOptions] = useState<Array<{ code: number; name: string }>>([]);
   const [wardOptions, setWardOptions] = useState<Array<{ code: number; name: string }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
   useEffect(() => {
+    // Use preloaded provinces if available
+    if (preloadedData?.provinces) {
+      setProvinceOptions(preloadedData.provinces);
+      return;
+    }
+
+    // Fallback: fetch from API
     fetch('https://provinces.open-api.vn/api/p/')
       .then((r) => r.json())
       .then((data: Array<{ code: number; name: string }>) => setProvinceOptions(data))
       .catch(() => setProvinceOptions([]));
-  }, []);
+  }, [preloadedData]);
 
   // When province changes, load districts
   useEffect(() => {
@@ -94,7 +135,7 @@ const AddressBook: React.FC = () => {
   }, [formData.district, districtOptions]);
 
   const handleAddAddress = () => {
-    const cid = localStorage.getItem('customer_id');
+    const cid = customerId || localStorage.getItem('customer_id');
     if (!cid || !formData.name || !formData.phone || !formData.addressLine) return;
     const payload = {
       receiverName: formData.name,
@@ -148,7 +189,7 @@ const AddressBook: React.FC = () => {
   };
 
   const handleSaveEdit = () => {
-    const cid = localStorage.getItem('customer_id');
+    const cid = customerId || localStorage.getItem('customer_id');
     if (!cid || !editingAddress || !formData.name || !formData.phone || !formData.addressLine) return;
     const payload = {
       receiverName: formData.name,
@@ -198,6 +239,11 @@ const AddressBook: React.FC = () => {
     // Nếu backend có endpoint, có thể gọi updateAddress với isDefault=true
     setAddresses((prev) => prev.map(a => ({ ...a, isDefault: a.id === id })));
   };
+
+  // Show loading skeleton while data is being fetched
+  if (isLoading) {
+    return <LoadingSkeleton type="address" />;
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
