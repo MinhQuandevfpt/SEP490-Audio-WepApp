@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { Trash2, Minus, Plus, CheckSquare, Square, Truck, Timer, TicketPercent, X } from 'lucide-react';
 import { mockCartItems, calcCartSummary, type CartItem, formatCurrency } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
 import SelectAllBar from '../../../components/ShoppingCartComponents/SelectAllBar';

@@ -8,13 +8,18 @@ import SellerRegister from '../pages/Seller/Register';
 import SellerOnboarding from '../pages/Seller/Onboarding';
 import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
+import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
 import ShoppingCart from '../pages/Customer/Cart';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
+import AdminLogin from '../pages/Admin/Login';
+import AdminDashboard from '../pages/Admin/Dashboard';
+import UserManagement from '../pages/Admin/UserManagement';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
+import { AdminAuthService } from '../services/admin/AdminAuthService';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -28,6 +33,14 @@ function ProtectedSellerRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = SellerAuthService.isAuthenticated();
   if (!isAuthenticated) {
     return <Navigate to="/seller/login" replace />;
+  }
+  return element;
+}
+
+function ProtectedAdminRoute({ element }: { element: ReactElement }) {
+  const isAuthenticated = AdminAuthService.isAuthenticated();
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" replace />;
   }
   return element;
 }
@@ -88,5 +101,129 @@ export const router = createBrowserRouter([
   {
     path: '/seller/onboarding',
     element: <ProtectedSellerRoute element={<SellerOnboarding />} />
+  },
+  // Admin routes
+  {
+    path: '/admin/login',
+    element: <AdminLogin />
+  },
+  {
+    path: '/admin',
+    element: <ProtectedAdminRoute element={<AdminLayout />} />,
+    children: [
+      {
+        path: '',
+        element: <Navigate to="/admin/dashboard" replace />
+      },
+      {
+        path: 'dashboard',
+        element: <AdminDashboard />
+      },
+      // Add more admin routes here as needed
+      {
+        path: 'users',
+        element: <UserManagement />
+      },
+      {
+        path: 'users/customers',
+        element: <div>Customer Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'users/sellers',
+        element: <div>Seller Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'users/admins',
+        element: <div>Admin Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'products',
+        element: <div>Product Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'products/all',
+        element: <div>All Products Page (Coming Soon)</div>
+      },
+      {
+        path: 'products/categories',
+        element: <div>Categories Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'products/brands',
+        element: <div>Brands Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'products/approval',
+        element: <div>Product Approval Page (Coming Soon)</div>
+      },
+      {
+        path: 'orders',
+        element: <div>Order Management Page (Coming Soon)</div>
+      },
+      {
+        path: 'orders/all',
+        element: <div>All Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'orders/pending',
+        element: <div>Pending Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'orders/shipping',
+        element: <div>Shipping Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'orders/completed',
+        element: <div>Completed Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'orders/cancelled',
+        element: <div>Cancelled Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports',
+        element: <div>Reports & Analytics Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports/revenue',
+        element: <div>Revenue Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports/bestsellers',
+        element: <div>Best Sellers Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports/customers',
+        element: <div>Customer Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports/sellers',
+        element: <div>Seller Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'settings',
+        element: <div>System Settings Page (Coming Soon)</div>
+      },
+      {
+        path: 'settings/general',
+        element: <div>General Settings Page (Coming Soon)</div>
+      },
+      {
+        path: 'settings/payment',
+        element: <div>Payment Settings Page (Coming Soon)</div>
+      },
+      {
+        path: 'settings/shipping',
+        element: <div>Shipping Settings Page (Coming Soon)</div>
+      },
+      {
+        path: 'settings/email',
+        element: <div>Email Template Settings Page (Coming Soon)</div>
+      },
+      {
+        path: 'profile',
+        element: <div>Admin Profile Page (Coming Soon)</div>
+      }
+    ]
   }
 ]);
