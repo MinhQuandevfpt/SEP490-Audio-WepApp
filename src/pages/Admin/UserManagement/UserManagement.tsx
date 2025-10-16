@@ -126,40 +126,80 @@ const UserManagement: React.FC = () => {
       email: customer.email,
       phone: customer.phoneNumber,
       status: customer.status,
-      joinDate: customer.lastLogin || 'Chưa đăng nhập',
+      gender: customer.gender,
+      dateOfBirth: customer.dateOfBirth,
       totalOrders: customer.orderCount,
-      totalSpent: `₫${customer.loyaltyPoints.toLocaleString()}`,
       loyaltyLevel: customer.loyaltyLevel,
       kycStatus: customer.kycStatus
     }));
   }, [customers]);
 
   const customerColumns = [
-    { key: 'name', label: 'Tên', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
+    { key: 'name', label: 'Tên' },
+    { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Số điện thoại' },
     {
-      key: 'status',
-      label: 'Trạng thái',
-      render: (status: string) => {
-        const statusConfig = {
-          'ACTIVE': { bg: 'bg-green-100', text: 'text-green-800', label: 'Hoạt động' },
-          'INACTIVE': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Không hoạt động' },
-          'SUSPENDED': { bg: 'bg-red-100', text: 'text-red-800', label: 'Bị khóa' },
-          'DELETED': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Đã xóa' }
+      key: 'gender',
+      label: 'Giới tính',
+      render: (gender: string) => {
+        if (!gender) return <span className="text-gray-400">Chưa cập nhật</span>;
+        const genderConfig = {
+          'MALE': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Nam', icon: '👨' },
+          'FEMALE': { bg: 'bg-pink-100', text: 'text-pink-800', label: 'Nữ', icon: '👩' }
         };
-        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['INACTIVE'];
+        const config = genderConfig[gender as keyof typeof genderConfig];
+        
+        if (!config) return <span className="text-gray-400">Khác</span>;
         
         return (
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+            <span className="mr-1">{config.icon}</span>
             {config.label}
-        </span>
+          </span>
         );
       }
     },
-    { key: 'joinDate', label: 'Lần đăng nhập cuối', sortable: true },
-    { key: 'totalOrders', label: 'Tổng đơn hàng', sortable: true },
-    { key: 'totalSpent', label: 'Điểm thưởng', sortable: true },
+    {
+      key: 'dateOfBirth',
+      label: 'Ngày sinh',
+      render: (dob: string) => {
+        if (!dob) return <span className="text-gray-400">Chưa cập nhật</span>;
+        
+        // Format date from YYYY-MM-DD to DD/MM/YYYY
+        const formatDate = (dateString: string) => {
+          const date = new Date(dateString);
+          return date.toLocaleDateString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+        };
+        
+        // Calculate age
+        const calculateAge = (dateString: string) => {
+          const today = new Date();
+          const birthDate = new Date(dateString);
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+          }
+          
+          return age;
+        };
+        
+        const age = calculateAge(dob);
+        
+        return (
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-gray-900">{formatDate(dob)}</span>
+            <span className="text-xs text-gray-500">({age} tuổi)</span>
+          </div>
+        );
+      }
+    },
+    { key: 'totalOrders', label: 'Tổng đơn hàng'},
     {
       key: 'loyaltyLevel',
       label: 'Cấp độ',
@@ -177,6 +217,25 @@ const UserManagement: React.FC = () => {
         return (
           <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${config.bg} ${config.text}`}>
             {level}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'status',
+      label: 'Trạng thái',
+      render: (status: string) => {
+        const statusConfig = {
+          'ACTIVE': { bg: 'bg-green-100', text: 'text-green-800', label: 'Hoạt động' },
+          'INACTIVE': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Không hoạt động' },
+          'SUSPENDED': { bg: 'bg-red-100', text: 'text-red-800', label: 'Bị khóa' },
+          'DELETED': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Đã xóa' }
+        };
+        const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['INACTIVE'];
+        
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+            {config.label}
           </span>
         );
       }
@@ -426,8 +485,10 @@ const UserManagement: React.FC = () => {
                     <option value="fullName,asc">🔤 Tên A-Z</option>
                     <option value="fullName,desc">🔤 Tên Z-A</option>
                     <option value="orderCount,desc">📦 Đơn hàng nhiều</option>
-                    <option value="loyaltyPoints,desc">⭐ Điểm cao</option>
-              </select>
+                    <option value="dateOfBirth,desc">🎂 Tuổi cao</option>
+                    <option value="dateOfBirth,asc">🎂 Tuổi thấp</option>
+                    <option value="gender,asc">👥 Giới tính</option>
+                  </select>
             </div>
               </div>
               
