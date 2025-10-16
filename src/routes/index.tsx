@@ -126,7 +126,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'users/customers',
-        element: <div>Customer Management Page (Coming Soon)</div>
+        element: <UserManagement />
       },
       {
         path: 'users/sellers',

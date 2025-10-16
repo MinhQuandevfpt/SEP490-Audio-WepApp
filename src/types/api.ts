@@ -209,4 +209,88 @@ export type UpdateCustomerAddressResponse = CustomerAddressApiItem;
 
 
 
+
+
+
+// ===== ADMIN USER MANAGEMENT TYPES =====
+
+// Customer Status Enum
+export type CustomerStatus = 'NONE' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
+
+// Customer Gender Enum
+export type CustomerGender = 'MALE' | 'FEMALE' | null;
+
+// KYC Status Enum
+export type KycStatus = 'NONE' | 'PENDING' | 'VERIFIED';
+
+// Loyalty Level Enum
+export type LoyaltyLevel = 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
+
+// Customer List Request Parameters
+export interface CustomerListRequest {
+  keyword?: string;
+  status?: CustomerStatus;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+// Customer List Response (matches API response structure)
+export interface CustomerListResponse {
+  content: CustomerProfileResponse[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+    sort: {
+      empty: boolean;
+      sorted: boolean;
+      unsorted: boolean;
+    };
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  last: boolean;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  size: number;
+  number: number;
+  sort: {
+    empty: boolean;
+    sorted: boolean;
+    unsorted: boolean;
+  };
+  numberOfElements: number;
+  empty: boolean;
+}
+
+// Customer Statistics Response
+export interface CustomerStatsResponse {
+  totalCustomers: number;
+  activeCustomers: number;
+  inactiveCustomers: number;
+  suspendedCustomers: number;
+  newCustomersToday: number;
+  newCustomersThisWeek: number;
+  newCustomersThisMonth: number;
+}
+
+// Customer Update Status Request
+export interface UpdateCustomerStatusRequest {
+  customerId: string;
+  status: CustomerStatus;
+}
+
+// Customer Update Status Response
+export interface UpdateCustomerStatusResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    customerId: string;
+    status: CustomerStatus;
+    updatedAt: string;
+  };
+}
+
 export default {};
