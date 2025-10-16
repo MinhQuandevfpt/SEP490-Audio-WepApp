@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import DataTable from '../../../components/AdminComponents/DataTable';
+// import DataTable from '../../../components/AdminComponents/DataTable';
+import { AdminStatsCards, AdminTabs, UserFiltersBar, CustomersTableSection } from '../../../components/AdminComponents/UserListComponent';
 import { useUsers, useCustomerStats } from '../../../hooks/useUsers';
 import { showCenterError } from '../../../utils/notification';
 import type { CustomerStatus, CustomerProfileResponse } from '../../../types/api';
@@ -107,6 +108,11 @@ const UserManagement: React.FC = () => {
     setSort(sort);
   };
 
+  const handleViewDetail = (customerId: string) => {
+    console.log('View customer detail:', customerId);
+    // TODO: Implement navigation to detail page or open drawer/modal
+  };
+
   // Function to handle status updates (can be used in future features)
   // const handleUpdateStatus = async (customerId: string, newStatus: CustomerStatus) => {
   //   const success = await updateCustomerStatus({ customerId, status: newStatus });
@@ -130,7 +136,8 @@ const UserManagement: React.FC = () => {
       dateOfBirth: customer.dateOfBirth,
       totalOrders: customer.orderCount,
       loyaltyLevel: customer.loyaltyLevel,
-      kycStatus: customer.kycStatus
+      kycStatus: customer.kycStatus,
+      detailId: customer.id
     }));
   }, [customers]);
 
@@ -236,9 +243,21 @@ const UserManagement: React.FC = () => {
         return (
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
             {config.label}
-          </span>
+        </span>
         );
       }
+    },
+    {
+      key: 'detailId',
+      label: 'Chi tiết',
+      render: (id: string) => (
+        <button
+          onClick={() => handleViewDetail(id)}
+          className="inline-flex items-center px-3 py-1.5 border border-blue-200 text-blue-700 bg-white hover:bg-blue-50 rounded-md text-xs font-medium shadow-sm transition-colors"
+        >
+          Chi tiết
+        </button>
+      )
     }
   ];
 
@@ -349,407 +368,32 @@ const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Enhanced Statistics Cards */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {statsLoading ? (
-          // Enhanced loading skeleton for stats
-          Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 animate-pulse">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                </div>
-                <div className="w-16 h-16 bg-gray-200 rounded-xl"></div>
-              </div>
-            </div>
-          ))
-        ) : (
-          userStats.map((stat, index) => (
-            <div key={index} className="group bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600 mb-2">{stat.title}</p>
-                  <p className="text-3xl font-bold text-gray-900 mb-1">{stat.value.toLocaleString()}</p>
-                  <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      stat.changeType === 'increase' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {stat.changeType === 'increase' ? '↗' : '↘'} {stat.change}
-                    </span>
-                    <span className="ml-2 text-xs text-gray-500">so với tháng trước</span>
-                  </div>
-                </div>
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${
-                  stat.color === 'blue' ? 'bg-blue-100 text-blue-600' :
-                  stat.color === 'green' ? 'bg-green-100 text-green-600' :
-                  stat.color === 'purple' ? 'bg-purple-100 text-purple-600' :
-                  'bg-red-100 text-red-600'
-                } group-hover:scale-110 transition-transform duration-300`}>
-                  {stat.icon}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <AdminStatsCards statsLoading={statsLoading} items={userStats} />
 
-      {/* Enhanced Tabs and Content */}
       <div className="bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden">
-        {/* Enhanced Tab Navigation */}
-        <div className="bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-200">
-          <nav className="flex space-x-1 px-6" aria-label="Tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'customers' | 'sellers' | 'admins')}
-                className={`${
-                  activeTab === tab.id
-                    ? 'bg-white text-blue-600 border-blue-200 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-                } relative flex items-center px-6 py-4 font-medium text-sm rounded-t-lg border border-b-0 transition-all duration-200 group`}
-              >
-                <div className="flex items-center space-x-2">
-                  <span className="flex items-center">
-                    {tab.id === 'customers' && '👥'}
-                    {tab.id === 'sellers' && '🏪'}
-                    {tab.id === 'admins' && '👨‍💼'}
-                    <span className="ml-2">{tab.name}</span>
-                  </span>
-                  <span className={`${
-                    activeTab === tab.id
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-200 text-gray-600 group-hover:bg-gray-300'
-                  } inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold transition-colors duration-200`}>
-                    {tab.count}
-                  </span>
-                </div>
-                {activeTab === tab.id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-full"></div>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
+        <AdminTabs activeTab={activeTab} tabs={tabs as any} onChange={(id) => setActiveTab(id)} />
 
         {/* Tab Content */}
         <div className="p-6">
-          {/* Enhanced Filters and Search */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-              {/* Search and Filters */}
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-                {/* Search Input */}
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <input
-                  type="text"
-                    placeholder="Tìm kiếm theo tên, email..."
-                    value={searchKeyword}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className="block w-full sm:w-80 pl-10 pr-4 py-3 border border-blue-200 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm shadow-sm transition-all duration-200"
-                />
-              </div>
-                
-                {/* Status Filter */}
-                <div className="relative">
-                  <select 
-                    value={statusFilter || 'Tất cả trạng thái'}
-                    onChange={(e) => handleStatusFilter(e.target.value)}
-                    className="block w-full sm:w-48 px-4 py-3 border border-blue-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white transition-all duration-200"
-                  >
-                <option>Tất cả trạng thái</option>
-                    <option value="ACTIVE">🟢 Hoạt động</option>
-                    <option value="INACTIVE">🟡 Không hoạt động</option>
-                    <option value="SUSPENDED">🔴 Bị khóa</option>
-                    <option value="DELETED">⚫ Đã xóa</option>
-                  </select>
-                </div>
-                
-                {/* Sort Filter */}
-                <div className="relative">
-                  <select 
-                    value={sortBy}
-                    onChange={(e) => handleSort(e.target.value)}
-                    className="block w-full sm:w-48 px-4 py-3 border border-blue-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white transition-all duration-200"
-                  >
-                    <option value="createdAt,desc">📅 Mới nhất</option>
-                    <option value="createdAt,asc">📅 Cũ nhất</option>
-                    <option value="fullName,asc">🔤 Tên A-Z</option>
-                    <option value="fullName,desc">🔤 Tên Z-A</option>
-                    <option value="orderCount,desc">📦 Đơn hàng nhiều</option>
-                    <option value="dateOfBirth,desc">🎂 Tuổi cao</option>
-                    <option value="dateOfBirth,asc">🎂 Tuổi thấp</option>
-                    <option value="gender,asc">👥 Giới tính</option>
-                  </select>
-            </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex space-x-3">
-                <button className="inline-flex items-center px-4 py-3 border border-blue-300 rounded-lg shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
-                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
-                </svg>
-                  Lọc nâng cao
-              </button>
-                <button className="inline-flex items-center px-4 py-3 border border-green-300 rounded-lg shadow-sm text-sm font-medium text-green-700 bg-white hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200">
-                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                  Xuất Excel
-              </button>
-              </div>
-            </div>
-            
-            {/* Active Filters Display */}
-            {(searchKeyword || statusFilter) && (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-sm text-gray-600">Bộ lọc đang áp dụng:</span>
-                {searchKeyword && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    🔍 "{searchKeyword}"
-                    <button
-                      onClick={() => handleSearch('')}
-                      className="ml-2 text-blue-600 hover:text-blue-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {statusFilter && (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    📊 {statusFilter}
-                    <button
-                      onClick={() => handleStatusFilter('Tất cả trạng thái')}
-                      className="ml-2 text-green-600 hover:text-green-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                <button
-                  onClick={() => {
-                    handleSearch('');
-                    handleStatusFilter('Tất cả trạng thái');
-                  }}
-                  className="text-sm text-gray-500 hover:text-gray-700 underline"
-                >
-                  Xóa tất cả
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Data Table */}
-          {customersLoading ? (
-            // Loading skeleton for table
-            <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="animate-pulse">
-                  <div className="h-12 bg-gray-200 rounded"></div>
-                </div>
-              ))}
-            </div>
-          ) : isEmpty ? (
-            // Empty state
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">Không có dữ liệu</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                {searchKeyword || statusFilter ? 'Không tìm thấy khách hàng phù hợp với bộ lọc.' : 'Chưa có khách hàng nào.'}
-              </p>
-            </div>
-          ) : (
-            <>
-          <DataTable
-            columns={getCurrentColumns()}
-            data={getCurrentData()}
-            onRowClick={(row) => console.log('User clicked:', row)}
+          <UserFiltersBar
+            searchKeyword={searchKeyword}
+            statusFilter={statusFilter}
+            sortBy={sortBy}
+            onSearch={handleSearch}
+            onStatusChange={handleStatusFilter}
+            onSortChange={handleSort}
+            onClearAll={() => { handleSearch(''); handleStatusFilter('Tất cả trạng thái'); }}
           />
-              
-              {/* Enhanced Pagination */}
-              <div className="mt-8 bg-gray-50 rounded-lg p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                  {/* Results Info */}
-                  <div className="flex items-center space-x-4">
-                    <div className="text-sm text-gray-700">
-                      Hiển thị{' '}
-                      <span className="font-semibold text-gray-900">
-                        {pagination.totalElements > 0 ? pagination.page * pagination.size + 1 : 0}
-                      </span>
-                      {' '}đến{' '}
-                      <span className="font-semibold text-gray-900">
-                        {Math.min((pagination.page + 1) * pagination.size, pagination.totalElements)}
-                      </span>
-                      {' '}trong tổng số{' '}
-                      <span className="font-semibold text-blue-600">{pagination.totalElements}</span>
-                      {' '}kết quả
-                    </div>
-                    
-                    {/* Page Size Selector */}
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-600">Hiển thị:</span>
-                      <select
-                        value={pagination.size}
-                        onChange={(e) => setPageSize(Number(e.target.value))}
-                        className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value={5}>5</option>
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                        <option value={50}>50</option>
-                      </select>
-                      <span className="text-sm text-gray-600">/ trang</span>
-                    </div>
-                  </div>
-                  
-                  {/* Pagination Controls */}
-                  {pagination.totalPages > 1 && (
-                    <div className="flex items-center space-x-2">
-                      {/* First Page */}
-                      <button
-                        onClick={() => setPage(0)}
-                        disabled={pagination.first}
-                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Trang đầu"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      
-                      {/* Previous Page */}
-                      <button
-                        onClick={() => setPage(pagination.page - 1)}
-                        disabled={pagination.first}
-                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Trang trước"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      
-                      {/* Page Numbers */}
-                      <div className="flex items-center space-x-1">
-                        {(() => {
-                          const pages = [];
-                          const totalPages = pagination.totalPages;
-                          const currentPage = pagination.page;
-                          
-                          // Calculate page range
-                          let startPage = Math.max(0, currentPage - 2);
-                          let endPage = Math.min(totalPages - 1, currentPage + 2);
-                          
-                          // Adjust range if we're near the beginning or end
-                          if (endPage - startPage < 4) {
-                            if (startPage === 0) {
-                              endPage = Math.min(totalPages - 1, startPage + 4);
-                            } else {
-                              startPage = Math.max(0, endPage - 4);
-                            }
-                          }
-                          
-                          // Add first page and ellipsis if needed
-                          if (startPage > 0) {
-                            pages.push(
-                              <button
-                                key={0}
-                                onClick={() => setPage(0)}
-                                className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                              >
-                                1
-                              </button>
-                            );
-                            if (startPage > 1) {
-                              pages.push(
-                                <span key="ellipsis1" className="px-2 text-gray-500">
-                                  ...
-                                </span>
-                              );
-                            }
-                          }
-                          
-                          // Add page numbers in range
-                          for (let i = startPage; i <= endPage; i++) {
-                            pages.push(
-                              <button
-                                key={i}
-                                onClick={() => setPage(i)}
-                                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                  i === currentPage
-                                    ? 'text-white bg-blue-600 border border-blue-600 shadow-sm'
-                                    : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                {i + 1}
-                              </button>
-                            );
-                          }
-                          
-                          // Add last page and ellipsis if needed
-                          if (endPage < totalPages - 1) {
-                            if (endPage < totalPages - 2) {
-                              pages.push(
-                                <span key="ellipsis2" className="px-2 text-gray-500">
-                                  ...
-                                </span>
-                              );
-                            }
-                            pages.push(
-                              <button
-                                key={totalPages - 1}
-                                onClick={() => setPage(totalPages - 1)}
-                                className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                              >
-                                {totalPages}
-                              </button>
-                            );
-                          }
-                          
-                          return pages;
-                        })()}
-                      </div>
-                      
-                      {/* Next Page */}
-                      <button
-                        onClick={() => setPage(pagination.page + 1)}
-                        disabled={pagination.last}
-                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Trang sau"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                      
-                      {/* Last Page */}
-                      <button
-                        onClick={() => setPage(pagination.totalPages - 1)}
-                        disabled={pagination.last}
-                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Trang cuối"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
+
+          <CustomersTableSection
+            columns={getCurrentColumns() as any}
+            data={getCurrentData()}
+            loading={customersLoading}
+            isEmpty={isEmpty}
+            pagination={pagination as any}
+            onPageChange={(p) => setPage(p)}
+            onPageSizeChange={(s) => setPageSize(s)}
+          />
         </div>
       </div>
     </div>
