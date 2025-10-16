@@ -17,6 +17,7 @@ import OAuth2Success from '../pages/OAuth2Success';
 import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
+import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -123,6 +124,10 @@ export const router = createBrowserRouter([
       {
         path: 'users',
         element: <UserManagement />
+      },
+      {
+        path: 'users/:id',
+        element: <UserDetailManagement />
       },
       {
         path: 'users/customers',

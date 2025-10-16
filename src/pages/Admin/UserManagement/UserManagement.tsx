@@ -109,8 +109,7 @@ const UserManagement: React.FC = () => {
   };
 
   const handleViewDetail = (customerId: string) => {
-    console.log('View customer detail:', customerId);
-    // TODO: Implement navigation to detail page or open drawer/modal
+    window.location.href = `/admin/users/${customerId}`;
   };
 
   // Function to handle status updates (can be used in future features)
