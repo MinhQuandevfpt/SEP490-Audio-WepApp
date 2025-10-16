@@ -18,6 +18,7 @@ import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
+import KycManagement from '../pages/Admin/KycManagement';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -142,24 +143,24 @@ export const router = createBrowserRouter([
         element: <div>Admin Management Page (Coming Soon)</div>
       },
       {
-        path: 'products',
-        element: <div>Product Management Page (Coming Soon)</div>
+        path: 'stores',
+        element: <div>Store Management Page (Coming Soon)</div>
       },
       {
-        path: 'products/all',
-        element: <div>All Products Page (Coming Soon)</div>
+        path: 'stores/all',
+        element: <div>All Stores Page (Coming Soon)</div>
       },
       {
-        path: 'products/categories',
-        element: <div>Categories Management Page (Coming Soon)</div>
+        path: 'stores/kyc',
+        element: <KycManagement />
       },
       {
-        path: 'products/brands',
-        element: <div>Brands Management Page (Coming Soon)</div>
+        path: 'stores/approved',
+        element: <div>Approved Stores Page (Coming Soon)</div>
       },
       {
-        path: 'products/approval',
-        element: <div>Product Approval Page (Coming Soon)</div>
+        path: 'stores/blocked',
+        element: <div>Blocked Stores Page (Coming Soon)</div>
       },
       {
         path: 'orders',
