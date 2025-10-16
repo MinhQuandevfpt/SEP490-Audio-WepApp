@@ -40,17 +40,6 @@ class AdminAuthServiceClass {
       name: 'Admin User',
       role: 'admin' as const,
       avatar: '',
-      permissions: ['read', 'write', 'delete', 'manage_users', 'manage_products'],
-      lastLogin: new Date().toISOString(),
-      createdAt: '2024-01-01T00:00:00Z'
-    },
-    {
-      id: '2',
-      email: 'superadmin@audiostore.com',
-      password: 'superadmin123',
-      name: 'Super Admin',
-      role: 'super_admin' as const,
-      avatar: '',
       permissions: ['read', 'write', 'delete', 'manage_users', 'manage_products', 'manage_system'],
       lastLogin: new Date().toISOString(),
       createdAt: '2024-01-01T00:00:00Z'

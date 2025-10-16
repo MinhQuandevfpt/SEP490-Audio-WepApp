@@ -1,39 +1,5 @@
 // KYC Service for Seller Onboarding
-export interface KycRequest {
-  storeName: string;
-  phoneNumber: string;
-  businessLicenseNumber: string;
-  taxCode: string;
-  bankName: string;
-  bankAccountName: string;
-  bankAccountNumber: string;
-  idCardFrontUrl: string;
-  idCardBackUrl: string;
-  businessLicenseUrl: string;
-  isOfficial: boolean;
-}
-
-export interface KycResponse {
-  id: string;
-  version: number;
-  storeName: string;
-  phoneNumber: string;
-  businessLicenseNumber: string;
-  taxCode: string;
-  bankName: string;
-  bankAccountName: string;
-  bankAccountNumber: string;
-  idCardFrontUrl: string;
-  idCardBackUrl: string;
-  businessLicenseUrl: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  reviewNote: string | null;
-  submittedAt: string;
-  reviewedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  official: boolean;
-}
+import type { KycRequest, KycResponse } from '../../types/seller';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;

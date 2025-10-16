@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { showTikiNotification } from '../../../utils/notification';
 import { KycService } from '../../../services/seller/KycService';
-import type { KycRequest } from '../../../services/seller/KycService';
+import type { KycRequest } from '../../../types/seller';
 import { FileUploadService } from '../../../services/FileUploadService';
 
 interface OnboardingData {

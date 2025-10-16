@@ -1,39 +1,10 @@
 // Seller authentication service
-export interface SellerRegisterRequest {
-  name: string;
-  email: string;
-  phone: string;
-  password: string;
-}
-
-export interface SellerRegisterResponse {
-  status: number;
-  message: string;
-  data: {
-    email: string;
-    name: string;
-    phone: string;
-  };
-}
-
-export interface SellerLoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface SellerLoginResponse {
-  status: number;
-  message: string;
-  data: {
-    accessToken: string;
-    user: {
-      email: string;
-      fullName: string;
-      role: string;
-    };
-    tokenType: string;
-  };
-}
+import type {
+  SellerRegisterRequest,
+  SellerRegisterResponse,
+  SellerLoginRequest,
+  SellerLoginResponse
+} from '../../types/seller';
 
 const API_BASE_URL = 'http://localhost:8080/api';
 

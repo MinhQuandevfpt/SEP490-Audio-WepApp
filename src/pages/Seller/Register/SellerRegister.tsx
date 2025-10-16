@@ -10,7 +10,8 @@ import {
   Store,
 } from 'lucide-react';
 import { showTikiNotification } from '../../../utils/notification';
-import { SellerAuthService, type SellerRegisterRequest } from '../../../services/seller/AuthSeller';
+import { SellerAuthService } from '../../../services/seller/AuthSeller';
+import type { SellerRegisterRequest } from '../../../types/seller';
 
 const SellerRegister: React.FC = () => {
   const navigate = useNavigate();

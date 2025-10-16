@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
 import { showTikiNotification } from '../../../utils/notification';
-import { SellerAuthService, type SellerLoginRequest } from '../../../services/seller/AuthSeller';
+import { SellerAuthService } from '../../../services/seller/AuthSeller';
+import type { SellerLoginRequest } from '../../../types/seller';
 
 const SellerLogin: React.FC = () => {
   const navigate = useNavigate();
