@@ -112,11 +112,16 @@ export const useUsers = (initialParams: CustomerListRequest = {}): UseUsersRetur
       // Update local state
       setState(prev => ({
         ...prev,
-        customers: prev.customers.map(customer =>
-          customer.id === request.customerId
-            ? { ...customer, status: request.status }
-            : customer
-        )
+        customers: prev.customers.map(customer => {
+          if (customer.id !== request.customerId) return customer;
+
+          const allowedStatuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED'] as const;
+          const nextStatus = (allowedStatuses as readonly string[]).includes(request.status as string)
+            ? (request.status as (typeof allowedStatuses)[number])
+            : 'INACTIVE';
+
+          return { ...customer, status: nextStatus };
+        })
       }));
 
       return true;
@@ -233,9 +238,9 @@ export const useCustomerActions = () => {
     setError(null);
 
     try {
-      const success = await AdminUserService.updateCustomerStatus({ customerId, status });
+      const response = await AdminUserService.updateCustomerStatus({ customerId, status });
       setLoading(false);
-      return success;
+      return !!response.success;
     } catch (error: any) {
       const errorMessage = AdminUserService.formatApiError(error);
       setError(errorMessage);

@@ -172,11 +172,6 @@ export class AdminUserService {
       // In a real implementation, this would be a separate API endpoint
       const allCustomers = await this.getCustomers({ size: 1000 }); // Get all customers
       
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const monthAgo = new Date(today.getFullYear(), now.getMonth() - 1, now.getDate());
-      
       const stats: CustomerStatsResponse = {
         totalCustomers: allCustomers.totalElements,
         activeCustomers: allCustomers.content.filter(c => c.status === 'ACTIVE').length,
