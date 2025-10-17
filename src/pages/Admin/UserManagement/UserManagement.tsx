@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 // import DataTable from '../../../components/AdminComponents/DataTable';
-import { AdminStatsCards, AdminTabs, UserFiltersBar, CustomersTableSection } from '../../../components/AdminComponents/UserListComponent';
+import { AdminStatsCards, UserFiltersBar, CustomersTableSection } from '../../../components/AdminComponents/UserListComponent';
 import { useUsers, useCustomerStats } from '../../../hooks/useUsers';
 import { showCenterError } from '../../../utils/notification';
 import type { CustomerStatus, CustomerProfileResponse } from '../../../types/api';
 
 const UserManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'customers' | 'sellers' | 'admins'>('customers');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | undefined>(undefined);
   const [sortBy, setSortBy] = useState('createdAt,desc');
@@ -260,77 +259,7 @@ const UserManagement: React.FC = () => {
     }
   ];
 
-  const sellerColumns = [
-    { key: 'name', label: 'Tên cửa hàng', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'phone', label: 'Số điện thoại' },
-    {
-      key: 'status',
-      label: 'Trạng thái',
-      render: (status: string) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          status === 'Đã duyệt' ? 'bg-green-100 text-green-800' : 
-          status === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {status}
-        </span>
-      )
-    },
-    { key: 'joinDate', label: 'Ngày đăng ký', sortable: true },
-    { key: 'totalProducts', label: 'Sản phẩm', sortable: true },
-    { key: 'totalRevenue', label: 'Doanh thu', sortable: true }
-  ];
-
-  const adminColumns = [
-    { key: 'name', label: 'Tên', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'role', label: 'Vai trò', sortable: true },
-    {
-      key: 'status',
-      label: 'Trạng thái',
-      render: (status: string) => (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-          status === 'Hoạt động' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {status}
-        </span>
-      )
-    },
-    { key: 'lastLogin', label: 'Đăng nhập cuối', sortable: true },
-    { key: 'permissions', label: 'Quyền hạn' }
-  ];
-
-  const getCurrentData = () => {
-    switch (activeTab) {
-      case 'customers':
-        return transformedCustomers;
-      case 'sellers':
-        return []; // TODO: Implement sellers API
-      case 'admins':
-        return []; // TODO: Implement admins API
-      default:
-        return transformedCustomers;
-    }
-  };
-
-  const getCurrentColumns = () => {
-    switch (activeTab) {
-      case 'customers':
-        return customerColumns;
-      case 'sellers':
-        return sellerColumns;
-      case 'admins':
-        return adminColumns;
-      default:
-        return customerColumns;
-    }
-  };
-
-  const tabs = [
-    { id: 'customers', name: 'Khách hàng', count: pagination.totalElements },
-    { id: 'sellers', name: 'Người bán', count: 0 }, // TODO: Get from API
-    { id: 'admins', name: 'Quản trị viên', count: 0 } // TODO: Get from API
-  ];
+  // Removed tab-based views; we always show a single customers table
 
   // Show error message if API fails
   useEffect(() => {
@@ -370,9 +299,6 @@ const UserManagement: React.FC = () => {
       <AdminStatsCards statsLoading={statsLoading} items={userStats} />
 
       <div className="bg-white shadow-xl rounded-xl border border-gray-100 overflow-hidden">
-        <AdminTabs activeTab={activeTab} tabs={tabs as any} onChange={(id) => setActiveTab(id)} />
-
-        {/* Tab Content */}
         <div className="p-6">
           <UserFiltersBar
             searchKeyword={searchKeyword}
@@ -385,8 +311,8 @@ const UserManagement: React.FC = () => {
           />
 
           <CustomersTableSection
-            columns={getCurrentColumns() as any}
-            data={getCurrentData()}
+            columns={customerColumns as any}
+            data={transformedCustomers}
             loading={customersLoading}
             isEmpty={isEmpty}
             pagination={pagination as any}
