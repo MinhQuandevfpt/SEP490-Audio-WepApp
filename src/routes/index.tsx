@@ -6,6 +6,7 @@ import Register from '../pages/Customer/Register';
 import SellerLogin from '../pages/Seller/Login';
 import SellerRegister from '../pages/Seller/Register';
 import SellerOnboarding from '../pages/Seller/Onboarding';
+import { CreateProductPage } from '../pages/Seller/AddNewProduct';
 import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import AdminLayout from '../components/AdminLayout';
@@ -101,6 +102,10 @@ export const router = createBrowserRouter([
         element: <SellerRegister />
       }
     ]
+  },
+  {
+    path: '/seller/createproductpage',
+    element: <CreateProductPage />
   },
   {
     path: '/seller/onboarding',
