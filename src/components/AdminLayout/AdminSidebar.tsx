@@ -65,6 +65,7 @@ const AdminSidebar: React.FC = () => {
         </svg>
       ),
       children: [
+        { name: 'Mục lục sản phẩm', href: '/admin/categories', icon: null },
         { name: 'Tất cả cửa hàng', href: '/admin/stores/all', icon: null },
         { name: 'Yêu cầu KYC', href: '/admin/stores/kyc', icon: null },
         { name: 'Cửa hàng đã duyệt', href: '/admin/stores/approved', icon: null },

@@ -294,3 +294,19 @@ export interface UpdateCustomerStatusResponse {
 }
 
 export default {};
+
+// ===== CATEGORY TYPES =====
+export interface CategoryItem {
+  categoryId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  iconUrl: string | null;
+  sortOrder: number;
+}
+
+export interface CategoryListResponse {
+  status: number;
+  message: string;
+  data: CategoryItem[];
+}

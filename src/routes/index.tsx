@@ -19,6 +19,8 @@ import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import KycManagement from '../pages/Admin/KycManagement';
+import CategoriesList from '../pages/Admin/Categories';
+import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -205,6 +207,14 @@ export const router = createBrowserRouter([
       {
         path: 'reports/sellers',
         element: <div>Seller Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'categories',
+        element: <CategoriesList />
+      },
+      {
+        path: 'categories/:id',
+        element: <CategoryDetail />
       },
       {
         path: 'settings',
