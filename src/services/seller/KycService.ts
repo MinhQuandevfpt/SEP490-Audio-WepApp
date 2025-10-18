@@ -17,7 +17,12 @@ export class KycService {
       }
 
       // Get store ID
+      console.log('🔍 Getting store ID for KYC submission...');
       const storeId = await this.getCurrentStoreId();
+      console.log('✅ Store ID received:', storeId);
+
+      console.log('📤 Submitting KYC to:', `${API_URL}/stores/${storeId}/kyc`);
+      console.log('📋 KYC Data:', kycData);
 
       const response = await fetch(`${API_URL}/stores/${storeId}/kyc`, {
         method: 'POST',
@@ -29,15 +34,19 @@ export class KycService {
         body: JSON.stringify(kycData),
       });
 
+      console.log('📥 Response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('❌ KYC Error Response:', errorData);
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       const data: KycResponse = await response.json();
+      console.log('✅ KYC submitted successfully:', data);
       return data;
     } catch (error) {
-      console.error('KYC submission error:', error);
+      console.error('❌ KYC submission error:', error);
       throw error;
     }
   }
@@ -60,6 +69,59 @@ export class KycService {
   }
 
   /**
+   * Get current KYC status
+   */
+  static async getKycStatus(): Promise<KycResponse | null> {
+    try {
+      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+      }
+
+      const storeId = await this.getCurrentStoreId();
+      console.log('🔍 Getting KYC status for store:', storeId);
+
+      const response = await fetch(`${API_URL}/stores/${storeId}/kyc`, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('📥 KYC status response:', response.status);
+
+      if (response.status === 404) {
+        console.log('ℹ️ No KYC found (INACTIVE)');
+        return null;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ KYC status error:', errorData);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ KYC status received:', data);
+      
+      // Backend returns array or single object
+      const kycData = data.data || data;
+      
+      // If array, get first item
+      if (Array.isArray(kycData)) {
+        return kycData[0] || null;
+      }
+      
+      return kycData;
+    } catch (error) {
+      console.error('❌ Error getting KYC status:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get current store ID from authenticated user
    * Use the official API endpoint /api/stores/me/id
    */
@@ -68,6 +130,7 @@ export class KycService {
       // First, try to get store ID from localStorage
       const cachedStoreId = localStorage.getItem('seller_store_id');
       if (cachedStoreId) {
+        console.log('✅ Using cached store ID:', cachedStoreId);
         return cachedStoreId;
       }
 
@@ -76,6 +139,8 @@ export class KycService {
       if (!token) {
         throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
       }
+
+      console.log('🔍 Fetching store ID from API:', `${API_URL}/stores/me/id`);
 
       // Use the official API endpoint to get store ID
       const response = await fetch(`${API_URL}/stores/me/id`, {
@@ -86,26 +151,32 @@ export class KycService {
         },
       });
 
+      console.log('📥 Store ID API response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Store ID Error Response:', errorData);
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       const storeData = await response.json();
+      console.log('📦 Store data received:', storeData);
       
       // According to the API response, the storeId is in the 'data' field
       const storeId = storeData.data;
       
       if (!storeId) {
+        console.error('❌ No store ID found in response:', storeData);
         throw new Error('Không tìm thấy store ID trong response.');
       }
 
       // Cache the store ID
       localStorage.setItem('seller_store_id', storeId);
+      console.log('✅ Store ID cached:', storeId);
       
       return storeId;
     } catch (error) {
-      console.error('Error getting store ID:', error);
+      console.error('❌ Error getting store ID:', error);
       throw error;
     }
   }

@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
 import HomePage from '../pages/HomePage/HomePage';
 import Login from '../pages/Customer/Login';
@@ -9,6 +10,7 @@ import SellerOnboarding from '../pages/Seller/Onboarding';
 import { CreateProductPage } from '../pages/Seller/AddNewProduct';
 import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
+import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
@@ -23,9 +25,13 @@ import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import KycManagement from '../pages/Admin/KycManagement';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
+import SellerDashboardHome from '../pages/Seller/Dashboard';
+import KycStatusPage from '../pages/Seller/KycStatus';
+import SellerDebugPage from '../pages/Seller/Debug';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
+import { StoreService } from '../services/seller/StoreService';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -40,6 +46,59 @@ function ProtectedSellerRoute({ element }: { element: ReactElement }) {
   if (!isAuthenticated) {
     return <Navigate to="/seller/login" replace />;
   }
+  return element;
+}
+
+// Protected route that checks both authentication AND store status
+function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [storeStatus, setStoreStatus] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const checkStoreStatus = async () => {
+      const isAuthenticated = SellerAuthService.isAuthenticated();
+      
+      if (!isAuthenticated) {
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        const statusResponse = await StoreService.getStoreStatus();
+        setStoreStatus(statusResponse.status);
+      } catch (error) {
+        console.error('Error checking store status:', error);
+        setStoreStatus('INACTIVE');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkStoreStatus();
+  }, []);
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Đang kiểm tra thông tin...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  const isAuthenticated = SellerAuthService.isAuthenticated();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/seller/login" replace />;
+  }
+  
+  // Only ACTIVE stores can access dashboard
+  if (storeStatus !== 'ACTIVE') {
+    return <Navigate to="/seller/kyc-status" replace />;
+  }
+  
   return element;
 }
 
@@ -115,6 +174,113 @@ export const router = createBrowserRouter([
   {
     path: '/seller/onboarding',
     element: <ProtectedSellerRoute element={<SellerOnboarding />} />
+  },
+  {
+    path: '/seller/kyc-status',
+    element: <ProtectedSellerRoute element={<KycStatusPage />} />
+  },
+  {
+    path: '/seller/debug',
+    element: <ProtectedSellerRoute element={<SellerDebugPage />} />
+  },
+  // Seller Dashboard routes (Only for ACTIVE stores)
+  {
+    path: '/seller/dashboard',
+    element: <ProtectedSellerDashboardRoute element={<SellerDashboardLayout />} />,
+    children: [
+      {
+        path: '',
+        element: <SellerDashboardHome />
+      },
+      {
+        path: 'products',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Quản lý sản phẩm</h2><p className="text-gray-600 mt-2">Trang quản lý sản phẩm đang được phát triển...</p></div>
+      },
+      {
+        path: 'products/add',
+        element: <CreateProductPage />
+      },
+      {
+        path: 'products/out-of-stock',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Sản phẩm hết hàng</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'orders',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Quản lý đơn hàng</h2><p className="text-gray-600 mt-2">Trang quản lý đơn hàng đang được phát triển...</p></div>
+      },
+      {
+        path: 'orders/pending',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng chờ xác nhận</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'orders/processing',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đang xử lý</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'orders/shipping',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đang giao</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'orders/delivered',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã giao</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'orders/cancelled',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'analytics',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Báo cáo & Phân tích</h2><p className="text-gray-600 mt-2">Trang báo cáo đang được phát triển...</p></div>
+      },
+      {
+        path: 'finance',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Tài chính</h2><p className="text-gray-600 mt-2">Trang tài chính đang được phát triển...</p></div>
+      },
+      {
+        path: 'finance/revenue',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Doanh thu</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'finance/transactions',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Lịch sử giao dịch</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'finance/withdrawal',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Rút tiền</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'marketing',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Marketing</h2><p className="text-gray-600 mt-2">Trang marketing đang được phát triển...</p></div>
+      },
+      {
+        path: 'marketing/promotions',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Khuyến mãi</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'marketing/vouchers',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Voucher</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'marketing/flash-sale',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Flash Sale</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'messages',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Tin nhắn</h2><p className="text-gray-600 mt-2">Trang tin nhắn đang được phát triển...</p></div>
+      },
+      {
+        path: 'reviews',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đánh giá sản phẩm</h2><p className="text-gray-600 mt-2">Trang đánh giá đang được phát triển...</p></div>
+      },
+      {
+        path: 'settings',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Cài đặt cửa hàng</h2><p className="text-gray-600 mt-2">Trang cài đặt đang được phát triển...</p></div>
+      },
+      {
+        path: 'profile',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Thông tin tài khoản</h2><p className="text-gray-600 mt-2">Trang thông tin tài khoản đang được phát triển...</p></div>
+      }
+    ]
   },
   // Admin routes
   {
