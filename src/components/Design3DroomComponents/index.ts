@@ -4,6 +4,11 @@ export { default as Canvas3D } from './Canvas3D';
 
 // Control Components
 export { default as ControlsPanel } from './ControlsPanel';
+export { default as ControlNavigation } from './ControlNavigation';
+export { default as RoomDesignSection } from './RoomDesignSection';
+export { default as FurnitureDesignSection } from './FurnitureDesignSection';
+export { default as SpeakerDesignSection } from './SpeakerDesignSection';
+export { default as ListenerDesignSection } from './ListenerDesignSection';
 export { default as DimensionControls } from './DimensionControls';
 export { default as RoomPresets } from './RoomPresets';
 export { default as ColorPicker } from './ColorPicker';
@@ -89,3 +94,73 @@ export const DEFAULT_COLORS: RoomColors = {
   rightWall: '#D2B48C',
   backWall: '#D2B48C'
 };
+
+// Control Panel Types
+export type ControlSection = 'room' | 'furniture' | 'speakers' | 'listeners';
+
+export interface ControlSectionInfo {
+  id: ControlSection;
+  title: string;
+  icon: string;
+  description: string;
+}
+
+export const CONTROL_SECTIONS: ControlSectionInfo[] = [
+  {
+    id: 'room',
+    title: 'Thiết kế phòng',
+    icon: '🏠',
+    description: 'Chọn loại phòng, kích thước và màu sắc'
+  },
+  {
+    id: 'furniture',
+    title: 'Thiết kế nội thất',
+    icon: '🪑',
+    description: 'Chọn và đặt nội thất trong phòng'
+  },
+  {
+    id: 'speakers',
+    title: 'Thiết kế loa',
+    icon: '🔊',
+    description: 'Chọn loa, vị trí và cài đặt âm thanh'
+  },
+  {
+    id: 'listeners',
+    title: 'Vị trí người nghe',
+    icon: '👥',
+    description: 'Thêm và di chuyển vị trí người nghe'
+  }
+];
+
+// Furniture Types
+export interface Furniture {
+  id: string;
+  name: string;
+  type: 'table' | 'chair' | 'shelf' | 'cabinet' | 'bed';
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  color: string;
+}
+
+// Speaker Types
+export interface Speaker {
+  id: string;
+  name: string;
+  type: 'floor_single' | 'floor_pair' | 'desk_single' | 'desk_pair' | 'wall_single' | 'wall_pair' | 'amplifier';
+  position: [number, number, number];
+  rotation: [number, number, number];
+  color: string;
+  power: number;
+  quality: 'basic' | 'premium' | 'professional';
+  isPlaying: boolean;
+}
+
+// Listener Types
+export interface Listener {
+  id: string;
+  name: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  isActive: boolean;
+}
