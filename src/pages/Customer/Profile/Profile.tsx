@@ -1,19 +1,42 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import Layout from '../../../components/Layout';
 import { UserInfoCard } from '../../../components/ProfilePageComponents/UserInfoCard';
 import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHistory';
 import { AddressBook } from '../../../components/ProfilePageComponents/AddressBook';
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
-import { loadProfileData, saveProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
+import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
 import { User, Package, MapPinned, Lock, CreditCard } from 'lucide-react';
-// UserInfoCard đã tự xử lý dữ liệu và gọi API, trang Profile không còn xử lý
+import { profileCache } from '../../../services/cache/ProfileCache';
 
 const Profile: React.FC = () => {
   const [data, setData] = useState<ProfileData | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [preloadedData, setPreloadedData] = useState<{
+    userProfile?: any;
+    addresses?: any[];
+    provinces?: any[];
+  }>({});
 
   useEffect(() => {
     setData(loadProfileData());
+    
+    // Get customer ID for preloading
+    const cid = localStorage.getItem('customer_id');
+    if (cid) {
+      setCustomerId(cid);
+      preloadData(cid);
+    }
+  }, []);
+
+  // Preload all data when component mounts using cache
+  const preloadData = useCallback(async (cid: string) => {
+    try {
+      const data = await profileCache.preloadUserData(cid);
+      setPreloadedData(data);
+    } catch (error) {
+      console.error('Preload error:', error);
+    }
   }, []);
 
   // TODO: This function is not used yet, will be needed for profile updates
@@ -24,55 +47,6 @@ const Profile: React.FC = () => {
   //   saveProfileData(updated);
   // };
 
-  // Address management functions
-  const handleAddAddress = (newAddress: Omit<ProfileData['addresses'][0], 'id'>) => {
-    if (!data) return;
-    const addressWithId = {
-      ...newAddress,
-      id: `ADDR${Date.now()}`, // Simple ID generation
-    };
-    const updated: ProfileData = {
-      ...data,
-      addresses: [...data.addresses, addressWithId]
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
-
-  const handleEditAddress = (id: string, updatedAddress: Omit<ProfileData['addresses'][0], 'id'>) => {
-    if (!data) return;
-    const updated: ProfileData = {
-      ...data,
-      addresses: data.addresses.map(addr => 
-        addr.id === id ? { ...updatedAddress, id } : addr
-      )
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
-
-  const handleDeleteAddress = (id: string) => {
-    if (!data) return;
-    const updated: ProfileData = {
-      ...data,
-      addresses: data.addresses.filter(addr => addr.id !== id)
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
-
-  const handleSetDefaultAddress = (id: string) => {
-    if (!data) return;
-    const updated: ProfileData = {
-      ...data,
-      addresses: data.addresses.map(addr => ({
-        ...addr,
-        isDefault: addr.id === id
-      }))
-    };
-    setData(updated);
-    saveProfileData(updated);
-  };
 
   // Password management function
   const handleUpdatePassword = (newPassword: string) => {
@@ -140,31 +114,32 @@ const Profile: React.FC = () => {
 
             {/* Right content */}
             <section className="lg:col-span-2 space-y-6">
-              {active === 'info' && (
-                <UserInfoCard />
-              )}
-
-              {active === 'orders' && (
-                <OrderHistory orders={data.orders} />
-              )}
-
-              {active === 'addresses' && (
-                <AddressBook 
-                  addresses={data.addresses}
-                  onAddAddress={handleAddAddress}
-                  onEditAddress={handleEditAddress}
-                  onDeleteAddress={handleDeleteAddress}
-                  onSetDefault={handleSetDefaultAddress}
+              {/* Render all components but hide inactive ones */}
+              <div className={active === 'info' ? 'block' : 'hidden'}>
+                <UserInfoCard 
+                  preloadedData={preloadedData.userProfile}
+                  customerId={customerId}
                 />
-              )}
+              </div>
 
-              {active === 'password' && (
+              <div className={active === 'orders' ? 'block' : 'hidden'}>
+                <OrderHistory orders={data.orders} />
+              </div>
+
+              <div className={active === 'addresses' ? 'block' : 'hidden'}>
+                <AddressBook 
+                  preloadedData={preloadedData}
+                  customerId={customerId}
+                />
+              </div>
+
+              <div className={active === 'password' ? 'block' : 'hidden'}>
                 <ChangePassword 
                   onUpdatePassword={handleUpdatePassword}
                 />
-              )}
+              </div>
 
-              {active === 'bank' && (
+              <div className={active === 'bank' ? 'block' : 'hidden'}>
                 <BankConnect 
                   bankCards={data.bankCards || []}
                   onAddCard={handleAddBankCard}
@@ -172,7 +147,7 @@ const Profile: React.FC = () => {
                   onDeleteCard={handleDeleteBankCard}
                   onSetDefault={handleSetDefaultBankCard}
                 />
-              )}
+              </div>
             </section>
           </div>
         )}

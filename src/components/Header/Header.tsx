@@ -65,6 +65,9 @@ const Header: React.FC = () => {
               <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
                 Bán hàng cùng AudioShop
               </Link>
+              <Link to="/3d-room" className="text-blue-600 hover:text-gray-900">
+                Trải nghiệm phòng âm thanh
+              </Link>
             </div>
             <div className="flex space-x-6">
               <a href="/notifications" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
@@ -171,7 +174,7 @@ const Header: React.FC = () => {
               <span className="text-gray-300">|</span>
 
               {/* User Account */}
-              <Link to={`/account${getEncodedCustomerParam()}`} className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
+              <Link to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
                 <User className="w-5 h-5" />
                 <span className="text-sm">Tài khoản</span>
               </Link>

@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import ProfileCustomerService from '../../../services/customer/Profilecustomer';
 import { loadProfileData, saveProfileData, type ProfileData } from '../../../data/profiledata';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
+import LoadingSkeleton from '../../common/LoadingSkeleton';
 
-interface UserInfoCardProps {
+interface PresentationalUserInfoCardProps {
   fullName: string;
   email: string;
   phone: string;
@@ -18,7 +20,7 @@ interface UserInfoCardProps {
 }
 
 // Presentational component
-export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
+export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     const first = parts[0]?.charAt(0) ?? '';
@@ -290,17 +292,11 @@ export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullNa
         </div>
 
         {/* Row 4: Membership Points - Membership Level */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 hidden">
           <div>
             <span className="text-sm text-gray-500">Điểm thành viên</span>
             {isEditing ? (
-              <input 
-                type="number" 
-                value={form.membershipPoints} 
-                onChange={(e) => updateField('membershipPoints', e.target.value)} 
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" 
-                min="0"
-              />
+              <div className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500">Chỉ admin có thể thay đổi</div>
             ) : (
               <div className="flex items-center gap-2 mt-1">
                 <Star className="w-4 h-4 text-yellow-500" />
@@ -311,17 +307,7 @@ export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullNa
           <div>
             <span className="text-sm text-gray-500">Cấp bậc thành viên</span>
             {isEditing ? (
-              <select 
-                value={form.membershipLevel} 
-                onChange={(e) => updateField('membershipLevel', e.target.value)} 
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="bronze">🥉 Đồng</option>
-                <option value="silver">🥈 Bạc</option>
-                <option value="gold">🥇 Vàng</option>
-                <option value="platinum">💎 Bạch Kim</option>
-                <option value="diamond">💠 Kim Cương</option>
-              </select>
+              <div className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500">Chỉ admin có thể thay đổi</div>
             ) : (
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-lg">{getMembershipInfo().icon}</span>
@@ -471,7 +457,12 @@ export const PresentationalUserInfoCard: React.FC<UserInfoCardProps> = ({ fullNa
 };
 
 // Container component: handles fetching/merging data and renders PresentationalUserInfoCard
-const UserInfoCard: React.FC = () => {
+interface UserInfoCardProps {
+  preloadedData?: any;
+  customerId?: string | null;
+}
+
+const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }) => {
   const location = useLocation();
   const [loading, setLoading] = useState<boolean>(false);
   const [apiProfile, setApiProfile] = useState<{
@@ -486,30 +477,55 @@ const UserInfoCard: React.FC = () => {
   } | null>(null);
   const [baseUser, setBaseUser] = useState<ProfileData['user'] | null>(null);
   const [hasCustomerId, setHasCustomerId] = useState<boolean>(false);
+  const [customerIdState, setCustomerIdState] = useState<string | null>(null);
 
   useEffect(() => {
     // load local baseline
     const local = loadProfileData();
     setBaseUser(local?.user ?? null);
 
-    // decode ?u from query
+    // Use preloaded data if available, otherwise fetch
+    if (preloadedData) {
+      const gender = (preloadedData.gender || '').toString().toLowerCase();
+      const mappedGender: 'male' | 'female' | 'other' = gender === 'male' ? 'male' : gender === 'female' ? 'female' : 'other';
+      const level = (preloadedData.loyaltyLevel || '').toString().toLowerCase();
+      const mappedLevel: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | undefined =
+        level === 'bronze' || level === 'silver' || level === 'gold' || level === 'platinum' || level === 'diamond' ? (level as any) : undefined;
+      
+      setApiProfile({
+        fullName: preloadedData.fullName,
+        email: preloadedData.email,
+        phone: preloadedData.phoneNumber,
+        gender: mappedGender,
+        dateOfBirth: preloadedData.dateOfBirth ?? undefined,
+        avatar: preloadedData.avatarURL ?? undefined,
+        membershipPoints: preloadedData.loyaltyPoints ?? 0,
+        membershipLevel: mappedLevel || 'bronze',
+      });
+      setHasCustomerId(true);
+      setCustomerIdState(customerId || null);
+      return;
+    }
+
+    // Fallback: decode ?u from query and fetch if no preloaded data
     const params = new URLSearchParams(location.search);
     const encoded = params.get('u');
-    let customerId = localStorage.getItem('customer_id');
+    let customerIdFromStorage = localStorage.getItem('customer_id');
     if (encoded) {
       try {
         const padded = encoded.replace(/-/g, '+').replace(/_/g, '/');
         const b64 = padded + '==='.slice((padded.length + 3) % 4);
         const decoded = atob(b64);
-        if (decoded) customerId = decoded;
+        if (decoded) customerIdFromStorage = decoded;
       } catch {
         // ignore
       }
     }
-    if (!customerId) return;
+    if (!customerIdFromStorage) return;
     setHasCustomerId(true);
+    setCustomerIdState(customerIdFromStorage);
     setLoading(true);
-    ProfileCustomerService.getByCustomerId(customerId)
+    ProfileCustomerService.getByCustomerId(customerIdFromStorage)
       .then((p) => {
         const gender = (p.gender || '').toString().toLowerCase();
         const mappedGender: 'male' | 'female' | 'other' = gender === 'male' ? 'male' : gender === 'female' ? 'female' : 'other';
@@ -528,34 +544,82 @@ const UserInfoCard: React.FC = () => {
         });
       })
       .finally(() => setLoading(false));
-  }, [location.search]);
+  }, [location.search, preloadedData, customerId]);
 
-  const handleLocalUpdate = (nextUser: { fullName: string; email: string; phone: string; gender: 'male' | 'female' | 'other'; dateOfBirth: string; avatar?: string; membershipPoints?: number; membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'; }) => {
-    const current = loadProfileData();
-    if (!current) return;
-    const updated: ProfileData = { ...current, user: { ...current.user, ...nextUser } } as ProfileData;
-    saveProfileData(updated);
-    setBaseUser(updated.user);
+  // removed unused local-only update handler; updates are now done via API
+
+  const handleApiUpdate = async (nextUser: { fullName: string; email: string; phone: string; gender: 'male' | 'female' | 'other'; dateOfBirth: string; avatar?: string; membershipPoints?: number; membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'; }) => {
+    try {
+      if (!customerIdState) return;
+      setLoading(true);
+
+      const payload: any = {
+        fullName: nextUser.fullName,
+        userName: (apiProfile as any)?.userName || (baseUser as any)?.userName,
+        email: nextUser.email,
+        phoneNumber: nextUser.phone,
+        gender: nextUser.gender === 'male' ? 'MALE' : nextUser.gender === 'female' ? 'FEMALE' : null,
+        dateOfBirth: nextUser.dateOfBirth || null,
+        avatarURL: nextUser.avatar || null,
+        status: (apiProfile as any)?.status,
+        twoFactorEnabled: (apiProfile as any)?.twoFactorEnabled,
+        kycStatus: (apiProfile as any)?.kycStatus,
+        preferredCategory: (apiProfile as any)?.preferredCategory,
+        // Loyalty fields are admin-only; do not send from customer update
+      };
+
+      const updated = await ProfileCustomerService.updateByCustomerId(customerIdState, payload);
+
+      const gender = (updated.gender || '').toString().toLowerCase();
+      const mappedGender: 'male' | 'female' | 'other' = gender === 'male' ? 'male' : gender === 'female' ? 'female' : 'other';
+      // loyalty mapping kept for potential admin use, but customer view will not override local values
+
+      setApiProfile({
+        fullName: updated.fullName,
+        email: updated.email,
+        phone: updated.phoneNumber,
+        gender: mappedGender,
+        dateOfBirth: updated.dateOfBirth ?? undefined,
+        avatar: updated.avatarURL ?? undefined,
+        membershipPoints: apiProfile?.membershipPoints ?? baseUser?.membershipPoints ?? 0,
+        membershipLevel: apiProfile?.membershipLevel ?? baseUser?.membershipLevel ?? 'bronze',
+      });
+
+      const current = loadProfileData();
+      if (current) {
+        const merged: ProfileData = {
+          ...current,
+          user: {
+            ...current.user,
+            fullName: updated.fullName || current.user.fullName,
+            email: updated.email || current.user.email,
+            phone: updated.phoneNumber || current.user.phone,
+            gender: mappedGender,
+            dateOfBirth: updated.dateOfBirth ?? current.user.dateOfBirth,
+            avatar: updated.avatarURL ?? current.user.avatar,
+            // keep local loyalty values; customers cannot change these via this screen
+            membershipPoints: current.user.membershipPoints,
+            membershipLevel: current.user.membershipLevel,
+          }
+        } as ProfileData;
+        saveProfileData(merged);
+        setBaseUser(merged.user);
+      }
+
+      showCenterSuccess('Cập nhật thông tin thành công', 'Thành công');
+    } catch (e: any) {
+      showCenterError(e?.message || 'Cập nhật thất bại', 'Lỗi');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!baseUser) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-2/3" />
-      </div>
-    );
+    return <LoadingSkeleton type="profile" />;
   }
 
   if (hasCustomerId && (loading || !apiProfile)) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
-        <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
-        <div className="h-4 bg-gray-200 rounded w-2/3" />
-      </div>
-    );
+    return <LoadingSkeleton type="profile" />;
   }
 
   const merged = {
@@ -567,12 +631,12 @@ const UserInfoCard: React.FC = () => {
     avatar: apiProfile?.avatar ?? baseUser.avatar,
     membershipPoints: apiProfile?.membershipPoints ?? baseUser.membershipPoints,
     membershipLevel: apiProfile?.membershipLevel ?? baseUser.membershipLevel,
-  } as UserInfoCardProps;
+  } as PresentationalUserInfoCardProps;
 
   return (
     <PresentationalUserInfoCard
       {...merged}
-      onUpdate={handleLocalUpdate}
+      onUpdate={handleApiUpdate}
     />
   );
 };

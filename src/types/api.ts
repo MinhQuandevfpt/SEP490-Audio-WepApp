@@ -1,6 +1,3 @@
-// API Types for Customer Authentication
-
-// Register Request
 export interface CustomerRegisterRequest {
   name: string;
   password: string;
@@ -21,8 +18,7 @@ export interface CustomerRegisterResponse {
 
 // Login Request
 export interface CustomerLoginRequest {
-  email?: string;
-  phone?: string;
+  email: string;      // Required as per swagger
   password: string;
 }
 
@@ -35,8 +31,8 @@ export interface CustomerLoginResponse {
     user: {
       email: string;
       accountId: string;
-      userId: string;
-      fullName: string;    // API login trả về fullName (camelCase)
+      customerId: string;
+      fullName: string;    
       role: string;
     };
     tokenType: string;
@@ -61,11 +57,11 @@ export interface ApiError {
 // User Profile (consistent with database schema)
 export interface CustomerProfile {
   email: string;
-  full_name: string;   // Primary field - matches database column
+  full_name: string;   
   role: string;
   phone?: string;
   dateOfBirth?: string;
-  gender?: 'male' | 'female' | 'other';
+  gender?: 'MALE' | 'FEMALE';
   avatar?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -78,16 +74,16 @@ export interface CustomerProfileResponse {
   userName: string;
   email: string;
   phoneNumber: string;
-  gender: string | null;
+  gender: 'MALE' | 'FEMALE' | null;
   dateOfBirth: string | null;
   avatarURL: string | null;
-  status: 'active' | string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   twoFactorEnabled: boolean;
-  kycStatus: 'none' | string;
+  kycStatus: 'NONE' | 'PENDING' | 'VERIFIED';
   lastLogin: string | null;
   addressCount: number;
   loyaltyPoints: number;
-  loyaltyLevel: string | null;
+  loyaltyLevel: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
   voucherCount: number;
   orderCount: number;
   cancelCount: number;
@@ -99,32 +95,218 @@ export interface CustomerProfileResponse {
 
 // Customer Profile Request
 export interface CustomerProfileRequest {
-  userId: string;
+  customerId: string;
 }
 
 
 // update customer profile request
 export interface UpdateCustomerRequest {
-  userId: string; // bắt buộc
+  customerId: string; // bắt buộc
   fullName?: string;
   userName?: string;
   email?: string;
   phoneNumber?: string;
-  gender?: 'male' | 'female' | 'other' | null;
+  gender?: 'MALE' | 'FEMALE' | null;
   dateOfBirth?: string | null; // ISO yyyy-MM-dd
   avatarURL?: string | null;
-  status?: 'active' | 'inactive' | 'suspended' | null;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | null;
   twoFactorEnabled?: boolean;
-  kycStatus?: 'none' | 'pending' | 'verified' | null;
+  kycStatus?: 'NONE' | 'PENDING' | 'VERIFIED' | null;
   preferredCategory?: string | null;
   loyaltyPoints?: number;
-  loyaltyLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | null;
+  loyaltyLevel?: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
 }
 
+// Customer Address
+export type AddressLabel = 'HOME' | 'WORK' | 'OTHER';
+
+export interface AddCustomerAddressRequest {
+  customerId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string;
+  isDefault: boolean;
+}
+
+export interface CustomerAddress {
+  id: string;
+  customerId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string | null;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AddCustomerAddressResponse extends ApiResponse<CustomerAddress> {}
+
+// Get customer addresses (request requires customerId)
+export interface GetCustomerAddressesRequest {
+  customerId: string;
+}
+
+// API may return an array with 'default' instead of 'isDefault'
+export interface CustomerAddressApiItem {
+  id: string;
+  customerId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string;
+  default: boolean;
+}
+
+export type GetCustomerAddressesResponse = CustomerAddressApiItem[];
+
+// Update customer address
+export interface UpdateCustomerAddressRequest {
+  customerId: string;
+  addressId: string;
+  receiverName: string;
+  phoneNumber: string;
+  label: AddressLabel;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note?: string;
+  isDefault: boolean;
+}
+
+// Response returns a single address object using 'default' flag
+export type UpdateCustomerAddressResponse = CustomerAddressApiItem;
 
 
 
 
 
+
+
+
+
+
+// ===== ADMIN USER MANAGEMENT TYPES =====
+
+// Customer Status Enum
+export type CustomerStatus = 'NONE' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'DELETED';
+
+// Customer Gender Enum
+export type CustomerGender = 'MALE' | 'FEMALE' | null;
+
+// KYC Status Enum
+export type KycStatus = 'NONE' | 'PENDING' | 'VERIFIED';
+
+// Loyalty Level Enum
+export type LoyaltyLevel = 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | null;
+
+// Customer List Request Parameters
+export interface CustomerListRequest {
+  keyword?: string;
+  status?: CustomerStatus;
+  page?: number;
+  size?: number;
+  sort?: string;
+}
+
+// Customer List Response (matches API response structure)
+export interface CustomerListResponse {
+  content: CustomerProfileResponse[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+    sort: {
+      empty: boolean;
+      sorted: boolean;
+      unsorted: boolean;
+    };
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  last: boolean;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  size: number;
+  number: number;
+  sort: {
+    empty: boolean;
+    sorted: boolean;
+    unsorted: boolean;
+  };
+  numberOfElements: number;
+  empty: boolean;
+}
+
+// Customer Statistics Response
+export interface CustomerStatsResponse {
+  totalCustomers: number;
+  activeCustomers: number;
+  inactiveCustomers: number;
+  suspendedCustomers: number;
+  newCustomersToday: number;
+  newCustomersThisWeek: number;
+  newCustomersThisMonth: number;
+}
+
+// Customer Update Status Request
+export interface UpdateCustomerStatusRequest {
+  customerId: string;
+  status: CustomerStatus;
+}
+
+// Customer Update Status Response
+export interface UpdateCustomerStatusResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    customerId: string;
+    status: CustomerStatus;
+    updatedAt: string;
+  };
+}
 
 export default {};
+
+// ===== CATEGORY TYPES =====
+export interface CategoryItem {
+  categoryId: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  iconUrl: string | null;
+  sortOrder: number;
+}
+
+export interface CategoryListResponse {
+  status: number;
+  message: string;
+  data: CategoryItem[];
+}
