@@ -724,10 +724,10 @@ const SellerOnboarding: React.FC = () => {
 
       <div className="flex justify-center mt-8">
         <button
-          onClick={() => navigate('/seller/dashboard')}
+          onClick={() => navigate('/seller/kyc-status')}
           className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 font-medium"
         >
-          Về trang chủ
+          Xem trạng thái KYC
         </button>
       </div>
     </div>

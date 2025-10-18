@@ -35,6 +35,10 @@ const SellerLogin: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Clear any old cache before login
+      localStorage.removeItem('seller_store_id');
+      localStorage.removeItem('seller_store_info');
+      
       // Prepare login data
       const loginData: SellerLoginRequest = {
         email: formData.email,
@@ -52,9 +56,23 @@ const SellerLogin: React.FC = () => {
           2000
         );
         
-        // Redirect to seller onboarding after successful login
-        setTimeout(() => {
-          navigate('/seller/onboarding');
+        // Check store status and redirect accordingly
+        setTimeout(async () => {
+          try {
+            // Dynamically import StoreService to avoid circular dependencies
+            const { StoreService } = await import('../../../services/seller/StoreService');
+            const statusResponse = await StoreService.getStoreStatus();
+            
+            if (statusResponse.status === 'ACTIVE') {
+              navigate('/seller/dashboard');
+            } else {
+              navigate('/seller/kyc-status');
+            }
+          } catch (error) {
+            console.error('Error checking store status:', error);
+            // Default to kyc-status if error
+            navigate('/seller/kyc-status');
+          }
         }, 1000);
       } else {
         throw new Error(response.message || 'Đăng nhập thất bại');

@@ -1,0 +1,312 @@
+// Store Service for managing store information and status
+import type { StoreInfo, StoreStatusResponse } from '../../types/seller';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
+
+export class StoreService {
+  /**
+   * Get current store information including status
+   */
+  static async getStoreInfo(): Promise<StoreInfo> {
+    try {
+      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+      }
+
+      // Get store ID first (from cache or API)
+      const storeId = await this.getStoreId();
+      console.log('🔍 Getting store info for ID:', storeId);
+
+      // Use store ID to get store details
+      const response = await fetch(`${API_URL}/stores/${storeId}`, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('📥 Store info response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Store info error:', errorData);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Store info received:', data);
+      
+      // Handle different response formats
+      // Backend might return: { data: {...} } or just {...}
+      const storeInfo = data.data || data;
+      
+      // Cache store info
+      localStorage.setItem('seller_store_info', JSON.stringify(storeInfo));
+      
+      // Also cache store ID if available
+      // Backend uses 'storeId' field
+      if (storeInfo.storeId || storeInfo.id) {
+        localStorage.setItem('seller_store_id', storeInfo.storeId || storeInfo.id);
+      }
+      
+      return storeInfo;
+    } catch (error) {
+      console.error('❌ Error getting store info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get store ID
+   */
+  static async getStoreId(): Promise<string> {
+    try {
+      // First, try to get store ID from localStorage
+      const cachedStoreId = localStorage.getItem('seller_store_id');
+      if (cachedStoreId) {
+        return cachedStoreId;
+      }
+
+      // Get token from localStorage
+      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+      }
+
+      // Use the official API endpoint to get store ID
+      const response = await fetch(`${API_URL}/stores/me/id`, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const storeData = await response.json();
+      
+      // According to the API response, the storeId is in the 'data' field
+      const storeId = storeData.data;
+      
+      if (!storeId) {
+        throw new Error('Không tìm thấy store ID trong response.');
+      }
+
+      // Cache the store ID
+      localStorage.setItem('seller_store_id', storeId);
+      
+      return storeId;
+    } catch (error) {
+      console.error('Error getting store ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get store status (INACTIVE, PENDING, REJECTED, ACTIVE)
+   */
+  static async getStoreStatus(): Promise<StoreStatusResponse> {
+    try {
+      // Try to get store info first
+      try {
+        const storeInfo = await this.getStoreInfo();
+        
+        return {
+          status: storeInfo.status,
+          message: this.getStatusMessage(storeInfo.status),
+          canAccessDashboard: storeInfo.status === 'ACTIVE'
+        };
+      } catch (storeError) {
+        console.warn('⚠️ Could not get store info, trying KYC status:', storeError);
+        
+        // Fallback: Try to get KYC status
+        const kycStatus = await this.getKycStatus();
+        if (kycStatus) {
+          return kycStatus;
+        }
+        
+        throw storeError;
+      }
+    } catch (error) {
+      console.error('❌ Error getting store status:', error);
+      // If all fails, assume INACTIVE status
+      return {
+        status: 'INACTIVE',
+        message: 'Bạn chưa hoàn thành thông tin KYC',
+        canAccessDashboard: false
+      };
+    }
+  }
+
+  /**
+   * Get KYC status as fallback
+   */
+  static async getKycStatus(): Promise<StoreStatusResponse | null> {
+    try {
+      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      if (!token) return null;
+
+      const storeId = await this.getStoreId();
+      
+      // Try to get KYC info
+      const response = await fetch(`${API_URL}/stores/${storeId}/kyc`, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        // If KYC not found, status is INACTIVE
+        if (response.status === 404) {
+          return {
+            status: 'INACTIVE',
+            message: 'Bạn chưa hoàn thành thông tin KYC',
+            canAccessDashboard: false
+          };
+        }
+        return null;
+      }
+
+      const kycData = await response.json();
+      let kyc = kycData.data || kycData;
+      
+      // If array, get first item
+      if (Array.isArray(kyc)) {
+        kyc = kyc[0];
+      }
+      
+      if (!kyc) {
+        return null;
+      }
+      
+      console.log('✅ KYC status from API:', kyc.status);
+      
+      // Map KYC status to Store status
+      let storeStatus: 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE';
+      
+      if (kyc.status === 'PENDING') {
+        storeStatus = 'PENDING';
+      } else if (kyc.status === 'APPROVED') {
+        storeStatus = 'ACTIVE';
+      } else if (kyc.status === 'REJECTED') {
+        storeStatus = 'REJECTED';
+      } else {
+        storeStatus = 'INACTIVE';
+      }
+
+      return {
+        status: storeStatus,
+        message: this.getStatusMessage(storeStatus),
+        canAccessDashboard: storeStatus === 'ACTIVE'
+      };
+    } catch (error) {
+      console.error('Error getting KYC status:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get status message for display
+   */
+  private static getStatusMessage(status: string): string {
+    switch (status) {
+      case 'INACTIVE':
+        return 'Bạn chưa hoàn thành thông tin KYC. Vui lòng hoàn tất để bắt đầu bán hàng.';
+      case 'PENDING':
+        return 'Yêu cầu KYC của bạn đang được xét duyệt. Vui lòng chờ 1-3 ngày làm việc.';
+      case 'REJECTED':
+        return 'Yêu cầu KYC của bạn đã bị từ chối. Vui lòng cập nhật lại thông tin và gửi lại.';
+      case 'ACTIVE':
+        return 'Cửa hàng của bạn đã được kích hoạt. Chào mừng bạn đến với AudioShop!';
+      default:
+        return 'Trạng thái không xác định';
+    }
+  }
+
+  /**
+   * Check if store can access dashboard
+   */
+  static async canAccessDashboard(): Promise<boolean> {
+    try {
+      const statusResponse = await this.getStoreStatus();
+      return statusResponse.canAccessDashboard;
+    } catch (error) {
+      console.error('Error checking dashboard access:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get cached store info (without API call)
+   */
+  static getCachedStoreInfo(): StoreInfo | null {
+    try {
+      const cachedInfo = localStorage.getItem('seller_store_info');
+      if (cachedInfo) {
+        return JSON.parse(cachedInfo);
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting cached store info:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear store cache
+   */
+  static clearStoreCache(): void {
+    localStorage.removeItem('seller_store_id');
+    localStorage.removeItem('seller_store_info');
+  }
+
+  /**
+   * Update store information
+   */
+  static async updateStoreInfo(updateData: Partial<StoreInfo>): Promise<StoreInfo> {
+    try {
+      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+      }
+
+      const storeId = await this.getStoreId();
+
+      const response = await fetch(`${API_URL}/stores/${storeId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Update cache
+      localStorage.setItem('seller_store_info', JSON.stringify(data.data));
+      
+      return data.data;
+    } catch (error) {
+      console.error('Error updating store info:', error);
+      throw error;
+    }
+  }
+}
