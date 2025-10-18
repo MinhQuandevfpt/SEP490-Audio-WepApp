@@ -17,6 +17,7 @@ import ProductDetail from '../pages/Customer/ProductDetail';
 import ShoppingCart from '../pages/Customer/Cart';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
+import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -133,6 +134,10 @@ export const router = createBrowserRouter([
   {
     path: '/oauth-success',
     element: <OAuth2Success />
+  },
+  {
+    path: '/3d-room',
+    element: <ThreeDRoom />
   },
   {
     path: '/auth',

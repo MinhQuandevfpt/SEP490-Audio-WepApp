@@ -65,6 +65,9 @@ const Header: React.FC = () => {
               <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
                 Bán hàng cùng AudioShop
               </Link>
+              <Link to="/3d-room" className="text-blue-600 hover:text-gray-900">
+                Trải nghiệm phòng âm thanh
+              </Link>
             </div>
             <div className="flex space-x-6">
               <a href="/notifications" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
