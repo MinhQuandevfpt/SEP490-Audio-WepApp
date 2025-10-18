@@ -2,18 +2,14 @@ import React from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Room3D from './Room3D';
-
-interface Dimensions {
-  length: number;
-  width: number;
-  height: number;
-}
+import type { Dimensions, RoomColors } from './index';
 
 interface Canvas3DProps {
   dimensions: Dimensions;
+  colors: RoomColors;
 }
 
-const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions }) => {
+const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors }) => {
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -40,7 +36,8 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions }) => {
         <Room3D 
           length={dimensions.length} 
           width={dimensions.width} 
-          height={dimensions.height} 
+          height={dimensions.height}
+          colors={colors}
         />
 
         {/* Controls */}

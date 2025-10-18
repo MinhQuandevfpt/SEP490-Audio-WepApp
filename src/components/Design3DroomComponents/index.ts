@@ -5,6 +5,8 @@ export { default as Canvas3D } from './Canvas3D';
 // Control Components
 export { default as ControlsPanel } from './ControlsPanel';
 export { default as DimensionControls } from './DimensionControls';
+export { default as RoomPresets } from './RoomPresets';
+export { default as ColorPicker } from './ColorPicker';
 
 // Info Components
 export { default as RoomInfo } from './RoomInfo';
@@ -19,3 +21,71 @@ export interface Dimensions {
   width: number;
   height: number;
 }
+
+export interface RoomColors {
+  floor: string;
+  ceiling: string;
+  leftWall: string;
+  rightWall: string;
+  backWall: string;
+}
+
+export interface RoomPreset {
+  id: string;
+  name: string;
+  dimensions: Dimensions;
+  colors: RoomColors;
+  description: string;
+}
+
+// Room Presets
+export const ROOM_PRESETS: RoomPreset[] = [
+  {
+    id: 'living-room',
+    name: 'Phòng khách',
+    dimensions: { length: 4.8, width: 4.2, height: 3.0 },
+    colors: {
+      floor: '#8B4513',
+      ceiling: '#F5F5DC',
+      leftWall: '#D2B48C',
+      rightWall: '#D2B48C',
+      backWall: '#D2B48C'
+    },
+    description: 'Phòng khách tiêu chuẩn với diện tích ~20m²'
+  },
+  {
+    id: 'bedroom',
+    name: 'Phòng ngủ',
+    dimensions: { length: 4.0, width: 3.5, height: 2.9 },
+    colors: {
+      floor: '#8B4513',
+      ceiling: '#F5F5DC',
+      leftWall: '#E6E6FA',
+      rightWall: '#E6E6FA',
+      backWall: '#E6E6FA'
+    },
+    description: 'Phòng ngủ tiêu chuẩn với diện tích ~14m²'
+  },
+  {
+    id: 'kitchen',
+    name: 'Phòng ăn / Bếp',
+    dimensions: { length: 3.5, width: 3.0, height: 2.8 },
+    colors: {
+      floor: '#8B4513',
+      ceiling: '#F5F5DC',
+      leftWall: '#FFF8DC',
+      rightWall: '#FFF8DC',
+      backWall: '#FFF8DC'
+    },
+    description: 'Phòng ăn/bếp tiêu chuẩn với diện tích ~10.5m²'
+  }
+];
+
+// Default colors
+export const DEFAULT_COLORS: RoomColors = {
+  floor: '#8B4513',
+  ceiling: '#F5F5DC',
+  leftWall: '#D2B48C',
+  rightWall: '#D2B48C',
+  backWall: '#D2B48C'
+};
