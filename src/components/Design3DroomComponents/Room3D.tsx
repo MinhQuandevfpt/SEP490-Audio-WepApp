@@ -1,28 +1,71 @@
 import React, { useRef } from 'react';
 import { Text, Box } from '@react-three/drei';
 import { Mesh } from 'three';
+import type { RoomColors } from './index';
 
 interface Room3DProps {
   length: number;
   width: number;
   height: number;
+  colors?: RoomColors;
 }
 
-const Room3D: React.FC<Room3DProps> = ({ length, width, height }) => {
+const Room3D: React.FC<Room3DProps> = ({ length, width, height, colors }) => {
   const meshRef = useRef<Mesh>(null);
+
+  // Default colors nếu không có colors được truyền vào
+  const defaultColors: RoomColors = {
+    floor: '#8B4513',
+    ceiling: '#F5F5DC',
+    leftWall: '#D2B48C',
+    rightWall: '#D2B48C',
+    backWall: '#D2B48C'
+  };
+
+  const roomColors = colors || defaultColors;
 
   // Tạo 5 mặt của căn phòng (bỏ mặt trước để quan sát)
   const roomGeometry = [
     // Sàn nhà
-    { position: [0, -height/2, 0], rotation: [-Math.PI/2, 0, 0], size: [length, width, 0.1] },
+    { 
+      position: [0, -height/2, 0], 
+      rotation: [-Math.PI/2, 0, 0], 
+      size: [length, width, 0.1],
+      color: roomColors.floor,
+      name: 'floor'
+    },
     // Trần nhà
-    { position: [0, height/2, 0], rotation: [Math.PI/2, 0, 0], size: [length, width, 0.1] },
+    { 
+      position: [0, height/2, 0], 
+      rotation: [Math.PI/2, 0, 0], 
+      size: [length, width, 0.1],
+      color: roomColors.ceiling,
+      name: 'ceiling'
+    },
     // Tường trái
-    { position: [-length/2, 0, 0], rotation: [0, 0, 0], size: [0.1, height, width] },
+    { 
+      position: [-length/2, 0, 0], 
+      rotation: [0, 0, 0], 
+      size: [0.1, height, width],
+      color: roomColors.leftWall,
+      name: 'leftWall'
+    },
     // Tường phải
-    { position: [length/2, 0, 0], rotation: [0, 0, 0], size: [0.1, height, width] },
+    { 
+      position: [length/2, 0, 0], 
+      rotation: [0, 0, 0], 
+      size: [0.1, height, width],
+      color: roomColors.rightWall,
+      name: 'rightWall'
+    },
     // Tường sau
-    { position: [0, 0, -width/2], rotation: [0, 0, 0], size: [length, height, 0.1] }
+    { 
+      position: [0, 0, -width/2], 
+      rotation: [0, 0, 0], 
+      size: [length, height, 0.1],
+      color: roomColors.backWall,
+      name: 'backWall'
+    }
   ];
 
   return (
@@ -35,9 +78,11 @@ const Room3D: React.FC<Room3DProps> = ({ length, width, height }) => {
           args={wall.size as [number, number, number]}
         >
           <meshStandardMaterial 
-            color={index === 0 ? "#8B4513" : index === 1 ? "#F5F5DC" : "#D2B48C"} 
+            color={wall.color} 
             transparent 
-            opacity={0.8}
+            opacity={0.9}
+            roughness={0.3}
+            metalness={0.1}
           />
         </Box>
       ))}
