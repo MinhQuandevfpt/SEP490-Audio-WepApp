@@ -116,23 +116,165 @@ export interface DashboardStats {
   ordersGrowth?: number;
 }
 
-// Product Types for Seller
-export interface SellerProduct {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  originalPrice?: number;
-  stock: number;
+// Product Types for Seller - Full Product Details from API
+export interface ProductVariant {
+  optionName: string;
+  optionValue: string;
+}
+
+export interface BulkDiscount {
+  fromQuantity: number;
+  toQuantity: number;
+  unitPrice: number;
+}
+
+export interface Product {
+  productId: string;
+  storeId: string;
+  storeName: string;
   categoryId: string;
-  categoryName?: string;
+  categoryName: string;
+  brandName: string;
+  name: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  model: string;
+  color: string;
+  material: string;
+  dimensions: string;
+  weight: number;
+  variants: ProductVariant[];
   images: string[];
-  status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK';
-  sold: number;
-  rating?: number;
-  reviewCount?: number;
+  videoUrl: string | null;
+  sku: string;
+  price: number;
+  discountPrice: number | null;
+  promotionPercent: number | null;
+  priceAfterPromotion: number;
+  priceBeforeVoucher: number;
+  voucherAmount: number | null;
+  finalPrice: number;
+  platformFeePercent: number | null;
+  currency: string;
+  stockQuantity: number;
+  warehouseLocation: string;
+  provinceCode: string | null;
+  districtCode: string | null;
+  wardCode: string | null;
+  shippingAddress: string;
+  shippingFee: number | null;
+  supportedShippingMethodIds: string[];
+  bulkDiscounts: BulkDiscount[];
+  status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING' | 'REJECTED';
+  isFeatured: boolean;
+  ratingAverage: number | null;
+  reviewCount: number | null;
+  viewCount: number | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt: string | null;
+  lastUpdatedAt: string | null;
+  lastUpdateIntervalDays: number | null;
+  createdBy: string;
+  updatedBy: string | null;
+  
+  // Audio Equipment Specifications
+  frequencyResponse: string | null;
+  sensitivity: string | null;
+  impedance: string | null;
+  powerHandling: string | null;
+  connectionType: string | null;
+  voltageInput: string | null;
+  warrantyPeriod: string | null;
+  warrantyType: string | null;
+  manufacturerName: string | null;
+  manufacturerAddress: string | null;
+  productCondition: string | null;
+  isCustomMade: boolean;
+  
+  // Speaker specific
+  driverConfiguration: string | null;
+  driverSize: string | null;
+  enclosureType: string | null;
+  coveragePattern: string | null;
+  crossoverFrequency: string | null;
+  placementType: string | null;
+  
+  // Headphone specific
+  headphoneType: string | null;
+  compatibleDevices: string | null;
+  isSportsModel: boolean;
+  headphoneFeatures: string | null;
+  batteryCapacity: string | null;
+  hasBuiltInBattery: boolean;
+  isGamingHeadset: boolean;
+  headphoneAccessoryType: string | null;
+  headphoneConnectionType: string | null;
+  plugType: string | null;
+  sirimApproved: boolean;
+  sirimCertified: boolean;
+  mcmcApproved: boolean;
+  
+  // Microphone specific
+  micType: string | null;
+  polarPattern: string | null;
+  maxSPL: string | null;
+  micOutputImpedance: string | null;
+  micSensitivity: string | null;
+  
+  // Amplifier specific
+  amplifierType: string | null;
+  totalPowerOutput: string | null;
+  thd: string | null;
+  snr: string | null;
+  inputChannels: number | null;
+  outputChannels: number | null;
+  supportBluetooth: boolean;
+  supportWifi: boolean;
+  supportAirplay: boolean;
+  
+  // Turntable specific
+  platterMaterial: string | null;
+  motorType: string | null;
+  tonearmType: string | null;
+  autoReturn: boolean;
+  
+  // DAC specific
+  dacChipset: string | null;
+  sampleRate: string | null;
+  bitDepth: string | null;
+  balancedOutput: boolean;
+  inputInterface: string | null;
+  outputInterface: string | null;
+  
+  // Mixer specific
+  channelCount: number | null;
+  hasPhantomPower: boolean;
+  eqBands: string | null;
+  faderType: string | null;
+  builtInEffects: boolean;
+  usbAudioInterface: boolean;
+  midiSupport: boolean;
+}
+
+// Legacy alias for backward compatibility
+export interface SellerProduct extends Product {}
+
+// Product Query Parameters
+export interface ProductQueryParams {
+  categoryName?: string;
+  storeId?: string;
+  keyword?: string;
+  status?: string;
+  page?: number;
+  size?: number;
+}
+
+// Product List Response
+export interface ProductListResponse {
+  status: number;
+  message: string;
+  data: Product[];
 }
 
 // Order Types for Seller

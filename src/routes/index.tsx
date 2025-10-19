@@ -26,6 +26,7 @@ import KycManagement from '../pages/Admin/KycManagement';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
+import { ProductManagement } from '../pages/Seller/Dashboard';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
@@ -194,7 +195,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'products',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Quản lý sản phẩm</h2><p className="text-gray-600 mt-2">Trang quản lý sản phẩm đang được phát triển...</p></div>
+        element: <ProductManagement />
       },
       {
         path: 'products/add',
