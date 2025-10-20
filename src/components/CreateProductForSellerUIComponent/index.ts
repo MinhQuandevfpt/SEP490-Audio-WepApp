@@ -7,4 +7,5 @@ export { default as SpecsSection } from './SpecsSection';
 export { default as MediaUploader } from './MediaUploader';
 export { default as StepActionsBar } from './StepActionsBar';
 export * from './CategorySpecsSchema';
+export { default as Suminputsection } from './Suminputsection';
 

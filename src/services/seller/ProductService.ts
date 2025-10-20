@@ -153,6 +153,51 @@ export class ProductService {
   }
 
   /**
+   * Create a new product for current seller's store
+   * POST /api/products
+   */
+  static async createProduct(payload: Record<string, any>): Promise<any> {
+    try {
+      const token =
+        localStorage.getItem('seller_token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('seller_token') ||
+        sessionStorage.getItem('accessToken') ||
+        sessionStorage.getItem('token');
+      if (!token) {
+        throw new Error('❌ Không tìm thấy token. Vui lòng đăng nhập lại (missing Authorization).');
+      }
+
+      const response = await fetch(`${API_URL}/products`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData: errorData
+        });
+        throw new Error(errorData.message || errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json().catch(() => ({}));
+      return data;
+    } catch (error) {
+      console.error('❌ Error creating product:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get product by ID
    * TODO: Implement when API is ready
    */

@@ -1,0 +1,666 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import SectionCard from './SectionCard';
+import { CategoryService } from '../../services/seller/CategoryService';
+import { ShippingService } from '../../services/seller/ShippingService';
+import { FileUploadService } from '../../services/FileUploadService';
+import { ProductService } from '../../services/seller/ProductService';
+import type { Category, ShippingMethod } from '../../types/seller';
+import { CATEGORY_SPECS, type CategoryKey } from './CategorySpecsSchema';
+import { showCenterError, showCenterSuccess } from '../../utils/notification';
+
+type ProductImage = { id: string; url: string; file?: File };
+
+interface FormState {
+  // Basic
+  name: string;
+  brandName: string;
+  category: string;
+  shortDescription: string;
+  description: string;
+  model: string;
+  color: string;
+  material: string;
+  dimensions: string;
+  weight: string;
+  connectionType: string;
+  voltageInput: string;
+  // Pricing & stock
+  price: string;
+  discountPrice: string;
+  currency: string;
+  stockQuantity: string;
+  sku: string;
+  // Warranty & manufacturer
+  warrantyPeriod: string;
+  warrantyType: string;
+  manufacturerName: string;
+  manufacturerAddress: string;
+  productCondition: string;
+  isCustomMade: string; // 'true' | 'false'
+  // Warehouse & shipping
+  warehouseLocation: string;
+  provinceCode: string;
+  districtCode: string;
+  wardCode: string;
+  shippingAddress: string;
+  shippingFee: string;
+  selectedShippingMethodIds: string[];
+  // Media
+  videoUrl: string;
+  // Specs
+  highlights: string;
+}
+
+const defaultForm: FormState = {
+  name: '',
+  brandName: '',
+  category: '',
+  shortDescription: '',
+  description: '',
+  model: '',
+  color: '',
+  material: '',
+  dimensions: '',
+  weight: '',
+  connectionType: '',
+  voltageInput: '',
+  price: '',
+  discountPrice: '',
+  currency: 'VND',
+  stockQuantity: '0',
+  sku: '',
+  warrantyPeriod: '12 tháng',
+  warrantyType: '',
+  manufacturerName: '',
+  manufacturerAddress: '',
+  productCondition: '',
+  isCustomMade: 'false',
+  warehouseLocation: '',
+  provinceCode: '',
+  districtCode: '',
+  wardCode: '',
+  shippingAddress: '',
+  shippingFee: '',
+  selectedShippingMethodIds: [],
+  videoUrl: '',
+  highlights: '',
+};
+
+// Format numbers with dot thousands separators
+const formatNumber = (value: string): string => {
+  const numericValue = value.replace(/[^\d]/g, '');
+  if (!numericValue) return '';
+  return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+const parseFormattedNumber = (formattedValue: string): string => formattedValue.replace(/\./g, '');
+
+const Suminputsection: React.FC = () => {
+  const [form, setForm] = useState<FormState>(defaultForm);
+  const [images, setImages] = useState<ProductImage[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
+  const [shippingLoading, setShippingLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [extraSpecs, setExtraSpecs] = useState<Record<string, string>>({});
+  const [variants, setVariants] = useState<Array<{ optionName: string; optionValue: string }>>([]);
+  const [bulkDiscounts, setBulkDiscounts] = useState<Array<{ fromQuantity: string; toQuantity: string; unitPrice: string }>>([]);
+  const [imageUrl, setImageUrl] = useState('');
+  const [isUrlMode, setIsUrlMode] = useState(false);
+
+  const colorChips = useMemo(() => form.color.split(',').map(s => s.trim()).filter(Boolean), [form.color]);
+  const highlightChips = useMemo(() => form.highlights.split(',').map(s => s.trim()).filter(Boolean), [form.highlights]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setCategoriesLoading(true);
+        setShippingLoading(true);
+        const [catRes, shipRes] = await Promise.all([
+          CategoryService.getCategories(),
+          ShippingService.getShippingMethods()
+        ]);
+        setCategories(catRes.data || []);
+        setShippingMethods(shipRes.data || []);
+      } catch (e) {
+        showCenterError('Không thể tải danh mục hoặc phương thức vận chuyển');
+      } finally {
+        setCategoriesLoading(false);
+        setShippingLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const canSubmit = useMemo(() => {
+    return (
+      (form.name || '').trim().length >= 3 &&
+      (form.brandName || '').trim().length >= 2 &&
+      (form.category || '').trim().length > 0 &&
+      (form.shortDescription || '').trim().length > 0 &&
+      !!form.price && !Number.isNaN(Number(form.price)) &&
+      Number(form.price) > 0 &&
+      (form.sku || '').trim().length > 0 &&
+      images.length > 0
+    );
+  }, [form, images]);
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setForm(prev => ({ ...prev, [name]: checked.toString() }));
+      return;
+    }
+    setForm(prev => ({ ...prev, [name]: value }));
+    if (name === 'category') setExtraSpecs({});
+  };
+
+  const onSelectShipping = (shippingMethodId: string) => {
+    setForm(prev => {
+      const isSelected = prev.selectedShippingMethodIds.includes(shippingMethodId);
+      const next = isSelected
+        ? prev.selectedShippingMethodIds.filter(id => id !== shippingMethodId)
+        : [...prev.selectedShippingMethodIds, shippingMethodId];
+      return { ...prev, selectedShippingMethodIds: next };
+    });
+  };
+
+  const removeImage = (id: string) => setImages(prev => prev.filter(img => img.id !== id));
+  const addImageFiles = (files: FileList) => {
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/')).map((file, idx) => ({ id: `${Date.now()}_${idx}`, file, url: URL.createObjectURL(file) }));
+    if (arr.length) setImages(prev => [...prev, ...arr]);
+  };
+  const addImageFromUrl = () => {
+    const url = imageUrl.trim();
+    if (!url) return;
+    try {
+      new URL(url);
+      setImages(prev => [...prev, { id: `url_${Date.now()}`, url }]);
+      setImageUrl('');
+    } catch {
+      showCenterError('URL không hợp lệ. Vui lòng nhập đúng định dạng');
+    }
+  };
+
+  const buildPayload = async (): Promise<Record<string, any>> => {
+    const filesToUpload = images.filter(img => !!img.file).map(img => img.file!) as File[];
+    let uploadedUrls: string[] = [];
+    if (filesToUpload.length > 0) {
+      const uploaded = await FileUploadService.uploadMultipleImages(filesToUpload);
+      uploadedUrls = uploaded.map(u => u.url);
+    }
+    const existingUrls = images.filter(img => !img.file && !!img.url).map(img => img.url);
+    const allImageUrls = [...existingUrls, ...uploadedUrls];
+
+    const priceNum = Number(form.price);
+    const stockNum = Number(form.stockQuantity);
+    const weightNum = form.weight ? Number(form.weight) : undefined;
+    const shipFeeNum = form.shippingFee ? Number(form.shippingFee) : undefined;
+
+    // Normalize extra specs types (boolean/number)
+    const booleanKeys = new Set([
+      'isSportsModel','hasBuiltInBattery','isGamingHeadset','sirimApproved','sirimCertified','mcmcApproved',
+      'supportBluetooth','supportWifi','supportAirplay','autoReturn','balancedOutput','hasPhantomPower',
+      'builtInEffects','usbAudioInterface','midiSupport','isFeatured','isCustomMade'
+    ]);
+    const integerKeys = new Set(['inputChannels','outputChannels','channelCount']);
+
+    const normalizedExtra: Record<string, any> = {};
+    Object.entries(extraSpecs).forEach(([key, val]) => {
+      if (val === '' || val == null) return;
+      if (booleanKeys.has(key)) {
+        if (typeof val === 'boolean') {
+          normalizedExtra[key] = val;
+        } else if (typeof val === 'string') {
+          const v = val.trim().toLowerCase();
+          if (v === 'true' || v === '1' || v === 'yes') normalizedExtra[key] = true;
+          else if (v === 'false' || v === '0' || v === 'no') normalizedExtra[key] = false;
+        }
+        return;
+      }
+      if (integerKeys.has(key)) {
+        const n = Number(val);
+        if (Number.isFinite(n)) normalizedExtra[key] = n;
+        return;
+      }
+      normalizedExtra[key] = val;
+    });
+
+    const digitsOnly = (s?: string) => (s ? s.replace(/\D/g, '') : undefined);
+
+    const payload: Record<string, any> = {
+      categoryName: form.category,
+      brandName: form.brandName,
+      sku: form.sku,
+      name: form.name,
+      shortDescription: form.shortDescription,
+      description: form.description || undefined,
+      model: form.model || undefined,
+      color: form.color || undefined,
+      material: form.material || undefined,
+      dimensions: form.dimensions || undefined,
+      weight: Number.isFinite(weightNum as number) ? weightNum : undefined,
+      connectionType: form.connectionType || undefined,
+      voltageInput: form.voltageInput || undefined,
+      images: allImageUrls,
+      videoUrl: form.videoUrl || undefined,
+      price: Number.isFinite(priceNum) ? priceNum : undefined,
+      discountPrice: form.discountPrice ? Number(form.discountPrice) : undefined,
+      currency: form.currency,
+      stockQuantity: Number.isFinite(stockNum) ? stockNum : undefined,
+      warehouseLocation: form.warehouseLocation || undefined,
+      provinceCode: digitsOnly(form.provinceCode) || undefined,
+      districtCode: digitsOnly(form.districtCode) || undefined,
+      wardCode: digitsOnly(form.wardCode) || undefined,
+      shippingAddress: form.shippingAddress || undefined,
+      shippingFee: Number.isFinite(shipFeeNum as number) ? shipFeeNum : undefined,
+      supportedShippingMethodIds: form.selectedShippingMethodIds,
+      variants: variants
+        .map(v => ({ optionName: v.optionName?.trim(), optionValue: v.optionValue?.trim() }))
+        .filter(v => v.optionName && v.optionValue),
+      bulkDiscounts: bulkDiscounts
+        .map(b => ({
+          fromQuantity: Number(b.fromQuantity),
+          toQuantity: Number(b.toQuantity),
+          unitPrice: Number(b.unitPrice)
+        }))
+        .filter(b => Number.isFinite(b.fromQuantity) && Number.isFinite(b.toQuantity) && Number.isFinite(b.unitPrice)),
+      warrantyPeriod: form.warrantyPeriod || undefined,
+      warrantyType: form.warrantyType || undefined,
+      manufacturerName: form.manufacturerName || undefined,
+      manufacturerAddress: form.manufacturerAddress || undefined,
+      productCondition: form.productCondition || undefined,
+      isCustomMade: form.isCustomMade === 'true' ? true : undefined,
+      ...normalizedExtra,
+    };
+
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] === '' || payload[k] === undefined) delete payload[k];
+    });
+    return payload;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // If user forgot to press "Thêm" for a valid URL, add it now
+    if (images.length === 0 && (imageUrl || '').trim()) {
+      try {
+        new URL(imageUrl.trim());
+        setImages(prev => [...prev, { id: `url_${Date.now()}`, url: imageUrl.trim() }]);
+        setImageUrl('');
+      } catch {
+        // fallthrough to validation error
+      }
+    }
+
+    if (!canSubmit) {
+      showCenterError('Vui lòng điền thông tin bắt buộc và thêm ít nhất 1 ảnh');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      const payload = await buildPayload();
+      console.log('📤 Sending payload to API:', JSON.stringify(payload, null, 2));
+      await ProductService.createProduct(payload);
+      showCenterSuccess('Tạo sản phẩm thành công');
+      setForm(defaultForm);
+      setImages([]);
+      setExtraSpecs({});
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: any) {
+      const msg = err?.message ? String(err.message) : 'Không thể tạo sản phẩm. Vui lòng thử lại.';
+      showCenterError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const currentCategory = form.category as CategoryKey;
+  const specDefs = CATEGORY_SPECS[currentCategory] || [];
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <SectionCard title="Thông tin sản phẩm" description="Nhập tất cả thông tin trong một trang">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Tên sản phẩm *</label>
+            <input name="name" value={form.name} onChange={onChange} type="text" placeholder="VD: Sony WH-1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Mô tả ngắn *</label>
+            <input name="shortDescription" value={form.shortDescription} onChange={onChange} type="text" placeholder="Tóm tắt 1-2 câu về sản phẩm" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Mô tả chi tiết</label>
+            <textarea name="description" value={form.description} onChange={onChange} rows={4} placeholder="Mô tả đầy đủ về sản phẩm, tính năng, chất lượng..." className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors resize-none" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Thương hiệu *</label>
+              <input name="brandName" value={form.brandName} onChange={onChange} type="text" placeholder="VD: Sony, Sennheiser, JBL" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Danh mục *</label>
+              <select name="category" value={form.category} onChange={onChange} disabled={categoriesLoading} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed">
+                <option value="">{categoriesLoading ? 'Đang tải danh mục...' : 'Chọn danh mục'}</option>
+                {categories.map(c => (
+                  <option key={c.categoryId} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mã model</label>
+              <input name="model" value={form.model} onChange={onChange} type="text" placeholder="VD: WH1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Màu sắc</label>
+              <input name="color" value={form.color} onChange={onChange} type="text" placeholder="VD: Đen, Bạc, Xanh" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Chất liệu</label>
+              <input name="material" value={form.material} onChange={onChange} type="text" placeholder="VD: Nhựa ABS, Nhôm, Da" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Kích thước</label>
+              <input name="dimensions" value={form.dimensions} onChange={onChange} type="text" placeholder="VD: 20 x 15 x 8 cm" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Trọng lượng (kg)</label>
+            <input name="weight" value={form.weight} onChange={onChange} type="number" step="0.1" min="0" placeholder="VD: 0.25" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Kết nối</label>
+              <input name="connectionType" value={form.connectionType} onChange={onChange} type="text" placeholder="VD: Bluetooth, RCA, USB" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Điện áp</label>
+              <input name="voltageInput" value={form.voltageInput} onChange={onChange} type="text" placeholder="VD: 5V" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Giá cả & Tồn kho" description="Thiết lập giá và số lượng">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Giá gốc (VND) *</label>
+              <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Giá khuyến mãi (VND)</label>
+              <input name="discountPrice" value={formatNumber(form.discountPrice)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'discountPrice', value: n } } as any); }} type="text" placeholder="VD: 4.500.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Số lượng tồn *</label>
+              <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">SKU *</label>
+              <input name="sku" value={form.sku} onChange={onChange} type="text" placeholder="VD: SONY-WH1000XM4-BLK" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Đơn vị tiền tệ</label>
+              <select name="currency" value={form.currency} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+                <option value="VND">VND</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Biến thể (Variants)" description="Tùy chọn như màu sắc, dung lượng... (tuỳ chọn)">
+        <div className="space-y-3">
+          {variants.length === 0 && <p className="text-sm text-gray-500">Chưa có biến thể nào.</p>}
+          {variants.map((v, idx) => (
+            <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+              <input value={v.optionName} onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionName: e.target.value } : x))} placeholder="Tên tuỳ chọn (VD: Màu sắc)" className="md:col-span-2 w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              <input value={v.optionValue} onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionValue: e.target.value } : x))} placeholder="Giá trị (VD: Đen, Trắng)" className="md:col-span-2 w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              <button type="button" onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm rounded bg-red-50 text-red-700">Xoá</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setVariants(prev => [...prev, { optionName: '', optionValue: '' }])} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">+ Thêm biến thể</button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Giá mua nhiều (Bulk Discounts)" description="Thêm khoảng số lượng và đơn giá (tuỳ chọn)">
+        <div className="space-y-3">
+          {bulkDiscounts.length === 0 && <p className="text-sm text-gray-500">Chưa có mức mua sỉ nào.</p>}
+          {bulkDiscounts.map((b, idx) => (
+            <div key={idx} className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+              <input type="number" min="1" value={b.fromQuantity} onChange={(e) => setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, fromQuantity: e.target.value } : x))} placeholder="Từ SL" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              <input type="number" min="1" value={b.toQuantity} onChange={(e) => setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, toQuantity: e.target.value } : x))} placeholder="Đến SL" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+              <input value={formatNumber(b.unitPrice)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, unitPrice: n } : x)); }} placeholder="Đơn giá" className="w-full px-3 py-2 border border-gray-300 rounded-lg md:col-span-3" />
+              <button type="button" onClick={() => setBulkDiscounts(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm rounded bg-red-50 text-red-700">Xoá</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setBulkDiscounts(prev => [...prev, { fromQuantity: '', toQuantity: '', unitPrice: '' }])} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">+ Thêm mức sỉ</button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Bảo hành & Nhà sản xuất" description="Thông tin hậu mãi và NSX">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Thời gian bảo hành</label>
+              <input name="warrantyPeriod" value={form.warrantyPeriod} onChange={onChange} type="text" placeholder="VD: 12 tháng" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Loại bảo hành</label>
+              <select name="warrantyType" value={form.warrantyType} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+                <option value="">Chọn loại bảo hành</option>
+                <option value="Chính hãng">Chính hãng</option>
+                <option value="1 đổi 1">1 đổi 1</option>
+                <option value="Sửa chữa">Sửa chữa</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Tên nhà sản xuất</label>
+              <input name="manufacturerName" value={form.manufacturerName} onChange={onChange} type="text" placeholder="VD: Sony Corporation" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Địa chỉ nhà sản xuất</label>
+              <input name="manufacturerAddress" value={form.manufacturerAddress} onChange={onChange} type="text" placeholder="VD: Tokyo, Japan" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Tình trạng sản phẩm</label>
+              <select name="productCondition" value={form.productCondition} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+                <option value="">Chọn tình trạng</option>
+                <option value="Mới 100%">Mới 100%</option>
+                <option value="Refurbished">Refurbished</option>
+                <option value="Used">Used</option>
+              </select>
+            </div>
+            <div className="flex items-center">
+              <input name="isCustomMade" type="checkbox" checked={form.isCustomMade === 'true'} onChange={(e) => onChange({ ...e, target: { ...e.target, name: 'isCustomMade', value: e.target.checked.toString() } } as any)} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+              <label className="ml-2 block text-sm text-gray-700">Làm theo yêu cầu</label>
+            </div>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Kho hàng & Vận chuyển" description="Địa chỉ và phương thức vận chuyển">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Địa chỉ kho</label>
+              <input name="warehouseLocation" value={form.warehouseLocation} onChange={onChange} type="text" placeholder="VD: Hà Nội - Ba Đình" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Phí vận chuyển (VND)</label>
+              <input name="shippingFee" value={formatNumber(form.shippingFee)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'shippingFee', value: n } } as any); }} type="text" placeholder="VD: 30.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mã Tỉnh</label>
+              <input name="provinceCode" value={form.provinceCode} onChange={onChange} type="text" placeholder="VD: 01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mã Quận</label>
+              <input name="districtCode" value={form.districtCode} onChange={onChange} type="text" placeholder="VD: 001" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mã Phường</label>
+              <input name="wardCode" value={form.wardCode} onChange={onChange} type="text" placeholder="VD: 00001" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Địa chỉ giao</label>
+              <input name="shippingAddress" value={form.shippingAddress} onChange={onChange} type="text" placeholder="Địa chỉ giao hàng" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Phương thức vận chuyển</label>
+            {shippingLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-sm text-gray-500">Đang tải phương thức vận chuyển...</span>
+              </div>
+            ) : shippingMethods.length === 0 ? (
+              <div className="text-center py-4 text-gray-500 text-sm">Không có phương thức vận chuyển nào</div>
+            ) : (
+              <div className="space-y-3">
+                {shippingMethods.map((method) => {
+                  const selected = form.selectedShippingMethodIds.includes(method.shippingMethodId);
+                  return (
+                    <div key={method.shippingMethodId} className={`relative flex items-start p-4 border rounded-lg cursor-pointer transition-all duration-200 ${selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`} onClick={() => onSelectShipping(method.shippingMethodId)}>
+                      <div className="flex items-center h-5">
+                        <input type="checkbox" checked={selected} onChange={() => {}} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+                      </div>
+                      <div className="ml-3 flex-1">
+                        <div className="flex items-center space-x-3">
+                          {method.logoUrl && (
+                            <img src={method.logoUrl} alt={method.name} className="h-8 w-8 object-contain rounded" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                          )}
+                          <div>
+                            <h3 className="text-sm font-medium text-gray-900">{method.name}</h3>
+                            <p className="text-xs text-gray-500">{method.description || 'Phương thức vận chuyển'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {form.selectedShippingMethodIds.length > 0 && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm font-medium text-blue-900 mb-2">Đã chọn {form.selectedShippingMethodIds.length} phương thức vận chuyển:</p>
+                <div className="flex flex-wrap gap-2">
+                  {form.selectedShippingMethodIds.map(id => {
+                    const m = shippingMethods.find(x => x.shippingMethodId === id);
+                    return (
+                      <span key={id} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        {m?.name || id}
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onSelectShipping(id); }} className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 transition-colors">×</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Thông số kỹ thuật theo danh mục" description="Các thuộc tính chỉ hiển thị khi đã chọn danh mục">
+        {form.category ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {specDefs.length === 0 && (
+              <p className="text-sm text-gray-500">Danh mục này chưa có thông số riêng.</p>
+            )}
+            {specDefs.map((spec) => (
+              <div key={spec.key}>
+                <label className="block text-sm font-medium text-gray-700">{spec.label}</label>
+                {spec.type === 'select' ? (
+                  <select value={extraSpecs[spec.key] || ''} onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+                    <option value="">Chọn {spec.label.toLowerCase()}</option>
+                    {(spec.options || []).map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input type={spec.type === 'number' ? 'number' : 'text'} value={extraSpecs[spec.key] || ''} onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} placeholder={spec.placeholder} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+                )}
+                {spec.helpText && <p className="mt-1 text-xs text-gray-500">{spec.helpText}</p>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">Hãy chọn danh mục để nhập thông số kỹ thuật phù hợp.</p>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Hình ảnh & Video" description="Tải ảnh hoặc nhập link ảnh">
+        <div className="space-y-4">
+          <div className="flex mb-4">
+            <button type="button" onClick={() => setIsUrlMode(false)} className={`px-4 py-2 text-sm font-medium rounded-l-lg border ${!isUrlMode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>📁 Từ máy tính</button>
+            <button type="button" onClick={() => setIsUrlMode(true)} className={`px-4 py-2 text-sm font-medium rounded-r-lg border-t border-r border-b ${isUrlMode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>🌐 Từ link</button>
+          </div>
+          {!isUrlMode ? (
+            <div onDragOver={(e) => { e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files) addImageFiles(e.dataTransfer.files); }} className="rounded-xl border-2 border-dashed border-gray-300 p-6 text-center hover:border-blue-400 transition-colors bg-gray-50">
+              <p className="text-sm text-gray-600">Kéo & thả ảnh vào đây hoặc</p>
+              <div className="mt-2">
+                <label className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700">Chọn ảnh
+                  <input type="file" accept="image/*" multiple onChange={(e) => { if (e.target.files) addImageFiles(e.target.files); }} className="hidden" />
+                </label>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">PNG, JPG, JPEG • Tối đa 10 ảnh</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+                <button type="button" onClick={addImageFromUrl} disabled={!imageUrl.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">Thêm</button>
+              </div>
+              <p className="text-xs text-gray-500">💡 Nhập link ảnh từ mạng (JPG, PNG, JPEG, WebP)</p>
+            </div>
+          )}
+          {images.length > 0 && (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {images.map(img => (
+                <div key={img.id} className="relative group">
+                  <img src={img.url} alt="preview" className="w-full h-24 object-cover rounded-lg border border-gray-300 shadow-sm" />
+                  <button type="button" onClick={() => removeImage(img.id)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100" aria-label="remove">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Video URL</label>
+            <input name="videoUrl" value={form.videoUrl} onChange={onChange} type="url" placeholder="VD: https://youtube.com/watch?v=abc123" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+          </div>
+        </div>
+      </SectionCard>
+
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-gray-500">Màu sắc: {colorChips.join(', ') || '—'} • Highlights: {highlightChips.join(', ') || '—'}</div>
+        <button type="submit" disabled={!canSubmit || submitting} className={`px-5 py-2 rounded-lg text-white ${!canSubmit || submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+          {submitting ? 'Đang lưu...' : 'Lưu sản phẩm'}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export default Suminputsection;
+

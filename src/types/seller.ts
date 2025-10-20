@@ -260,6 +260,44 @@ export interface Product {
 // Legacy alias for backward compatibility
 export interface SellerProduct extends Product {}
 
+// Category Types
+export interface Category {
+  categoryId: string;
+  name: string;
+  slug: string;
+  description: string;
+  iconUrl: string | null;
+  sortOrder: number;
+}
+
+export interface CategoryListResponse {
+  status: number;
+  message: string;
+  data: Category[];
+}
+
+export interface ShippingMethod {
+  shippingMethodId: string;
+  name: string;
+  code: string;
+  logoUrl: string;
+  baseFee: number;
+  feePerKg: number;
+  estimatedDeliveryDays: number;
+  supportCOD: boolean;
+  supportInsurance: boolean;
+  isActive: boolean;
+  description: string;
+  contactPhone: string;
+  websiteUrl: string;
+}
+
+export interface ShippingMethodListResponse {
+  status: number;
+  message: string;
+  data: ShippingMethod[];
+}
+
 // Product Query Parameters
 export interface ProductQueryParams {
   categoryName?: string;
