@@ -1,11 +1,12 @@
 import React from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Settings } from 'lucide-react';
 
 interface HeaderProps {
-  // Không cần props nào nữa
+  isControlsOpen: boolean;
+  onToggleControls: () => void;
 }
 
-const Header: React.FC<HeaderProps> = () => {
+const Header: React.FC<HeaderProps> = ({ isControlsOpen, onToggleControls }) => {
   return (
     <div className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 py-4">
@@ -24,10 +25,13 @@ const Header: React.FC<HeaderProps> = () => {
           </div>
           
           <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Thiết kế phòng âm thanh</p>
-              <p className="text-xs text-gray-500">Tùy chỉnh kích thước và màu sắc</p>
-            </div>
+            <button
+              onClick={onToggleControls}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              {isControlsOpen ? 'Ẩn điều khiển' : 'Hiện điều khiển'}
+            </button>
           </div>
         </div>
       </div>
