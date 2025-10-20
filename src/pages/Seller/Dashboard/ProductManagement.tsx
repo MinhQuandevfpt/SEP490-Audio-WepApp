@@ -60,12 +60,47 @@ const ProductManagement: React.FC = () => {
 
       const response = await ProductService.getMyProducts(params);
       
-      setProducts(response.data || []);
-      setTotalProducts(response.data?.length || 0);
+      // Handle API response structure - data.content contains the products array
+      let productsData: Product[] = [];
+      let totalCount = 0;
+      
+      if (response && response.data) {
+        // Check if response.data has content property (pagination structure)
+        if (response.data.content && Array.isArray(response.data.content)) {
+          productsData = response.data.content;
+          totalCount = response.data.totalElements || response.data.content.length;
+        } 
+        // Fallback: check if response.data is directly an array (legacy structure)
+        else if (Array.isArray(response.data)) {
+          productsData = response.data;
+          totalCount = response.data.length;
+        } else {
+          console.warn('⚠️ API returned unexpected data structure:', response.data);
+          productsData = [];
+          totalCount = 0;
+        }
+      } else {
+        console.warn('⚠️ API response missing data field:', response);
+        productsData = [];
+        totalCount = 0;
+      }
+      
+      console.log('📊 Products loaded:', {
+        count: productsData.length,
+        total: totalCount,
+        page: currentPage,
+        size: pageSize
+      });
+      
+      setProducts(productsData);
+      setTotalProducts(totalCount);
       
     } catch (err) {
       console.error('Error loading products:', err);
       setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi tải sản phẩm');
+      // Set empty array on error to prevent filter errors
+      setProducts([]);
+      setTotalProducts(0);
     } finally {
       setIsLoading(false);
     }
@@ -199,7 +234,9 @@ const ProductManagement: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-600">Tổng sản phẩm</p>
-              <p className="text-2xl font-bold text-gray-900">{totalProducts}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {isLoading ? '...' : totalProducts}
+              </p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Package className="w-6 h-6 text-blue-600" />
@@ -212,7 +249,7 @@ const ProductManagement: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Đang bán</p>
               <p className="text-2xl font-bold text-green-600">
-                {products.filter(p => p.status === 'ACTIVE').length}
+                {isLoading ? '...' : (Array.isArray(products) ? products.filter(p => p.status === 'ACTIVE').length : 0)}
               </p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -226,7 +263,7 @@ const ProductManagement: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Hết hàng</p>
               <p className="text-2xl font-bold text-red-600">
-                {products.filter(p => p.status === 'OUT_OF_STOCK' || p.stockQuantity === 0).length}
+                {isLoading ? '...' : (Array.isArray(products) ? products.filter(p => p.status === 'OUT_OF_STOCK' || p.stockQuantity === 0).length : 0)}
               </p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
@@ -240,7 +277,7 @@ const ProductManagement: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Chờ duyệt</p>
               <p className="text-2xl font-bold text-yellow-600">
-                {products.filter(p => p.status === 'PENDING').length}
+                {isLoading ? '...' : (Array.isArray(products) ? products.filter(p => p.status === 'PENDING').length : 0)}
               </p>
             </div>
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -275,7 +312,7 @@ const ProductManagement: React.FC = () => {
         )}
 
         {/* Empty State */}
-        {!isLoading && products.length === 0 && (
+        {!isLoading && Array.isArray(products) && products.length === 0 && (
           <div className="p-12 text-center">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -295,7 +332,7 @@ const ProductManagement: React.FC = () => {
         )}
 
         {/* Table */}
-        {!isLoading && products.length > 0 && (
+        {!isLoading && Array.isArray(products) && products.length > 0 && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">

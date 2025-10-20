@@ -63,8 +63,65 @@ export class ProductService {
       console.log('✅ Products received:', {
         status: data.status,
         message: data.message,
-        count: data.data?.length || 0
+        count: data.data?.content?.length || data.data?.length || 0,
+        totalElements: data.data?.totalElements || 0
       });
+      
+      // Validate response structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+      
+      // Validate data structure - should have content array or be array itself
+      if (data.data) {
+        if (data.data.content && Array.isArray(data.data.content)) {
+          // Pagination structure - already correct
+          console.log('📄 Using pagination structure');
+        } else if (Array.isArray(data.data)) {
+          // Legacy structure - convert to pagination structure
+          console.log('📄 Converting legacy structure to pagination format');
+          data.data = {
+            content: data.data,
+            totalElements: data.data.length,
+            totalPages: 1,
+            first: true,
+            last: true,
+            size: data.data.length,
+            number: 0,
+            numberOfElements: data.data.length,
+            empty: data.data.length === 0,
+            pageable: {
+              pageNumber: 0,
+              pageSize: data.data.length,
+              sort: { empty: true, sorted: false, unsorted: true },
+              offset: 0,
+              paged: false,
+              unpaged: true
+            }
+          };
+        } else {
+          console.warn('⚠️ API returned unexpected data structure, setting empty content');
+          data.data = {
+            content: [],
+            totalElements: 0,
+            totalPages: 0,
+            first: true,
+            last: true,
+            size: 0,
+            number: 0,
+            numberOfElements: 0,
+            empty: true,
+            pageable: {
+              pageNumber: 0,
+              pageSize: 0,
+              sort: { empty: true, sorted: false, unsorted: true },
+              offset: 0,
+              paged: false,
+              unpaged: true
+            }
+          };
+        }
+      }
       
       return data;
     } catch (error) {
