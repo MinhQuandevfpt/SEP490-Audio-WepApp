@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import SectionCard from './SectionCard';
 import { CategoryService } from '../../services/seller/CategoryService';
 import { ShippingService } from '../../services/seller/ShippingService';
@@ -95,6 +96,7 @@ const formatNumber = (value: string): string => {
 const parseFormattedNumber = (formattedValue: string): string => formattedValue.replace(/\./g, '');
 
 const Suminputsection: React.FC = () => {
+  const navigate = useNavigate();
   const [form, setForm] = useState<FormState>(defaultForm);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -107,9 +109,54 @@ const Suminputsection: React.FC = () => {
   const [bulkDiscounts, setBulkDiscounts] = useState<Array<{ fromQuantity: string; toQuantity: string; unitPrice: string }>>([]);
   const [imageUrl, setImageUrl] = useState('');
   const [isUrlMode, setIsUrlMode] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [showContentCheck, setShowContentCheck] = useState(true);
 
-  const colorChips = useMemo(() => form.color.split(',').map(s => s.trim()).filter(Boolean), [form.color]);
-  const highlightChips = useMemo(() => form.highlights.split(',').map(s => s.trim()).filter(Boolean), [form.highlights]);
+
+  // Content check validation
+  const contentCheck = useMemo(() => {
+    const checks = {
+      basic: {
+        name: (form.name || '').trim().length >= 3,
+        brandName: (form.brandName || '').trim().length >= 2,
+        category: (form.category || '').trim().length > 0,
+        shortDescription: (form.shortDescription || '').trim().length > 0,
+      },
+      pricing: {
+        price: !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0,
+        sku: (form.sku || '').trim().length > 0,
+        stockQuantity: !!form.stockQuantity && !Number.isNaN(Number(form.stockQuantity)) && Number(form.stockQuantity) >= 0,
+      },
+      media: {
+        images: images.length > 0 || (imageUrl || '').trim().length > 0,
+      },
+      optional: {
+        description: (form.description || '').trim().length > 0,
+        model: (form.model || '').trim().length > 0,
+        color: (form.color || '').trim().length > 0,
+        material: (form.material || '').trim().length > 0,
+        dimensions: (form.dimensions || '').trim().length > 0,
+        weight: (form.weight || '').trim().length > 0,
+        connectionType: (form.connectionType || '').trim().length > 0,
+        voltageInput: (form.voltageInput || '').trim().length > 0,
+      }
+    };
+    
+    const basicComplete = Object.values(checks.basic).every(Boolean);
+    const pricingComplete = Object.values(checks.pricing).every(Boolean);
+    const mediaComplete = Object.values(checks.media).every(Boolean);
+    const optionalCount = Object.values(checks.optional).filter(Boolean).length;
+    
+    return {
+      checks,
+      basicComplete,
+      pricingComplete,
+      mediaComplete,
+      optionalCount,
+      totalOptional: Object.keys(checks.optional).length,
+      canSubmit: basicComplete && pricingComplete && mediaComplete
+    };
+  }, [form, images, imageUrl]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -181,6 +228,36 @@ const Suminputsection: React.FC = () => {
     } catch {
       showCenterError('URL không hợp lệ. Vui lòng nhập đúng định dạng');
     }
+  };
+
+  const goNext = () => {
+    if (currentStep === 1) {
+      const basicValid = (form.name || '').trim().length >= 3 && (form.brandName || '').trim().length >= 2 && (form.category || '').trim().length > 0 && (form.shortDescription || '').trim().length > 0;
+      if (!basicValid) {
+        showCenterError('Vui lòng nhập đầy đủ thông tin chung bắt buộc');
+        return;
+      }
+    }
+    if (currentStep === 2) {
+      const priceValid = !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 && (form.sku || '').trim().length > 0;
+      if (!priceValid) {
+        showCenterError('Vui lòng nhập giá hợp lệ và SKU');
+        return;
+      }
+    }
+    if (currentStep === 3) {
+      if (images.length === 0 && !(imageUrl || '').trim()) {
+        showCenterError('Vui lòng thêm ít nhất 1 ảnh sản phẩm');
+        return;
+      }
+    }
+    setCurrentStep(prev => Math.min(prev + 1, 3));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goBack = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const buildPayload = async (): Promise<Record<string, any>> => {
@@ -303,11 +380,20 @@ const Suminputsection: React.FC = () => {
       const payload = await buildPayload();
       console.log('📤 Sending payload to API:', JSON.stringify(payload, null, 2));
       await ProductService.createProduct(payload);
-      showCenterSuccess('Tạo sản phẩm thành công');
+      showCenterSuccess('Tạo sản phẩm thành công! Đang chuyển đến trang quản lý...');
+      
+      // Reset form
       setForm(defaultForm);
       setImages([]);
       setExtraSpecs({});
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setVariants([]);
+      setBulkDiscounts([]);
+      setCurrentStep(1);
+      
+      // Navigate to seller dashboard after a short delay
+      setTimeout(() => {
+        navigate('/seller/dashboard/products');
+      }, 1000);
     } catch (err: any) {
       const msg = err?.message ? String(err.message) : 'Không thể tạo sản phẩm. Vui lòng thử lại.';
       showCenterError(msg);
@@ -320,8 +406,35 @@ const Suminputsection: React.FC = () => {
   const specDefs = CATEGORY_SPECS[currentCategory] || [];
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-      <SectionCard title="Thông tin sản phẩm" description="Nhập tất cả thông tin trong một trang">
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Main Content */}
+        <div className="flex-1 space-y-6">
+          {/* Stepper */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="px-6 py-4">
+              <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[1,2,3].map(step => (
+                  <li key={step} className={`flex items-center gap-3 p-3 rounded-lg border ${currentStep === step ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{step}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {step === 1 ? 'Thông tin chung' : step === 2 ? 'Chi tiết & giá' : 'Hình ảnh & Video'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {step === 1 ? 'Tên, mô tả, danh mục...' : step === 2 ? 'Giá, tồn kho, vận chuyển...' : 'Tải ảnh hoặc nhập link'}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+
+          {/* Form Content */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+      {currentStep === 1 && (
+      <SectionCard title="Thông tin chung" description="Nhập thông tin cơ bản cho sản phẩm">
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Tên sản phẩm *</label>
@@ -390,8 +503,10 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
+      )}
 
-      <SectionCard title="Giá cả & Tồn kho" description="Thiết lập giá và số lượng">
+      {currentStep === 2 && (
+      <SectionCard title="Chi tiết & Giá" description="Thiết lập giá, tồn kho, biến thể và vận chuyển">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -422,7 +537,9 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
+      )}
 
+      {currentStep === 2 && (
       <SectionCard title="Biến thể (Variants)" description="Tùy chọn như màu sắc, dung lượng... (tuỳ chọn)">
         <div className="space-y-3">
           {variants.length === 0 && <p className="text-sm text-gray-500">Chưa có biến thể nào.</p>}
@@ -436,7 +553,9 @@ const Suminputsection: React.FC = () => {
           <button type="button" onClick={() => setVariants(prev => [...prev, { optionName: '', optionValue: '' }])} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">+ Thêm biến thể</button>
         </div>
       </SectionCard>
+      )}
 
+      {currentStep === 2 && (
       <SectionCard title="Giá mua nhiều (Bulk Discounts)" description="Thêm khoảng số lượng và đơn giá (tuỳ chọn)">
         <div className="space-y-3">
           {bulkDiscounts.length === 0 && <p className="text-sm text-gray-500">Chưa có mức mua sỉ nào.</p>}
@@ -451,7 +570,9 @@ const Suminputsection: React.FC = () => {
           <button type="button" onClick={() => setBulkDiscounts(prev => [...prev, { fromQuantity: '', toQuantity: '', unitPrice: '' }])} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">+ Thêm mức sỉ</button>
         </div>
       </SectionCard>
+      )}
 
+      {currentStep === 2 && (
       <SectionCard title="Bảo hành & Nhà sản xuất" description="Thông tin hậu mãi và NSX">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -496,7 +617,9 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
+      )}
 
+      {currentStep === 2 && (
       <SectionCard title="Kho hàng & Vận chuyển" description="Địa chỉ và phương thức vận chuyển">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -581,35 +704,201 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
+      )}
 
+      {currentStep === 2 && (
       <SectionCard title="Thông số kỹ thuật theo danh mục" description="Các thuộc tính chỉ hiển thị khi đã chọn danh mục">
         {form.category ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {specDefs.length === 0 && (
               <p className="text-sm text-gray-500">Danh mục này chưa có thông số riêng.</p>
             )}
-            {specDefs.map((spec) => (
-              <div key={spec.key}>
-                <label className="block text-sm font-medium text-gray-700">{spec.label}</label>
-                {spec.type === 'select' ? (
-                  <select value={extraSpecs[spec.key] || ''} onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
-                    <option value="">Chọn {spec.label.toLowerCase()}</option>
-                    {(spec.options || []).map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input type={spec.type === 'number' ? 'number' : 'text'} value={extraSpecs[spec.key] || ''} onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} placeholder={spec.placeholder} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
-                )}
-                {spec.helpText && <p className="mt-1 text-xs text-gray-500">{spec.helpText}</p>}
-              </div>
-            ))}
+            {specDefs.map((spec) => {
+              // Common suggestions for different spec types
+              const getSuggestions = (key: string) => {
+                const suggestions: Record<string, string[]> = {
+                  frequencyResponse: ['20Hz-20kHz', '20Hz-18kHz', '15Hz-22kHz', '30Hz-15kHz'],
+                  sensitivity: ['88dB', '90dB', '92dB', '95dB', '100dB', '105dB'],
+                  impedance: ['8Ω', '16Ω', '32Ω', '64Ω', '150Ω', '300Ω'],
+                  powerHandling: ['50W RMS', '100W RMS', '200W RMS', '500W RMS'],
+                  connectionType: ['Bluetooth 5.0', 'Bluetooth 4.2', 'USB-C', '3.5mm', 'XLR', 'RCA', 'USB'],
+                  voltageInput: ['5V/2A', '12V/1A', '24V/0.5A', '110V', '220V'],
+                  driverConfiguration: ['2-way', '3-way', '4-way', 'Single driver'],
+                  driverSize: ['6.5 inch', '8 inch', '10 inch', '12 inch', '1 inch tweeter'],
+                  enclosureType: ['Bass Reflex', 'Sealed', 'Port', 'Passive radiator'],
+                  coveragePattern: ['180° x 180°', '120° x 120°', '90° x 90°', '60° x 60°'],
+                  crossoverFrequency: ['2.5kHz', '3kHz', '4kHz', '5kHz'],
+                  headphoneType: ['Over-ear', 'On-ear', 'In-ear', 'True wireless', 'Earbuds', 'Gaming headset'],
+                  compatibleDevices: ['iPhone', 'Android', 'PC', 'Mac', 'PS5', 'Xbox', 'Nintendo Switch', 'iPad'],
+                  headphoneFeatures: ['ANC', 'Touch Control', 'EQ App', 'Voice Assistant', 'Wireless Charging', 'Fast Charge'],
+                  batteryCapacity: ['500mAh', '1000mAh', '1500mAh', '2000mAh', '3000mAh', '4000mAh'],
+                  micType: ['Dynamic', 'Condenser', 'Lavalier', 'Shotgun', 'USB'],
+                  polarPattern: ['Cardioid', 'Supercardioid', 'Omni', 'Figure-8', 'Bidirectional'],
+                  maxSPL: ['120dB', '130dB', '140dB', '150dB', '160dB', '170dB'],
+                  micOutputImpedance: ['150Ω', '200Ω', '300Ω', '600Ω', '50Ω', '100Ω'],
+                  micSensitivity: ['-40dB', '-45dB', '-50dB', '-55dB', '-35dB', '-60dB'],
+                  dacChipset: ['ESS Sabre ES9038', 'AKM AK4499', 'Cirrus Logic CS43198', 'TI PCM1794A'],
+                  sampleRate: ['44.1kHz/16bit', '48kHz/24bit', '96kHz/24bit', '192kHz/24bit', '384kHz/32bit'],
+                  bitDepth: ['16-bit', '24-bit', '32-bit'],
+                  thd: ['0.01%', '0.05%', '0.1%', '0.2%', '0.001%', '0.5%'],
+                  snr: ['90dB', '100dB', '110dB', '120dB', '80dB', '130dB'],
+                  amplifierType: ['Class D', 'Class A', 'Class AB', 'Class A/B', 'AV Receiver'],
+                  totalPowerOutput: ['50W (8Ω)', '100W (8Ω)', '200W (8Ω)', '500W (8Ω)', '25W (8Ω)', '1000W (8Ω)'],
+                  platterMaterial: ['Aluminum', 'Acrylic', 'Glass', 'Steel', 'Carbon fiber', 'Wood', 'Plastic'],
+                  motorType: ['Direct Drive', 'Belt Drive', 'Idler Drive', 'Magnetic Drive', 'Servo Drive'],
+                  tonearmType: ['S-shaped', 'Straight', 'J-shaped', 'Carbon fiber', 'Aluminum', 'Wood'],
+                  comboType: ['Amp + Speaker', 'DAC + Amp', 'Mixer + Interface', 'Preamp + Power amp', 'DAC + Headphone Amp', 'Streamer + DAC']
+                };
+                return suggestions[key] || [];
+              };
+
+              // Fields that support multiple selection
+              const multiSelectFields = new Set([
+                'connectionType', 'compatibleDevices', 'headphoneFeatures', 'micType', 'polarPattern',
+                'dacChipset', 'sampleRate', 'bitDepth', 'amplifierType', 'platterMaterial', 'motorType',
+                'tonearmType', 'comboType', 'driverConfiguration', 'enclosureType', 'headphoneType',
+                'batteryCapacity', 'maxSPL', 'micOutputImpedance', 'micSensitivity', 'thd', 'snr',
+                'totalPowerOutput', 'coveragePattern', 'crossoverFrequency'
+              ]);
+
+              const suggestions = getSuggestions(spec.key);
+              const isMultiSelect = multiSelectFields.has(spec.key);
+              const currentValue = extraSpecs[spec.key] || '';
+              const currentValues = isMultiSelect ? currentValue.split(',').map(v => v.trim()).filter(Boolean) : [currentValue];
+              
+              // Debug log
+              console.log('Spec:', spec.key, 'isMultiSelect:', isMultiSelect, 'suggestions:', suggestions.length, 'currentValue:', currentValue);
+
+              const handleSuggestionClick = (suggestion: string) => {
+                if (isMultiSelect) {
+                  const values = currentValue.split(',').map(v => v.trim()).filter(Boolean);
+                  if (values.includes(suggestion)) {
+                    // Remove if already selected
+                    const newValues = values.filter(v => v !== suggestion);
+                    setExtraSpecs(prev => ({ ...prev, [spec.key]: newValues.join(', ') }));
+                  } else {
+                    // Add if not selected
+                    const newValues = [...values, suggestion];
+                    setExtraSpecs(prev => ({ ...prev, [spec.key]: newValues.join(', ') }));
+                  }
+                } else {
+                  setExtraSpecs(prev => ({ ...prev, [spec.key]: suggestion }));
+                }
+              };
+
+              const isSuggestionSelected = (suggestion: string) => {
+                return isMultiSelect ? currentValues.includes(suggestion) : currentValue === suggestion;
+              };
+              
+              return (
+                <div key={spec.key}>
+                  <label className="block text-sm font-medium text-gray-700">
+                    {spec.label}
+                    {isMultiSelect && <span className="text-xs text-gray-500 ml-1">(có thể chọn nhiều)</span>}
+                  </label>
+                  {spec.type === 'select' ? (
+                    <select value={extraSpecs[spec.key] || ''} onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+                      <option value="">Chọn {spec.label.toLowerCase()}</option>
+                      {(spec.options || []).map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="relative">
+                      <input 
+                        type={spec.type === 'number' ? 'number' : 'text'} 
+                        value={extraSpecs[spec.key] || ''} 
+                        onChange={(e) => {
+                          console.log('Input changed for field:', spec.key, 'value:', e.target.value);
+                          setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }));
+                        }} 
+                        placeholder={isMultiSelect ? `${spec.placeholder} (cách nhau bằng dấu phẩy)` : spec.placeholder} 
+                        list={`suggestions-${spec.key}`}
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" 
+                      />
+                      {suggestions.length > 0 && (
+                        <datalist id={`suggestions-${spec.key}`}>
+                          {suggestions.map((suggestion, idx) => (
+                            <option key={idx} value={suggestion} />
+                          ))}
+                        </datalist>
+                      )}
+                    </div>
+                  )}
+                  {spec.helpText && <p className="mt-1 text-xs text-gray-500">{spec.helpText}</p>}
+                  
+                  {/* Show selected values for multi-select fields */}
+                  {isMultiSelect && (
+                    <div className="mt-2">
+                      {currentValues.length > 0 ? (
+                        <>
+                          <p className="text-xs text-gray-500 mb-1">Đã chọn:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {currentValues.map((value, idx) => (
+                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded border">
+                                {value}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    console.log('Removing value:', value, 'from field:', spec.key);
+                                    handleSuggestionClick(value);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-400">Chưa chọn gì</p>
+                      )}
+                    </div>
+                  )}
+
+                  {suggestions.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-500 mb-1">
+                        Gợi ý nhanh {isMultiSelect ? '(click để chọn/bỏ chọn)' : '(click để chọn)'}:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {suggestions.slice(0, 6).map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              console.log('Clicked suggestion:', suggestion, 'for field:', spec.key);
+                              handleSuggestionClick(suggestion);
+                            }}
+                            className={`px-2 py-1 text-xs rounded border transition-colors ${
+                              isSuggestionSelected(suggestion)
+                                ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
+                            }`}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                      {suggestions.length > 6 && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          +{suggestions.length - 6} gợi ý khác (nhập thủ công)
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-gray-500">Hãy chọn danh mục để nhập thông số kỹ thuật phù hợp.</p>
         )}
       </SectionCard>
+      )}
 
+      {currentStep === 3 && (
       <SectionCard title="Hình ảnh & Video" description="Tải ảnh hoặc nhập link ảnh">
         <div className="space-y-4">
           <div className="flex mb-4">
@@ -651,14 +940,126 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
+      )}
 
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-500">Màu sắc: {colorChips.join(', ') || '—'} • Highlights: {highlightChips.join(', ') || '—'}</div>
-        <button type="submit" disabled={!canSubmit || submitting} className={`px-5 py-2 rounded-lg text-white ${!canSubmit || submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-          {submitting ? 'Đang lưu...' : 'Lưu sản phẩm'}
-        </button>
+            {/* Navigation Bar */}
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-200">
+              {currentStep > 1 && (
+                <button type="button" onClick={goBack} className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Quay lại</button>
+              )}
+              {currentStep < 3 && (
+                <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">Tiếp tục</button>
+              )}
+              {currentStep === 3 && (
+                <button type="submit" disabled={!contentCheck.canSubmit || submitting} className={`px-5 py-2 rounded-lg text-white ${!contentCheck.canSubmit || submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                  {submitting ? 'Đang lưu...' : 'Gửi sản phẩm'}
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Right Sidebar - Content Check Panel */}
+        <div className="w-full lg:w-80 flex-shrink-0">
+          <div className="sticky top-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="px-4 py-3 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Kiểm tra nội dung</h3>
+                  <button 
+                    onClick={() => setShowContentCheck(!showContentCheck)}
+                    className="text-gray-400 hover:text-gray-600 text-xs"
+                  >
+                    {showContentCheck ? '−' : '+'}
+                  </button>
+                </div>
+              </div>
+              
+              {showContentCheck && (
+                <div className="p-4 space-y-4">
+                  {/* Basic Info */}
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-600 mb-2">Thông tin cơ bản</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.name ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.basic.name ? 'text-green-700' : 'text-red-700'}>Tên sản phẩm</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.brandName ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.basic.brandName ? 'text-green-700' : 'text-red-700'}>Thương hiệu</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.category ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.basic.category ? 'text-green-700' : 'text-red-700'}>Danh mục</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.shortDescription ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.basic.shortDescription ? 'text-green-700' : 'text-red-700'}>Mô tả ngắn</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pricing */}
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-600 mb-2">Giá & Kho</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.price ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.pricing.price ? 'text-green-700' : 'text-red-700'}>Giá sản phẩm</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.sku ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.pricing.sku ? 'text-green-700' : 'text-red-700'}>Mã SKU</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.stockQuantity ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.pricing.stockQuantity ? 'text-green-700' : 'text-red-700'}>Số lượng tồn</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Media */}
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-600 mb-2">Media</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.media.images ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.media.images ? 'text-green-700' : 'text-red-700'}>Hình ảnh</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Optional Info */}
+                  <div>
+                    <h4 className="text-xs font-medium text-gray-600 mb-2">Thông tin bổ sung</h4>
+                    <div className="text-xs text-gray-500">
+                      {contentCheck.optionalCount}/{contentCheck.totalOptional} trường đã nhập
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                      <div 
+                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${(contentCheck.optionalCount / contentCheck.totalOptional) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Overall Status */}
+                  <div className="pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-gray-700">Trạng thái:</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${contentCheck.canSubmit ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {contentCheck.canSubmit ? 'Sẵn sàng' : 'Cần hoàn thiện'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-    </form>
+    </div>
   );
 };
 
