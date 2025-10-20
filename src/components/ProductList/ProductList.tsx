@@ -38,18 +38,10 @@ const ProductList: React.FC<ProductListProps> = ({
         size: 20
       });
       
-      // Ensure we have an array
-      const productsData = response?.data;
-      if (Array.isArray(productsData)) {
-        setProducts(productsData);
-      } else {
-        console.warn('API returned non-array data:', productsData);
-        setProducts([]);
-      }
+      setProducts(response.data || []);
     } catch (err: any) {
       console.error('Error loading products:', err);
       setError(err.message || 'Có lỗi xảy ra khi tải sản phẩm');
-      setProducts([]); // Ensure products is always an array
     } finally {
       setLoading(false);
     }
