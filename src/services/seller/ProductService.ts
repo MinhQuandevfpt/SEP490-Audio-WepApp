@@ -384,7 +384,7 @@ export class ProductService {
       if (params?.status) queryParams.append('status', params.status);
       if (params?.categoryName) queryParams.append('categoryName', params.categoryName);
 
-      const response = await fetch(`${this.API_URL}/products/seller?${queryParams}`, {
+      const response = await fetch(`${this.API_URL}/products?${queryParams}`, {
         method: 'GET',
         headers: {
           'Accept': '*/*',

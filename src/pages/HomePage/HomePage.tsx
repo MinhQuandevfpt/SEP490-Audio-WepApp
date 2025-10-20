@@ -6,6 +6,9 @@ import FlashSale from '../../components/FlashSale';
 import TopDeals from '../../components/TopDeals';
 import FeaturedBrands from '../../components/FeaturedBrands';
 import ProductSuggestions from '../../components/ProductSuggestions';
+import { FeaturedProducts } from '../../components/FeaturedProducts';
+import { ProductList } from '../../components/ProductList';
+import ProductListDebug from '../../components/Debug/ProductListDebug';
 import { showCenterSuccess } from '../../utils/notification';
 
 const HomePage: React.FC = () => {
@@ -59,8 +62,21 @@ const HomePage: React.FC = () => {
 
             {/* Product Suggestions Section */}
             <ProductSuggestions />
+
+            {/* Featured Products Section */}
+            <FeaturedProducts />
+
+            {/* All Products Section */}
+            <ProductList 
+              title="Tất cả sản phẩm" 
+              params={{ status: 'ACTIVE' }}
+              showFilters={true}
+            />
           </main>
         </div>
+        
+        {/* Debug component - remove in production */}
+        <ProductListDebug />
       </div>
     </Layout>
   );

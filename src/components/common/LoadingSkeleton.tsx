@@ -1,11 +1,12 @@
 import React from 'react';
 
 interface LoadingSkeletonProps {
-  type?: 'profile' | 'address' | 'card' | 'list';
+  type?: 'profile' | 'address' | 'card' | 'list' | 'custom';
   className?: string;
+  height?: string;
 }
 
-export const LoadingSkeleton: React.FC<LoadingSkeletonProps> = ({ type = 'profile', className = '' }) => {
+export const LoadingSkeleton: React.FC<LoadingSkeletonProps> = ({ type = 'profile', className = '', height }) => {
   const renderProfileSkeleton = () => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
       <div className="flex items-center gap-4 mb-5">
@@ -105,6 +106,14 @@ export const LoadingSkeleton: React.FC<LoadingSkeletonProps> = ({ type = 'profil
     </div>
   );
 
+  const renderCustomSkeleton = () => (
+    <div 
+      className="bg-gray-200 rounded-lg animate-pulse"
+      style={{ height: height || '200px' }}
+    >
+    </div>
+  );
+
   const renderSkeleton = () => {
     switch (type) {
       case 'profile':
@@ -115,6 +124,8 @@ export const LoadingSkeleton: React.FC<LoadingSkeletonProps> = ({ type = 'profil
         return renderCardSkeleton();
       case 'list':
         return renderListSkeleton();
+      case 'custom':
+        return renderCustomSkeleton();
       default:
         return renderProfileSkeleton();
     }
