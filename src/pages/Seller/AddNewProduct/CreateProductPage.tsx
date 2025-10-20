@@ -1,75 +1,115 @@
 import React, { useMemo, useState } from 'react';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { Stepper, SectionCard, TipsPanel, PreviewCard, BasicInfoSection, SpecsSection, MediaUploader, StepActionsBar } from '../../../components/CreateProductForSellerUIComponent';
-import type { CategoryKey } from '../../../components/CreateProductForSellerUIComponent';
+import type { BasicInfoValues } from '../../../components/CreateProductForSellerUIComponent/BasicInfoSection';
+import type { SpecsValues } from '../../../components/CreateProductForSellerUIComponent/SpecsSection';
+import { ProductService } from '../../../services/seller/ProductService';
+import type { CreateProductRequest } from '../../../services/seller/ProductService';
 
-// Simple audio product types for local state only (will replace with API types later)
+// Product image interface
 interface ProductImage {
   id: string;
   file?: File;
   url: string;
 }
 
-interface AudioProductForm {
-  name: string;
-  brand: string;
-  category: 'Headphone' | 'Earbud' | 'Speaker' | 'DAC/Amp' | 'Microphone' | 'Accessory';
-  price: string; // keep as string for controlled input
-  discountPrice: string;
-  stock: string;
-  sku: string;
-  warrantyMonths: string;
-  colors: string;
-  connection: 'Wired' | 'Wireless' | 'Both';
-  impedance?: string; // ohm
-  sensitivity?: string; // dB
-  frequencyResponse?: string; // e.g. 20Hz-20kHz
-  description: string;
-  highlights: string; // comma-delimited list
-}
-
-const defaultForm: AudioProductForm = {
+// Default form values
+const defaultBasicInfo: BasicInfoValues = {
+  // Basic info
   name: '',
-  brand: '',
-  category: 'Headphone',
+  brandName: '',
+  categoryId: '',
+  categoryName: '',
+  sku: '',
+  shortDescription: '',
+  description: '',
+  model: '',
+  color: '',
+  material: '',
+  dimensions: '',
+  weight: '',
+  
+  // Pricing
   price: '',
   discountPrice: '',
-  stock: '0',
-  sku: '',
-  warrantyMonths: '12',
-  colors: '',
-  connection: 'Wired',
-  impedance: '',
-  sensitivity: '',
+  currency: 'VND',
+  stockQuantity: '0',
+  
+  // Location & Shipping
+  warehouseLocation: '',
+  provinceCode: '',
+  districtCode: '',
+  wardCode: '',
+  shippingAddress: '',
+  shippingFee: '30000',
+  
+  // Warranty
+  warrantyPeriod: '12 tháng',
+  warrantyType: 'Chính hãng',
+  
+  // Manufacturer
+  manufacturerName: '',
+  manufacturerAddress: '',
+  productCondition: 'Mới 100%',
+  isCustomMade: false,
+  
+  // Video
+  videoUrl: ''
+};
+
+const defaultSpecs: SpecsValues = {
+  // Common audio specs
   frequencyResponse: '',
-  description: '',
-  highlights: ''
+  sensitivity: '',
+  impedance: '',
+  powerHandling: '',
+  connectionType: '',
+  voltageInput: ''
 };
 
 const CreateProductPage: React.FC = () => {
-  const [form, setForm] = useState<AudioProductForm>(defaultForm);
+  const [basicInfo, setBasicInfo] = useState<BasicInfoValues>(defaultBasicInfo);
+  const [specs, setSpecs] = useState<SpecsValues>(defaultSpecs);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(0); // 0 basic, 1 specs, 2 media, 3 review
-  const [extraSpecs, setExtraSpecs] = useState<Record<string, string>>({});
-  const colorChips = useMemo(() => form.colors.split(',').map(s => s.trim()).filter(Boolean), [form.colors]);
-  const highlightChips = useMemo(() => form.highlights.split(',').map(s => s.trim()).filter(Boolean), [form.highlights]);
+  const colorChips = useMemo(() => basicInfo.color.split(',').map((s: string) => s.trim()).filter(Boolean), [basicInfo.color]);
 
   const canSubmit = useMemo(() => {
     return (
-      form.name.trim().length >= 3 &&
-      form.brand.trim().length >= 2 &&
-      !!form.price && !Number.isNaN(Number(form.price)) &&
-      Number(form.price) > 0 &&
+      basicInfo.name.trim().length >= 3 &&
+      basicInfo.brandName.trim().length >= 2 &&
+      basicInfo.categoryId.trim().length > 0 &&
+      !!basicInfo.price && !Number.isNaN(Number(basicInfo.price)) &&
+      Number(basicInfo.price) > 0 &&
+      basicInfo.sku.trim().length > 0 &&
+      basicInfo.shortDescription.trim().length > 0 &&
       images.length > 0
     );
-  }, [form, images]);
+  }, [basicInfo, images]);
 
-  const handleChange = (
+  const handleBasicInfoChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    
+    setBasicInfo((prev: BasicInfoValues) => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
+  };
+
+  const handleSpecsChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    
+    setSpecs((prev: SpecsValues) => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
   };
 
   // media handlers handled in MediaUploader via callbacks
@@ -79,7 +119,8 @@ const CreateProductPage: React.FC = () => {
   };
 
   const resetForm = () => {
-    setForm(defaultForm);
+    setBasicInfo(defaultBasicInfo);
+    setSpecs(defaultSpecs);
     setImages([]);
   };
 
@@ -92,28 +133,89 @@ const CreateProductPage: React.FC = () => {
 
     try {
       setSubmitting(true);
-      // Simulate local submit (no API yet)
-      await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Preview payload that will be sent to API later
-      const payloadPreview = {
-        ...form,
-        price: Number(form.price),
-        discountPrice: form.discountPrice ? Number(form.discountPrice) : undefined,
-        stock: Number(form.stock || '0'),
-        warrantyMonths: Number(form.warrantyMonths || '0'),
-        colors: form.colors.split(',').map(s => s.trim()).filter(Boolean),
-        highlights: form.highlights.split(',').map(s => s.trim()).filter(Boolean),
-        imagesCount: images.length,
-        extraSpecs
+      // Upload images first
+      const imageFiles = images.filter(img => img.file).map(img => img.file!);
+      const imageUrls = await ProductService.uploadProductImages(imageFiles);
+
+      // Prepare API payload
+      const createProductData: CreateProductRequest = {
+        // Basic info
+        categoryName: basicInfo.categoryName,
+        brandName: basicInfo.brandName,
+        sku: basicInfo.sku,
+        name: basicInfo.name,
+        shortDescription: basicInfo.shortDescription,
+        description: basicInfo.description,
+        model: basicInfo.model,
+        color: basicInfo.color,
+        material: basicInfo.material,
+        dimensions: basicInfo.dimensions,
+        weight: parseFloat(basicInfo.weight) || 0,
+        
+        // Images and video
+        images: imageUrls,
+        videoUrl: basicInfo.videoUrl || undefined,
+        
+        // Pricing
+        price: parseFloat(basicInfo.price),
+        currency: basicInfo.currency,
+        stockQuantity: parseInt(basicInfo.stockQuantity) || 0,
+        
+        // Location & Shipping
+        warehouseLocation: basicInfo.warehouseLocation,
+        provinceCode: basicInfo.provinceCode,
+        districtCode: basicInfo.districtCode,
+        wardCode: basicInfo.wardCode,
+        shippingAddress: basicInfo.shippingAddress,
+        shippingFee: parseFloat(basicInfo.shippingFee) || 0,
+        supportedShippingMethodIds: [], // TODO: Add shipping method selection
+        
+        // Variants and discounts
+        variants: [], // TODO: Add variant support
+        bulkDiscounts: [], // TODO: Add bulk discount support
+        
+        // Warranty and manufacturer
+        voltageInput: specs.voltageInput || undefined,
+        warrantyPeriod: basicInfo.warrantyPeriod,
+        warrantyType: basicInfo.warrantyType,
+        manufacturerName: basicInfo.manufacturerName,
+        manufacturerAddress: basicInfo.manufacturerAddress,
+        productCondition: basicInfo.productCondition,
+        isCustomMade: basicInfo.isCustomMade,
+        
+        // Common audio specs
+        frequencyResponse: specs.frequencyResponse || undefined,
+        sensitivity: specs.sensitivity || undefined,
+        impedance: specs.impedance || undefined,
+        powerHandling: specs.powerHandling || undefined,
+        connectionType: specs.connectionType || undefined,
+        
+        // Category-specific specs (merge from specs state)
+        ...specs
       };
-      console.log('CreateProduct payload (preview only):', payloadPreview);
 
-      showCenterSuccess('Tạo sản phẩm nháp thành công (chưa gọi API)', 'Thành công');
-      resetForm();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) {
-      showCenterError('Đã xảy ra lỗi, vui lòng thử lại', 'Lỗi');
+      console.log('Creating product with data:', createProductData);
+
+      // Call API
+      const response = await ProductService.createProduct(createProductData);
+      
+      if (response.status === 200 || response.status === 201) {
+        showCenterSuccess(
+          `Tạo sản phẩm "${response.data.name}" thành công!`, 
+          'Thành công'
+        );
+        resetForm();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        throw new Error(response.message || 'Tạo sản phẩm thất bại');
+      }
+    } catch (err: any) {
+      console.error('Error creating product:', err);
+      showCenterError(
+        err.message || 'Đã xảy ra lỗi khi tạo sản phẩm, vui lòng thử lại', 
+        'Lỗi'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -129,12 +231,15 @@ const CreateProductPage: React.FC = () => {
   const validateStep = (s: number): string[] => {
     const errs: string[] = [];
     if (s === 0) {
-      if (form.name.trim().length < 3) errs.push('Tên sản phẩm tối thiểu 3 ký tự');
-      if (form.brand.trim().length < 2) errs.push('Vui lòng nhập thương hiệu');
-      if (!form.price || Number(form.price) <= 0) errs.push('Giá phải lớn hơn 0');
+      if (basicInfo.name.trim().length < 3) errs.push('Tên sản phẩm tối thiểu 3 ký tự');
+      if (basicInfo.brandName.trim().length < 2) errs.push('Vui lòng nhập thương hiệu');
+      if (!basicInfo.categoryId) errs.push('Vui lòng chọn danh mục');
+      if (!basicInfo.sku.trim()) errs.push('Vui lòng nhập SKU');
+      if (!basicInfo.shortDescription.trim()) errs.push('Vui lòng nhập mô tả ngắn');
+      if (!basicInfo.price || Number(basicInfo.price) <= 0) errs.push('Giá phải lớn hơn 0');
     } else if (s === 1) {
-      if (!form.connection) errs.push('Chọn kiểu kết nối');
-      if (form.frequencyResponse && !/\d+\s?Hz\s?-\s?\d+\s?k?Hz/i.test(form.frequencyResponse)) {
+      // Optional validation for specs
+      if (specs.frequencyResponse && !/\d+\s?Hz\s?-\s?\d+\s?k?Hz/i.test(specs.frequencyResponse)) {
         errs.push('Dải tần không đúng định dạng (vd: 20Hz-20kHz)');
       }
     } else if (s === 2) {
@@ -154,11 +259,12 @@ const CreateProductPage: React.FC = () => {
 
   const goPrev = () => setStep(prev => Math.max(prev - 1, 0));
 
-  // Reset extra specs when category changes (step 0 form)
-  const handleChangeWithCategory: typeof handleChange = (e) => {
-    handleChange(e);
-    if (e.target.name === 'category') {
-      setExtraSpecs({});
+  // Reset specs when category changes
+  const handleBasicInfoChangeWithCategory = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    handleBasicInfoChange(e);
+    if (e.target.name === 'categoryId') {
+      // Reset specs when category changes
+      setSpecs(defaultSpecs);
     }
   };
 
@@ -177,17 +283,22 @@ const CreateProductPage: React.FC = () => {
         </div>
         {/* Left column wrapper */}
         <div className="lg:col-span-2 space-y-6">
-        {step === 0 && (<BasicInfoSection values={{ name: form.name, brand: form.brand, category: form.category, price: form.price, discountPrice: form.discountPrice, stock: form.stock, sku: form.sku, warrantyMonths: form.warrantyMonths, colors: form.colors }} onChange={handleChangeWithCategory} />)}
+        {step === 0 && (
+          <BasicInfoSection 
+            values={basicInfo} 
+            onChange={handleBasicInfoChangeWithCategory} 
+          />
+        )}
 
-        {step === 1 && (<SpecsSection
-          values={{ connection: form.connection, impedance: form.impedance, sensitivity: form.sensitivity, frequencyResponse: form.frequencyResponse, highlights: form.highlights, description: form.description }}
-          onChange={handleChange}
-          colorChips={colorChips}
-          highlightChips={highlightChips}
-          category={form.category as CategoryKey}
-          extraSpecs={extraSpecs}
-          onExtraChange={(key, value) => setExtraSpecs(prev => ({ ...prev, [key]: value }))}
-        />)}
+        {step === 1 && (
+          <SpecsSection
+            values={specs}
+            onChange={handleSpecsChange}
+            colorChips={colorChips}
+            highlightChips={[]} // TODO: Add highlights support
+            categoryName={basicInfo.categoryName}
+          />
+        )}
 
         {step === 2 && (<MediaUploader images={images} onFiles={(files) => { const arr = Array.from(files).map((file, idx) => ({ id: `${Date.now()}_${idx}`, file, url: URL.createObjectURL(file) })); if (arr.length) setImages(prev => [...prev, ...arr]); }} onDropFiles={(files) => { const arr = Array.from(files).filter(f => f.type.startsWith('image/')).map((file, idx) => ({ id: `${Date.now()}_${idx}`, file, url: URL.createObjectURL(file) })); if (arr.length) setImages(prev => [...prev, ...arr]); }} onRemove={(id) => removeImage(id)} />)}
 
@@ -208,14 +319,19 @@ const CreateProductPage: React.FC = () => {
           <TipsPanel
             items={[
               { label: 'Thêm ít nhất 1 hình ảnh', done: images.length > 0 },
-              { label: 'Tên có độ dài 25–100 ký tự', done: form.name.trim().length >= 25 },
-              { label: 'Nhập thương hiệu', done: !!form.brand.trim() },
-              { label: 'Thêm ít nhất 3 thuộc tính (màu sắc, kết nối, dải tần...)', done: [form.colors, form.connection, form.frequencyResponse].filter(Boolean).length >= 3 }
+              { label: 'Tên có độ dài 3+ ký tự', done: basicInfo.name.trim().length >= 3 },
+              { label: 'Nhập thương hiệu', done: !!basicInfo.brandName.trim() },
+              { label: 'Chọn danh mục', done: !!basicInfo.categoryId },
+              { label: 'Nhập SKU', done: !!basicInfo.sku.trim() },
+              { label: 'Nhập mô tả ngắn', done: !!basicInfo.shortDescription.trim() }
             ]}
-            tips={[{ title: 'Thương hiệu', content: 'Sản phẩm Mall cần thương hiệu rõ ràng. Nếu không, chọn "No brand".' }]}
+            tips={[
+              { title: 'Thương hiệu', content: 'Sản phẩm cần thương hiệu rõ ràng để tăng độ tin cậy.' },
+              { title: 'Danh mục', content: 'Chọn đúng danh mục để hiển thị các thuộc tính phù hợp.' }
+            ]}
           />
 
-          <PreviewCard form={form as any} images={images} />
+          <PreviewCard form={basicInfo as any} images={images} />
 
           <StepActionsBar step={step} total={steps.length} canSubmit={canSubmit} submitting={submitting} onPrev={goPrev} onNext={goNext} />
         </div>
