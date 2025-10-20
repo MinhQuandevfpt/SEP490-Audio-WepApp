@@ -8,7 +8,7 @@ import FeaturedBrands from '../../components/FeaturedBrands';
 import ProductSuggestions from '../../components/ProductSuggestions';
 import { FeaturedProducts } from '../../components/FeaturedProducts';
 import { ProductList } from '../../components/ProductList';
-import ProductListDebug from '../../components/Debug/ProductListDebug';
+import TestComponent from '../../components/TestComponent';
 import { showCenterSuccess } from '../../utils/notification';
 
 const HomePage: React.FC = () => {
@@ -48,6 +48,9 @@ const HomePage: React.FC = () => {
 
           {/* Right Content */}
           <main className="flex-1 space-y-6">
+            {/* Test Component */}
+            <TestComponent />
+
             {/* Banner Section */}
             <BannerSlider />
 
@@ -74,9 +77,6 @@ const HomePage: React.FC = () => {
             />
           </main>
         </div>
-        
-        {/* Debug component - remove in production */}
-        <ProductListDebug />
       </div>
     </Layout>
   );

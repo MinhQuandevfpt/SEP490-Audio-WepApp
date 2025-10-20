@@ -2,6 +2,128 @@ import React, { useState, useEffect } from 'react';
 import { ProductListService } from '../../services/customer/ProductListService';
 import type { Product } from '../../services/customer/ProductListService';
 import LoadingSkeleton from '../common/LoadingSkeleton';
+import { products as mockProducts } from '../../data/products';
+
+// Helper function to convert mock product to API product format
+const convertMockToApiProduct = (mockProduct: any): Product => ({
+  productId: mockProduct.id,
+  storeId: 'mock-store',
+  storeName: 'Mock Store',
+  categoryId: mockProduct.category,
+  categoryName: mockProduct.category,
+  brandName: mockProduct.brand,
+  name: mockProduct.name,
+  slug: mockProduct.name.toLowerCase().replace(/\s+/g, '-'),
+  shortDescription: `${mockProduct.brand} ${mockProduct.name}`,
+  description: `${mockProduct.brand} ${mockProduct.name} - Chất lượng cao`,
+  model: mockProduct.name,
+  color: 'Đen',
+  material: 'Nhựa',
+  dimensions: 'N/A',
+  weight: 0,
+  variants: [],
+  images: [mockProduct.image],
+  videoUrl: '',
+  sku: mockProduct.id,
+  price: mockProduct.originalPrice || mockProduct.price,
+  discountPrice: mockProduct.price,
+  promotionPercent: mockProduct.discount || 0,
+  priceAfterPromotion: mockProduct.price,
+  priceBeforeVoucher: mockProduct.price,
+  voucherAmount: 0,
+  finalPrice: mockProduct.price,
+  platformFeePercent: 0,
+  currency: 'VND',
+  stockQuantity: 100,
+  warehouseLocation: 'Hà Nội',
+  provinceCode: 'HN',
+  districtCode: 'CGL',
+  wardCode: '001',
+  shippingAddress: 'Hà Nội',
+  shippingFee: 30000,
+  supportedShippingMethodIds: ['standard'],
+  bulkDiscounts: [],
+  status: 'ACTIVE',
+  isFeatured: true,
+  ratingAverage: mockProduct.rating,
+  reviewCount: mockProduct.soldCount,
+  viewCount: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  lastUpdatedAt: new Date().toISOString(),
+  lastUpdateIntervalDays: 0,
+  createdBy: 'system',
+  updatedBy: 'system',
+  // Technical specs
+  frequencyResponse: '20Hz - 20kHz',
+  sensitivity: 'N/A',
+  impedance: 'N/A',
+  powerHandling: 'N/A',
+  connectionType: 'Bluetooth',
+  voltageInput: 'N/A',
+  warrantyPeriod: '12 tháng',
+  warrantyType: 'Chính hãng',
+  manufacturerName: mockProduct.brand,
+  manufacturerAddress: 'N/A',
+  productCondition: 'Mới',
+  isCustomMade: false,
+  // Speaker specs
+  driverConfiguration: 'N/A',
+  driverSize: 'N/A',
+  enclosureType: 'N/A',
+  coveragePattern: 'N/A',
+  crossoverFrequency: 'N/A',
+  placementType: 'N/A',
+  // Headphone specs
+  headphoneType: 'N/A',
+  compatibleDevices: 'N/A',
+  isSportsModel: false,
+  headphoneFeatures: 'N/A',
+  batteryCapacity: 'N/A',
+  hasBuiltInBattery: false,
+  isGamingHeadset: false,
+  headphoneAccessoryType: 'N/A',
+  headphoneConnectionType: 'N/A',
+  plugType: 'N/A',
+  sirimApproved: false,
+  sirimCertified: false,
+  mcmcApproved: false,
+  // Microphone specs
+  micType: 'N/A',
+  polarPattern: 'N/A',
+  maxSPL: 'N/A',
+  micOutputImpedance: 'N/A',
+  micSensitivity: 'N/A',
+  // Amplifier specs
+  amplifierType: 'N/A',
+  totalPowerOutput: 'N/A',
+  thd: 'N/A',
+  snr: 'N/A',
+  inputChannels: 0,
+  outputChannels: 0,
+  supportBluetooth: true,
+  supportWifi: false,
+  supportAirplay: false,
+  // Turntable specs
+  platterMaterial: 'N/A',
+  motorType: 'N/A',
+  tonearmType: 'N/A',
+  autoReturn: false,
+  // DAC/Mixer specs
+  dacChipset: 'N/A',
+  sampleRate: 'N/A',
+  bitDepth: 'N/A',
+  balancedOutput: false,
+  inputInterface: 'N/A',
+  outputInterface: 'N/A',
+  channelCount: 0,
+  hasPhantomPower: false,
+  eqBands: 'N/A',
+  faderType: 'N/A',
+  builtInEffects: false,
+  usbAudioInterface: false,
+  midiSupport: false
+});
 
 const FeaturedProducts: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,10 +137,30 @@ const FeaturedProducts: React.FC = () => {
       setError(null);
       
       const response = await ProductListService.getFeaturedProducts(8);
-      setProducts(response.data || []);
+      console.log('Featured products response:', response);
+      
+      // Ensure we have an array
+      const productsData = response?.data;
+      if (Array.isArray(productsData) && productsData.length > 0) {
+        setProducts(productsData);
+      } else {
+        console.warn('API returned empty or non-array data, using mock data');
+        // Use mock data as fallback
+        const mockFeaturedProducts = mockProducts
+          .filter(p => p.isFlashSale || p.isTopDeal)
+          .slice(0, 8)
+          .map(convertMockToApiProduct);
+        setProducts(mockFeaturedProducts);
+      }
     } catch (err: any) {
       console.error('Error loading featured products:', err);
-      setError(err.message || 'Có lỗi xảy ra khi tải sản phẩm nổi bật');
+      console.log('Using mock data as fallback');
+      // Use mock data as fallback
+      const mockFeaturedProducts = mockProducts
+        .filter(p => p.isFlashSale || p.isTopDeal)
+        .slice(0, 8)
+        .map(convertMockToApiProduct);
+      setProducts(mockFeaturedProducts);
     } finally {
       setLoading(false);
     }

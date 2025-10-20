@@ -2,11 +2,12 @@ import { RouterProvider } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import { router } from './routes'
 import AuthDebugger from './components/common/AuthDebugger'
+import { ErrorBoundary } from './components/common'
 import 'react-toastify/dist/ReactToastify.css'
 
 function App() {
   return (
-    <>
+    <ErrorBoundary>
       <RouterProvider router={router} />
       <AuthDebugger />
       <ToastContainer
@@ -21,7 +22,7 @@ function App() {
         pauseOnHover
         theme="light"
       />
-    </>
+    </ErrorBoundary>
   )
 }
 
