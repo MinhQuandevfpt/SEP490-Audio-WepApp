@@ -18,6 +18,8 @@ import ShoppingCart from '../pages/Customer/Cart';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
+import { ProductListPage } from '../pages/Customer/ProductList';
+import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -139,6 +141,14 @@ export const router = createBrowserRouter([
   {
     path: '/3d-room',
     element: <ThreeDRoom />
+  },
+  {
+    path: '/products',
+    element: <ProductListPage />
+  },
+  {
+    path: '/products/demo',
+    element: <ProductListDemo />
   },
   {
     path: '/auth',

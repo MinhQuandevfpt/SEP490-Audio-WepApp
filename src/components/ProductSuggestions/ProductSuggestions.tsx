@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Lightbulb, Grid3X3, List, Filter } from 'lucide-react';
 import { regularProducts } from '../../data/products';
 import ProductCard from '../ProductCard';
 
 const ProductSuggestions: React.FC = () => {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAll, setShowAll] = useState(false);
   const [sortBy, setSortBy] = useState<'popular' | 'price-low' | 'price-high' | 'rating'>('popular');
@@ -87,7 +89,7 @@ const ProductSuggestions: React.FC = () => {
       <div className="text-center mt-8">
         {!showAll ? (
           <button
-            onClick={() => setShowAll(true)}
+            onClick={() => navigate('/products?status=ACTIVE')}
             className="bg-orange-500 text-white px-8 py-3 rounded-lg hover:bg-orange-600 transition-colors font-medium"
           >
             Xem thêm sản phẩm ({regularProducts.length - itemsPerPage} sản phẩm)

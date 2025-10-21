@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { categories } from '../../data/categories';
 
 const Sidebar: React.FC = () => {
+  const navigate = useNavigate();
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const toggleCategory = (categoryId: string) => {
     setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
+  };
+
+  const handleCategoryClick = (categoryName: string) => {
+    navigate(`/products?categoryName=${encodeURIComponent(categoryName)}`);
   };
 
   return (
@@ -21,34 +27,39 @@ const Sidebar: React.FC = () => {
         {categories.map((category) => (
           <div key={category.id}>
             {/* Main category */}
-            <button
-              onClick={() => toggleCategory(category.id)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center">
+              <button
+                onClick={() => handleCategoryClick(category.name)}
+                className="flex-1 flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+              >
                 <span className="text-xl">{category.icon}</span>
                 <span className="text-gray-700 font-medium">{category.name}</span>
-              </div>
+              </button>
               {category.subcategories && (
-                expandedCategory === category.id ? (
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                )
+                <button
+                  onClick={() => toggleCategory(category.id)}
+                  className="px-2 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  {expandedCategory === category.id ? (
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  )}
+                </button>
               )}
-            </button>
+            </div>
 
             {/* Subcategories */}
             {category.subcategories && expandedCategory === category.id && (
               <div className="bg-gray-50 border-t border-gray-100">
                 {category.subcategories.map((subcategory, index) => (
-                  <a
+                  <button
                     key={index}
-                    href={`/${category.id}/${subcategory.toLowerCase().replace(/\s+/g, '-')}`}
-                    className="block px-8 py-2 text-sm text-gray-600 hover:text-orange-500 hover:bg-gray-100 transition-colors"
+                    onClick={() => handleCategoryClick(subcategory)}
+                    className="block w-full text-left px-8 py-2 text-sm text-gray-600 hover:text-orange-500 hover:bg-gray-100 transition-colors"
                   >
                     {subcategory}
-                  </a>
+                  </button>
                 ))}
               </div>
             )}

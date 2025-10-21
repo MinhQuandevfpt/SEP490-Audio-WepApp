@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { flashSaleProducts } from '../../data/products';
 
@@ -53,6 +54,7 @@ const FlashSaleCard: React.FC<{ product: any }> = ({ product }) => {
 };
 
 const FlashSale: React.FC = () => {
+  const navigate = useNavigate();
   const [timeLeft, setTimeLeft] = useState({
     hours: 1,
     minutes: 26,
@@ -151,7 +153,10 @@ const FlashSale: React.FC = () => {
         </div>
 
         {/* View All Button */}
-        <button className="text-blue-500 hover:text-blue-600 font-medium">
+        <button 
+          onClick={() => navigate('/products?status=ACTIVE')}
+          className="text-blue-500 hover:text-blue-600 font-medium"
+        >
           Xem tất cả
         </button>
       </div>

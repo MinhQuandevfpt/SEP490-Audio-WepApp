@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import { topDealProducts } from '../../data/products';
 import ProductCard from '../ProductCard';
 
 const TopDeals: React.FC = () => {
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const itemsPerPage = 4;
 
@@ -65,7 +67,10 @@ const TopDeals: React.FC = () => {
 
       {/* View All Button */}
       <div className="text-center mt-6">
-        <button className="bg-yellow-500 text-white px-8 py-3 rounded-lg hover:bg-yellow-600 transition-colors font-medium">
+        <button 
+          onClick={() => navigate('/products?status=ACTIVE')}
+          className="bg-yellow-500 text-white px-8 py-3 rounded-lg hover:bg-yellow-600 transition-colors font-medium"
+        >
           Xem tất cả Top Deals
         </button>
       </div>
