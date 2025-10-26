@@ -12,6 +12,10 @@ import type { Category, ShippingMethod, Province, District, Ward } from '../../t
 import { CATEGORY_SPECS, type CategoryKey } from './CategorySpecsSchema';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+
 type ProductImage = { id: string; url: string; file?: File };
 
 interface FormState {
@@ -55,6 +59,10 @@ interface FormState {
   highlights: string;
 }
 
+// ============================================================================
+// CONSTANTS & DEFAULT VALUES
+// ============================================================================
+
 const defaultForm: FormState = {
   name: '',
   brandName: '',
@@ -90,30 +98,53 @@ const defaultForm: FormState = {
   highlights: '',
 };
 
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
 // Format numbers with dot thousands separators
 const formatNumber = (value: string): string => {
   const numericValue = value.replace(/[^\d]/g, '');
   if (!numericValue) return '';
   return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
+
 const parseFormattedNumber = (formattedValue: string): string => formattedValue.replace(/\./g, '');
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 const Suminputsection: React.FC = () => {
   const navigate = useNavigate();
+  
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
+  
+  // Form state
   const [form, setForm] = useState<FormState>(defaultForm);
   const [images, setImages] = useState<ProductImage[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
-  const [shippingLoading, setShippingLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [extraSpecs, setExtraSpecs] = useState<Record<string, string>>({});
   const [variants, setVariants] = useState<Array<{ optionName: string; optionValue: string }>>([]);
   const [bulkDiscounts, setBulkDiscounts] = useState<Array<{ fromQuantity: string; toQuantity: string; unitPrice: string }>>([]);
+  
+  // UI state
   const [imageUrl, setImageUrl] = useState('');
   const [isUrlMode, setIsUrlMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [showContentCheck, setShowContentCheck] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Data loading state
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
+  const [shippingLoading, setShippingLoading] = useState(true);
+  
+  // ============================================================================
+  // LOCATION STATE MANAGEMENT (Province/District/Ward)
+  // ============================================================================
   
   // Province-related states
   const { provinces, loading: provincesLoading, error: provincesError, refetch: refetchProvinces } = useProvinces();
@@ -135,6 +166,9 @@ const Suminputsection: React.FC = () => {
   const [showWardDropdown, setShowWardDropdown] = useState(false);
   const [wardSearchQuery, setWardSearchQuery] = useState('');
 
+  // ============================================================================
+  // VALIDATION LOGIC
+  // ============================================================================
 
   // Content check validation
   const contentCheck = useMemo(() => {
@@ -183,6 +217,10 @@ const Suminputsection: React.FC = () => {
       canSubmit: basicComplete && pricingComplete && mediaComplete
     };
   }, [form, images, imageUrl]);
+
+  // ============================================================================
+  // EFFECTS & DATA LOADING
+  // ============================================================================
 
   useEffect(() => {
     const loadData = async () => {
@@ -235,6 +273,10 @@ const Suminputsection: React.FC = () => {
     };
   }, [showProvinceDropdown, showDistrictDropdown, showWardDropdown]);
 
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
+
   const canSubmit = useMemo(() => {
     return (
       (form.name || '').trim().length >= 3 &&
@@ -261,6 +303,10 @@ const Suminputsection: React.FC = () => {
     );
   }, [form]);
 
+  // ============================================================================
+  // FORM HANDLERS
+  // ============================================================================
+
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
@@ -281,6 +327,10 @@ const Suminputsection: React.FC = () => {
       return { ...prev, selectedShippingMethodIds: next };
     });
   };
+
+  // ============================================================================
+  // LOCATION HANDLERS (Province/District/Ward)
+  // ============================================================================
 
   // Province selection handlers
   const handleProvinceSelect = (province: Province) => {
@@ -439,6 +489,10 @@ const Suminputsection: React.FC = () => {
     );
   }, [wards, wardSearchQuery]);
 
+  // ============================================================================
+  // IMAGE HANDLERS
+  // ============================================================================
+
   const removeImage = (id: string) => setImages(prev => prev.filter(img => img.id !== id));
   const addImageFiles = (files: FileList) => {
     const arr = Array.from(files).filter(f => f.type.startsWith('image/')).map((file, idx) => ({ id: `${Date.now()}_${idx}`, file, url: URL.createObjectURL(file) }));
@@ -455,6 +509,10 @@ const Suminputsection: React.FC = () => {
       showCenterError('URL không hợp lệ. Vui lòng nhập đúng định dạng');
     }
   };
+
+  // ============================================================================
+  // NAVIGATION HANDLERS
+  // ============================================================================
 
   const goNext = () => {
     if (currentStep === 1) {
@@ -485,6 +543,10 @@ const Suminputsection: React.FC = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // ============================================================================
+  // PAYLOAD BUILDING & SUBMISSION
+  // ============================================================================
 
   const buildPayload = async (): Promise<Record<string, any>> => {
     const filesToUpload = images.filter(img => !!img.file).map(img => img.file!) as File[];
@@ -676,11 +738,18 @@ const Suminputsection: React.FC = () => {
   const currentCategory = form.category as CategoryKey;
   const specDefs = CATEGORY_SPECS[currentCategory] || [];
 
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Main Content */}
         <div className="flex-1 space-y-6">
+          {/* ============================================================================
+              STEPPER COMPONENT
+              ============================================================================ */}
           {/* Stepper */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="px-6 py-4">
@@ -702,6 +771,9 @@ const Suminputsection: React.FC = () => {
             </div>
           </div>
 
+          {/* ============================================================================
+              FORM CONTENT SECTIONS
+              ============================================================================ */}
           {/* Form Content */}
           <form onSubmit={handleSubmit} className="space-y-6">
       {currentStep === 1 && (
@@ -1544,6 +1616,9 @@ const Suminputsection: React.FC = () => {
       </SectionCard>
       )}
 
+            {/* ============================================================================
+                NAVIGATION BAR
+                ============================================================================ */}
             {/* Navigation Bar */}
             <div className="pt-4 border-t border-gray-200">
               {/* Info Banner */}
@@ -1566,9 +1641,9 @@ const Suminputsection: React.FC = () => {
               
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  {currentStep > 1 && (
-                    <button type="button" onClick={goBack} className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Quay lại</button>
-                  )}
+              {currentStep > 1 && (
+                <button type="button" onClick={goBack} className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Quay lại</button>
+              )}
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -1588,7 +1663,7 @@ const Suminputsection: React.FC = () => {
                   
                   {/* Next/Publish Button */}
                   {currentStep < 3 ? (
-                    <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">Tiếp tục</button>
+                <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">Tiếp tục</button>
                   ) : (
                     <button 
                       type="submit" 
@@ -1600,14 +1675,17 @@ const Suminputsection: React.FC = () => {
                       }`}
                     >
                       {submitting ? 'Đang lưu...' : 'Lưu và đăng sản phẩm'}
-                    </button>
-                  )}
+                </button>
+              )}
                 </div>
               </div>
             </div>
           </form>
         </div>
 
+        {/* ============================================================================
+            RIGHT SIDEBAR - CONTENT CHECK PANEL
+            ============================================================================ */}
         {/* Right Sidebar - Content Check Panel */}
         <div className="w-full lg:w-80 flex-shrink-0">
           <div className="sticky top-6">

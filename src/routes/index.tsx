@@ -31,6 +31,9 @@ import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
+import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
+import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
+import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -290,6 +293,21 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Thông tin tài khoản</h2><p className="text-gray-600 mt-2">Trang thông tin tài khoản đang được phát triển...</p></div>
+      }
+    ]
+  },
+  // Store Staff routes
+  {
+    path: '/store-staff',
+    element: <StaffLoginLayout />,
+    children: [
+      {
+        path: 'login',
+        element: <LoginForStaff />
+      },
+      {
+        path: 'register',
+        element: <RegisterForStaff />
       }
     ]
   },
