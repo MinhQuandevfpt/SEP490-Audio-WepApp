@@ -251,6 +251,16 @@ const Suminputsection: React.FC = () => {
     );
   }, [form, images]);
 
+  // Validation for draft (more lenient)
+  const canSaveDraft = useMemo(() => {
+    return (
+      (form.name || '').trim().length >= 3 &&
+      (form.brandName || '').trim().length >= 2 &&
+      (form.category || '').trim().length > 0 &&
+      (form.shortDescription || '').trim().length > 0
+    );
+  }, [form]);
+
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     if (type === 'checkbox') {
@@ -595,7 +605,7 @@ const Suminputsection: React.FC = () => {
       setSubmitting(true);
       const payload = await buildPayload();
       console.log('📤 Sending payload to API:', JSON.stringify(payload, null, 2));
-      await ProductService.createProduct(payload);
+      await ProductService.createActiveProduct(payload);
       showCenterSuccess('Tạo sản phẩm thành công! Đang chuyển đến trang quản lý...');
       
       // Reset form
@@ -618,6 +628,45 @@ const Suminputsection: React.FC = () => {
       }, 1000);
     } catch (err: any) {
       const msg = err?.message ? String(err.message) : 'Không thể tạo sản phẩm. Vui lòng thử lại.';
+      showCenterError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!canSaveDraft) {
+      showCenterError('Vui lòng nhập ít nhất tên sản phẩm, thương hiệu, danh mục và mô tả ngắn');
+      return;
+    }
+    
+    try {
+      setSubmitting(true);
+      const payload = await buildPayload();
+      console.log('📤 Saving draft to API:', JSON.stringify(payload, null, 2));
+      await ProductService.createDraftProduct(payload);
+      showCenterSuccess('Lưu nháp thành công! Đang chuyển đến trang quản lý...');
+      
+      // Reset form
+      setForm(defaultForm);
+      setImages([]);
+      setExtraSpecs({});
+      setVariants([]);
+      setBulkDiscounts([]);
+      setCurrentStep(1);
+      setSelectedProvince(null);
+      setProvinceSearchQuery('');
+      setSelectedDistrict(null);
+      setDistrictSearchQuery('');
+      setSelectedWard(null);
+      setWardSearchQuery('');
+      
+      // Navigate to seller dashboard after a short delay
+      setTimeout(() => {
+        navigate('/seller/dashboard/products');
+      }, 1000);
+    } catch (err: any) {
+      const msg = err?.message ? String(err.message) : 'Không thể lưu nháp. Vui lòng thử lại.';
       showCenterError(msg);
     } finally {
       setSubmitting(false);
@@ -1496,18 +1545,65 @@ const Suminputsection: React.FC = () => {
       )}
 
             {/* Navigation Bar */}
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-200">
-              {currentStep > 1 && (
-                <button type="button" onClick={goBack} className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Quay lại</button>
-              )}
-              {currentStep < 3 && (
-                <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">Tiếp tục</button>
-              )}
-              {currentStep === 3 && (
-                <button type="submit" disabled={!contentCheck.canSubmit || submitting} className={`px-5 py-2 rounded-lg text-white ${!contentCheck.canSubmit || submitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                  {submitting ? 'Đang lưu...' : 'Gửi sản phẩm'}
-                </button>
-              )}
+            <div className="pt-4 border-t border-gray-200">
+              {/* Info Banner */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <div className="flex-shrink-0">
+                    <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Hướng dẫn:</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Lưu nháp:</strong> Chỉ cần tên, thương hiệu, danh mục và mô tả ngắn</li>
+                      <li>• <strong>Lưu và đăng sản phẩm:</strong> Cần đầy đủ thông tin bắt buộc để sản phẩm hiển thị công khai</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {currentStep > 1 && (
+                    <button type="button" onClick={goBack} className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Quay lại</button>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {/* Draft Button - Always visible */}
+                  <button 
+                    type="button" 
+                    onClick={handleSaveDraft}
+                    disabled={!canSaveDraft || submitting} 
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      !canSaveDraft || submitting 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                        : 'bg-gray-600 text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    {submitting ? 'Đang lưu...' : 'Lưu nháp'}
+                  </button>
+                  
+                  {/* Next/Publish Button */}
+                  {currentStep < 3 ? (
+                    <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">Tiếp tục</button>
+                  ) : (
+                    <button 
+                      type="submit" 
+                      disabled={!canSubmit || submitting} 
+                      className={`px-5 py-2 rounded-lg text-white font-medium transition-colors ${
+                        !canSubmit || submitting 
+                          ? 'bg-gray-400 cursor-not-allowed' 
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
+                    >
+                      {submitting ? 'Đang lưu...' : 'Lưu và đăng sản phẩm'}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </form>
         </div>
@@ -1609,10 +1705,16 @@ const Suminputsection: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Overall Status */}
+                  {/* Draft Status */}
                   <div className="pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-700">Lưu nháp:</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${canSaveDraft ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {canSaveDraft ? 'Có thể lưu' : 'Cần thông tin cơ bản'}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-gray-700">Trạng thái:</span>
+                      <span className="text-xs font-medium text-gray-700">Đăng sản phẩm:</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${contentCheck.canSubmit ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {contentCheck.canSubmit ? 'Sẵn sàng' : 'Cần hoàn thiện'}
                       </span>

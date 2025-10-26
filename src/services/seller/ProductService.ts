@@ -156,7 +156,7 @@ export class ProductService {
    * Create a new product for current seller's store
    * POST /api/products
    */
-  static async createProduct(payload: Record<string, any>): Promise<any> {
+  static async createProduct(payload: Record<string, any>, status: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<any> {
     try {
       const token =
         localStorage.getItem('seller_token') ||
@@ -169,6 +169,12 @@ export class ProductService {
         throw new Error('❌ Không tìm thấy token. Vui lòng đăng nhập lại (missing Authorization).');
       }
 
+      // Add status to payload
+      const payloadWithStatus = {
+        ...payload,
+        status: status
+      };
+
       const response = await fetch(`${API_URL}/products`, {
         method: 'POST',
         headers: {
@@ -176,7 +182,7 @@ export class ProductService {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadWithStatus),
       });
 
       if (!response.ok) {
@@ -195,6 +201,22 @@ export class ProductService {
       console.error('❌ Error creating product:', error);
       throw error;
     }
+  }
+
+  /**
+   * Create a draft product (save as draft)
+   * POST /api/products with status: DRAFT
+   */
+  static async createDraftProduct(payload: Record<string, any>): Promise<any> {
+    return this.createProduct(payload, 'DRAFT');
+  }
+
+  /**
+   * Create an active product (publish immediately)
+   * POST /api/products with status: ACTIVE
+   */
+  static async createActiveProduct(payload: Record<string, any>): Promise<any> {
+    return this.createProduct(payload, 'ACTIVE');
   }
 
   /**
@@ -265,6 +287,7 @@ export class ProductService {
    */
   static getStatusLabel(status: string): string {
     const statusMap: Record<string, string> = {
+      'DRAFT': 'Bản nháp',
       'ACTIVE': 'Đang bán',
       'INACTIVE': 'Ngưng bán',
       'OUT_OF_STOCK': 'Hết hàng',
@@ -279,6 +302,7 @@ export class ProductService {
    */
   static getStatusColor(status: string): string {
     const colorMap: Record<string, string> = {
+      'DRAFT': 'bg-gray-100 text-gray-800',
       'ACTIVE': 'bg-green-100 text-green-800',
       'INACTIVE': 'bg-gray-100 text-gray-800',
       'OUT_OF_STOCK': 'bg-red-100 text-red-800',
