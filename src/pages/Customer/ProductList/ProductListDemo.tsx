@@ -14,7 +14,7 @@ const ProductListDemo: React.FC = () => {
       const response = await ProductListService.getProducts({
         page: 0,
         size: 5,
-        status: 'active'
+        status: 'ACTIVE'
       });
       
       setResult(response);
@@ -34,7 +34,7 @@ const ProductListDemo: React.FC = () => {
         page: 0,
         size: 10,
         categoryName: 'Loa',
-        status: 'active'
+        status: 'ACTIVE'
       });
       
       setResult(response);
