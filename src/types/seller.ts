@@ -372,3 +372,133 @@ export interface SellerOrder {
   createdAt: string;
   updatedAt: string;
 }
+
+// GHN Province Types
+export interface Province {
+  ProvinceID: number;
+  ProvinceName: string;
+  CountryID: number;
+  Code: string;
+  NameExtension: string[];
+  IsEnable: number;
+  RegionID: number;
+  RegionCPN: number;
+  UpdatedBy: number;
+  CreatedAt: string;
+  UpdatedAt: string;
+  AreaID: number;
+  CanUpdateCOD: boolean;
+  Status: number;
+  UpdatedEmployee: number;
+  UpdatedSource: string;
+  UpdatedDate: string;
+}
+
+export interface ProvinceListResponse {
+  code: number;
+  message: string;
+  data: Province[];
+}
+
+// GHN District Types
+export interface District {
+  DistrictID: number;
+  ProvinceID: number;
+  DistrictName: string;
+  Code: string;
+  Type: number;
+  SupportType: number;
+  NameExtension: string[];
+  IsEnable: number;
+  UpdatedBy?: number;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+  CanUpdateCOD: boolean;
+  Status: number;
+  PickType: number;
+  DeliverType: number;
+  WhiteListClient: {
+    From: any[];
+    To: any[];
+    Return: any[];
+  };
+  WhiteListDistrict: {
+    From: any;
+    To: any;
+  };
+  GovernmentCode: string;
+  ReasonCode: string;
+  ReasonMessage: string;
+  OnDates: any;
+  CreatedIP?: string;
+  CreatedEmployee?: number;
+  CreatedSource?: string;
+  CreatedDate?: string;
+  UpdatedEmployee: number;
+  UpdatedSource: string;
+  UpdatedDate: string;
+}
+
+export interface DistrictListResponse {
+  code: number;
+  message: string;
+  data: District[];
+}
+
+export interface DistrictRequest {
+  province_id: number;
+}
+
+// GHN Ward Types
+export interface Ward {
+  WardCode: string;
+  DistrictID: number;
+  WardName: string;
+  NameExtension: string[];
+  CanUpdateCOD: boolean;
+  SupportType: number;
+  PickType: number;
+  DeliverType: number;
+  WhiteListClient: {
+    From: any[];
+    To: any[];
+    Return: any[];
+  };
+  WhiteListWard: {
+    From: any;
+    To: any;
+  };
+  GovernmentCode: string;
+  Status: number;
+  Config: {
+    From: {
+      LockType: string;
+    };
+    To: {
+      LockType: string;
+    };
+    Return: {
+      LockType: string;
+    };
+  };
+  ReasonCode: string;
+  ReasonMessage: string;
+  OnDates: string[];
+  CreatedIP: string;
+  CreatedEmployee: number;
+  CreatedSource: string;
+  CreatedDate: string;
+  UpdatedEmployee: number;
+  UpdatedSource: string;
+  UpdatedDate: string;
+}
+
+export interface WardListResponse {
+  code: number;
+  message: string;
+  data: Ward[];
+}
+
+export interface WardRequest {
+  district_id: number;
+}

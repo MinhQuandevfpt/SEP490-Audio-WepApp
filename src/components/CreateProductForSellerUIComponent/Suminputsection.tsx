@@ -5,7 +5,10 @@ import { CategoryService } from '../../services/seller/CategoryService';
 import { ShippingService } from '../../services/seller/ShippingService';
 import { FileUploadService } from '../../services/FileUploadService';
 import { ProductService } from '../../services/seller/ProductService';
-import type { Category, ShippingMethod } from '../../types/seller';
+import { useProvinces } from '../../hooks/useProvinces';
+import { useDistricts } from '../../hooks/useDistricts';
+import { useWards } from '../../hooks/useWards';
+import type { Category, ShippingMethod, Province, District, Ward } from '../../types/seller';
 import { CATEGORY_SPECS, type CategoryKey } from './CategorySpecsSchema';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
@@ -111,6 +114,26 @@ const Suminputsection: React.FC = () => {
   const [isUrlMode, setIsUrlMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [showContentCheck, setShowContentCheck] = useState(true);
+  
+  // Province-related states
+  const { provinces, loading: provincesLoading, error: provincesError, refetch: refetchProvinces } = useProvinces();
+  const [selectedProvince, setSelectedProvince] = useState<Province | null>(null);
+  const [showProvinceDropdown, setShowProvinceDropdown] = useState(false);
+  const [provinceSearchQuery, setProvinceSearchQuery] = useState('');
+  
+  // District-related states
+  const provinceId = selectedProvince ? selectedProvince.ProvinceID : null;
+  const { districts, loading: districtsLoading, error: districtsError, refetch: refetchDistricts } = useDistricts(provinceId);
+  const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
+  const [showDistrictDropdown, setShowDistrictDropdown] = useState(false);
+  const [districtSearchQuery, setDistrictSearchQuery] = useState('');
+  
+  // Ward-related states
+  const districtId = selectedDistrict ? selectedDistrict.DistrictID : null;
+  const { wards, loading: wardsLoading, error: wardsError, refetch: refetchWards } = useWards(districtId);
+  const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
+  const [showWardDropdown, setShowWardDropdown] = useState(false);
+  const [wardSearchQuery, setWardSearchQuery] = useState('');
 
 
   // Content check validation
@@ -126,6 +149,9 @@ const Suminputsection: React.FC = () => {
         price: !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0,
         sku: (form.sku || '').trim().length > 0,
         stockQuantity: !!form.stockQuantity && !Number.isNaN(Number(form.stockQuantity)) && Number(form.stockQuantity) >= 0,
+        province: (form.provinceCode || '').trim().length > 0,
+        district: (form.districtCode || '').trim().length > 0,
+        ward: (form.wardCode || '').trim().length > 0,
       },
       media: {
         images: images.length > 0 || (imageUrl || '').trim().length > 0,
@@ -179,6 +205,36 @@ const Suminputsection: React.FC = () => {
     loadData();
   }, []);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      if (showProvinceDropdown && !target.closest('.province-dropdown-container')) {
+        setShowProvinceDropdown(false);
+        setProvinceSearchQuery('');
+      }
+      
+      if (showDistrictDropdown && !target.closest('.district-dropdown-container')) {
+        setShowDistrictDropdown(false);
+        setDistrictSearchQuery('');
+      }
+      
+      if (showWardDropdown && !target.closest('.ward-dropdown-container')) {
+        setShowWardDropdown(false);
+        setWardSearchQuery('');
+      }
+    };
+
+    if (showProvinceDropdown || showDistrictDropdown || showWardDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProvinceDropdown, showDistrictDropdown, showWardDropdown]);
+
   const canSubmit = useMemo(() => {
     return (
       (form.name || '').trim().length >= 3 &&
@@ -188,7 +244,10 @@ const Suminputsection: React.FC = () => {
       !!form.price && !Number.isNaN(Number(form.price)) &&
       Number(form.price) > 0 &&
       (form.sku || '').trim().length > 0 &&
-      images.length > 0
+      images.length > 0 &&
+      (form.provinceCode || '').trim().length > 0 &&
+      (form.districtCode || '').trim().length > 0 &&
+      (form.wardCode || '').trim().length > 0
     );
   }, [form, images]);
 
@@ -212,6 +271,163 @@ const Suminputsection: React.FC = () => {
       return { ...prev, selectedShippingMethodIds: next };
     });
   };
+
+  // Province selection handlers
+  const handleProvinceSelect = (province: Province) => {
+    setSelectedProvince(province);
+    setForm(prev => ({ 
+      ...prev, 
+      provinceCode: province.ProvinceID.toString() 
+    }));
+    setShowProvinceDropdown(false);
+    setProvinceSearchQuery('');
+    
+    // Clear district and ward selection when province changes
+    setSelectedDistrict(null);
+    setForm(prev => ({ ...prev, districtCode: '' }));
+    setDistrictSearchQuery('');
+    setSelectedWard(null);
+    setForm(prev => ({ ...prev, wardCode: '' }));
+    setWardSearchQuery('');
+  };
+
+  const handleProvinceSearch = (query: string) => {
+    setProvinceSearchQuery(query);
+  };
+
+  const clearProvinceSelection = () => {
+    setSelectedProvince(null);
+    setForm(prev => ({ ...prev, provinceCode: '' }));
+    setProvinceSearchQuery('');
+    
+    // Clear district and ward selection when province is cleared
+    setSelectedDistrict(null);
+    setForm(prev => ({ ...prev, districtCode: '' }));
+    setDistrictSearchQuery('');
+    setSelectedWard(null);
+    setForm(prev => ({ ...prev, wardCode: '' }));
+    setWardSearchQuery('');
+  };
+
+  const toggleProvinceDropdown = () => {
+    setShowProvinceDropdown(!showProvinceDropdown);
+    if (!showProvinceDropdown) {
+      setProvinceSearchQuery('');
+    }
+  };
+
+  // Filter provinces based on search query
+  const filteredProvinces = useMemo(() => {
+    if (!provinceSearchQuery.trim()) return provinces;
+    
+    const lowercaseQuery = provinceSearchQuery.toLowerCase();
+    return provinces.filter(province => 
+      province.ProvinceName.toLowerCase().includes(lowercaseQuery) ||
+      province.NameExtension.some(ext => 
+        ext.toLowerCase().includes(lowercaseQuery)
+      )
+    );
+  }, [provinces, provinceSearchQuery]);
+
+  // District selection handlers
+  const handleDistrictSelect = (district: District) => {
+    setSelectedDistrict(district);
+    setForm(prev => ({ 
+      ...prev, 
+      districtCode: district.DistrictID.toString() 
+    }));
+    setShowDistrictDropdown(false);
+    setDistrictSearchQuery('');
+    
+    // Clear ward selection when district changes
+    setSelectedWard(null);
+    setForm(prev => ({ ...prev, wardCode: '' }));
+    setWardSearchQuery('');
+  };
+
+  const handleDistrictSearch = (query: string) => {
+    setDistrictSearchQuery(query);
+  };
+
+  const clearDistrictSelection = () => {
+    setSelectedDistrict(null);
+    setForm(prev => ({ ...prev, districtCode: '' }));
+    setDistrictSearchQuery('');
+    
+    // Clear ward selection when district is cleared
+    setSelectedWard(null);
+    setForm(prev => ({ ...prev, wardCode: '' }));
+    setWardSearchQuery('');
+  };
+
+  const toggleDistrictDropdown = () => {
+    if (!selectedProvince) {
+      showCenterError('Vui lòng chọn tỉnh/thành phố trước');
+      return;
+    }
+    setShowDistrictDropdown(!showDistrictDropdown);
+    if (!showDistrictDropdown) {
+      setDistrictSearchQuery('');
+    }
+  };
+
+  // Filter districts based on search query
+  const filteredDistricts = useMemo(() => {
+    if (!districtSearchQuery.trim()) return districts;
+    
+    const lowercaseQuery = districtSearchQuery.toLowerCase();
+    return districts.filter(district => 
+      district.DistrictName.toLowerCase().includes(lowercaseQuery) ||
+      district.NameExtension.some(ext => 
+        ext.toLowerCase().includes(lowercaseQuery)
+      )
+    );
+  }, [districts, districtSearchQuery]);
+
+  // Ward selection handlers
+  const handleWardSelect = (ward: Ward) => {
+    setSelectedWard(ward);
+    setForm(prev => ({ 
+      ...prev, 
+      wardCode: ward.WardCode 
+    }));
+    setShowWardDropdown(false);
+    setWardSearchQuery('');
+  };
+
+  const handleWardSearch = (query: string) => {
+    setWardSearchQuery(query);
+  };
+
+  const clearWardSelection = () => {
+    setSelectedWard(null);
+    setForm(prev => ({ ...prev, wardCode: '' }));
+    setWardSearchQuery('');
+  };
+
+  const toggleWardDropdown = () => {
+    if (!selectedDistrict) {
+      showCenterError('Vui lòng chọn quận/huyện trước');
+      return;
+    }
+    setShowWardDropdown(!showWardDropdown);
+    if (!showWardDropdown) {
+      setWardSearchQuery('');
+    }
+  };
+
+  // Filter wards based on search query
+  const filteredWards = useMemo(() => {
+    if (!wardSearchQuery.trim()) return wards;
+    
+    const lowercaseQuery = wardSearchQuery.toLowerCase();
+    return wards.filter(ward => 
+      ward.WardName.toLowerCase().includes(lowercaseQuery) ||
+      ward.NameExtension.some(ext => 
+        ext.toLowerCase().includes(lowercaseQuery)
+      )
+    );
+  }, [wards, wardSearchQuery]);
 
   const removeImage = (id: string) => setImages(prev => prev.filter(img => img.id !== id));
   const addImageFiles = (files: FileList) => {
@@ -239,9 +455,9 @@ const Suminputsection: React.FC = () => {
       }
     }
     if (currentStep === 2) {
-      const priceValid = !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 && (form.sku || '').trim().length > 0;
+      const priceValid = !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 && (form.sku || '').trim().length > 0 && (form.provinceCode || '').trim().length > 0 && (form.districtCode || '').trim().length > 0 && (form.wardCode || '').trim().length > 0;
       if (!priceValid) {
-        showCenterError('Vui lòng nhập giá hợp lệ và SKU');
+        showCenterError('Vui lòng nhập giá hợp lệ, SKU và chọn tỉnh/thành phố, quận/huyện, phường/xã');
         return;
       }
     }
@@ -372,7 +588,7 @@ const Suminputsection: React.FC = () => {
     }
 
     if (!canSubmit) {
-      showCenterError('Vui lòng điền thông tin bắt buộc và thêm ít nhất 1 ảnh');
+      showCenterError('Vui lòng điền thông tin bắt buộc, thêm ít nhất 1 ảnh và chọn tỉnh/thành phố, quận/huyện, phường/xã');
       return;
     }
     try {
@@ -389,6 +605,12 @@ const Suminputsection: React.FC = () => {
       setVariants([]);
       setBulkDiscounts([]);
       setCurrentStep(1);
+      setSelectedProvince(null);
+      setProvinceSearchQuery('');
+      setSelectedDistrict(null);
+      setDistrictSearchQuery('');
+      setSelectedWard(null);
+      setWardSearchQuery('');
       
       // Navigate to seller dashboard after a short delay
       setTimeout(() => {
@@ -634,16 +856,347 @@ const Suminputsection: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mã Tỉnh</label>
-              <input name="provinceCode" value={form.provinceCode} onChange={onChange} type="text" placeholder="VD: 01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <label className="block text-sm font-medium text-gray-700">Tỉnh/Thành phố *</label>
+              <div className="relative mt-1 province-dropdown-container">
+                {/* Province Selection Button */}
+                <button
+                  type="button"
+                  onClick={toggleProvinceDropdown}
+                  disabled={provincesLoading}
+                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
+                    provincesLoading 
+                      ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
+                      : selectedProvince 
+                        ? 'border-gray-300 bg-white' 
+                        : 'border-gray-300 bg-white hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`${selectedProvince ? 'text-gray-900' : 'text-gray-500'}`}>
+                      {provincesLoading 
+                        ? 'Đang tải tỉnh...' 
+                        : selectedProvince 
+                          ? selectedProvince.ProvinceName 
+                          : 'Chọn tỉnh/thành phố'
+                      }
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {selectedProvince && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearProvinceSelection();
+                          }}
+                          className="text-gray-400 hover:text-gray-600 text-sm"
+                        >
+                          ×
+                        </button>
+                      )}
+                      <svg 
+                        className={`w-4 h-4 text-gray-400 transition-transform ${showProvinceDropdown ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Province Dropdown */}
+                {showProvinceDropdown && !provincesLoading && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                    {/* Search Input */}
+                    <div className="p-2 border-b border-gray-200">
+                      <input
+                        type="text"
+                        value={provinceSearchQuery}
+                        onChange={(e) => handleProvinceSearch(e.target.value)}
+                        placeholder="Tìm kiếm tỉnh..."
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Province List */}
+                    <div className="max-h-48 overflow-y-auto">
+                      {provincesError ? (
+                        <div className="p-3 text-center text-red-600 text-sm">
+                          <p>{provincesError}</p>
+                          <button
+                            type="button"
+                            onClick={refetchProvinces}
+                            className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      ) : filteredProvinces.length === 0 ? (
+                        <div className="p-3 text-center text-gray-500 text-sm">
+                          {provinceSearchQuery ? 'Không tìm thấy tỉnh nào' : 'Không có dữ liệu'}
+                        </div>
+                      ) : (
+                        filteredProvinces.map((province) => (
+                          <button
+                            key={province.ProvinceID}
+                            type="button"
+                            onClick={() => handleProvinceSelect(province)}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                              selectedProvince?.ProvinceID === province.ProvinceID 
+                                ? 'bg-blue-50 text-blue-700' 
+                                : 'text-gray-900'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{province.ProvinceName}</span>
+                              <span className="text-xs text-gray-500">({province.Code})</span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Hidden input để lưu ProvinceID */}
+              <input 
+                type="hidden" 
+                name="provinceCode" 
+                value={form.provinceCode} 
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mã Quận</label>
-              <input name="districtCode" value={form.districtCode} onChange={onChange} type="text" placeholder="VD: 001" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <label className="block text-sm font-medium text-gray-700">Quận/Huyện *</label>
+              <div className="relative mt-1 district-dropdown-container">
+                {/* District Selection Button */}
+                <button
+                  type="button"
+                  onClick={toggleDistrictDropdown}
+                  disabled={districtsLoading || !selectedProvince}
+                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
+                    districtsLoading || !selectedProvince
+                      ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
+                      : selectedDistrict 
+                        ? 'border-gray-300 bg-white' 
+                        : 'border-gray-300 bg-white hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`${selectedDistrict ? 'text-gray-900' : 'text-gray-500'}`}>
+                      {!selectedProvince
+                        ? 'Chọn tỉnh trước'
+                        : districtsLoading 
+                          ? 'Đang tải quận/huyện...' 
+                          : selectedDistrict 
+                            ? selectedDistrict.DistrictName 
+                            : 'Chọn quận/huyện'
+                      }
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {selectedDistrict && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearDistrictSelection();
+                          }}
+                          className="text-gray-400 hover:text-gray-600 text-sm"
+                        >
+                          ×
+                        </button>
+                      )}
+                      <svg 
+                        className={`w-4 h-4 text-gray-400 transition-transform ${showDistrictDropdown ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+
+                {/* District Dropdown */}
+                {showDistrictDropdown && !districtsLoading && selectedProvince && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                    {/* Search Input */}
+                    <div className="p-2 border-b border-gray-200">
+                      <input
+                        type="text"
+                        value={districtSearchQuery}
+                        onChange={(e) => handleDistrictSearch(e.target.value)}
+                        placeholder="Tìm kiếm quận/huyện..."
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* District List */}
+                    <div className="max-h-48 overflow-y-auto">
+                      {districtsError ? (
+                        <div className="p-3 text-center text-red-600 text-sm">
+                          <p>{districtsError}</p>
+                          <button
+                            type="button"
+                            onClick={refetchDistricts}
+                            className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      ) : filteredDistricts.length === 0 ? (
+                        <div className="p-3 text-center text-gray-500 text-sm">
+                          {districtSearchQuery ? 'Không tìm thấy quận/huyện nào' : 'Không có dữ liệu'}
+                        </div>
+                      ) : (
+                        filteredDistricts.map((district) => (
+                          <button
+                            key={district.DistrictID}
+                            type="button"
+                            onClick={() => handleDistrictSelect(district)}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                              selectedDistrict?.DistrictID === district.DistrictID 
+                                ? 'bg-blue-50 text-blue-700' 
+                                : 'text-gray-900'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{district.DistrictName}</span>
+                              <span className="text-xs text-gray-500">({district.Code})</span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Hidden input để lưu DistrictID */}
+              <input 
+                type="hidden" 
+                name="districtCode" 
+                value={form.districtCode} 
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Mã Phường</label>
-              <input name="wardCode" value={form.wardCode} onChange={onChange} type="text" placeholder="VD: 00001" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <label className="block text-sm font-medium text-gray-700">Phường/Xã *</label>
+              <div className="relative mt-1 ward-dropdown-container">
+                {/* Ward Selection Button */}
+                <button
+                  type="button"
+                  onClick={toggleWardDropdown}
+                  disabled={wardsLoading || !selectedDistrict}
+                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
+                    wardsLoading || !selectedDistrict
+                      ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
+                      : selectedWard 
+                        ? 'border-gray-300 bg-white' 
+                        : 'border-gray-300 bg-white hover:border-gray-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`${selectedWard ? 'text-gray-900' : 'text-gray-500'}`}>
+                      {!selectedDistrict
+                        ? 'Chọn quận/huyện trước'
+                        : wardsLoading 
+                          ? 'Đang tải phường/xã...' 
+                          : selectedWard 
+                            ? selectedWard.WardName 
+                            : 'Chọn phường/xã'
+                      }
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {selectedWard && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearWardSelection();
+                          }}
+                          className="text-gray-400 hover:text-gray-600 text-sm"
+                        >
+                          ×
+                        </button>
+                      )}
+                      <svg 
+                        className={`w-4 h-4 text-gray-400 transition-transform ${showWardDropdown ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Ward Dropdown */}
+                {showWardDropdown && !wardsLoading && selectedDistrict && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                    {/* Search Input */}
+                    <div className="p-2 border-b border-gray-200">
+                      <input
+                        type="text"
+                        value={wardSearchQuery}
+                        onChange={(e) => handleWardSearch(e.target.value)}
+                        placeholder="Tìm kiếm phường/xã..."
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Ward List */}
+                    <div className="max-h-48 overflow-y-auto">
+                      {wardsError ? (
+                        <div className="p-3 text-center text-red-600 text-sm">
+                          <p>{wardsError}</p>
+                          <button
+                            type="button"
+                            onClick={refetchWards}
+                            className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                          >
+                            Thử lại
+                          </button>
+                        </div>
+                      ) : filteredWards.length === 0 ? (
+                        <div className="p-3 text-center text-gray-500 text-sm">
+                          {wardSearchQuery ? 'Không tìm thấy phường/xã nào' : 'Không có dữ liệu'}
+                        </div>
+                      ) : (
+                        filteredWards.map((ward) => (
+                          <button
+                            key={ward.WardCode}
+                            type="button"
+                            onClick={() => handleWardSelect(ward)}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                              selectedWard?.WardCode === ward.WardCode 
+                                ? 'bg-blue-50 text-blue-700' 
+                                : 'text-gray-900'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{ward.WardName}</span>
+                              <span className="text-xs text-gray-500">({ward.WardCode})</span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Hidden input để lưu WardCode */}
+              <input 
+                type="hidden" 
+                name="wardCode" 
+                value={form.wardCode} 
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Địa chỉ giao</label>
@@ -1015,6 +1568,18 @@ const Suminputsection: React.FC = () => {
                       <div className="flex items-center gap-2 text-xs">
                         <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.stockQuantity ? 'bg-green-500' : 'bg-red-500'}`}></span>
                         <span className={contentCheck.checks.pricing.stockQuantity ? 'text-green-700' : 'text-red-700'}>Số lượng tồn</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.province ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.pricing.province ? 'text-green-700' : 'text-red-700'}>Tỉnh/Thành phố</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.district ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.pricing.district ? 'text-green-700' : 'text-red-700'}>Quận/Huyện</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.ward ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        <span className={contentCheck.checks.pricing.ward ? 'text-green-700' : 'text-red-700'}>Phường/Xã</span>
                       </div>
                     </div>
                   </div>
