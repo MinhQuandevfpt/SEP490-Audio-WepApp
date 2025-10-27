@@ -1,4 +1,5 @@
 import { StatusCodeUtils } from '../../utils/statusCodes';
+import { RefreshTokenService } from '../RefreshTokenService';
 import type {
   CustomerRegisterRequest,
   CustomerRegisterResponse,
@@ -199,10 +200,17 @@ export class CustomerAuthService {
       
       console.log('✅ Login successful');
       
-      // Store token in localStorage
+      // Store tokens in localStorage using RefreshTokenService
       if (response.data?.accessToken) {
+        const refreshToken = response.data.refreshToken || '';
+        const tokenType = response.data.tokenType || 'Bearer';
+        
+        // Store tokens using RefreshTokenService
+        RefreshTokenService.storeTokens('customer', response.data.accessToken, refreshToken, tokenType);
+        
+        // Also store in old format for backward compatibility
         localStorage.setItem('customer_token', response.data.accessToken);
-        localStorage.setItem('token_type', response.data.tokenType);
+        localStorage.setItem('token_type', tokenType);
 
         // Decode accountId from token and store/log it
         const accountId = extractAccountIdFromToken(response.data.accessToken);
@@ -243,7 +251,10 @@ export class CustomerAuthService {
    * Logout customer
    */
   static logout(): void {
-    // Remove customer auth tokens
+    // Remove customer auth tokens using RefreshTokenService
+    RefreshTokenService.clearTokens('customer');
+    
+    // Remove customer auth tokens (backward compatibility)
     localStorage.removeItem('customer_token');
     localStorage.removeItem('customer_user');
     localStorage.removeItem('token_type');
@@ -350,18 +361,28 @@ export class CustomerAuthService {
    */
   static async refreshToken(): Promise<string> {
     try {
-      const response = await httpClient.post<{ data: { accessToken: string } }>('/api/customer/refresh-token');
+      console.log('🔄 Refreshing customer token...');
       
-      if (response.data?.accessToken) {
-        localStorage.setItem('customer_token', response.data.accessToken);
+      const result = await RefreshTokenService.refreshUserToken('customer');
+      
+      if (!result) {
+        throw new Error('Failed to refresh token');
       }
       
-      return response.data.accessToken;
+      console.log('✅ Customer token refreshed successfully');
+      return result.accessToken;
     } catch (error) {
-      console.error('❌ Token refresh failed:', error);
+      console.error('❌ Customer token refresh failed:', error);
       this.logout();
       throw error;
     }
+  }
+
+  /**
+   * Get refresh token
+   */
+  static getRefreshToken(): string | null {
+    return RefreshTokenService.getRefreshToken('customer');
   }
 
   /**

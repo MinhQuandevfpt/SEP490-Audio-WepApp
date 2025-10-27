@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StaffLoginForm } from '../../components/Loginforstorestaffcomponents';
+import { StoreStaffAuthService } from '../../services/staff/AuthStaff';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
 interface LoginData {
@@ -19,26 +20,16 @@ const LoginForStaff: React.FC = () => {
     setError('');
 
     try {
-      // TODO: Replace with actual API call
       console.log('Staff Login Data:', data);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call the actual API using StoreStaffAuthService
+      const response = await StoreStaffAuthService.login({
+        email: data.email,
+        password: data.password,
+        storeCode: data.storeCode
+      });
       
-      // Mock validation - replace with real API validation
-      if (data.email === 'staff@example.com' && data.password === '123456' && data.storeCode === 'STORE001') {
-        // Mock successful login
-        localStorage.setItem('staff_token', 'mock_staff_token_12345');
-        localStorage.setItem('staff_user', JSON.stringify({
-          id: 'staff_001',
-          email: data.email,
-          name: 'Nguyễn Văn A',
-          role: 'STAFF',
-          storeCode: data.storeCode,
-          storeName: 'AudioShop Store 001',
-          permissions: ['ORDER_MANAGEMENT', 'CUSTOMER_SERVICE', 'INVENTORY_VIEW']
-        }));
-        
+      if (response.status === 200) {
         showCenterSuccess('Đăng nhập thành công! Đang chuyển đến dashboard...');
         
         // Navigate to staff dashboard
@@ -46,7 +37,7 @@ const LoginForStaff: React.FC = () => {
           navigate('/store-staff/dashboard');
         }, 1500);
       } else {
-        throw new Error('Thông tin đăng nhập không chính xác. Vui lòng kiểm tra lại email, mật khẩu và mã cửa hàng.');
+        throw new Error(response.message || 'Đăng nhập thất bại');
       }
     } catch (err: any) {
       const errorMessage = err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';

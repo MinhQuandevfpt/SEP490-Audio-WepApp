@@ -28,6 +28,7 @@ export interface CustomerLoginResponse {
   message: string;
   data: {
     accessToken: string;
+    refreshToken?: string;  // Added refresh token support
     user: {
       email: string;
       accountId: string;
