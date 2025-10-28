@@ -3,15 +3,17 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Room3D from './Room3D';
 import Furniture3D from './Furniture3D';
-import type { Dimensions, RoomColors, Furniture } from './index';
+import ListenerAvatar3D from './ListenerAvatar3D';
+import type { Dimensions, RoomColors, Furniture, Listener } from './index';
 
 interface Canvas3DProps {
   dimensions: Dimensions;
   colors: RoomColors;
   furniture?: Furniture[];
+  listeners?: Listener[];
 }
 
-const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [] }) => {
+const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [], listeners = [] }) => {
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -46,6 +48,11 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [] 
         {/* Furniture */}
         {furniture.map((item) => (
           <Furniture3D key={item.id} furniture={item} />
+        ))}
+
+        {/* Listeners (Human avatars) */}
+        {listeners.map((l) => (
+          <ListenerAvatar3D key={l.id} listener={l} />
         ))}
 
         {/* Controls */}

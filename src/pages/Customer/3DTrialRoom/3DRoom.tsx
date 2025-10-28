@@ -5,7 +5,7 @@ import {
   ControlsPanel, 
   Canvas3D
 } from '../../../components/Design3DroomComponents';
-import type { Dimensions, RoomColors, RoomPreset, Furniture } from '../../../components/Design3DroomComponents';
+import type { Dimensions, RoomColors, RoomPreset, Furniture, Listener } from '../../../components/Design3DroomComponents';
 
 // Default colors
 const DEFAULT_COLORS: RoomColors = {
@@ -25,6 +25,7 @@ const ThreeDRoom: React.FC = () => {
 
   const [colors, setColors] = useState<RoomColors>(DEFAULT_COLORS);
   const [furniture, setFurniture] = useState<Furniture[]>([]);
+  const [listeners, setListeners] = useState<Listener[]>([]);
 
   const handleDimensionChange = useCallback((key: keyof Dimensions, value: number) => {
     setDimensions(prev => ({
@@ -69,6 +70,25 @@ const ThreeDRoom: React.FC = () => {
     ));
   }, []);
 
+  // Listener handlers
+  const handleAddListener = useCallback((newListener: Omit<Listener, 'id'>) => {
+    const listener: Listener = {
+      ...newListener,
+      id: `listener_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    setListeners(prev => [...prev, listener]);
+  }, []);
+
+  const handleRemoveListener = useCallback((id: string) => {
+    setListeners(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleUpdateListener = useCallback((id: string, updates: Partial<Listener>) => {
+    setListeners(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  }, []);
+
   try {
     return (
       <Layout>
@@ -87,12 +107,17 @@ const ThreeDRoom: React.FC = () => {
               onAddFurniture={handleAddFurniture}
               onRemoveFurniture={handleRemoveFurniture}
               onUpdateFurniture={handleUpdateFurniture}
+              listeners={listeners}
+              onAddListener={handleAddListener}
+              onRemoveListener={handleRemoveListener}
+              onUpdateListener={handleUpdateListener}
             />
 
             <Canvas3D 
               dimensions={dimensions} 
               colors={colors} 
               furniture={furniture}
+              listeners={listeners}
             />
           </div>
         </div>

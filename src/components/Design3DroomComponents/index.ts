@@ -3,6 +3,7 @@ export { default as Room3D } from './Room3D';
 export { default as Canvas3D } from './Canvas3D';
 export { default as FurnitureCanvas3D } from './FurnitureCanvas3D';
 export { default as Furniture3D } from './Furniture3D';
+export { default as ListenerAvatar3D } from './ListenerAvatar3D';
 
 // Control Components
 export { default as ControlsPanel } from './ControlsPanel';
@@ -13,6 +14,7 @@ export { default as FurnitureControls } from './FurnitureControls';
 export { default as FurnitureColorPicker } from './FurnitureColorPicker';
 export { default as SpeakerDesignSection } from './SpeakerDesignSection';
 export { default as ListenerDesignSection } from './ListenerDesignSection';
+export { default as ListenerControls } from './ListenerControls';
 export { default as DimensionControls } from './DimensionControls';
 export { default as RoomPresets } from './RoomPresets';
 export { default as ColorPicker } from './ColorPicker';

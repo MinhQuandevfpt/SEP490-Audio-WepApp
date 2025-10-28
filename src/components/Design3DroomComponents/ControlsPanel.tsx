@@ -27,6 +27,11 @@ interface ControlsPanelProps {
   onAddFurniture: (furniture: Omit<Furniture, 'id'>) => void;
   onRemoveFurniture: (id: string) => void;
   onUpdateFurniture: (id: string, updates: Partial<Furniture>) => void;
+  // listeners
+  listeners: Listener[];
+  onAddListener: (listener: Omit<Listener, 'id'>) => void;
+  onRemoveListener: (id: string) => void;
+  onUpdateListener: (id: string, updates: Partial<Listener>) => void;
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({
@@ -39,11 +44,14 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onReset,
   onAddFurniture,
   onRemoveFurniture,
-  onUpdateFurniture
+  onUpdateFurniture,
+  listeners,
+  onAddListener,
+  onRemoveListener,
+  onUpdateListener
 }) => {
   const [activeSection, setActiveSection] = useState<ControlSection>('room');
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [listeners, setListeners] = useState<Listener[]>([]);
 
   // Speaker handlers
   const handleAddSpeaker = (newSpeaker: Omit<Speaker, 'id'>) => {
@@ -64,24 +72,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
     ));
   };
 
-  // Listener handlers
-  const handleAddListener = (newListener: Omit<Listener, 'id'>) => {
-    const listener: Listener = {
-      ...newListener,
-      id: `listener_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    setListeners(prev => [...prev, listener]);
-  };
-
-  const handleRemoveListener = (id: string) => {
-    setListeners(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleUpdateListener = (id: string, updates: Partial<Listener>) => {
-    setListeners(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-  };
+  // Listener handlers are received from parent (3DRoom)
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -118,9 +109,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         return (
           <ListenerDesignSection
             listeners={listeners}
-            onAddListener={handleAddListener}
-            onRemoveListener={handleRemoveListener}
-            onUpdateListener={handleUpdateListener}
+            onAddListener={onAddListener}
+            onRemoveListener={onRemoveListener}
+            onUpdateListener={onUpdateListener}
           />
         );
       default:
