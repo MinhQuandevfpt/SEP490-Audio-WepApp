@@ -1,5 +1,6 @@
 // Category Service for Seller Dashboard
 import type { CategoryListResponse } from '../../types/seller';
+import { HttpInterceptor } from '../HttpInterceptor';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -11,32 +12,14 @@ export class CategoryService {
    */
   static async getCategories(): Promise<CategoryListResponse> {
     try {
-      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
-      
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
-      }
-
       const url = `${API_URL}/categories`;
       console.log('🔍 Fetching categories from:', url);
-
-      const response = await fetch(url, {
-        method: 'GET',
+      const data = await HttpInterceptor.get<CategoryListResponse>(url, {
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
+        userType: 'seller',
       });
-
-      console.log('📥 Categories response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Categories error:', errorData);
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       console.log('✅ Categories received:', {
         status: data.status,
         message: data.message,

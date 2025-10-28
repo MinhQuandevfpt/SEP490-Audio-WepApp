@@ -1,5 +1,6 @@
 // Store Service for managing store information and status
 import type { StoreInfo, StoreStatusResponse } from '../../types/seller';
+import { HttpInterceptor } from '../HttpInterceptor';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -10,34 +11,17 @@ export class StoreService {
    */
   static async getStoreInfo(): Promise<StoreInfo> {
     try {
-      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
-      
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
-      }
-
       // Get store ID first (from cache or API)
       const storeId = await this.getStoreId();
       console.log('🔍 Getting store info for ID:', storeId);
 
       // Use store ID to get store details
-      const response = await fetch(`${API_URL}/stores/${storeId}`, {
-        method: 'GET',
+      const data = await HttpInterceptor.get<any>(`${API_URL}/stores/${storeId}`, {
         headers: {
           'Accept': '*/*',
-          'Authorization': `Bearer ${token}`,
         },
+        userType: 'seller',
       });
-
-      console.log('📥 Store info response status:', response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Store info error:', errorData);
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       console.log('✅ Store info received:', data);
       
       // Handle different response formats
@@ -70,28 +54,13 @@ export class StoreService {
       if (cachedStoreId) {
         return cachedStoreId;
       }
-
-      // Get token from localStorage
-      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
-      }
-
       // Use the official API endpoint to get store ID
-      const response = await fetch(`${API_URL}/stores/me/id`, {
-        method: 'GET',
+      const storeData = await HttpInterceptor.get<any>(`${API_URL}/stores/me/id`, {
         headers: {
           'Accept': '*/*',
-          'Authorization': `Bearer ${token}`,
         },
+        userType: 'seller',
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const storeData = await response.json();
       
       // According to the API response, the storeId is in the 'data' field
       const storeId = storeData.data;
@@ -151,23 +120,40 @@ export class StoreService {
    */
   static async getKycStatus(): Promise<StoreStatusResponse | null> {
     try {
-      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
-      if (!token) return null;
-
       const storeId = await this.getStoreId();
       
       // Try to get KYC info
-      const response = await fetch(`${API_URL}/stores/${storeId}/kyc`, {
-        method: 'GET',
-        headers: {
-          'Accept': '*/*',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      try {
+        const kycData = await HttpInterceptor.get<any>(`${API_URL}/stores/${storeId}/kyc`, {
+          headers: {
+            'Accept': '*/*',
+          },
+          userType: 'seller',
+        });
 
-      if (!response.ok) {
+        let kyc = kycData.data || kycData;
+        if (Array.isArray(kyc)) {
+          kyc = kyc[0];
+        }
+        if (!kyc) {
+          return null;
+        }
+        console.log('✅ KYC status from API:', kyc.status);
+
+        let storeStatus: 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE';
+        if (kyc.status === 'PENDING') storeStatus = 'PENDING';
+        else if (kyc.status === 'APPROVED') storeStatus = 'ACTIVE';
+        else if (kyc.status === 'REJECTED') storeStatus = 'REJECTED';
+        else storeStatus = 'INACTIVE';
+
+        return {
+          status: storeStatus,
+          message: this.getStatusMessage(storeStatus),
+          canAccessDashboard: storeStatus === 'ACTIVE'
+        };
+      } catch (e: any) {
         // If KYC not found, status is INACTIVE
-        if (response.status === 404) {
+        if (e?.status === 404) {
           return {
             status: 'INACTIVE',
             message: 'Bạn chưa hoàn thành thông tin KYC',
@@ -176,39 +162,6 @@ export class StoreService {
         }
         return null;
       }
-
-      const kycData = await response.json();
-      let kyc = kycData.data || kycData;
-      
-      // If array, get first item
-      if (Array.isArray(kyc)) {
-        kyc = kyc[0];
-      }
-      
-      if (!kyc) {
-        return null;
-      }
-      
-      console.log('✅ KYC status from API:', kyc.status);
-      
-      // Map KYC status to Store status
-      let storeStatus: 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE';
-      
-      if (kyc.status === 'PENDING') {
-        storeStatus = 'PENDING';
-      } else if (kyc.status === 'APPROVED') {
-        storeStatus = 'ACTIVE';
-      } else if (kyc.status === 'REJECTED') {
-        storeStatus = 'REJECTED';
-      } else {
-        storeStatus = 'INACTIVE';
-      }
-
-      return {
-        status: storeStatus,
-        message: this.getStatusMessage(storeStatus),
-        canAccessDashboard: storeStatus === 'ACTIVE'
-      };
     } catch (error) {
       console.error('Error getting KYC status:', error);
       return null;

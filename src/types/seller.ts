@@ -31,6 +31,7 @@ export interface SellerLoginResponse {
       email: string;
       fullName: string;
       role: string;
+      storeId?: string;  // Added store ID support
     };
     tokenType: string;
   };
@@ -167,7 +168,7 @@ export interface Product {
   shippingFee: number | null;
   supportedShippingMethodIds: string[];
   bulkDiscounts: BulkDiscount[];
-  status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING' | 'REJECTED';
+  status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING' | 'REJECTED';
   isFeatured: boolean;
   ratingAverage: number | null;
   reviewCount: number | null;

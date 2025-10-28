@@ -1,5 +1,6 @@
 // Product Service for Seller Dashboard
 import type { Product, ProductListResponse, ProductQueryParams } from '../../types/seller';
+import { HttpInterceptor } from '../HttpInterceptor';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -11,12 +12,6 @@ export class ProductService {
    */
   static async getProducts(params: ProductQueryParams = {}): Promise<ProductListResponse> {
     try {
-      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
-      
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
-      }
-
       // Build query string
       const queryParams = new URLSearchParams();
       
@@ -43,23 +38,18 @@ export class ProductService {
       const url = `${API_URL}/products?${queryParams.toString()}`;
       console.log('🔍 Fetching products from:', url);
 
-      const response = await fetch(url, {
+      const response = await HttpInterceptor.fetch<Response>(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
-      });
+        userType: 'seller',
+      } as any);
 
-      console.log('📥 Products response status:', response.status);
+      // HttpInterceptor returns parsed JSON unless we ask for Response; we asked Response.
+      console.log('📥 Products request sent via HttpInterceptor');
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Products error:', errorData);
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = response as unknown as any; // fetch<T> already returns parsed JSON
       console.log('✅ Products received:', {
         status: data.status,
         message: data.message,
@@ -158,44 +148,38 @@ export class ProductService {
    */
   static async createProduct(payload: Record<string, any>, status: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<any> {
     try {
-      const token =
-        localStorage.getItem('seller_token') ||
-        localStorage.getItem('accessToken') ||
-        localStorage.getItem('token') ||
-        sessionStorage.getItem('seller_token') ||
-        sessionStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token');
-      if (!token) {
-        throw new Error('❌ Không tìm thấy token. Vui lòng đăng nhập lại (missing Authorization).');
+      // Get store ID from localStorage or try to fetch it
+      let storeId = localStorage.getItem('seller_store_id');
+      
+      if (!storeId) {
+        try {
+          // Try to get store ID from StoreService
+          const { StoreService } = await import('./StoreService');
+          storeId = await StoreService.getStoreId();
+        } catch (error) {
+          console.warn('Could not get store ID:', error);
+        }
       }
 
-      // Add status to payload
+      // Add status and store ID to payload
       const payloadWithStatus = {
         ...payload,
-        status: status
+        status: status,
+        ...(storeId && { storeId: storeId })
       };
 
-      const response = await fetch(`${API_URL}/products`, {
-        method: 'POST',
+      console.log('📤 Creating product with status:', status, 'store ID:', storeId);
+      console.log('📤 Full payload:', JSON.stringify(payloadWithStatus, null, 2));
+
+      const data = await HttpInterceptor.post<any>(`${API_URL}/products`, payloadWithStatus, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(payloadWithStatus),
+        userType: 'seller',
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData: errorData
-        });
-        throw new Error(errorData.message || errorData.detail || `HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json().catch(() => ({}));
+      
+      console.log('📥 Product creation response:', JSON.stringify(data, null, 2));
       return data;
     } catch (error) {
       console.error('❌ Error creating product:', error);
@@ -208,7 +192,21 @@ export class ProductService {
    * POST /api/products with status: DRAFT
    */
   static async createDraftProduct(payload: Record<string, any>): Promise<any> {
-    return this.createProduct(payload, 'DRAFT');
+    console.log('📤 createDraftProduct called with payload:', JSON.stringify(payload, null, 2));
+    
+    // Ensure status is explicitly set to DRAFT
+    const draftPayload = {
+      ...payload,
+      status: 'DRAFT'
+    };
+    
+    console.log('📤 createDraftProduct final payload:', JSON.stringify(draftPayload, null, 2));
+    
+    const result = await this.createProduct(draftPayload, 'DRAFT');
+    
+    console.log('📥 createDraftProduct result:', JSON.stringify(result, null, 2));
+    
+    return result;
   }
 
   /**
@@ -216,7 +214,21 @@ export class ProductService {
    * POST /api/products with status: ACTIVE
    */
   static async createActiveProduct(payload: Record<string, any>): Promise<any> {
-    return this.createProduct(payload, 'ACTIVE');
+    console.log('📤 createActiveProduct called with payload:', JSON.stringify(payload, null, 2));
+    
+    // Ensure status is explicitly set to ACTIVE
+    const activePayload = {
+      ...payload,
+      status: 'ACTIVE'
+    };
+    
+    console.log('📤 createActiveProduct final payload:', JSON.stringify(activePayload, null, 2));
+    
+    const result = await this.createProduct(activePayload, 'ACTIVE');
+    
+    console.log('📥 createActiveProduct result:', JSON.stringify(result, null, 2));
+    
+    return result;
   }
 
   /**

@@ -61,6 +61,15 @@ const SellerLogin: React.FC = () => {
           try {
             // Dynamically import StoreService to avoid circular dependencies
             const { StoreService } = await import('../../../services/seller/StoreService');
+            
+            // First, ensure we have the store ID
+            try {
+              await StoreService.getStoreId();
+              console.log('✅ Store ID cached after login');
+            } catch (storeIdError) {
+              console.warn('Could not get store ID after login:', storeIdError);
+            }
+            
             const statusResponse = await StoreService.getStoreStatus();
             
             if (statusResponse.status === 'ACTIVE') {

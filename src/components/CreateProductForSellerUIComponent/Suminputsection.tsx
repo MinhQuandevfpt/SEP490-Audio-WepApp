@@ -706,7 +706,18 @@ const Suminputsection: React.FC = () => {
       setSubmitting(true);
       const payload = await buildPayload();
       console.log('📤 Saving draft to API:', JSON.stringify(payload, null, 2));
-      await ProductService.createDraftProduct(payload);
+      
+      // Explicitly add status to payload to ensure it's sent
+      const draftPayload = {
+        ...payload,
+        status: 'DRAFT'
+      };
+      
+      console.log('📤 Draft payload with explicit status:', JSON.stringify(draftPayload, null, 2));
+      
+      const response = await ProductService.createDraftProduct(draftPayload);
+      console.log('📥 Draft creation response:', JSON.stringify(response, null, 2));
+      
       showCenterSuccess('Lưu nháp thành công! Đang chuyển đến trang quản lý...');
       
       // Reset form
