@@ -19,43 +19,39 @@ import type {
 interface ControlsPanelProps {
   dimensions: Dimensions;
   colors: RoomColors;
+  furniture: Furniture[];
   onDimensionChange: (key: keyof Dimensions, value: number) => void;
   onColorChange: (wallType: keyof RoomColors, color: string) => void;
   onPresetSelect: (preset: RoomPreset) => void;
   onReset: () => void;
+  onAddFurniture: (furniture: Omit<Furniture, 'id'>) => void;
+  onRemoveFurniture: (id: string) => void;
+  onUpdateFurniture: (id: string, updates: Partial<Furniture>) => void;
+  // listeners
+  listeners: Listener[];
+  onAddListener: (listener: Omit<Listener, 'id'>) => void;
+  onRemoveListener: (id: string) => void;
+  onUpdateListener: (id: string, updates: Partial<Listener>) => void;
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({
   dimensions,
   colors,
+  furniture,
   onDimensionChange,
   onColorChange,
   onPresetSelect,
-  onReset
+  onReset,
+  onAddFurniture,
+  onRemoveFurniture,
+  onUpdateFurniture,
+  listeners,
+  onAddListener,
+  onRemoveListener,
+  onUpdateListener
 }) => {
   const [activeSection, setActiveSection] = useState<ControlSection>('room');
-  const [furniture, setFurniture] = useState<Furniture[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
-  const [listeners, setListeners] = useState<Listener[]>([]);
-
-  // Furniture handlers
-  const handleAddFurniture = (newFurniture: Omit<Furniture, 'id'>) => {
-    const furniture: Furniture = {
-      ...newFurniture,
-      id: `furniture_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    setFurniture(prev => [...prev, furniture]);
-  };
-
-  const handleRemoveFurniture = (id: string) => {
-    setFurniture(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleUpdateFurniture = (id: string, updates: Partial<Furniture>) => {
-    setFurniture(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-  };
 
   // Speaker handlers
   const handleAddSpeaker = (newSpeaker: Omit<Speaker, 'id'>) => {
@@ -76,24 +72,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
     ));
   };
 
-  // Listener handlers
-  const handleAddListener = (newListener: Omit<Listener, 'id'>) => {
-    const listener: Listener = {
-      ...newListener,
-      id: `listener_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    setListeners(prev => [...prev, listener]);
-  };
-
-  const handleRemoveListener = (id: string) => {
-    setListeners(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleUpdateListener = (id: string, updates: Partial<Listener>) => {
-    setListeners(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-  };
+  // Listener handlers are received from parent (3DRoom)
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -112,9 +91,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         return (
           <FurnitureDesignSection
             furniture={furniture}
-            onAddFurniture={handleAddFurniture}
-            onRemoveFurniture={handleRemoveFurniture}
-            onUpdateFurniture={handleUpdateFurniture}
+            onAddFurniture={onAddFurniture}
+            onRemoveFurniture={onRemoveFurniture}
+            onUpdateFurniture={onUpdateFurniture}
           />
         );
       case 'speakers':
@@ -130,9 +109,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         return (
           <ListenerDesignSection
             listeners={listeners}
-            onAddListener={handleAddListener}
-            onRemoveListener={handleRemoveListener}
-            onUpdateListener={handleUpdateListener}
+            onAddListener={onAddListener}
+            onRemoveListener={onRemoveListener}
+            onUpdateListener={onUpdateListener}
           />
         );
       default:

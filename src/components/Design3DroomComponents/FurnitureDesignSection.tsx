@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Move, RotateCw } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import FurnitureControls from './FurnitureControls';
 import type { Furniture } from './index';
 
 interface FurnitureDesignSectionProps {
@@ -26,13 +27,21 @@ const FurnitureDesignSection: React.FC<FurnitureDesignSectionProps> = ({
   const [selectedType, setSelectedType] = useState<string>('table');
 
   const handleAddFurniture = () => {
+    // Tạo màu ngẫu nhiên để tránh trùng màu
+    const colors = [
+      '#8B4513', '#654321', '#A0522D', '#D2691E', '#CD853F', 
+      '#DEB887', '#F4A460', '#D2B48C', '#BC8F8F', '#F5DEB3',
+      '#2F4F4F', '#708090', '#696969', '#808080', '#A9A9A9'
+    ];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
     const newFurniture: Omit<Furniture, 'id'> = {
       name: `${FURNITURE_TYPES.find(t => t.type === selectedType)?.name} ${furniture.length + 1}`,
       type: selectedType as any,
-      position: [0, 0, 0],
+      position: [0, 0.5, 0], // Đặt trên sàn (Y = 0.5 để không bị chìm)
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
-      color: '#8B4513'
+      color: randomColor
     };
     onAddFurniture(newFurniture);
   };
@@ -87,13 +96,13 @@ const FurnitureDesignSection: React.FC<FurnitureDesignSectionProps> = ({
             <p className="text-xs">Thêm nội thất để bắt đầu thiết kế</p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
+          <div className="space-y-3 max-h-96 overflow-y-auto">
             {furniture.map((item) => (
               <div
                 key={item.id}
                 className="p-3 bg-gray-50 rounded-lg border border-gray-200"
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
                     <span className="text-lg">
                       {FURNITURE_TYPES.find(t => t.type === item.type)?.icon}
@@ -102,39 +111,13 @@ const FurnitureDesignSection: React.FC<FurnitureDesignSectionProps> = ({
                       {item.name}
                     </span>
                   </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => onUpdateFurniture(item.id, { 
-                        position: [Math.random() * 4 - 2, 0, Math.random() * 3 - 1.5] 
-                      })}
-                      className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-                      title="Di chuyển"
-                    >
-                      <Move className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => onUpdateFurniture(item.id, { 
-                        rotation: [0, Math.random() * Math.PI * 2, 0] 
-                      })}
-                      className="p-1 text-gray-500 hover:text-green-600 transition-colors"
-                      title="Xoay"
-                    >
-                      <RotateCw className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => onRemoveFurniture(item.id)}
-                      className="p-1 text-gray-500 hover:text-red-600 transition-colors"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
                 </div>
                 
-                <div className="text-xs text-gray-500">
-                  Vị trí: ({item.position[0].toFixed(1)}, {item.position[1].toFixed(1)}, {item.position[2].toFixed(1)})
-                </div>
+                <FurnitureControls
+                  furniture={item}
+                  onUpdate={(updates) => onUpdateFurniture(item.id, updates)}
+                  onRemove={() => onRemoveFurniture(item.id)}
+                />
               </div>
             ))}
           </div>

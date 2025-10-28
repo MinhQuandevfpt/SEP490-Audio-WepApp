@@ -1,8 +1,11 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Star } from 'lucide-react';
 import { featuredBrands } from '../../data/brands';
 
 const FeaturedBrands: React.FC = () => {
+  const navigate = useNavigate();
+  
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       {/* Header */}
@@ -21,9 +24,9 @@ const FeaturedBrands: React.FC = () => {
       {/* Brands Grid - 2 rows x 6 brands */}
       <div className="grid grid-cols-6 gap-4">
         {featuredBrands.map((brand) => (
-          <a
+          <button
             key={brand.id}
-            href={brand.link}
+            onClick={() => navigate(`/products?brandName=${encodeURIComponent(brand.name)}`)}
             className="group text-center"
           >
             {/* Brand Logo */}
@@ -44,8 +47,10 @@ const FeaturedBrands: React.FC = () => {
             </div>
             
             {/* Brand Name */}
-            
-          </a>
+            <span className="text-sm font-medium text-gray-700 group-hover:text-orange-500 transition-colors">
+              {brand.name}
+            </span>
+          </button>
         ))}
       </div>
 

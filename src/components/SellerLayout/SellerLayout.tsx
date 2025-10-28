@@ -39,6 +39,13 @@ const SellerLayout: React.FC = () => {
               <TrendingUp className="w-4 h-4 mr-2" />
               <span>Tăng trưởng doanh số</span>
             </div>
+            <Link 
+              to="/store-staff/login" 
+              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors font-medium"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              <span>Nhân viên đăng nhập</span>
+            </Link>
           </div>
         </div>
       </div>

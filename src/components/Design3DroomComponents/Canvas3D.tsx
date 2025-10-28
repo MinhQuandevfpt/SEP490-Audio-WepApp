@@ -2,14 +2,18 @@ import React from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Room3D from './Room3D';
-import type { Dimensions, RoomColors } from './index';
+import Furniture3D from './Furniture3D';
+import ListenerAvatar3D from './ListenerAvatar3D';
+import type { Dimensions, RoomColors, Furniture, Listener } from './index';
 
 interface Canvas3DProps {
   dimensions: Dimensions;
   colors: RoomColors;
+  furniture?: Furniture[];
+  listeners?: Listener[];
 }
 
-const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors }) => {
+const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [], listeners = [] }) => {
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -20,6 +24,7 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors }) => {
           far: 1000
         }}
         style={{ background: 'linear-gradient(to bottom, #87CEEB, #E0F6FF)' }}
+        shadows
       >
         {/* Lighting */}
         <ambientLight intensity={0.6} />
@@ -40,6 +45,16 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors }) => {
           colors={colors}
         />
 
+        {/* Furniture */}
+        {furniture.map((item) => (
+          <Furniture3D key={item.id} furniture={item} />
+        ))}
+
+        {/* Listeners (Human avatars) */}
+        {listeners.map((l) => (
+          <ListenerAvatar3D key={l.id} listener={l} />
+        ))}
+
         {/* Controls */}
         <OrbitControls 
           enablePan={true}
@@ -52,10 +67,13 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors }) => {
         />
       </Canvas>
 
-      {/* Loading overlay */}
+      {/* Info overlay */}
       <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg px-3 py-2 shadow-lg">
         <div className="text-sm text-gray-600">
-          Đang tải mô hình 3D...
+          <div className="font-medium mb-1">Phòng 3D</div>
+          <div className="text-xs">
+            {furniture.length} nội thất • Sử dụng chuột để xoay/zoom
+          </div>
         </div>
       </div>
     </div>

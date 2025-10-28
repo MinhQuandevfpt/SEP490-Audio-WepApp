@@ -1,4 +1,5 @@
 // Seller authentication service
+import { RefreshTokenService } from '../RefreshTokenService';
 import type {
   SellerRegisterRequest,
   SellerRegisterResponse,
@@ -6,7 +7,8 @@ import type {
   SellerLoginResponse
 } from '../../types/seller';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
 
 export class SellerAuthService {
   
@@ -58,14 +60,27 @@ export class SellerAuthService {
 
       const data: SellerLoginResponse = await response.json();
       
-      // Store authentication data in localStorage
+      // Store authentication data using RefreshTokenService
       if (data.data.accessToken) {
+        const refreshToken = data.data.refreshToken || '';
+        const tokenType = data.data.tokenType || 'Bearer';
+        
+        // Store tokens using RefreshTokenService
+        RefreshTokenService.storeTokens('seller', data.data.accessToken, refreshToken, tokenType);
+        
+        // Also store in old format for backward compatibility
         localStorage.setItem('seller_token', data.data.accessToken);
         localStorage.setItem('seller_user', JSON.stringify({
           email: data.data.user.email,
           full_name: data.data.user.fullName,
-          role: data.data.user.role
+          role: data.data.user.role,
+          storeId: data.data.user.storeId
         }));
+        
+        // Store store ID if available
+        if (data.data.user.storeId) {
+          localStorage.setItem('seller_store_id', data.data.user.storeId);
+        }
       }
 
       return data;
@@ -79,8 +94,14 @@ export class SellerAuthService {
    * Logout seller
    */
   static logout(): void {
+    // Clear tokens using RefreshTokenService
+    RefreshTokenService.clearTokens('seller');
+    
+    // Also clear old format for backward compatibility
     localStorage.removeItem('seller_token');
     localStorage.removeItem('seller_user');
+    localStorage.removeItem('seller_store_id');
+    localStorage.removeItem('seller_store_info');
   }
 
   /**
@@ -121,5 +142,34 @@ export class SellerAuthService {
   static getAuthHeader(): { Authorization: string } | {} {
     const token = this.getToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  /**
+   * Refresh seller token
+   */
+  static async refreshToken(): Promise<string> {
+    try {
+      console.log('🔄 Refreshing seller token...');
+      
+      const result = await RefreshTokenService.refreshUserToken('seller');
+      
+      if (!result) {
+        throw new Error('Failed to refresh token');
+      }
+      
+      console.log('✅ Seller token refreshed successfully');
+      return result.accessToken;
+    } catch (error) {
+      console.error('❌ Seller token refresh failed:', error);
+      this.logout();
+      throw error;
+    }
+  }
+
+  /**
+   * Get refresh token
+   */
+  static getRefreshToken(): string | null {
+    return RefreshTokenService.getRefreshToken('seller');
   }
 }

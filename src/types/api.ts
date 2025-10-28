@@ -28,6 +28,7 @@ export interface CustomerLoginResponse {
   message: string;
   data: {
     accessToken: string;
+    refreshToken?: string;  // Added refresh token support
     user: {
       email: string;
       accountId: string;
@@ -310,3 +311,7 @@ export interface CategoryListResponse {
   message: string;
   data: CategoryItem[];
 }
+
+// ==================== CART TYPES ====================
+// Cart types have been moved to src/types/cart.ts
+// Please import from there: import { CartResponse, AddToCartRequest, etc } from './cart';

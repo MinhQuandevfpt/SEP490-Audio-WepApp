@@ -31,7 +31,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, showDiscount = false
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow duration-200 group relative">
+    <div className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 group relative h-full flex flex-col">
       {/* Discount Badge */}
       {showDiscount && product.discount && (
         <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium z-10">
@@ -62,7 +62,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, showDiscount = false
       </div>
 
       {/* Product Info */}
-      <div className="space-y-2">
+      <div className="space-y-2 flex-1 flex flex-col">
         {/* Brand */}
         <p className="text-sm text-gray-500 font-medium">{product.brand}</p>
 
@@ -76,12 +76,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, showDiscount = false
 
         {/* Price */}
         <div className="space-y-1">
-          <div className="flex items-center space-x-2">
-            <span className="text-lg font-bold text-orange-500">
+          <div className="flex flex-col space-y-1">
+            <span className="text-base font-bold text-orange-500 truncate">
               {formatPrice(product.price)}
             </span>
             {product.originalPrice && (
-              <span className="text-sm text-gray-500 line-through">
+              <span className="text-xs text-gray-500 line-through truncate">
                 {formatPrice(product.originalPrice)}
               </span>
             )}
@@ -94,7 +94,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, showDiscount = false
         </p>
 
         {/* Add to Cart Button */}
-        <button className="w-full mt-3 bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2">
+        <button className="w-full mt-auto bg-orange-500 text-white py-2 px-3 rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2 text-sm">
           <ShoppingCart className="w-4 h-4" />
           <span>Thêm vào giỏ</span>
         </button>

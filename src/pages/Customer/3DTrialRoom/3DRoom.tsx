@@ -5,7 +5,7 @@ import {
   ControlsPanel, 
   Canvas3D
 } from '../../../components/Design3DroomComponents';
-import type { Dimensions, RoomColors, RoomPreset } from '../../../components/Design3DroomComponents';
+import type { Dimensions, RoomColors, RoomPreset, Furniture, Listener } from '../../../components/Design3DroomComponents';
 
 // Default colors
 const DEFAULT_COLORS: RoomColors = {
@@ -24,6 +24,8 @@ const ThreeDRoom: React.FC = () => {
   });
 
   const [colors, setColors] = useState<RoomColors>(DEFAULT_COLORS);
+  const [furniture, setFurniture] = useState<Furniture[]>([]);
+  const [listeners, setListeners] = useState<Listener[]>([]);
 
   const handleDimensionChange = useCallback((key: keyof Dimensions, value: number) => {
     setDimensions(prev => ({
@@ -49,6 +51,43 @@ const ThreeDRoom: React.FC = () => {
     setColors(DEFAULT_COLORS);
   }, []);
 
+  // Furniture handlers
+  const handleAddFurniture = useCallback((newFurniture: Omit<Furniture, 'id'>) => {
+    const furnitureItem: Furniture = {
+      ...newFurniture,
+      id: `furniture_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    setFurniture(prev => [...prev, furnitureItem]);
+  }, []);
+
+  const handleRemoveFurniture = useCallback((id: string) => {
+    setFurniture(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleUpdateFurniture = useCallback((id: string, updates: Partial<Furniture>) => {
+    setFurniture(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  }, []);
+
+  // Listener handlers
+  const handleAddListener = useCallback((newListener: Omit<Listener, 'id'>) => {
+    const listener: Listener = {
+      ...newListener,
+      id: `listener_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    setListeners(prev => [...prev, listener]);
+  }, []);
+
+  const handleRemoveListener = useCallback((id: string) => {
+    setListeners(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleUpdateListener = useCallback((id: string, updates: Partial<Listener>) => {
+    setListeners(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  }, []);
 
   try {
     return (
@@ -60,13 +99,26 @@ const ThreeDRoom: React.FC = () => {
             <ControlsPanel
               dimensions={dimensions}
               colors={colors}
+              furniture={furniture}
               onDimensionChange={handleDimensionChange}
               onColorChange={handleColorChange}
               onPresetSelect={handlePresetSelect}
               onReset={resetDimensions}
+              onAddFurniture={handleAddFurniture}
+              onRemoveFurniture={handleRemoveFurniture}
+              onUpdateFurniture={handleUpdateFurniture}
+              listeners={listeners}
+              onAddListener={handleAddListener}
+              onRemoveListener={handleRemoveListener}
+              onUpdateListener={handleUpdateListener}
             />
 
-            <Canvas3D dimensions={dimensions} colors={colors} />
+            <Canvas3D 
+              dimensions={dimensions} 
+              colors={colors} 
+              furniture={furniture}
+              listeners={listeners}
+            />
           </div>
         </div>
       </Layout>

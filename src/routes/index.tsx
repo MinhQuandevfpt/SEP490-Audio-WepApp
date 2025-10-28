@@ -11,6 +11,7 @@ import { CreateProductPage } from '../pages/Seller/AddNewProduct';
 import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
+import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
 import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
@@ -18,6 +19,8 @@ import ShoppingCart from '../pages/Customer/Cart';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
+import { ProductListPage } from '../pages/Customer/ProductList';
+import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -26,8 +29,12 @@ import KycManagement from '../pages/Admin/KycManagement';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
+import { ProductManagement } from '../pages/Seller/Dashboard';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
+import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
+import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
+import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -140,6 +147,14 @@ export const router = createBrowserRouter([
     element: <ThreeDRoom />
   },
   {
+    path: '/products',
+    element: <ProductListPage />
+  },
+  {
+    path: '/products/demo',
+    element: <ProductListDemo />
+  },
+  {
     path: '/auth',
     element: <AuthLayout />,
     children: [
@@ -194,7 +209,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'products',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Quản lý sản phẩm</h2><p className="text-gray-600 mt-2">Trang quản lý sản phẩm đang được phát triển...</p></div>
+        element: <ProductManagement />
       },
       {
         path: 'products/add',
@@ -258,7 +273,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'marketing/vouchers',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Voucher</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+        element: <VoucherPage />
+      },
+      {
+        path: 'marketing/vouchers/create',
+        element: <CreateVoucherPage />
       },
       {
         path: 'marketing/flash-sale',
@@ -279,6 +298,21 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Thông tin tài khoản</h2><p className="text-gray-600 mt-2">Trang thông tin tài khoản đang được phát triển...</p></div>
+      }
+    ]
+  },
+  // Store Staff routes
+  {
+    path: '/store-staff',
+    element: <StaffLoginLayout />,
+    children: [
+      {
+        path: 'login',
+        element: <LoginForStaff />
+      },
+      {
+        path: 'register',
+        element: <RegisterForStaff />
       }
     ]
   },

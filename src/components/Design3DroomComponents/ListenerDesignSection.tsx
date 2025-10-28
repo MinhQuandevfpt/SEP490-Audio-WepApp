@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Move, User, Users } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import ListenerControls from './ListenerControls';
 import type { Listener } from './index';
 
 interface ListenerDesignSectionProps {
@@ -18,19 +19,20 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
   const [newListenerName, setNewListenerName] = useState<string>('');
 
   const handleAddListener = () => {
-    const name = newListenerName.trim() || `Người nghe ${listeners.length + 1}`;
+    // Chỉ cho phép thêm 1 người nghe duy nhất
+    if (listeners.length >= 1) {
+      return;
+    }
+    
+    const name = newListenerName.trim() || `Người nghe`;
     const newListener: Omit<Listener, 'id'> = {
       name,
-      position: [0, 0, 0],
+      position: [0, 0.9, 0], // Đặt trên sàn (Y = 0.9 để người đứng trên sàn)
       rotation: [0, 0, 0],
       isActive: true
     };
     onAddListener(newListener);
     setNewListenerName('');
-  };
-
-  const toggleActive = (listenerId: string, isActive: boolean) => {
-    onUpdateListener(listenerId, { isActive: !isActive });
   };
 
   return (
@@ -57,11 +59,24 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
 
         <button
           onClick={handleAddListener}
-          className="w-full flex items-center justify-center space-x-2 p-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          disabled={listeners.length >= 1}
+          className={`w-full flex items-center justify-center space-x-2 p-3 rounded-lg transition-colors ${
+            listeners.length >= 1
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-green-600 text-white hover:bg-green-700'
+          }`}
         >
           <Plus className="w-4 h-4" />
-          <span>Thêm người nghe</span>
+          <span>
+            {listeners.length >= 1 ? 'Đã có người nghe' : 'Thêm người nghe'}
+          </span>
         </button>
+        
+        {listeners.length >= 1 && (
+          <div className="text-xs text-gray-500 text-center">
+            Chỉ có thể thêm 1 người nghe để tránh bug hệ thống
+          </div>
+        )}
       </div>
 
       {/* Listener List */}
@@ -69,19 +84,19 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-medium text-gray-700">Danh sách người nghe</h4>
           <div className="flex items-center space-x-1 text-xs text-gray-500">
-            <Users className="w-3 h-3" />
-            <span>{listeners.length} người</span>
+            <span className="text-lg">👤</span>
+            <span>{listeners.length}/1 người</span>
           </div>
         </div>
         
         {listeners.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <span className="text-4xl block mb-2">👥</span>
-            <p className="text-sm">Chưa có người nghe nào</p>
-            <p className="text-xs">Thêm người nghe để thiết kế vị trí nghe tối ưu</p>
+            <span className="text-4xl block mb-2">👤</span>
+            <p className="text-sm">Chưa có người nghe</p>
+            <p className="text-xs">Thêm 1 người nghe để thiết kế vị trí nghe tối ưu</p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
+          <div className="space-y-3 max-h-96 overflow-y-auto">
             {listeners.map((listener) => (
               <div
                 key={listener.id}
@@ -91,11 +106,13 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
                     : 'bg-gray-50 border-gray-200'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
-                    <User className={`w-4 h-4 ${
+                    <span className={`text-lg ${
                       listener.isActive ? 'text-green-600' : 'text-gray-400'
-                    }`} />
+                    }`}>
+                      👤
+                    </span>
                     <span className={`text-sm font-medium ${
                       listener.isActive ? 'text-green-800' : 'text-gray-600'
                     }`}>
@@ -105,81 +122,18 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
                       <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
                     )}
                   </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => toggleActive(listener.id, listener.isActive)}
-                      className={`p-1 transition-colors ${
-                        listener.isActive 
-                          ? 'text-green-600 hover:text-green-700' 
-                          : 'text-gray-400 hover:text-green-600'
-                      }`}
-                      title={listener.isActive ? 'Tắt' : 'Bật'}
-                    >
-                      <User className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => onUpdateListener(listener.id, { 
-                        position: [Math.random() * 4 - 2, 0, Math.random() * 3 - 1.5] 
-                      })}
-                      className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-                      title="Di chuyển"
-                    >
-                      <Move className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => onRemoveListener(listener.id)}
-                      className="p-1 text-gray-500 hover:text-red-600 transition-colors"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
                 </div>
                 
-                <div className="text-xs text-gray-500">
-                  Vị trí: ({listener.position[0].toFixed(1)}, {listener.position[1].toFixed(1)}, {listener.position[2].toFixed(1)})
-                </div>
-                
-                {listener.isActive && (
-                  <div className="mt-2 text-xs text-green-600">
-                    ✓ Đang hoạt động - Có thể nghe thử âm thanh
-                  </div>
-                )}
+                <ListenerControls
+                  listener={listener}
+                  onUpdate={(updates) => onUpdateListener(listener.id, updates)}
+                  onRemove={() => onRemoveListener(listener.id)}
+                />
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Quick Actions */}
-      {listeners.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-700">Thao tác nhanh</h4>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                listeners.forEach(listener => {
-                  onUpdateListener(listener.id, { isActive: true });
-                });
-              }}
-              className="p-2 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-            >
-              Bật tất cả
-            </button>
-            <button
-              onClick={() => {
-                listeners.forEach(listener => {
-                  onUpdateListener(listener.id, { isActive: false });
-                });
-              }}
-              className="p-2 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Tắt tất cả
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
