@@ -311,3 +311,7 @@ export interface CategoryListResponse {
   message: string;
   data: CategoryItem[];
 }
+
+// ==================== CART TYPES ====================
+// Cart types have been moved to src/types/cart.ts
+// Please import from there: import { CartResponse, AddToCartRequest, etc } from './cart';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Grid3X3, List } from 'lucide-react';
+import { Grid, List } from 'lucide-react';
 
 interface ProductListViewToggleProps {
   viewMode: 'grid' | 'list';
@@ -7,38 +7,26 @@ interface ProductListViewToggleProps {
   loading?: boolean;
 }
 
-const ProductListViewToggle: React.FC<ProductListViewToggleProps> = ({
+export const ProductListViewToggle: React.FC<ProductListViewToggleProps> = ({
   viewMode,
   onViewModeChange,
   loading = false,
 }) => {
   return (
-    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+    <div className="flex gap-2">
       <button
         onClick={() => onViewModeChange('grid')}
         disabled={loading}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-          viewMode === 'grid'
-            ? 'bg-white text-orange-600 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
-        } disabled:opacity-50 disabled:cursor-not-allowed`}
-        title="Xem dạng lưới"
+        className={`p-2 rounded disabled:opacity-50 ${viewMode === 'grid' ? 'bg-orange-500 text-white' : 'bg-gray-100'}`}
       >
-        <Grid3X3 className="w-4 h-4" />
-        <span className="hidden sm:inline">Lưới</span>
+        <Grid size={20} />
       </button>
       <button
         onClick={() => onViewModeChange('list')}
         disabled={loading}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-          viewMode === 'list'
-            ? 'bg-white text-orange-600 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
-        } disabled:opacity-50 disabled:cursor-not-allowed`}
-        title="Xem dạng danh sách"
+        className={`p-2 rounded disabled:opacity-50 ${viewMode === 'list' ? 'bg-orange-500 text-white' : 'bg-gray-100'}`}
       >
-        <List className="w-4 h-4" />
-        <span className="hidden sm:inline">Danh sách</span>
+        <List size={20} />
       </button>
     </div>
   );

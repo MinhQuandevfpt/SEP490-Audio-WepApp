@@ -1,15 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronDown } from 'lucide-react';
-import { categories } from '../../data/categories';
+import { CustomerCategoryService } from '../../services/customer/CategoryService';
+import type { CategoryItem } from '../../types/api';
 
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const toggleCategory = (categoryId: string) => {
-    setExpandedCategory(expandedCategory === categoryId ? null : categoryId);
-  };
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        setIsLoading(true);
+        const response = await CustomerCategoryService.getAllCategories();
+        if (response.data && Array.isArray(response.data)) {
+          setCategories(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load categories:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   const handleCategoryClick = (categoryName: string) => {
     navigate(`/products?categoryName=${encodeURIComponent(categoryName)}`);
@@ -24,47 +39,28 @@ const Sidebar: React.FC = () => {
 
       {/* Categories */}
       <div className="py-2">
-        {categories.map((category) => (
-          <div key={category.id}>
-            {/* Main category */}
-            <div className="flex items-center">
+        {isLoading ? (
+          <div className="px-4 py-8 text-center text-gray-500">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
+            <p className="text-sm">Đang tải danh mục...</p>
+          </div>
+        ) : categories.length > 0 ? (
+          categories.map((category) => (
+            <div key={category.categoryId}>
+              {/* Main category */}
               <button
                 onClick={() => handleCategoryClick(category.name)}
-                className="flex-1 flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
               >
-                <span className="text-xl">{category.icon}</span>
                 <span className="text-gray-700 font-medium">{category.name}</span>
               </button>
-              {category.subcategories && (
-                <button
-                  onClick={() => toggleCategory(category.id)}
-                  className="px-2 py-3 hover:bg-gray-50 transition-colors"
-                >
-                  {expandedCategory === category.id ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  )}
-                </button>
-              )}
             </div>
-
-            {/* Subcategories */}
-            {category.subcategories && expandedCategory === category.id && (
-              <div className="bg-gray-50 border-t border-gray-100">
-                {category.subcategories.map((subcategory, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleCategoryClick(subcategory)}
-                    className="block w-full text-left px-8 py-2 text-sm text-gray-600 hover:text-orange-500 hover:bg-gray-100 transition-colors"
-                  >
-                    {subcategory}
-                  </button>
-                ))}
-              </div>
-            )}
+          ))
+        ) : (
+          <div className="px-4 py-8 text-center text-gray-500">
+            <p className="text-sm">Không có danh mục</p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Promotion banner in sidebar */}

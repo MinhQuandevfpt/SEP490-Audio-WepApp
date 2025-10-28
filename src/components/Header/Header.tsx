@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
+import { useCart } from '../../hooks/useCart';
+import { CustomerCategoryService } from '../../services/customer/CategoryService';
+import type { CategoryItem } from '../../types/api';
 
 const Header: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const { cartItemCount, loadCartCount, clearCart } = useCart();
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -13,9 +18,29 @@ const Header: React.FC = () => {
       const user = CustomerAuthService.getCurrentUser();
       setIsAuthenticated(authStatus);
       setCurrentUser(user);
+      
+      // Load cart count if authenticated
+      if (authStatus) {
+        loadCartCount();
+      }
+    };
+
+    // Load categories from API
+    const loadCategories = async () => {
+      try {
+        const response = await CustomerCategoryService.getAllCategories();
+        if (response.data && Array.isArray(response.data)) {
+          // Lấy tối đa 6 categories để hiển thị
+          setCategories(response.data.slice(0, 6));
+        }
+      } catch (error) {
+        console.error('Failed to load categories:', error);
+        // Keep empty array if failed
+      }
     };
 
     checkAuth();
+    loadCategories();
     
     // Listen for storage changes (when user logs in/out)
     window.addEventListener('storage', checkAuth);
@@ -33,12 +58,13 @@ const Header: React.FC = () => {
       window.removeEventListener('storage', checkAuth);
       clearInterval(authCheckInterval);
     };
-  }, []);
+  }, [loadCartCount]);
 
   const handleLogout = () => {
     CustomerAuthService.logout();
     setIsAuthenticated(false);
     setCurrentUser(null);
+    clearCart();
     window.location.href = '/'; // Hard refresh to clear any cached state
   };
 
@@ -138,24 +164,22 @@ const Header: React.FC = () => {
             {/* Navigation categories below search */}
             <div className="mt-3">
               <nav className="flex space-x-6">
-                <a href="/tai-nghe" className="text-gray-700 hover:text-orange-500 font-medium text-sm border-b-2 border-orange-500">
-                  Tai Nghe
-                </a>
-                <a href="/loa-bluetooth" className="text-gray-700 hover:text-orange-500 font-medium text-sm">
-                  Loa Bluetooth
-                </a>
-                <a href="/micro" className="text-gray-700 hover:text-orange-500 font-medium text-sm">
-                  Micro
-                </a>
-                <a href="/tai-nghe-gaming" className="text-gray-700 hover:text-orange-500 font-medium text-sm">
-                  Tai Nghe Gaming
-                </a>
-                <a href="/soundbar" className="text-gray-700 hover:text-orange-500 font-medium text-sm">
-                  Soundbar
-                </a>
-                <a href="/phu-kien" className="text-gray-700 hover:text-orange-500 font-medium text-sm">
-                  Phụ Kiện
-                </a>
+                {categories.length > 0 ? (
+                  categories.map((category, index) => (
+                    <a 
+                      key={category.categoryId}
+                      href={`/products?category=${encodeURIComponent(category.name)}`} 
+                      className={`text-gray-700 hover:text-orange-500 font-medium text-sm ${
+                        index === 0 ? 'border-b-2 border-orange-500' : ''
+                      }`}
+                    >
+                      {category.name}
+                    </a>
+                  ))
+                ) : (
+                  // Fallback while loading
+                  <span className="text-gray-400 text-sm">Đang tải danh mục...</span>
+                )}
               </nav>
             </div>
           </div>
@@ -184,9 +208,11 @@ const Header: React.FC = () => {
                 <div className="flex items-center text-blue-600 hover:text-blue-700">
                   <ShoppingCart className="w-5 h-5" />
                 </div>
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  3
-                </span>
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                  </span>
+                )}
               </a>
             </div>
 
