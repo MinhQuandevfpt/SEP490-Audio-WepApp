@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
+import { User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
-import { useCart } from '../../hooks/useCart';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
+import CartDropdown from './CartDropdown';
 import type { CategoryItem } from '../../types/api';
 
 const Header: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const { cartItemCount, loadCartCount, clearCart } = useCart();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
 
   useEffect(() => {
@@ -18,11 +17,6 @@ const Header: React.FC = () => {
       const user = CustomerAuthService.getCurrentUser();
       setIsAuthenticated(authStatus);
       setCurrentUser(user);
-      
-      // Load cart count if authenticated
-      if (authStatus) {
-        loadCartCount();
-      }
     };
 
     // Load categories from API
@@ -58,13 +52,12 @@ const Header: React.FC = () => {
       window.removeEventListener('storage', checkAuth);
       clearInterval(authCheckInterval);
     };
-  }, [loadCartCount]);
+  }, []);
 
   const handleLogout = () => {
     CustomerAuthService.logout();
     setIsAuthenticated(false);
     setCurrentUser(null);
-    clearCart();
     window.location.href = '/'; // Hard refresh to clear any cached state
   };
 
@@ -203,17 +196,8 @@ const Header: React.FC = () => {
                 <span className="text-sm">Tài khoản</span>
               </Link>
 
-              {/* Shopping Cart */}
-              <a href="/cart" className="relative group">
-                <div className="flex items-center text-blue-600 hover:text-blue-700">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
-                {cartItemCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                    {cartItemCount > 99 ? '99+' : cartItemCount}
-                  </span>
-                )}
-              </a>
+              {/* Shopping Cart with Dropdown */}
+              <CartDropdown />
             </div>
 
             {/* Bottom row - Địa chỉ */}

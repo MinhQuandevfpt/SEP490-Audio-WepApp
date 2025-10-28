@@ -16,6 +16,7 @@ import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
 import ShoppingCart from '../pages/Customer/Cart';
+import StorePage from '../pages/Customer/StorePage';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
@@ -129,6 +130,10 @@ export const router = createBrowserRouter([
   {
     path: '/product/:id',
     element: <ProductDetail />
+  },
+  {
+    path: '/store/:storeId',
+    element: <StorePage />
   },
   {
     path: '/cart',

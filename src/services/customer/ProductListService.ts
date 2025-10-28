@@ -248,7 +248,7 @@ export interface ProductListResponse {
     numberOfElements: number;
     first: boolean;
     empty: boolean;
-  };
+  } | Product[]; // Support both pagination and array response
 }
 
 export class ProductListService {
@@ -262,8 +262,10 @@ export class ProductListService {
       const queryParams = new URLSearchParams();
       
       // Thêm các tham số vào query string
-      if (params.page !== undefined) queryParams.append('page', params.page.toString());
-      if (params.size !== undefined) queryParams.append('size', params.size.toString());
+      // Đảm bảo luôn có page và size để API trả về pagination
+      queryParams.append('page', String(params.page ?? 0));
+      queryParams.append('size', String(params.size ?? 20));
+      
       if (params.categoryName) queryParams.append('categoryName', params.categoryName);
       if (params.storeId) queryParams.append('storeId', params.storeId);
       if (params.keyword) queryParams.append('keyword', params.keyword);
@@ -272,20 +274,96 @@ export class ProductListService {
       const url = `${this.BASE_URL}?${queryParams.toString()}`;
       const cacheKey = getCacheKey(url);
       
+      console.log(`🔍 Fetching products: ${url}`);
+      
       // Check cache first
       const cachedData = getCachedData(cacheKey);
       if (cachedData) {
+        console.log('📦 Using cached data');
         return cachedData;
       }
       
       const response = await httpClient.get<ProductListResponse>(url);
+      
+      console.log('📥 Raw API Response:', {
+        status: response.status,
+        message: response.message,
+        dataType: Array.isArray(response.data) ? 'Array' : 'Object',
+        dataKeys: Array.isArray(response.data) ? `Array[${response.data.length}]` : Object.keys(response.data || {})
+      });
+      
+      // Normalize response: if data is array, convert to pagination structure
+      if (Array.isArray(response.data)) {
+        console.log('⚠️ API returned array (backend already paginated) - normalizing...');
+        const products = response.data as Product[];
+        const page = params.page ?? 0;
+        const size = params.size ?? 20;
+        
+        // Backend đã phân trang rồi, nhưng không trả về metadata
+        // Chúng ta không biết totalElements, nên phải ước lượng
+        // Nếu số sản phẩm = size → có thể còn trang tiếp
+        // Nếu số sản phẩm < size → đây là trang cuối
+        const isLikelyLastPage = products.length < size;
+        
+        const estimatedTotal = isLikelyLastPage ? (page * size + products.length) : (page + 1) * size + 1;
+        
+        const normalizedResponse: ProductListResponse = {
+          status: response.status,
+          message: response.message,
+          data: {
+            content: products, // Backend đã slice rồi, dùng trực tiếp
+            pageable: {
+              pageNumber: page,
+              pageSize: size,
+              sort: { empty: true, sorted: false, unsorted: true },
+              offset: page * size,
+              unpaged: false,
+              paged: true
+            },
+            // Không biết chính xác totalElements, ước lượng tối thiểu
+            totalPages: isLikelyLastPage ? page + 1 : page + 2,
+            totalElements: estimatedTotal,
+            last: isLikelyLastPage,
+            size: size,
+            number: page,
+            sort: { empty: true, sorted: false, unsorted: true },
+            numberOfElements: products.length,
+            first: page === 0,
+            empty: products.length === 0
+          }
+        };
+        
+        console.log('✅ Normalized response:', {
+          receivedProducts: products.length,
+          expectedSize: size,
+          currentPage: page,
+          isLikelyLastPage,
+          estimatedTotalElements: estimatedTotal
+        });
+        
+        // Cache the normalized response
+        setCachedData(cacheKey, normalizedResponse);
+        
+        return normalizedResponse;
+      }
+      
+      // Data already has pagination structure
+      const paginatedData = response.data as any;
+      console.log('✅ API returned proper pagination object:', {
+        totalElements: paginatedData.totalElements,
+        totalPages: paginatedData.totalPages,
+        currentPage: paginatedData.number,
+        pageSize: paginatedData.size,
+        contentLength: paginatedData.content?.length || 0,
+        isLast: paginatedData.last
+      });
       
       // Cache the response
       setCachedData(cacheKey, response);
       
       return response;
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('❌ Error fetching products:', error);
       throw error;
     }
   }
@@ -328,5 +406,49 @@ export class ProductListService {
     params: Omit<ProductListParams, 'status'> = {}
   ): Promise<ProductListResponse> {
     return this.getProducts({ ...params, status });
+  }
+
+  /**
+   * Lấy chi tiết sản phẩm theo ID
+   * GET /api/products/{productId}
+   */
+  static async getProductById(productId: string): Promise<{
+    status: number;
+    message: string;
+    data: Product;
+  }> {
+    try {
+      const url = `${this.BASE_URL}/${productId}`;
+      const cacheKey = getCacheKey(url);
+      
+      console.log(`🔍 Fetching product detail: ${url}`);
+      
+      // Check cache first
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        console.log('📦 Using cached product detail');
+        return cachedData;
+      }
+      
+      const response = await httpClient.get<{
+        status: number;
+        message: string;
+        data: Product;
+      }>(url);
+      
+      console.log('✅ Product detail loaded:', {
+        productId: response.data.productId,
+        name: response.data.name,
+        price: response.data.price
+      });
+      
+      // Cache the response
+      setCachedData(cacheKey, response);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching product detail:', error);
+      throw error;
+    }
   }
 }
