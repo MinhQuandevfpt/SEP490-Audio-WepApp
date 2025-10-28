@@ -1,26 +1,26 @@
 import React, { Suspense, useMemo } from 'react';
-import { useFBX } from '@react-three/drei';
+import { useGLTF } from '@react-three/drei';
 import type { Listener } from './index';
 
 interface ListenerAvatar3DProps {
   listener: Listener;
 }
 
-// Lightweight human avatar using remote FBX (no .glb in repo)
-const ListenerModel: React.FC<{ scale?: number }> = ({ scale = 0.01 }) => {
-  const fbx = useFBX('https://threejs.org/examples/models/fbx/Samba%20Dancing.fbx');
+// High-quality human avatar using Ready Player Me GLB (no .glb in repo)
+const ListenerModel: React.FC<{ scale?: number }> = ({ scale = 0.8 }) => {
+  const { scene } = useGLTF('https://models.readyplayer.me/6900fa40d225dc31b3cb7fac.glb');
 
   // Ensure the model casts/receives light properly
   useMemo(() => {
-    fbx.traverse((child: any) => {
+    scene.traverse((child: any) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
     });
-  }, [fbx]);
+  }, [scene]);
 
-  return <primitive object={fbx} scale={scale} />;
+  return <primitive object={scene} scale={scale} />;
 };
 
 const ListenerAvatar3D: React.FC<ListenerAvatar3DProps> = ({ listener }) => {
