@@ -18,7 +18,7 @@ const CreateVoucherPage: React.FC = () => {
         endTime: data.endTime
       };
 
-      const res = await VoucherService.createShopVoucher(payload);
+      await VoucherService.createShopVoucher(payload);
       showCenterSuccess('Tạo voucher thành công');
       // Redirect back to list
       navigate('/seller/dashboard/marketing/vouchers');

@@ -3,15 +3,20 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Room3D from './Room3D';
 import Furniture3D from './Furniture3D';
-import type { Dimensions, RoomColors, Furniture } from './index';
+import type { Furniture, Dimensions, RoomColors } from './index';
 
-interface Canvas3DProps {
+interface FurnitureCanvas3DProps {
+  furniture: Furniture[];
   dimensions: Dimensions;
   colors: RoomColors;
-  furniture?: Furniture[];
+  onFurnitureUpdate?: (id: string, updates: Partial<Furniture>) => void;
 }
 
-const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [] }) => {
+const FurnitureCanvas3D: React.FC<FurnitureCanvas3DProps> = ({ 
+  furniture, 
+  dimensions, 
+  colors
+}) => {
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -60,12 +65,12 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [] 
         />
       </Canvas>
 
-      {/* Info overlay */}
+      {/* Furniture Info Overlay */}
       <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg px-3 py-2 shadow-lg">
         <div className="text-sm text-gray-600">
-          <div className="font-medium mb-1">Phòng 3D</div>
+          <div className="font-medium mb-1">Nội thất trong phòng</div>
           <div className="text-xs">
-            {furniture.length} nội thất • Sử dụng chuột để xoay/zoom
+            {furniture.length} vật thể • Sử dụng chuột để xoay/zoom
           </div>
         </div>
       </div>
@@ -73,4 +78,4 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [] 
   );
 };
 
-export default Canvas3D;
+export default FurnitureCanvas3D;
