@@ -3,15 +3,22 @@ import { calcCartSummary, type CartItem as UICartItem, formatCurrency } from '..
 import Layout from '../../../components/Layout';
 import SelectAllBar from '../../../components/ShoppingCartComponents/SelectAllBar';
 import CartItemRow from '../../../components/ShoppingCartComponents/CartItemRow';
-import ShippingMethodCard from '../../../components/ShoppingCartComponents/ShippingMethodCard';
+import ShippingMethodDropdown from '../../../components/CheckoutOrderComponents/ShippingMethodDropdown';
+import AddressSelectorCompact from '../../../components/ShoppingCartComponents/AddressSelectorCompact';
 import VoucherSection from '../../../components/ShoppingCartComponents/VoucherSection';
 import SummaryBox from '../../../components/ShoppingCartComponents/SummaryBox';
 import { useCart } from '../../../hooks/useCart';
+import { AddressService } from '../../../services/customer/AddressService';
 import type { CartItem as ApiCartItem } from '../../../types/cart';
+import type { CustomerAddressApiItem } from '../../../types/api';
+import type { ShippingMethod } from '../../../data/checkout';
 
 const ShoppingCart: React.FC = () => {
   const { cart, isLoading, error, loadCart } = useCart();
   const [items, setItems] = useState<UICartItem[]>([]);
+  const [addresses, setAddresses] = useState<CustomerAddressApiItem[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [addressesLoading, setAddressesLoading] = useState(false);
 
   // Map API cart items to UI items used by existing components
   const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
@@ -24,9 +31,26 @@ const ShoppingCart: React.FC = () => {
     isSelected: true,
   });
 
+  // Load addresses
+  const loadAddresses = async () => {
+    if (!AddressService.isAuthenticated()) return;
+    try {
+      setAddressesLoading(true);
+      const addrList = await AddressService.getAddresses();
+      setAddresses(addrList);
+      const defaultAddr = addrList.find(a => a.default) || addrList[0] || null;
+      setSelectedAddressId(defaultAddr ? defaultAddr.id : null);
+    } catch (err) {
+      console.error('Failed to load addresses:', err);
+    } finally {
+      setAddressesLoading(false);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       await loadCart();
+      await loadAddresses();
     };
     init();
   }, [loadCart]);
@@ -49,17 +73,17 @@ const ShoppingCart: React.FC = () => {
     amount: number; // calculated discount amount
   } | null>(null);
 
-  const [shippingMethod, setShippingMethod] = useState<'standard' | 'express' | 'economy'>('standard');
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethod | null>(null);
   const availableVouchers = [
     { code: 'GIAM10', label: 'Giảm 10% tối đa 100k', desc: 'Áp dụng cho tổng tiền hàng' },
     { code: 'FREESHIP', label: 'Freeship 30k', desc: 'Giảm phí vận chuyển' },
   ];
 
+  const getShipPrice = (m: ShippingMethod) => m === 'express' ? 30000 : m === 'economy' ? 10000 : 15000;
+
   const shippingFee = useMemo(() => {
-    if (summary.selectedCount === 0) return 0;
-    if (shippingMethod === 'express') return 30000;
-    if (shippingMethod === 'economy') return 10000;
-    return 15000; // standard
+    if (summary.selectedCount === 0 || !shippingMethod) return 0;
+    return getShipPrice(shippingMethod);
   }, [shippingMethod, summary.selectedCount]);
 
   const voucherDiscount = useMemo(() => {
@@ -140,6 +164,21 @@ const ShoppingCart: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Items */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Address Section (compact) */}
+            {addressesLoading ? (
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
+                <p className="text-center text-sm text-gray-500 mt-2">Đang tải địa chỉ...</p>
+              </div>
+            ) : (
+              <AddressSelectorCompact
+                addresses={addresses}
+                selectedAddressId={selectedAddressId}
+                onSelect={setSelectedAddressId}
+                onAddressesChange={loadAddresses}
+              />
+            )}
+
             {/* Header controls */}
             <SelectAllBar allSelected={allSelected} itemCount={items.length} onToggleAll={toggleAll} />
 
@@ -159,6 +198,8 @@ const ShoppingCart: React.FC = () => {
           {/* Summary */}
           <aside className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+              {/* Shipping Method Dropdown (moved above summary box) */}
+              <ShippingMethodDropdown value={shippingMethod} onChange={setShippingMethod} getPrice={getShipPrice} />
               <div className="flex justify-between text-gray-600">
                 <span>Tạm tính</span>
                 <span>{formatCurrency(summary.subtotal)}</span>
@@ -166,15 +207,6 @@ const ShoppingCart: React.FC = () => {
               <div className="flex justify-between text-gray-600">
                 <span>Giảm giá</span>
                 <span className="text-green-600">-{formatCurrency(summary.discount)}</span>
-              </div>
-              {/* Shipping method - card style */}
-              <div className="pt-2">
-                <p className="text-sm font-medium text-gray-800 mb-2">Hình thức giao hàng</p>
-                <div className="space-y-2">
-                  <ShippingMethodCard method="economy" selected={shippingMethod==='economy'} price={10000} onSelect={setShippingMethod} />
-                  <ShippingMethodCard method="standard" selected={shippingMethod==='standard'} price={15000} onSelect={setShippingMethod} />
-                  <ShippingMethodCard method="express" selected={shippingMethod==='express'} price={30000} onSelect={setShippingMethod} />
-                </div>
               </div>
 
               {/* Voucher - input or choose */}

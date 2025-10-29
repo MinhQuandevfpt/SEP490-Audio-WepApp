@@ -47,7 +47,21 @@ export class HttpInterceptor {
               throw await this.handleError(retryResponse);
             }
             
-            return await retryResponse.json();
+            // Handle 204 No Content
+            if (retryResponse.status === 204 || retryResponse.status === 205) {
+              return undefined as T;
+            }
+            
+            const retryText = await retryResponse.text();
+            if (!retryText || retryText.trim().length === 0) {
+              return undefined as T;
+            }
+            
+            try {
+              return JSON.parse(retryText) as T;
+            } catch (e) {
+              return undefined as T;
+            }
           } else {
             // Refresh failed, redirect to login
             console.error(`❌ Token refresh failed for ${userType}`);
@@ -60,7 +74,39 @@ export class HttpInterceptor {
         throw await this.handleError(response);
       }
 
-      return await response.json();
+      // Handle 204 No Content (DELETE requests often return this)
+      if (response.status === 204 || response.status === 205) {
+        return undefined as T;
+      }
+
+      // Read response text (can only read once)
+      const text = await response.text();
+      
+      // If no content, return undefined
+      if (!text || text.trim().length === 0) {
+        return undefined as T;
+      }
+
+      // Check content type to decide if should parse JSON
+      const contentType = response.headers.get('content-type');
+      
+      // Try to parse as JSON if content-type suggests JSON or if text looks like JSON
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          return JSON.parse(text) as T;
+        } catch (e) {
+          // If parsing fails, return undefined for DELETE/PUT operations that might return empty but with JSON content-type
+          return undefined as T;
+        }
+      }
+      
+      // For other content types, try to parse JSON anyway (some APIs don't set content-type correctly)
+      try {
+        return JSON.parse(text) as T;
+      } catch (e) {
+        // If not valid JSON, return as-is (will be cast to T, might be string)
+        return text as T;
+      }
     } catch (error) {
       console.error('HTTP request error:', error);
       throw error;
