@@ -1,14 +1,43 @@
-import React, { useMemo, useState } from 'react';
-import { mockCartItems, calcCartSummary, type CartItem, formatCurrency } from '../../../data/shoppingcart';
+import React, { useEffect, useMemo, useState } from 'react';
+import { calcCartSummary, type CartItem as UICartItem, formatCurrency } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
 import SelectAllBar from '../../../components/ShoppingCartComponents/SelectAllBar';
 import CartItemRow from '../../../components/ShoppingCartComponents/CartItemRow';
 import ShippingMethodCard from '../../../components/ShoppingCartComponents/ShippingMethodCard';
 import VoucherSection from '../../../components/ShoppingCartComponents/VoucherSection';
 import SummaryBox from '../../../components/ShoppingCartComponents/SummaryBox';
+import { useCart } from '../../../hooks/useCart';
+import type { CartItem as ApiCartItem } from '../../../types/cart';
 
 const ShoppingCart: React.FC = () => {
-  const [items, setItems] = useState<CartItem[]>(mockCartItems);
+  const { cart, isLoading, error, loadCart } = useCart();
+  const [items, setItems] = useState<UICartItem[]>([]);
+
+  // Map API cart items to UI items used by existing components
+  const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
+    id: apiItem.cartItemId,
+    productId: apiItem.refId,
+    name: apiItem.name,
+    image: apiItem.image,
+    price: apiItem.unitPrice,
+    quantity: apiItem.quantity,
+    isSelected: true,
+  });
+
+  useEffect(() => {
+    const init = async () => {
+      await loadCart();
+    };
+    init();
+  }, [loadCart]);
+
+  useEffect(() => {
+    if (cart?.items) {
+      setItems(cart.items.map(mapApiItemToUI));
+    } else {
+      setItems([]);
+    }
+  }, [cart]);
   const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
   const summary = useMemo(() => calcCartSummary(items), [items]);
 
@@ -82,14 +111,17 @@ const ShoppingCart: React.FC = () => {
 
   const inc = (id: string) => {
     setItems(prev => prev.map(it => it.id === id ? { ...it, quantity: Math.min((it.quantity + 1), (it.maxQuantity ?? 99)) } : it));
+    window.dispatchEvent(new Event('cartUpdated'));
   };
 
   const dec = (id: string) => {
     setItems(prev => prev.map(it => it.id === id ? { ...it, quantity: Math.max(1, it.quantity - 1) } : it));
+    window.dispatchEvent(new Event('cartUpdated'));
   };
 
   const removeItem = (id: string) => {
     setItems(prev => prev.filter(it => it.id !== id));
+    window.dispatchEvent(new Event('cartUpdated'));
   };
 
   return (
@@ -97,6 +129,14 @@ const ShoppingCart: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Giỏ hàng</h1>
 
+        {isLoading ? (
+          <div className="py-16 text-center text-gray-500">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
+            <p className="mt-3">Đang tải giỏ hàng...</p>
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center text-red-600">{error}</div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Items */}
           <div className="lg:col-span-2 space-y-4">
@@ -161,6 +201,7 @@ const ShoppingCart: React.FC = () => {
             </div>
           </aside>
         </div>
+        )}
       </div>
     </Layout>
   );

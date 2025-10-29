@@ -20,6 +20,7 @@ import StorePage from '../pages/Customer/StorePage';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
+import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import { ProductListPage } from '../pages/Customer/ProductList';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import AdminLogin from '../pages/Admin/Login';
@@ -138,6 +139,10 @@ export const router = createBrowserRouter([
   {
     path: '/cart',
     element: <ShoppingCart />
+  },
+  {
+    path: '/checkout',
+    element: <ProtectedRoute element={<CheckoutOrderPage />} />
   },
   {
     path: '/oauth2/callback',
