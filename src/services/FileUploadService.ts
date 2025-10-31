@@ -10,6 +10,19 @@ export interface UploadResponse {
 
 export class FileUploadService {
   /**
+   * Get access token for current user
+   * Checks all possible token locations
+   */
+  private static getAccessToken(): string | null {
+    // Check all possible token keys in order of priority
+    return localStorage.getItem('admin_access_token') ||  // Admin
+           localStorage.getItem('seller_token') ||         // Seller
+           localStorage.getItem('staff_token') ||          // Staff
+           localStorage.getItem('customer_token') ||       // Customer
+           localStorage.getItem('accessToken');            // Legacy/fallback
+  }
+
+  /**
    * Upload image file to Cloudinary via backend
    * @param file - Image file to upload
    * @param _folder - Cloudinary folder (handled by backend automatically)
@@ -17,9 +30,7 @@ export class FileUploadService {
    */
   static async uploadImage(file: File, _folder = 'Audio'): Promise<UploadResponse> {
     try {
-      // For seller pages, token is stored as 'seller_token'
-      // For customer pages, token is stored as 'accessToken'
-      let token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      const token = this.getAccessToken();
       
       if (!token) {
         throw new Error('Access token not found. Please login again.');
@@ -111,9 +122,7 @@ export class FileUploadService {
    */
   static async uploadMultipleImages(files: File[], _folder = 'Audio'): Promise<UploadResponse[]> {
     try {
-      // For seller pages, token is stored as 'seller_token'
-      // For customer pages, token is stored as 'accessToken'
-      let token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      const token = this.getAccessToken();
       
       if (!token) {
         throw new Error('Access token not found. Please login again.');

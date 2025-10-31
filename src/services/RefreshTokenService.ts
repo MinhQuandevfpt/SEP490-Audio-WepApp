@@ -53,16 +53,16 @@ export class RefreshTokenService {
   /**
    * Check if refresh token exists for a specific user type
    */
-  static hasRefreshToken(userType: 'customer' | 'seller' | 'staff'): boolean {
-    const key = `${userType}_refresh_token`;
+  static hasRefreshToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): boolean {
+    const key = userType === 'admin' ? 'admin_refresh_token' : `${userType}_refresh_token`;
     return !!localStorage.getItem(key);
   }
 
   /**
    * Get refresh token for a specific user type
    */
-  static getRefreshToken(userType: 'customer' | 'seller' | 'staff'): string | null {
-    const key = `${userType}_refresh_token`;
+  static getRefreshToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): string | null {
+    const key = userType === 'admin' ? 'admin_refresh_token' : `${userType}_refresh_token`;
     return localStorage.getItem(key);
   }
 
@@ -70,33 +70,44 @@ export class RefreshTokenService {
    * Store tokens for a specific user type
    */
   static storeTokens(
-    userType: 'customer' | 'seller' | 'staff',
+    userType: 'customer' | 'seller' | 'staff' | 'admin',
     accessToken: string,
     refreshToken: string,
     tokenType: string = 'Bearer'
   ): void {
-    const prefix = userType;
-    localStorage.setItem(`${prefix}_token`, accessToken);
-    localStorage.setItem(`${prefix}_refresh_token`, refreshToken);
-    localStorage.setItem(`${prefix}_token_type`, tokenType);
+    if (userType === 'admin') {
+      localStorage.setItem('admin_access_token', accessToken);
+      localStorage.setItem('admin_refresh_token', refreshToken);
+      localStorage.setItem('admin_token_type', tokenType);
+    } else {
+      localStorage.setItem(`${userType}_token`, accessToken);
+      localStorage.setItem(`${userType}_refresh_token`, refreshToken);
+      localStorage.setItem(`${userType}_token_type`, tokenType);
+    }
     console.log(`💾 Tokens stored for ${userType}`);
   }
 
   /**
    * Clear tokens for a specific user type
    */
-  static clearTokens(userType: 'customer' | 'seller' | 'staff'): void {
-    const prefix = userType;
-    localStorage.removeItem(`${prefix}_token`);
-    localStorage.removeItem(`${prefix}_refresh_token`);
-    localStorage.removeItem(`${prefix}_token_type`);
+  static clearTokens(userType: 'customer' | 'seller' | 'staff' | 'admin'): void {
+    if (userType === 'admin') {
+      localStorage.removeItem('admin_access_token');
+      localStorage.removeItem('admin_refresh_token');
+      localStorage.removeItem('admin_token_type');
+      localStorage.removeItem('admin_user');
+    } else {
+      localStorage.removeItem(`${userType}_token`);
+      localStorage.removeItem(`${userType}_refresh_token`);
+      localStorage.removeItem(`${userType}_token_type`);
+    }
     console.log(`🗑️ Tokens cleared for ${userType}`);
   }
 
   /**
    * Refresh token for a specific user type
    */
-  static async refreshUserToken(userType: 'customer' | 'seller' | 'staff'): Promise<{ accessToken: string; refreshToken: string } | null> {
+  static async refreshUserToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): Promise<{ accessToken: string; refreshToken: string } | null> {
     try {
       const currentRefreshToken = this.getRefreshToken(userType);
       

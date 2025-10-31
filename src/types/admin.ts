@@ -45,3 +45,78 @@ export interface KycRejectResponse {
   message: string;
   data?: string;
 }
+
+// Campaign Management Types
+export type CampaignType = 'MEGA_SALE' | 'FAST_SALE';
+export type CampaignStatus = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'ENDED' | 'CANCELLED' | 'EXPIRED' | 'PENDING';
+
+export interface FlashSlot {
+  slotId?: string;
+  openTime: string;
+  closeTime: string;
+  status?: 'PENDING' | 'ACTIVE' | 'ENDED';
+}
+
+export interface Campaign {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  type: CampaignType; // API trả về 'type' chứ không phải 'campaignType'
+  badgeLabel: string;
+  badgeColor: string;
+  badgeIconUrl: string;
+  allowRegistration: boolean;
+  startTime: string;
+  endTime: string;
+  status: CampaignStatus;
+  flashSlots?: FlashSlot[]; // API trả về 'flashSlots' chứ không phải 'slots'
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateCampaignRequest {
+  code: string;
+  name: string;
+  description: string;
+  campaignType: CampaignType; // API nhận 'campaignType' khi tạo
+  badgeLabel: string;
+  badgeColor: string;
+  badgeIconUrl: string;
+  allowRegistration: boolean;
+  startTime: string;
+  endTime: string;
+  flashSlots?: FlashSlot[];
+}
+
+export interface CampaignResponse {
+  status: number;
+  message: string;
+  data: Campaign;
+}
+
+export interface UpdateCampaignRequest {
+  name?: string;
+  description?: string;
+  badgeLabel?: string;
+  badgeColor?: string;
+  badgeIconUrl?: string;
+  allowRegistration?: boolean;
+  approvalRule?: string;
+  status?: CampaignStatus;
+  startTime?: string;
+  endTime?: string;
+  flashSlots?: {
+    id?: string; // Có id: cập nhật slot cũ, không có id: tạo slot mới
+    openTime: string;
+    closeTime: string;
+    status?: string;
+  }[];
+}
+
+export interface CampaignListResponse {
+  status: number;
+  message: string;
+  data: Campaign[];
+}
+

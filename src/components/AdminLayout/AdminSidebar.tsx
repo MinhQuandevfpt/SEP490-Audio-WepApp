@@ -8,7 +8,8 @@ import {
   BarChart3, 
   Settings,
   ChevronRight,
-  LogOut
+  LogOut,
+  Zap
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -79,6 +80,15 @@ const AdminSidebar: React.FC = () => {
         { name: 'Đang giao', href: '/admin/orders/shipping', icon: null },
         { name: 'Hoàn thành', href: '/admin/orders/completed', icon: null },
         { name: 'Đã hủy', href: '/admin/orders/cancelled', icon: null }
+      ]
+    },
+    {
+      name: 'Chiến dịch khuyến mãi',
+      href: '/admin/campaigns',
+      icon: <Zap className="w-6 h-6" />,
+      children: [
+        { name: 'Tất cả chiến dịch', href: '/admin/campaigns', icon: null },
+        { name: 'Tạo chiến dịch mới', href: '/admin/campaigns/create', icon: null }
       ]
     },
     {

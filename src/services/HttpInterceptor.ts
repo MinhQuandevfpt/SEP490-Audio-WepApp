@@ -31,7 +31,7 @@ export class HttpInterceptor {
       
       if (!response.ok) {
         // Handle 401 - Unauthorized (token expired)
-        if (response.status === 401 && !skipAuthRefresh && userType && userType !== 'admin') {
+        if (response.status === 401 && !skipAuthRefresh && userType) {
           console.log(`🔄 Token expired for ${userType}, attempting refresh...`);
           
           // Try to refresh token
@@ -161,13 +161,8 @@ export class HttpInterceptor {
    * Handle authentication failure (redirect to login)
    */
   private static handleAuthFailure(userType: UserType): void {
-    // Clear tokens (skip admin as it doesn't use RefreshTokenService)
-    if (userType !== 'admin') {
-      RefreshTokenService.clearTokens(userType);
-    } else {
-      localStorage.removeItem('admin_token');
-      localStorage.removeItem('admin_user');
-    }
+    // Clear tokens for all user types using RefreshTokenService
+    RefreshTokenService.clearTokens(userType);
     
     // Redirect to appropriate login page
     const loginPaths: Record<UserType, string> = {
@@ -193,7 +188,7 @@ export class HttpInterceptor {
       customer: 'customer_token',
       seller: 'seller_token',
       staff: 'staff_token',
-      admin: 'admin_token',
+      admin: 'admin_access_token', // Admin sử dụng 'admin_access_token'
     };
     
     return localStorage.getItem(tokenKeys[userType]);

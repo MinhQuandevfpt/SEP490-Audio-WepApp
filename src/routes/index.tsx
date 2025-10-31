@@ -32,6 +32,7 @@ import KycManagement from '../pages/Admin/KycManagement';
 import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
+import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import KycStatusPage from '../pages/Seller/KycStatus';
@@ -397,6 +398,18 @@ export const router = createBrowserRouter([
       {
         path: 'stores/blocked',
         element: <div>Blocked Stores Page (Coming Soon)</div>
+      },
+      {
+        path: 'campaigns',
+        element: <CampaignList />
+      },
+      {
+        path: 'campaigns/create',
+        element: <CreateCampaign />
+      },
+      {
+        path: 'campaigns/:id/edit',
+        element: <EditCampaign />
       },
       {
         path: 'orders',
