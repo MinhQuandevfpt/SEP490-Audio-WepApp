@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
+import { User, Bell, Home, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
 import CartDropdown from './CartDropdown';
@@ -183,48 +183,38 @@ const Header: React.FC = () => {
           </div>
 
           {/* Right side actions */}
-          <div className="flex flex-col items-end space-y-2">
-            {/* Top row - Trang chủ, Tài khoản, Giỏ hàng */}
-            <div className="flex items-center space-x-4">
-              {/* Trang chủ */}
-              <Link 
-                to="/" 
-                className={`flex items-center space-x-1 transition-colors ${
-                  isHomePage 
-                    ? 'text-orange-500 font-semibold' 
-                    : 'text-gray-700 hover:text-orange-500'
-                }`}
-              >
-                <Home className="w-5 h-5" />
-                <span className="text-sm">Trang chủ</span>
-              </Link>
+          <div className="flex items-center space-x-4">
+            {/* Trang chủ */}
+            <Link 
+              to="/" 
+              className={`flex items-center space-x-1 transition-colors ${
+                isHomePage 
+                  ? 'text-orange-500 font-semibold' 
+                  : 'text-gray-700 hover:text-orange-500'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-sm">Trang chủ</span>
+            </Link>
 
-              {/* Divider */}
-              <span className="text-gray-300">|</span>
+            {/* Divider */}
+            <span className="text-gray-300">|</span>
 
-              {/* User Account */}
-              <Link 
-                to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
-                className={`flex items-center space-x-1 transition-colors ${
-                  isAccountPage 
-                    ? 'text-orange-500 font-semibold' 
-                    : 'text-gray-700 hover:text-orange-500'
-                }`}
-              >
-                <User className="w-5 h-5" />
-                <span className="text-sm">Tài khoản</span>
-              </Link>
+            {/* User Account */}
+            <Link 
+              to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
+              className={`flex items-center space-x-1 transition-colors ${
+                isAccountPage 
+                  ? 'text-orange-500 font-semibold' 
+                  : 'text-gray-700 hover:text-orange-500'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-sm">Tài khoản</span>
+            </Link>
 
-              {/* Shopping Cart with Dropdown */}
-              <CartDropdown />
-            </div>
-
-            {/* Bottom row - Địa chỉ */}
-            <div className="flex items-center space-x-1 border-b border-gray-400 pb-1">
-              <MapPin className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-semibold text-black">Giao đến:</span>
-              <span className="font-medium text-black">Q.1, P. Cô Giang, Hồ Chí Minh</span>
-            </div>
+            {/* Shopping Cart with Dropdown */}
+            <CartDropdown />
           </div>
         </div>
       </div>

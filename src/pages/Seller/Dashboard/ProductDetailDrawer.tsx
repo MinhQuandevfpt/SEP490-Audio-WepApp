@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { X, Package, Tag, DollarSign, Warehouse, User, Award, Info } from 'lucide-react';
 import { ProductService } from '../../../services/seller/ProductService';
 import type { Product } from '../../../types/seller';
@@ -14,13 +14,7 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && productId) {
-      loadProductDetail();
-    }
-  }, [isOpen, productId]);
-
-  const loadProductDetail = async () => {
+  const loadProductDetail = useCallback(async () => {
     if (!productId) return;
 
     try {
@@ -34,7 +28,13 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [productId]);
+
+  useEffect(() => {
+    if (isOpen && productId) {
+      loadProductDetail();
+    }
+  }, [isOpen, productId, loadProductDetail]);
 
   if (!isOpen) return null;
 
@@ -153,7 +153,13 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                     } 
                   />
                   <InfoRow label="Mô tả ngắn" value={product.shortDescription} />
-                  <InfoRow label="Mô tả chi tiết" value={product.description} />
+                  <div className="border-t border-gray-100 pt-3">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Mô tả chi tiết</p>
+                    <div 
+                      className="text-sm text-gray-600 prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: product.description || '' }}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -339,12 +345,12 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
   );
 };
 
-// Helper component for info rows
+// Helper component for info rows - Memoized
 const InfoRow: React.FC<{ 
   label: string; 
   value: React.ReactNode; 
   valueClassName?: string;
-}> = ({ label, value, valueClassName = '' }) => {
+}> = React.memo(({ label, value, valueClassName = '' }) => {
   if (value === null || value === undefined || value === '') return null;
   
   return (
@@ -355,16 +361,20 @@ const InfoRow: React.FC<{
       </span>
     </div>
   );
-};
+});
 
-// Helper component for technical specs
-const SpecItem: React.FC<{ label: string; value: string | number }> = ({ label, value }) => {
+InfoRow.displayName = 'InfoRow';
+
+// Helper component for technical specs - Memoized
+const SpecItem: React.FC<{ label: string; value: string | number }> = React.memo(({ label, value }) => {
   return (
     <div className="bg-gray-50 p-2 rounded">
       <p className="text-xs text-gray-600 mb-1">{label}</p>
       <p className="text-sm font-medium text-gray-900">{value}</p>
     </div>
   );
-};
+});
 
-export default ProductDetailDrawer;
+SpecItem.displayName = 'SpecItem';
+
+export default React.memo(ProductDetailDrawer);

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SectionCard from './SectionCard';
+import { TinyMCEEditor } from '../common';
 import { CategoryService } from '../../services/seller/CategoryService';
 import { ShippingService } from '../../services/seller/ShippingService';
 import { FileUploadService } from '../../services/FileUploadService';
@@ -770,7 +771,14 @@ const Suminputsection: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Mô tả chi tiết</label>
-            <textarea name="description" value={form.description} onChange={onChange} rows={4} placeholder="Mô tả đầy đủ về sản phẩm, tính năng, chất lượng..." className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors resize-none" />
+            <div className="mt-1">
+              <TinyMCEEditor
+                value={form.description}
+                onChange={(content) => setForm({ ...form, description: content })}
+                placeholder="Mô tả đầy đủ về sản phẩm, tính năng, chất lượng..."
+                height={400}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
