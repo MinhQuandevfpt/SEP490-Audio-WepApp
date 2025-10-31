@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
-import { showTikiNotification } from '../../../utils/notification';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
 import type { SellerLoginRequest } from '../../../types/seller';
 
@@ -28,7 +28,7 @@ const SellerLogin: React.FC = () => {
     
     // Basic validation
     if (!formData.email || !formData.password) {
-      showTikiNotification('Vui lòng điền đầy đủ thông tin!', 'Lỗi', 'error');
+      showCenterError('Vui lòng điền đầy đủ thông tin!', 'Thiếu thông tin');
       return;
     }
 
@@ -49,11 +49,9 @@ const SellerLogin: React.FC = () => {
       const response = await SellerAuthService.login(loginData);
       
       if (response.status === 200) {
-        showTikiNotification(
+        showCenterSuccess(
           'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.', 
-          'Thành công', 
-          'success',
-          2000
+          'Thành công'
         );
         
         // Check store status and redirect accordingly
@@ -82,14 +80,14 @@ const SellerLogin: React.FC = () => {
             // Default to kyc-status if error
             navigate('/seller/kyc-status');
           }
-        }, 1000);
+        }, 1500);
       } else {
         throw new Error(response.message || 'Đăng nhập thất bại');
       }
     } catch (error: any) {
       console.error('Login failed:', error);
       const errorMessage = error.message || 'Thông tin đăng nhập không chính xác!';
-      showTikiNotification(errorMessage, 'Lỗi', 'error');
+      showCenterError(errorMessage, 'Lỗi đăng nhập');
     } finally {
       setIsLoading(false);
     }

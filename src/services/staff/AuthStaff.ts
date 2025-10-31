@@ -1,5 +1,6 @@
 // Store Staff authentication service
 import { RefreshTokenService } from '../RefreshTokenService';
+import { translateError } from '../../utils/errorTranslation';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -53,7 +54,8 @@ export class StoreStaffAuthService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const translatedError = translateError(errorData.message || 'Invalid credentials');
+        throw new Error(translatedError);
       }
 
       const data: StaffLoginResponse = await response.json();

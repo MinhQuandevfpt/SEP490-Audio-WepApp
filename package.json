@@ -10,11 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.0",
     "@react-three/rapier": "^2.1.0",
     "@types/react-router-dom": "^5.3.3",
     "@types/three": "^0.180.0",
+    "antd": "^5.27.6",
     "lucide-react": "^0.544.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

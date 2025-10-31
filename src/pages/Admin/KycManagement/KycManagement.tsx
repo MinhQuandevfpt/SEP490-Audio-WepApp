@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Table, Tag, Button, Modal, Input, Space, Tooltip } from 'antd';
+import { EyeOutlined, CheckCircleOutlined, CloseCircleOutlined, FileImageOutlined } from '@ant-design/icons';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { AdminKycService } from '../../../services/admin/AdminKycService';
 import type { KycData, KycStatus } from '../../../types/admin';
 import { showError } from '../../../utils/notification';
+import { KycStatsCards } from '../../../components/AdminComponents/KycStatsCards';
+
+const { TextArea } = Input;
 
 const KycManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [filteredRequests, setFilteredRequests] = useState<KycData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<KycStatus | 'ALL'>('ALL');
@@ -12,12 +20,19 @@ const KycManagement: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; title: string } | null>(null);
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
+    current: 1,
+    pageSize: 15,
+    showSizeChanger: true,
+    pageSizeOptions: ['10', '15', '20', '50'],
+    showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} yêu cầu`,
+  });
 
   useEffect(() => {
     fetchKycRequests();
   }, [selectedStatus]);
 
-  const fetchKycRequests = async () => {
+  const fetchKycRequests = useCallback(async () => {
     setIsLoading(true);
     try {
       let response;
@@ -33,9 +48,9 @@ const KycManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedStatus]);
 
-  const handleApprove = async (kyc: KycData) => {
+  const handleApprove = useCallback(async (kyc: KycData) => {
     if (!window.confirm(`Bạn có chắc chắn muốn phê duyệt KYC cho cửa hàng "${kyc.storeName}"?`)) {
       return;
     }
@@ -46,15 +61,15 @@ const KycManagement: React.FC = () => {
     } catch (error) {
       console.error('Error approving KYC:', error);
     }
-  };
+  }, [fetchKycRequests]);
 
-  const handleReject = (kyc: KycData) => {
+  const handleReject = useCallback((kyc: KycData) => {
     setSelectedKyc(kyc);
     setShowRejectModal(true);
     setRejectReason('');
-  };
+  }, []);
 
-  const confirmReject = async () => {
+  const confirmReject = useCallback(async () => {
     if (!selectedKyc) return;
     
     if (!rejectReason.trim()) {
@@ -71,43 +86,207 @@ const KycManagement: React.FC = () => {
     } catch (error) {
       console.error('Error rejecting KYC:', error);
     }
-  };
+  }, [selectedKyc, rejectReason, fetchKycRequests]);
 
-  const openImageModal = (url: string, title: string) => {
+  const openImageModal = useCallback((url: string, title: string) => {
     setSelectedImage({ url, title });
     setShowImageModal(true);
-  };
+  }, []);
 
-  const getStatusBadge = (status: KycStatus) => {
-    const styles = {
-      PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      APPROVED: 'bg-green-100 text-green-800 border-green-200',
-      REJECTED: 'bg-red-100 text-red-800 border-red-200'
+  const getStatusTag = useMemo(() => (status: KycStatus) => {
+    const statusConfig = {
+      PENDING: { color: 'warning', text: 'Chờ duyệt' },
+      APPROVED: { color: 'success', text: 'Đã duyệt' },
+      REJECTED: { color: 'error', text: 'Đã từ chối' }
     };
+    
+    const config = statusConfig[status];
+    return <Tag color={config.color}>{config.text}</Tag>;
+  }, []);
 
-    const labels = {
-      PENDING: 'Chờ duyệt',
-      APPROVED: 'Đã duyệt',
-      REJECTED: 'Đã từ chối'
-    };
+  const handleTableChange = useCallback((newPagination: TablePaginationConfig) => {
+    setPagination(newPagination);
+  }, []);
 
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[status]}`}>
-        {labels[status]}
-      </span>
-    );
-  };
+  const handleViewDetail = useCallback((kycId: string) => {
+    navigate(`/admin/kyc/${kycId}`);
+  }, [navigate]);
+
+  const columns: ColumnsType<KycData> = useMemo(() => [
+    {
+      title: 'Cửa hàng',
+      dataIndex: 'storeName',
+      key: 'storeName',
+      width: 200,
+      render: (storeName: string, record: KycData) => (
+        <div>
+          <div className="font-medium text-gray-900">{storeName}</div>
+          <div className="text-xs text-gray-500">ID: {record.id.slice(0, 8)}...</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Thông tin liên hệ',
+      key: 'contact',
+      width: 180,
+      render: (_: any, record: KycData) => (
+        <div>
+          <div className="text-sm text-gray-900">{record.phoneNumber}</div>
+          <div className="text-xs text-gray-500">Mã thuế: {record.taxCode}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Giấy phép KD',
+      dataIndex: 'businessLicenseNumber',
+      key: 'businessLicenseNumber',
+      width: 150,
+      render: (businessLicenseNumber: string, record: KycData) => (
+        <div>
+          <div className="text-sm text-gray-900">{businessLicenseNumber}</div>
+          <div className="text-xs text-gray-500">
+            {record.official ? 'Chính thức' : 'Hộ kinh doanh'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Tài liệu',
+      key: 'documents',
+      width: 150,
+      render: (_: any, record: KycData) => (
+        <Space size="small" direction="vertical">
+          <Button
+            type="link"
+            size="small"
+            icon={<FileImageOutlined />}
+            onClick={() => openImageModal(record.idCardFrontUrl, 'CMND/CCCD mặt trước')}
+          >
+            CMND trước
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<FileImageOutlined />}
+            onClick={() => openImageModal(record.idCardBackUrl, 'CMND/CCCD mặt sau')}
+          >
+            CMND sau
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<FileImageOutlined />}
+            onClick={() => openImageModal(record.businessLicenseUrl, 'Giấy phép kinh doanh')}
+          >
+            GPKD
+          </Button>
+        </Space>
+      ),
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 130,
+      filters: [
+        { text: 'Chờ duyệt', value: 'PENDING' },
+        { text: 'Đã duyệt', value: 'APPROVED' },
+        { text: 'Đã từ chối', value: 'REJECTED' },
+      ],
+      onFilter: (value: any, record: KycData) => record.status === value,
+      render: (status: KycStatus, record: KycData) => (
+        <div>
+          {getStatusTag(status)}
+          {record.reviewNote && (
+            <div className="mt-1 text-xs text-gray-500">
+              Ghi chú: {record.reviewNote.slice(0, 30)}...
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Ngày gửi',
+      dataIndex: 'submittedAt',
+      key: 'submittedAt',
+      width: 120,
+      sorter: (a: KycData, b: KycData) => 
+        new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
+      render: (submittedAt: string) => (
+        <span className="text-sm text-gray-600">
+          {new Date(submittedAt).toLocaleDateString('vi-VN')}
+        </span>
+      ),
+    },
+    {
+      title: 'Hành động',
+      key: 'actions',
+      width: 200,
+      fixed: 'right',
+      render: (_: any, record: KycData) => (
+        <Space size="small">
+          <Tooltip title="Xem chi tiết">
+            <Button
+              type="primary"
+              ghost
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => handleViewDetail(record.id)}
+            >
+              Chi tiết
+            </Button>
+          </Tooltip>
+          {record.status === 'PENDING' && (
+            <>
+              <Tooltip title="Phê duyệt">
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => handleApprove(record)}
+                  style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                />
+              </Tooltip>
+              <Tooltip title="Từ chối">
+                <Button
+                  danger
+                  size="small"
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => handleReject(record)}
+                />
+              </Tooltip>
+            </>
+          )}
+        </Space>
+      ),
+    },
+  ], [getStatusTag, handleViewDetail, handleApprove, handleReject, openImageModal]);
+
+  // Filter data based on selected status - memoized for performance
+  const filteredData = useMemo(() => {
+    if (selectedStatus === 'ALL') {
+      return filteredRequests;
+    }
+    return filteredRequests.filter(req => req.status === selectedStatus);
+  }, [selectedStatus, filteredRequests]);
 
   return (
     <div className="p-6">
-      {/* Header */}
+      {/* Page Header */}
+      <div className="md:flex md:items-center md:justify-between mb-6">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+            Quản lý yêu cầu KYC
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Xem và xử lý các yêu cầu xác thực cửa hàng
+          </p>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-blue-600 bg-clip-text text-transparent">
-          Quản lý yêu cầu KYC
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Xem và xử lý các yêu cầu xác thực cửa hàng
-        </p>
+        <KycStatsCards kycRequests={filteredRequests} isLoading={isLoading} />
       </div>
 
       {/* Filter Tabs */}
@@ -132,176 +311,63 @@ const KycManagement: React.FC = () => {
         ))}
       </div>
 
-      {/* Table */}
+      {/* Ant Design Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-12 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
-            <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
-          </div>
-        ) : filteredRequests.length === 0 ? (
-          <div className="p-12 text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">Không có yêu cầu KYC</h3>
-            <p className="mt-2 text-gray-500">Chưa có yêu cầu xác thực nào từ các cửa hàng.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cửa hàng
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Thông tin liên hệ
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Giấy phép kinh doanh
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tài liệu
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Trạng thái
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ngày gửi
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Hành động
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredRequests.map((kyc) => (
-                  <tr key={kyc.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{kyc.storeName}</div>
-                      <div className="text-xs text-gray-500">ID: {kyc.id.slice(0, 8)}...</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{kyc.phoneNumber}</div>
-                      <div className="text-xs text-gray-500">Mã thuế: {kyc.taxCode}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{kyc.businessLicenseNumber}</div>
-                      <div className="text-xs text-gray-500">{kyc.official ? 'Chính thức' : 'Hộ kinh doanh'}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openImageModal(kyc.idCardFrontUrl, 'CMND/CCCD mặt trước')}
-                          className="text-blue-600 hover:text-blue-800 text-xs underline"
-                        >
-                          CMND trước
-                        </button>
-                        <button
-                          onClick={() => openImageModal(kyc.idCardBackUrl, 'CMND/CCCD mặt sau')}
-                          className="text-blue-600 hover:text-blue-800 text-xs underline"
-                        >
-                          CMND sau
-                        </button>
-                        <button
-                          onClick={() => openImageModal(kyc.businessLicenseUrl, 'Giấy phép kinh doanh')}
-                          className="text-blue-600 hover:text-blue-800 text-xs underline"
-                        >
-                          GPKD
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(kyc.status)}
-                      {kyc.reviewNote && (
-                        <div className="mt-1 text-xs text-gray-500">
-                          Ghi chú: {kyc.reviewNote}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(kyc.submittedAt).toLocaleDateString('vi-VN')}
-                    </td>
-                    <td className="px-6 py-4">
-                      {kyc.status === 'PENDING' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(kyc)}
-                            className="px-3 py-1.5 bg-green-500 text-white text-xs font-medium rounded-lg hover:bg-green-600 transition-colors duration-200"
-                          >
-                            Phê duyệt
-                          </button>
-                          <button
-                            onClick={() => handleReject(kyc)}
-                            className="px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600 transition-colors duration-200"
-                          >
-                            Từ chối
-                          </button>
-                        </div>
-                      )}
-                      {kyc.status === 'APPROVED' && (
-                        <span className="text-xs text-gray-500">
-                          Đã duyệt {kyc.reviewedAt && `lúc ${new Date(kyc.reviewedAt).toLocaleString('vi-VN')}`}
-                        </span>
-                      )}
-                      {kyc.status === 'REJECTED' && (
-                        <span className="text-xs text-gray-500">
-                          Đã từ chối {kyc.reviewedAt && `lúc ${new Date(kyc.reviewedAt).toLocaleString('vi-VN')}`}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <Table
+          columns={columns}
+          dataSource={filteredData}
+          loading={isLoading}
+          rowKey="id"
+          pagination={pagination}
+          onChange={handleTableChange}
+          scroll={{ x: 1200 }}
+          locale={{
+            emptyText: (
+              <div className="py-12">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-4 text-lg font-medium text-gray-900">Không có yêu cầu KYC</h3>
+                <p className="mt-2 text-gray-500">Chưa có yêu cầu xác thực nào từ các cửa hàng.</p>
+              </div>
+            ),
+          }}
+        />
       </div>
 
       {/* Reject Modal */}
-      {showRejectModal && selectedKyc && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">
-              Từ chối yêu cầu KYC
-            </h3>
-            <p className="text-gray-600 mb-4">
+      <Modal
+        title="Từ chối yêu cầu KYC"
+        open={showRejectModal}
+        onOk={confirmReject}
+        onCancel={() => {
+          setShowRejectModal(false);
+          setSelectedKyc(null);
+          setRejectReason('');
+        }}
+        okText="Xác nhận từ chối"
+        cancelText="Hủy"
+        okButtonProps={{ danger: true }}
+      >
+        {selectedKyc && (
+          <>
+            <p className="mb-4">
               Cửa hàng: <span className="font-medium">{selectedKyc.storeName}</span>
             </p>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Lý do từ chối <span className="text-red-500">*</span>
               </label>
-              <textarea
+              <TextArea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Ví dụ: Thiếu giấy phép kinh doanh, thông tin không rõ ràng..."
               />
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setSelectedKyc(null);
-                  setRejectReason('');
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={confirmReject}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200"
-              >
-                Xác nhận từ chối
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* Image Modal */}
       {showImageModal && selectedImage && (

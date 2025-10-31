@@ -29,6 +29,7 @@ import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import KycManagement from '../pages/Admin/KycManagement';
+import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
@@ -376,6 +377,14 @@ export const router = createBrowserRouter([
       {
         path: 'stores/all',
         element: <div>All Stores Page (Coming Soon)</div>
+      },
+      {
+        path: 'kyc',
+        element: <KycManagement />
+      },
+      {
+        path: 'kyc/:kycId',
+        element: <KycDetail />
       },
       {
         path: 'stores/kyc',

@@ -1,5 +1,6 @@
 // Seller authentication service
 import { RefreshTokenService } from '../RefreshTokenService';
+import { translateError } from '../../utils/errorTranslation';
 import type {
   SellerRegisterRequest,
   SellerRegisterResponse,
@@ -28,7 +29,8 @@ export class SellerAuthService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const translatedError = translateError(errorData.message || 'Registration failed');
+        throw new Error(translatedError);
       }
 
       const data: SellerRegisterResponse = await response.json();
@@ -55,7 +57,8 @@ export class SellerAuthService {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        const translatedError = translateError(errorData.message || 'Invalid credentials');
+        throw new Error(translatedError);
       }
 
       const data: SellerLoginResponse = await response.json();

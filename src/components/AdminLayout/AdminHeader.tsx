@@ -204,7 +204,7 @@ const AdminHeader: React.FC = () => {
                 <span className="sr-only">Open user menu</span>
                 <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
                   <span className="text-blue-600 font-medium text-sm">
-                    {currentUser?.name?.charAt(0).toUpperCase() || 'A'}
+                    {currentUser?.fullName?.charAt(0).toUpperCase() || 'A'}
                   </span>
                 </div>
               </button>
@@ -213,10 +213,10 @@ const AdminHeader: React.FC = () => {
               {isProfileMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                   <div className="px-4 py-2 border-b border-gray-200">
-                    <p className="text-sm font-medium text-gray-900">{currentUser?.name}</p>
+                    <p className="text-sm font-medium text-gray-900">{currentUser?.fullName}</p>
                     <p className="text-xs text-gray-500">{currentUser?.email}</p>
                     <p className="text-xs text-gray-400 capitalize mt-1">
-                      {currentUser?.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+                      {currentUser?.role || 'Admin'}
                     </p>
                   </div>
                   
