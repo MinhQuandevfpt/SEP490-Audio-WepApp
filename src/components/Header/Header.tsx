@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
@@ -7,9 +7,14 @@ import CartDropdown from './CartDropdown';
 import type { CategoryItem } from '../../types/api';
 
 const Header: React.FC = () => {
+  const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+
+  // Check if current page is homepage or account page
+  const isHomePage = location.pathname === '/';
+  const isAccountPage = location.pathname.startsWith('/account');
 
   useEffect(() => {
     const checkAuth = () => {
@@ -182,7 +187,14 @@ const Header: React.FC = () => {
             {/* Top row - Trang chủ, Tài khoản, Giỏ hàng */}
             <div className="flex items-center space-x-4">
               {/* Trang chủ */}
-              <Link to="/" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
+              <Link 
+                to="/" 
+                className={`flex items-center space-x-1 transition-colors ${
+                  isHomePage 
+                    ? 'text-orange-500 font-semibold' 
+                    : 'text-gray-700 hover:text-orange-500'
+                }`}
+              >
                 <Home className="w-5 h-5" />
                 <span className="text-sm">Trang chủ</span>
               </Link>
@@ -191,7 +203,14 @@ const Header: React.FC = () => {
               <span className="text-gray-300">|</span>
 
               {/* User Account */}
-              <Link to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
+              <Link 
+                to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
+                className={`flex items-center space-x-1 transition-colors ${
+                  isAccountPage 
+                    ? 'text-orange-500 font-semibold' 
+                    : 'text-gray-700 hover:text-orange-500'
+                }`}
+              >
                 <User className="w-5 h-5" />
                 <span className="text-sm">Tài khoản</span>
               </Link>
