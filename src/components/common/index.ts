@@ -7,3 +7,4 @@ export { default as InputField } from './InputField';
 export { default as LoadingSkeleton } from './LoadingSkeleton';
 export { default as Toast } from './Toast';
 export { default as TinyMCEEditor } from './TinyMCEEditor';
+export { default as BankSelector } from './BankSelector';

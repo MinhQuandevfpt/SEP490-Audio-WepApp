@@ -71,14 +71,22 @@ const Login: React.FC = () => {
         const customerProfile = CustomerAuthService.getCurrentUser();
         const displayName = customerProfile?.full_name || 'người dùng';
         
-        // Store user info for welcome message on homepage
-        sessionStorage.setItem('welcomeMessage', JSON.stringify({
-          userName: displayName,
-          showWelcome: true
-        }));
-        
-        // Redirect to homepage immediately without showing notification here
-        navigate('/');
+        // Check if there's a redirect URL saved before login
+        const redirectUrl = localStorage.getItem('redirectAfterLogin');
+        if (redirectUrl) {
+          // Clear the saved URL
+          localStorage.removeItem('redirectAfterLogin');
+          // Redirect back to the previous page (don't show welcome popup)
+          navigate(redirectUrl);
+        } else {
+          // Only show welcome message when going to homepage
+          sessionStorage.setItem('welcomeMessage', JSON.stringify({
+            userName: displayName,
+            showWelcome: true
+          }));
+          // Default redirect to homepage
+          navigate('/');
+        }
       }
     } catch (error) {
       const apiError = error as ApiError;

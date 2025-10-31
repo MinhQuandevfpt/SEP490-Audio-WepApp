@@ -15,6 +15,8 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
   const validImages = images && images.length > 0 ? images : [fallbackSvg];
   const [active, setActive] = React.useState(0);
   const [showModal, setShowModal] = React.useState(false);
+  const [thumbStartIndex, setThumbStartIndex] = React.useState(0);
+  const maxVisibleThumbs = 5;
 
   // keyboard navigation
   const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -30,6 +32,18 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
   const handleNext = () => {
     setActive((p) => (p + 1) % validImages.length);
   };
+
+  const handleThumbPrev = () => {
+    setThumbStartIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleThumbNext = () => {
+    setThumbStartIndex((prev) => Math.min(validImages.length - maxVisibleThumbs, prev + 1));
+  };
+
+  const visibleThumbs = validImages.slice(thumbStartIndex, thumbStartIndex + maxVisibleThumbs);
+  const canScrollLeft = thumbStartIndex > 0;
+  const canScrollRight = thumbStartIndex + maxVisibleThumbs < validImages.length;
 
   // Prevent body scroll when modal is open
   React.useEffect(() => {
@@ -92,24 +106,52 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
           </div>
         </div>
         {validImages.length > 1 && (
-          <div className="mt-3 grid grid-cols-5 gap-2">
-            {validImages.map((src, idx) => (
+          <div className="mt-3 relative">
+            {/* Previous button */}
+            {canScrollLeft && (
               <button
-                key={idx}
-                onClick={() => setActive(idx)}
-                aria-label={`Ảnh ${idx + 1}`}
-                className={`aspect-square rounded-xl border overflow-hidden focus:ring-2 focus:ring-orange-500 ${
-                  active === idx ? 'border-orange-500' : 'border-gray-200 hover:border-gray-300'
-                }`}
+                onClick={handleThumbPrev}
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow-lg w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                aria-label="Ảnh trước"
               >
-                <img
-                  src={src}
-                  alt={`Thumb ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                  onError={(ev) => ((ev.currentTarget as HTMLImageElement).src = fallbackSvg)}
-                />
+                <ChevronLeft className="w-5 h-5 text-gray-700" />
               </button>
-            ))}
+            )}
+            
+            {/* Thumbnails */}
+            <div className="grid grid-cols-5 gap-2">
+              {visibleThumbs.map((src, idx) => {
+                const actualIndex = thumbStartIndex + idx;
+                return (
+                  <button
+                    key={actualIndex}
+                    onClick={() => setActive(actualIndex)}
+                    aria-label={`Ảnh ${actualIndex + 1}`}
+                    className={`aspect-square rounded-xl border overflow-hidden focus:ring-2 focus:ring-orange-500 transition-all ${
+                      active === actualIndex ? 'border-orange-500 ring-2 ring-orange-500/50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <img
+                      src={src}
+                      alt={`Thumb ${actualIndex + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(ev) => ((ev.currentTarget as HTMLImageElement).src = fallbackSvg)}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Next button */}
+            {canScrollRight && (
+              <button
+                onClick={handleThumbNext}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow-lg w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                aria-label="Ảnh sau"
+              >
+                <ChevronRight className="w-5 h-5 text-gray-700" />
+              </button>
+            )}
           </div>
         )}
       </div>

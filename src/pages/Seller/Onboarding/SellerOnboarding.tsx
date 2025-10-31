@@ -17,6 +17,7 @@ import { showTikiNotification } from '../../../utils/notification';
 import { KycService } from '../../../services/seller/KycService';
 import type { KycRequest } from '../../../types/seller';
 import { FileUploadService } from '../../../services/FileUploadService';
+import { BankSelector } from '../../../components/common';
 
 interface OnboardingData {
   // Business Information (matching API schema)
@@ -267,8 +268,15 @@ const SellerOnboarding: React.FC = () => {
       // Submit KYC request
       await KycService.submitKyc(kycData);
       
-      // Move to step 4 (completion step)
-      setCurrentStep(4);
+      // Show success notification
+      showTikiNotification(
+        'Gửi yêu cầu xác minh thành công! Chúng tôi sẽ xem xét và phản hồi trong thời gian sớm nhất.',
+        'Thành công',
+        'success'
+      );
+      
+      // Redirect to KYC status page to prevent form resubmission on refresh
+      navigate('/seller/kyc-status', { replace: true });
       
     } catch (error: any) {
       console.error('KYC submission failed:', error);
@@ -487,29 +495,22 @@ const SellerOnboarding: React.FC = () => {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Tên ngân hàng *
         </label>
-        <select
-          name="bankName"
+        <BankSelector
           value={formData.bankName}
-          onChange={handleInputChange}
+          onChange={(_bankCode, bankName) => {
+            setFormData(prev => ({
+              ...prev,
+              bankName: bankName
+            }));
+            clearError('bankName');
+          }}
+          error={errors.bankName}
           onBlur={() => {
             if (!formData.bankName) {
               setErrors(prev => ({ ...prev, bankName: 'Vui lòng chọn ngân hàng' }));
             }
           }}
-          className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.bankName ? 'border-red-500' : 'border-gray-300'
-          }`}
-          required
-        >
-          <option value="">Chọn ngân hàng</option>
-          <option value="Vietcombank">Vietcombank</option>
-          <option value="Techcombank">Techcombank</option>
-          <option value="BIDV">BIDV</option>
-          <option value="VietinBank">VietinBank</option>
-          <option value="Sacombank">Sacombank</option>
-          <option value="ACB">ACB</option>
-          <option value="Other">Khác</option>
-        </select>
+        />
         <ErrorMessage fieldName="bankName" />
       </div>
 

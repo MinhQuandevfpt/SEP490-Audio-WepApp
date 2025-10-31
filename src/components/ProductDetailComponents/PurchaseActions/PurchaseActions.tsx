@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, CreditCard } from 'lucide-react';
 import { CustomerCartService } from '../../../services/customer/CartService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
@@ -20,11 +21,26 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
   inStock, 
   colors 
 }) => {
+  const navigate = useNavigate();
   const [qty, setQty] = React.useState(1);
   const [color, setColor] = React.useState(colors?.[0]?.name ?? '');
   const [isAdding, setIsAdding] = React.useState(false);
 
+  // Check if user is logged in
+  const isLoggedIn = () => {
+    const customerId = localStorage.getItem('customerId') || localStorage.getItem('customer_id');
+    return !!customerId;
+  };
+
   const handleAddToCart = async () => {
+    // Check login first
+    if (!isLoggedIn()) {
+      // Save current URL to redirect back after login
+      localStorage.setItem('redirectAfterLogin', window.location.pathname);
+      navigate('/auth/login');
+      return;
+    }
+
     try {
       setIsAdding(true);
       
@@ -45,10 +61,32 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
       
     } catch (error: any) {
       console.error('Error adding to cart:', error);
-      showCenterError(error.message || 'Không thể thêm vào giỏ hàng. Vui lòng thử lại.', '❌ Lỗi');
+      // Don't show customer ID error, just redirect to login
+      if (error.message?.includes('Customer ID')) {
+        // Save current URL to redirect back after login
+        localStorage.setItem('redirectAfterLogin', window.location.pathname);
+        navigate('/auth/login');
+      } else {
+        showCenterError(error.message || 'Không thể thêm vào giỏ hàng. Vui lòng thử lại.', '❌ Lỗi');
+      }
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const handleBuyNow = () => {
+    // Check login first
+    if (!isLoggedIn()) {
+      // Save current URL to redirect back after login
+      localStorage.setItem('redirectAfterLogin', window.location.pathname);
+      navigate('/auth/login');
+      return;
+    }
+    
+    // Add to cart and navigate to checkout
+    handleAddToCart().then(() => {
+      navigate('/checkout');
+    });
   };
 
   return (
@@ -95,6 +133,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
           {isAdding ? 'Đang thêm...' : 'Thêm vào giỏ'}
         </button>
         <button 
+          onClick={handleBuyNow}
           disabled={!inStock}
           className="flex items-center justify-center gap-2 text-white py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
           style={{ backgroundColor: '#FF6F00' }}
