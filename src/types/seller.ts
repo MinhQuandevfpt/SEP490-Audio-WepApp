@@ -504,3 +504,76 @@ export interface WardListResponse {
 export interface WardRequest {
   district_id: number;
 }
+
+// ==================== STORE STAFF TYPES ====================
+
+// Create Staff Request
+export interface CreateStaffRequest {
+  username: string;
+  password: string;
+  fullName: string;
+  email: string;
+  phone: string;
+}
+
+// Staff Response (from API)
+export interface StaffResponse {
+  id: string;
+  username: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  storeId: string;
+}
+
+// Staff Info (for UI)
+export interface StaffInfo {
+  id: string;
+  username: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  storeId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+}
+
+// Update Staff Request
+export interface UpdateStaffRequest {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  password?: string; // Optional - only update if provided
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+}
+
+// Staff List Response
+export interface StaffListResponse {
+  content: StaffInfo[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+    sort: {
+      empty: boolean;
+      sorted: boolean;
+      unsorted: boolean;
+    };
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  last: boolean;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  size: number;
+  number: number;
+  sort: {
+    empty: boolean;
+    sorted: boolean;
+    unsorted: boolean;
+  };
+  numberOfElements: number;
+  empty: boolean;
+}

@@ -39,6 +39,7 @@ import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
+import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
 import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
@@ -269,6 +270,22 @@ export const router = createBrowserRouter([
       {
         path: 'orders/cancelled',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'staff',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Danh sách nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'staff/create',
+        element: <CreateStaff />
+      },
+      {
+        path: 'staff/update',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Cập nhật nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'staff/delete',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Xóa thông tin nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
       },
       {
         path: 'analytics',
