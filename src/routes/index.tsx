@@ -22,6 +22,8 @@ import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
+import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
+import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import AdminLogin from '../pages/Admin/Login';
@@ -158,6 +160,14 @@ export const router = createBrowserRouter([
   {
     path: '/oauth-success',
     element: <OAuth2Success />
+  },
+  {
+    path: '/payment/success',
+    element: <PayOSSuccess />
+  },
+  {
+    path: '/payment/fail',
+    element: <PayOSFail />
   },
   {
     path: '/3d-room',

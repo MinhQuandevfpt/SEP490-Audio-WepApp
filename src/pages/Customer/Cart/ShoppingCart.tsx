@@ -12,7 +12,7 @@ import { useCart } from '../../../hooks/useCart';
 import { AddressService } from '../../../services/customer/AddressService';
 import { CustomerCartService } from '../../../services/customer/CartService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
-import type { CartItem as ApiCartItem, CheckoutCodRequest } from '../../../types/cart';
+import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest } from '../../../types/cart';
 import type { CustomerAddressApiItem } from '../../../types/api';
 import type { PaymentMethod } from '../../../data/checkout';
 
@@ -152,7 +152,7 @@ const ShoppingCart: React.FC = () => {
     window.dispatchEvent(new Event('cartUpdated'));
   };
 
-  // Handle checkout COD
+  // Handle checkout (COD or PayOS)
   const handleCheckout = async () => {
     // Validate
     if (summary.selectedCount === 0) {
@@ -170,8 +170,8 @@ const ShoppingCart: React.FC = () => {
       return;
     }
 
-    if (paymentMethod !== 'cod') {
-      showCenterError('Chức năng này chỉ hỗ trợ thanh toán COD', 'Lỗi');
+    if (paymentMethod !== 'cod' && paymentMethod !== 'payos') {
+      showCenterError('Phương thức thanh toán không hợp lệ', 'Lỗi');
       return;
     }
 
@@ -186,43 +186,75 @@ const ShoppingCart: React.FC = () => {
     const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
     const message = selectedAddress?.note || '';
 
-    // Prepare request
-    const checkoutRequest: CheckoutCodRequest = {
-      items: selectedItems.map(item => ({
-        id: item.productId, // productId
-        type: 'PRODUCT' as const,
-        quantity: item.quantity,
-      })),
-      addressId: selectedAddressId,
-      message: message || undefined,
-      storeVouchers: [], // Empty array as specified
-    };
-
     setIsCheckingOut(true);
 
     try {
-      console.log('💳 Processing COD checkout:', checkoutRequest);
-      const response = await CustomerCartService.checkoutCod(checkoutRequest);
+      // Prepare items for both payment methods
+      const checkoutItems = selectedItems.map(item => ({
+        id: item.productId, // productId
+        type: 'PRODUCT' as const,
+        quantity: item.quantity,
+      }));
 
-      if (response.status === 200) {
-        showCenterSuccess(
-          response.message || 'Đặt hàng thành công!',
-          'Thành công',
-          5000
-        );
+      if (paymentMethod === 'cod') {
+        // Handle COD checkout
+        const checkoutRequest: CheckoutCodRequest = {
+          items: checkoutItems,
+          addressId: selectedAddressId,
+          message: message || undefined,
+          storeVouchers: [], // Empty array as specified
+        };
 
-        // Redirect to home after 5 seconds
-        setTimeout(() => {
-          navigate('/');
-        }, 5000);
-      } else {
-        showCenterError(
-          response.message || 'Đặt hàng thất bại. Vui lòng thử lại.',
-          'Lỗi'
-        );
+        console.log('💳 Processing COD checkout:', checkoutRequest);
+        const response = await CustomerCartService.checkoutCod(checkoutRequest);
+
+        if (response.status === 200) {
+          showCenterSuccess(
+            response.message || 'Đặt hàng thành công!',
+            'Thành công',
+            5000
+          );
+
+          // Redirect to home after 5 seconds
+          setTimeout(() => {
+            navigate('/');
+          }, 5000);
+        } else {
+          showCenterError(
+            response.message || 'Đặt hàng thất bại. Vui lòng thử lại.',
+            'Lỗi'
+          );
+        }
+      } else if (paymentMethod === 'payos') {
+        // Handle PayOS checkout
+        const returnUrl = `${window.location.origin}/payment/success`;
+        const cancelUrl = `${window.location.origin}/payment/fail`;
+
+        const checkoutRequest: CheckoutPayOSRequest = {
+          addressId: selectedAddressId,
+          message: message || undefined,
+          description: `Đơn hàng từ AudioShop - ${selectedItems.length} sản phẩm`,
+          items: checkoutItems,
+          storeVouchers: [], // Empty array as specified
+          returnUrl,
+          cancelUrl,
+        };
+
+        console.log('💳 Processing PayOS checkout:', checkoutRequest);
+        const response = await CustomerCartService.checkoutPayOS(checkoutRequest);
+
+        if (response.status === 200 && response.data?.checkoutUrl) {
+          // Redirect to PayOS checkout URL
+          window.location.href = response.data.checkoutUrl;
+        } else {
+          showCenterError(
+            response.message || 'Không thể tạo link thanh toán PayOS. Vui lòng thử lại.',
+            'Lỗi'
+          );
+        }
       }
     } catch (error: any) {
-      console.error('❌ Checkout COD failed:', error);
+      console.error(`❌ Checkout ${paymentMethod?.toUpperCase()} failed:`, error);
       
       // Handle error response
       const errorMessage = error?.message || 
@@ -320,7 +352,7 @@ const ShoppingCart: React.FC = () => {
                 grandTotal={grandTotal}
                 onCheckout={handleCheckout}
                 isCheckingOut={isCheckingOut}
-                disabled={!selectedAddressId || !paymentMethod || paymentMethod !== 'cod'}
+                disabled={!selectedAddressId || !paymentMethod || (paymentMethod !== 'cod' && paymentMethod !== 'payos')}
               />
             </div>
           </aside>

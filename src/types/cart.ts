@@ -103,4 +103,41 @@ export interface CheckoutCodResponse {
   data: CheckoutCodResponseData;
 }
 
+// ==================== CHECKOUT PAYOS TYPES ====================
+
+// Checkout PayOS Request Item (same structure as COD)
+export interface CheckoutPayOSItem {
+  id: string;  // Product ID (productId)
+  type: 'PRODUCT' | 'COMBO';  // Default: PRODUCT
+  quantity: number;
+}
+
+// Checkout PayOS Request
+export interface CheckoutPayOSRequest {
+  addressId: string;
+  message?: string;  // Note from address
+  description?: string;
+  items: CheckoutPayOSItem[];
+  storeVouchers?: StoreVoucher[];
+  returnUrl: string;  // URL to redirect after successful payment
+  cancelUrl: string;  // URL to redirect after failed payment
+}
+
+// Checkout PayOS Response Data
+export interface CheckoutPayOSResponseData {
+  customerOrderId: string;
+  amount: number;
+  payOSOrderCode: number;
+  checkoutUrl: string;  // URL to redirect user to PayOS payment page
+  qrCode: string;
+  status: string;
+}
+
+// Checkout PayOS Response
+export interface CheckoutPayOSResponse {
+  status: number;
+  message: string;
+  data: CheckoutPayOSResponseData;
+}
+
 export default {};

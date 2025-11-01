@@ -10,7 +10,9 @@ import type {
   AddToCartResponse,
   CartResponse,
   CheckoutCodRequest,
-  CheckoutCodResponse
+  CheckoutCodResponse,
+  CheckoutPayOSRequest,
+  CheckoutPayOSResponse
 } from '../../types/cart';
 
 export class CustomerCartService {
@@ -148,6 +150,32 @@ export class CustomerCartService {
       return response;
     } catch (error) {
       console.error('❌ Failed to checkout COD:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Checkout with PayOS
+   * POST /api/v1/payos/checkout?customerId={customerId}
+   * 
+   * @param request - Checkout PayOS request with items, addressId, message, returnUrl, cancelUrl
+   * @returns Checkout PayOS response with checkoutUrl
+   */
+  static async checkoutPayOS(request: CheckoutPayOSRequest): Promise<CheckoutPayOSResponse> {
+    try {
+      const customerId = this.getCustomerId();
+      console.log('💳 Processing PayOS checkout:', { customerId, request });
+
+      const response = await HttpInterceptor.post<CheckoutPayOSResponse>(
+        `/api/v1/payos/checkout?customerId=${customerId}`,
+        request,
+        { userType: 'customer' }
+      );
+
+      console.log('✅ PayOS checkout successful:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to checkout PayOS:', error);
       throw error;
     }
   }
