@@ -51,4 +51,56 @@ export type GetCartResponse = CartResponse;
 // Add to Cart Response (same as CartResponse)
 export type AddToCartResponse = CartResponse;
 
+// ==================== CHECKOUT COD TYPES ====================
+
+// Checkout COD Request Item
+export interface CheckoutCodItem {
+  id: string;  // Product ID (productId)
+  type: 'PRODUCT' | 'COMBO';  // Default: PRODUCT
+  quantity: number;
+}
+
+// Store Voucher
+export interface StoreVoucher {
+  storeId: string;
+  codes: string[];
+}
+
+// Checkout COD Request
+export interface CheckoutCodRequest {
+  items: CheckoutCodItem[];
+  addressId: string;
+  message?: string;  // Note from address
+  storeVouchers?: StoreVoucher[];
+}
+
+// Checkout COD Response Data
+export interface CheckoutCodResponseData {
+  id: string;
+  status: string;
+  message: string | null;
+  createdAt: string;
+  totalAmount: number;
+  discountTotal: number;
+  grandTotal: number;
+  storeDiscounts: Record<string, number>;
+  receiverName: string;
+  phoneNumber: string;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note: string | null;
+}
+
+// Checkout COD Response
+export interface CheckoutCodResponse {
+  status: number;
+  message: string;
+  data: CheckoutCodResponseData;
+}
+
 export default {};

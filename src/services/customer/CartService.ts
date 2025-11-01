@@ -8,7 +8,9 @@ import { CustomerAuthService } from './Authcustomer';
 import type {
   AddToCartRequest,
   AddToCartResponse,
-  CartResponse
+  CartResponse,
+  CheckoutCodRequest,
+  CheckoutCodResponse
 } from '../../types/cart';
 
 export class CustomerCartService {
@@ -122,6 +124,32 @@ export class CustomerCartService {
    */
   static isAuthenticated(): boolean {
     return CustomerAuthService.isAuthenticated();
+  }
+
+  /**
+   * Checkout with COD (Cash on Delivery)
+   * POST /api/v1/customers/{customerId}/cart/checkout-cod
+   * 
+   * @param request - Checkout COD request with items, addressId, message, storeVouchers
+   * @returns Checkout COD response with order details
+   */
+  static async checkoutCod(request: CheckoutCodRequest): Promise<CheckoutCodResponse> {
+    try {
+      const customerId = this.getCustomerId();
+      console.log('💳 Processing COD checkout:', { customerId, request });
+
+      const response = await HttpInterceptor.post<CheckoutCodResponse>(
+        `/api/v1/customers/${customerId}/cart/checkout-cod`,
+        request,
+        { userType: 'customer' }
+      );
+
+      console.log('✅ COD checkout successful:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to checkout COD:', error);
+      throw error;
+    }
   }
 
   /**

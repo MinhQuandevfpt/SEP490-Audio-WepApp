@@ -1,7 +1,7 @@
 // Dummy data and helpers for Checkout Page
 
 export type ShippingMethod = 'standard' | 'express' | 'economy';
-export type PaymentMethod = 'cod' | 'card' | 'paypal' | 'bank_transfer';
+export type PaymentMethod = 'cod' | 'payos';
 
 export interface CheckoutAddress {
   id: string;

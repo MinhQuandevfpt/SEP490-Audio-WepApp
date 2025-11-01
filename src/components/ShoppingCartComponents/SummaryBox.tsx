@@ -8,9 +8,22 @@ interface SummaryBoxProps {
   voucherDiscount: number;
   selectedCount: number;
   grandTotal: number;
+  onCheckout?: () => void;
+  isCheckingOut?: boolean;
+  disabled?: boolean;
 }
 
-const SummaryBox: React.FC<SummaryBoxProps> = ({ subtotal, discount, shippingFee, voucherDiscount, selectedCount, grandTotal }) => {
+const SummaryBox: React.FC<SummaryBoxProps> = ({ 
+  subtotal, 
+  discount, 
+  shippingFee, 
+  voucherDiscount, 
+  selectedCount, 
+  grandTotal,
+  onCheckout,
+  isCheckingOut = false,
+  disabled = false
+}) => {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
       <div className="flex justify-between text-gray-600">
@@ -41,8 +54,12 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({ subtotal, discount, shippingFee
           <p className="text-2xl font-bold text-orange-600">{formatCurrency(grandTotal)}</p>
         </div>
       </div>
-      <button className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg disabled:opacity-50" disabled={selectedCount === 0}>
-        Mua hàng
+      <button 
+        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" 
+        disabled={disabled || selectedCount === 0 || isCheckingOut}
+        onClick={onCheckout}
+      >
+        {isCheckingOut ? 'Đang xử lý...' : 'Thanh toán'}
       </button>
     </div>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { PaymentMethod } from '../../data/checkout';
-import { CreditCard, DollarSign, Banknote, Landmark } from 'lucide-react';
+import { CreditCard, Banknote, Smartphone } from 'lucide-react';
 
 interface Props {
   value: PaymentMethod | null;
@@ -8,10 +8,8 @@ interface Props {
 }
 
 const items: { key: PaymentMethod; label: string; icon: React.ReactNode }[] = [
-  { key: 'card', label: 'Thẻ tín dụng/ghi nợ', icon: <CreditCard className="w-4 h-4" /> },
-  { key: 'paypal', label: 'PayPal', icon: <DollarSign className="w-4 h-4" /> },
   { key: 'cod', label: 'Thanh toán khi nhận hàng (COD)', icon: <Banknote className="w-4 h-4" /> },
-  { key: 'bank_transfer', label: 'Chuyển khoản ngân hàng', icon: <Landmark className="w-4 h-4" /> },
+  { key: 'payos', label: 'PayOS', icon: <Smartphone className="w-4 h-4" /> },
 ];
 
 const PaymentMethodSelector: React.FC<Props> = ({ value, onChange }) => {

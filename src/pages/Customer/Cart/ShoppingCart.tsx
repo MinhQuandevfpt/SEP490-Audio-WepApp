@@ -1,24 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { calcCartSummary, type CartItem as UICartItem, formatCurrency } from '../../../data/shoppingcart';
+import { useNavigate } from 'react-router-dom';
+import { calcCartSummary, type CartItem as UICartItem } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
 import SelectAllBar from '../../../components/ShoppingCartComponents/SelectAllBar';
 import CartItemRow from '../../../components/ShoppingCartComponents/CartItemRow';
-import ShippingMethodDropdown from '../../../components/CheckoutOrderComponents/ShippingMethodDropdown';
 import AddressSelectorCompact from '../../../components/ShoppingCartComponents/AddressSelectorCompact';
+import PaymentMethodDropdown from '../../../components/CheckoutOrderComponents/PaymentMethodDropdown';
 import VoucherSection from '../../../components/ShoppingCartComponents/VoucherSection';
 import SummaryBox from '../../../components/ShoppingCartComponents/SummaryBox';
 import { useCart } from '../../../hooks/useCart';
 import { AddressService } from '../../../services/customer/AddressService';
-import type { CartItem as ApiCartItem } from '../../../types/cart';
+import { CustomerCartService } from '../../../services/customer/CartService';
+import { showCenterSuccess, showCenterError } from '../../../utils/notification';
+import type { CartItem as ApiCartItem, CheckoutCodRequest } from '../../../types/cart';
 import type { CustomerAddressApiItem } from '../../../types/api';
-import type { ShippingMethod } from '../../../data/checkout';
+import type { PaymentMethod } from '../../../data/checkout';
 
 const ShoppingCart: React.FC = () => {
+  const navigate = useNavigate();
   const { cart, isLoading, error, loadCart } = useCart();
   const [items, setItems] = useState<UICartItem[]>([]);
   const [addresses, setAddresses] = useState<CustomerAddressApiItem[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [addressesLoading, setAddressesLoading] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // Map API cart items to UI items used by existing components
   const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
@@ -65,7 +70,10 @@ const ShoppingCart: React.FC = () => {
   const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
   const summary = useMemo(() => calcCartSummary(items), [items]);
 
-  // Voucher & Shipping
+  // Payment Method
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+
+  // Voucher
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<{
     code: string;
@@ -73,18 +81,14 @@ const ShoppingCart: React.FC = () => {
     amount: number; // calculated discount amount
   } | null>(null);
 
-  const [shippingMethod, setShippingMethod] = useState<ShippingMethod | null>(null);
   const availableVouchers = [
     { code: 'GIAM10', label: 'Giảm 10% tối đa 100k', desc: 'Áp dụng cho tổng tiền hàng' },
     { code: 'FREESHIP', label: 'Freeship 30k', desc: 'Giảm phí vận chuyển' },
   ];
 
-  const getShipPrice = (m: ShippingMethod) => m === 'express' ? 30000 : m === 'economy' ? 10000 : 15000;
-
   const shippingFee = useMemo(() => {
-    if (summary.selectedCount === 0 || !shippingMethod) return 0;
-    return getShipPrice(shippingMethod);
-  }, [shippingMethod, summary.selectedCount]);
+    return 0;
+  }, []);
 
   const voucherDiscount = useMemo(() => {
     if (!appliedVoucher) return 0;
@@ -93,11 +97,11 @@ const ShoppingCart: React.FC = () => {
       return Math.min(Math.round(summary.total * 0.1), 100_000);
     }
     if (appliedVoucher.type === 'FREESHIP') {
-      // Giảm tối đa 30k cho phí vận chuyển
-      return Math.min(shippingFee, 30_000);
+      // Voucher FREESHIP không còn áp dụng khi không có phí vận chuyển
+      return 0;
     }
     return 0;
-  }, [appliedVoucher, summary.total, shippingFee]);
+  }, [appliedVoucher, summary.total]);
 
   const grandTotal = useMemo(() => {
     const total = summary.total + shippingFee - voucherDiscount;
@@ -146,6 +150,90 @@ const ShoppingCart: React.FC = () => {
   const removeItem = (id: string) => {
     setItems(prev => prev.filter(it => it.id !== id));
     window.dispatchEvent(new Event('cartUpdated'));
+  };
+
+  // Handle checkout COD
+  const handleCheckout = async () => {
+    // Validate
+    if (summary.selectedCount === 0) {
+      showCenterError('Vui lòng chọn ít nhất một sản phẩm để thanh toán', 'Lỗi');
+      return;
+    }
+
+    if (!selectedAddressId) {
+      showCenterError('Vui lòng chọn địa chỉ nhận hàng', 'Lỗi');
+      return;
+    }
+
+    if (!paymentMethod) {
+      showCenterError('Vui lòng chọn phương thức thanh toán', 'Lỗi');
+      return;
+    }
+
+    if (paymentMethod !== 'cod') {
+      showCenterError('Chức năng này chỉ hỗ trợ thanh toán COD', 'Lỗi');
+      return;
+    }
+
+    // Get selected items
+    const selectedItems = items.filter(item => item.isSelected);
+    if (selectedItems.length === 0) {
+      showCenterError('Vui lòng chọn sản phẩm cần thanh toán', 'Lỗi');
+      return;
+    }
+
+    // Get address note
+    const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
+    const message = selectedAddress?.note || '';
+
+    // Prepare request
+    const checkoutRequest: CheckoutCodRequest = {
+      items: selectedItems.map(item => ({
+        id: item.productId, // productId
+        type: 'PRODUCT' as const,
+        quantity: item.quantity,
+      })),
+      addressId: selectedAddressId,
+      message: message || undefined,
+      storeVouchers: [], // Empty array as specified
+    };
+
+    setIsCheckingOut(true);
+
+    try {
+      console.log('💳 Processing COD checkout:', checkoutRequest);
+      const response = await CustomerCartService.checkoutCod(checkoutRequest);
+
+      if (response.status === 200) {
+        showCenterSuccess(
+          response.message || 'Đặt hàng thành công!',
+          'Thành công',
+          5000
+        );
+
+        // Redirect to home after 5 seconds
+        setTimeout(() => {
+          navigate('/');
+        }, 5000);
+      } else {
+        showCenterError(
+          response.message || 'Đặt hàng thất bại. Vui lòng thử lại.',
+          'Lỗi'
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Checkout COD failed:', error);
+      
+      // Handle error response
+      const errorMessage = error?.message || 
+                          error?.data?.message || 
+                          CustomerCartService.formatCartError(error) ||
+                          'Đã xảy ra lỗi khi đặt hàng. Vui lòng thử lại.';
+      
+      showCenterError(errorMessage, 'Lỗi đặt hàng');
+    } finally {
+      setIsCheckingOut(false);
+    }
   };
 
   return (
@@ -198,16 +286,17 @@ const ShoppingCart: React.FC = () => {
           {/* Summary */}
           <aside className="lg:col-span-1">
             <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-              {/* Shipping Method Dropdown (moved above summary box) */}
-              <ShippingMethodDropdown value={shippingMethod} onChange={setShippingMethod} getPrice={getShipPrice} />
-              <div className="flex justify-between text-gray-600">
+              {/* <div className="flex justify-between text-gray-600">
                 <span>Tạm tính</span>
                 <span>{formatCurrency(summary.subtotal)}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Giảm giá</span>
                 <span className="text-green-600">-{formatCurrency(summary.discount)}</span>
-              </div>
+              </div> */}
+
+              {/* Payment Method - above voucher section */}
+              <PaymentMethodDropdown value={paymentMethod} onChange={setPaymentMethod} />
 
               {/* Voucher - input or choose */}
               <div className="pt-2">
@@ -229,6 +318,9 @@ const ShoppingCart: React.FC = () => {
                 voucherDiscount={voucherDiscount}
                 selectedCount={summary.selectedCount}
                 grandTotal={grandTotal}
+                onCheckout={handleCheckout}
+                isCheckingOut={isCheckingOut}
+                disabled={!selectedAddressId || !paymentMethod || paymentMethod !== 'cod'}
               />
             </div>
           </aside>
