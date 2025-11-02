@@ -4,6 +4,7 @@ export { default as Canvas3D } from './Canvas3D';
 export { default as FurnitureCanvas3D } from './FurnitureCanvas3D';
 export { default as Furniture3D } from './Furniture3D';
 export { default as ListenerAvatar3D } from './ListenerAvatar3D';
+export { default as Speaker3D } from './Speaker3D';
 
 // Control Components
 export { default as ControlsPanel } from './ControlsPanel';
@@ -25,6 +26,9 @@ export { default as Instructions } from './Instructions';
 
 // Layout Components
 export { default as Header } from './Header';
+
+// Audio Components
+export { default as AudioPlayer } from './AudioPlayer';
 
 // Types
 export interface Dimensions {

@@ -5,7 +5,7 @@ import {
   ControlsPanel, 
   Canvas3D
 } from '../../../components/Design3DroomComponents';
-import type { Dimensions, RoomColors, RoomPreset, Furniture, Listener } from '../../../components/Design3DroomComponents';
+import type { Dimensions, RoomColors, RoomPreset, Furniture, Listener, Speaker } from '../../../components/Design3DroomComponents';
 
 // Default colors
 const DEFAULT_COLORS: RoomColors = {
@@ -26,6 +26,7 @@ const ThreeDRoom: React.FC = () => {
   const [colors, setColors] = useState<RoomColors>(DEFAULT_COLORS);
   const [furniture, setFurniture] = useState<Furniture[]>([]);
   const [listeners, setListeners] = useState<Listener[]>([]);
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
 
   const handleDimensionChange = useCallback((key: keyof Dimensions, value: number) => {
     setDimensions(prev => ({
@@ -89,6 +90,25 @@ const ThreeDRoom: React.FC = () => {
     ));
   }, []);
 
+  // Speaker handlers
+  const handleAddSpeaker = useCallback((newSpeaker: Omit<Speaker, 'id'>) => {
+    const speaker: Speaker = {
+      ...newSpeaker,
+      id: `speaker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    setSpeakers(prev => [...prev, speaker]);
+  }, []);
+
+  const handleRemoveSpeaker = useCallback((id: string) => {
+    setSpeakers(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleUpdateSpeaker = useCallback((id: string, updates: Partial<Speaker>) => {
+    setSpeakers(prev => prev.map(item => 
+      item.id === id ? { ...item, ...updates } : item
+    ));
+  }, []);
+
   try {
     return (
       <Layout>
@@ -111,6 +131,10 @@ const ThreeDRoom: React.FC = () => {
               onAddListener={handleAddListener}
               onRemoveListener={handleRemoveListener}
               onUpdateListener={handleUpdateListener}
+              speakers={speakers}
+              onAddSpeaker={handleAddSpeaker}
+              onRemoveSpeaker={handleRemoveSpeaker}
+              onUpdateSpeaker={handleUpdateSpeaker}
             />
 
             <Canvas3D 
@@ -118,6 +142,7 @@ const ThreeDRoom: React.FC = () => {
               colors={colors} 
               furniture={furniture}
               listeners={listeners}
+              speakers={speakers}
             />
           </div>
         </div>
