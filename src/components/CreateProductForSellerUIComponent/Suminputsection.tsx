@@ -630,7 +630,7 @@ const Suminputsection: React.FC = () => {
       images: allImageUrls,
       videoUrl: form.videoUrl || undefined,
       price: Number.isFinite(priceNum) ? priceNum : undefined,
-      discountPrice: form.discountPrice ? Number(form.discountPrice) : undefined,
+      discountPrice: null, // Luôn set null theo yêu cầu
       currency: form.currency,
       stockQuantity: Number.isFinite(stockNum) ? stockNum : undefined,
       warehouseLocation: form.warehouseLocation || undefined,
@@ -660,6 +660,8 @@ const Suminputsection: React.FC = () => {
     };
 
     Object.keys(payload).forEach((k) => {
+      // Giữ discountPrice là null, không xóa
+      if (k === 'discountPrice') return;
       if (payload[k] === '' || payload[k] === undefined) delete payload[k];
     });
     return payload;
@@ -804,7 +806,24 @@ const Suminputsection: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Màu sắc</label>
-              <input name="color" value={form.color} onChange={onChange} type="text" placeholder="VD: Đen, Bạc, Xanh" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
+              <input 
+                name="color" 
+                value={form.color} 
+                onChange={(e) => {
+                  // Không cho phép nhập dấu phẩy
+                  const value = e.target.value.replace(/,/g, '');
+                  onChange({ ...e, target: { ...e.target, name: 'color', value } } as any);
+                }}
+                onKeyDown={(e) => {
+                  // Ngăn chặn nhập dấu phẩy từ keyboard
+                  if (e.key === ',' || e.key === 'Comma') {
+                    e.preventDefault();
+                  }
+                }}
+                type="text" 
+                placeholder="VD: Đen" 
+                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
+              />
             </div>
           </div>
 
@@ -867,14 +886,10 @@ const Suminputsection: React.FC = () => {
       {currentStep === 2 && (
       <SectionCard title="Chi tiết & Giá" description="Thiết lập giá, tồn kho, biến thể và vận chuyển">
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Giá gốc (VND) *</label>
               <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Giá khuyến mãi (VND)</label>
-              <input name="discountPrice" value={formatNumber(form.discountPrice)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'discountPrice', value: n } } as any); }} type="text" placeholder="VD: 4.500.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Số lượng tồn *</label>
@@ -983,23 +998,8 @@ const Suminputsection: React.FC = () => {
         <div className="space-y-5">
           {/* Warehouse & Location */}
           <div className=" border border-gray-200 rounded-xl p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-800">Địa chỉ kho</label>
-                <input 
-                  name="warehouseLocation" 
-                  value={form.warehouseLocation} 
-                  onChange={onChange} 
-                  type="text" 
-                  placeholder="VD: Hà Nội - Ba Đình"
-                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
-                />
-                <p className="mt-1 text-xs text-gray-500">Địa điểm xuất kho để tính khoảng cách giao hàng.</p>
-              </div>
-              {/* Hidden by requirement: shipping fee not shown; API will receive null */}
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Thứ tự mới: Tỉnh/Thành phố -> Quận/Huyện -> Phường/Xã -> Địa chỉ kho */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-800">Tỉnh/Thành phố <span className="text-red-500">*</span></label>
               <div className="relative mt-1 province-dropdown-container">
@@ -1343,7 +1343,21 @@ const Suminputsection: React.FC = () => {
                 value={form.wardCode} 
               />
             </div>
-            {/* Hidden by requirement: shipping address not shown; API will receive null */}
+            
+            {/* Địa chỉ kho (số nhà/tên đường) - Hiển thị cuối cùng - Full width */}
+            <div className="mt-4 col-span-full w-full">
+              <label className="block text-sm font-semibold text-gray-800">Địa chỉ kho <span className="text-red-500">*</span></label>
+              <input 
+                name="warehouseLocation" 
+                value={form.warehouseLocation} 
+                onChange={onChange} 
+                type="text" 
+                placeholder="VD: 123/5F, đường Nguyễn Huệ"
+                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
+              />
+              <p className="mt-1 text-xs text-gray-500">Nhập số nhà, tên đường để xác định địa điểm xuất kho.</p>
+            </div>
+            {/* Hidden by requirement: shipping fee not shown; API will receive null */}
             </div>
           </div>
 
