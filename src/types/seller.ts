@@ -347,6 +347,75 @@ export interface ProductListResponse {
 // Order Types for Seller
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED';
 
+// Store Order Status (matches backend enum)
+export type StoreOrderStatus = 
+  | 'PENDING'             // Chờ xử lý
+  | 'CONFIRMED'           // Đã xác nhận
+  | 'AWAITING_SHIPMENT'    // Chờ lấy hàng
+  | 'SHIPPING'            // Đang giao hàng
+  | 'COMPLETED'           // Đã giao hàng
+  | 'CANCELLED'           // Đã hủy
+  | 'RETURN_REQUESTED'     // Yêu cầu trả hàng
+  | 'RETURNED';           // Đã trả hàng
+
+// Store Order Item
+export interface StoreOrderItem {
+  id: string;
+  type: 'PRODUCT' | 'COMBO';
+  refId: string;  // Product ID or Combo ID
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+// Store Order (from API response)
+export interface StoreOrder {
+  id: string;
+  storeId: string;
+  storeName: string;
+  status: StoreOrderStatus;
+  createdAt: string;
+  totalAmount: number;
+  discountTotal: number;
+  shippingFee: number;
+  grandTotal: number;
+  customerOrderId: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  customerMessage: string | null;
+  shipReceiverName: string;
+  shipPhoneNumber: string;
+  shipCountry: string;
+  shipProvince: string;
+  shipDistrict: string;
+  shipWard: string;
+  shipStreet: string;
+  shipAddressLine: string;
+  shipPostalCode: string;
+  shipNote: string | null;
+  items: StoreOrderItem[];
+}
+
+// Store Orders List Response
+export interface StoreOrdersResponse {
+  items: StoreOrder[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
+// Store Orders Request Parameters
+export interface StoreOrdersRequest {
+  page?: number;
+  size?: number;
+  status?: StoreOrderStatus;
+  search?: string;
+}
+
+// Legacy OrderItem interface (keep for backward compatibility)
 export interface OrderItem {
   productId: string;
   productName: string;
@@ -356,6 +425,7 @@ export interface OrderItem {
   total: number;
 }
 
+// Legacy SellerOrder interface (keep for backward compatibility)
 export interface SellerOrder {
   id: string;
   orderCode: string;

@@ -4,16 +4,18 @@ import { OrbitControls } from '@react-three/drei';
 import Room3D from './Room3D';
 import Furniture3D from './Furniture3D';
 import ListenerAvatar3D from './ListenerAvatar3D';
-import type { Dimensions, RoomColors, Furniture, Listener } from './index';
+import Speaker3D from './Speaker3D';
+import type { Dimensions, RoomColors, Furniture, Listener, Speaker } from './index';
 
 interface Canvas3DProps {
   dimensions: Dimensions;
   colors: RoomColors;
   furniture?: Furniture[];
   listeners?: Listener[];
+  speakers?: Speaker[];
 }
 
-const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [], listeners = [] }) => {
+const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [], listeners = [], speakers = [] }) => {
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -55,6 +57,11 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [],
           <ListenerAvatar3D key={l.id} listener={l} />
         ))}
 
+        {/* Speakers */}
+        {speakers.map((speaker) => (
+          <Speaker3D key={speaker.id} speaker={speaker} />
+        ))}
+
         {/* Controls */}
         <OrbitControls 
           enablePan={true}
@@ -72,7 +79,7 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [],
         <div className="text-sm text-gray-600">
           <div className="font-medium mb-1">Phòng 3D</div>
           <div className="text-xs">
-            {furniture.length} nội thất • Sử dụng chuột để xoay/zoom
+            {furniture.length} nội thất • {speakers.length} loa • Sử dụng chuột để xoay/zoom
           </div>
         </div>
       </div>

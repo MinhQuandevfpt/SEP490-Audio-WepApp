@@ -37,6 +37,7 @@ import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
+import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
@@ -249,7 +250,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'orders',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Quản lý đơn hàng</h2><p className="text-gray-600 mt-2">Trang quản lý đơn hàng đang được phát triển...</p></div>
+        element: <OrderManageForStoreOwner />
       },
       {
         path: 'orders/pending',

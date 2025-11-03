@@ -294,6 +294,87 @@ export interface UpdateCustomerStatusResponse {
   };
 }
 
+// ==================== ORDER HISTORY TYPES ====================
+
+// Order Status Enum (from backend)
+export type OrderStatus = 
+  | 'UNPAID'             // Chờ thanh toán (online)
+  | 'CONFIRMED'          // Đã xác nhận (đã thanh toán / COD)
+  | 'AWAITING_SHIPMENT'  // Chờ lấy hàng (đã thanh toán / COD)
+  | 'SHIPPING'           // Đang giao hàng
+  | 'COMPLETED'          // Đã giao hàng / Hoàn tất
+  | 'CANCELLED'          // Đã hủy
+  | 'RETURN_REQUESTED'   // Yêu cầu trả hàng / hoàn tiền
+  | 'RETURNED'           // Đã trả hàng / hoàn tiền xong
+  | 'PENDING';           // Chờ xử lý
+
+// Order Item (in store order)
+export interface OrderItem {
+  id: string;
+  type: 'PRODUCT' | 'COMBO';
+  refId: string;  // Product ID or Combo ID
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  image?: string;  // Optional, might need to fetch from product
+}
+
+// Store Order (sub-order within main order)
+export interface StoreOrder {
+  id: string;
+  storeId: string;
+  storeName: string;
+  status: OrderStatus;
+  createdAt: string;
+  totalAmount: number;
+  discountTotal: number;
+  shippingFee: number;
+  grandTotal: number;
+  items: OrderItem[];
+}
+
+// Main Customer Order
+export interface CustomerOrder {
+  id: string;
+  status: OrderStatus;
+  message: string | null;
+  createdAt: string;
+  totalAmount: number;
+  discountTotal: number;
+  shippingFeeTotal: number;
+  grandTotal: number;
+  externalOrderCode: string | null;  // PayOS order code
+  receiverName: string;
+  phoneNumber: string;
+  country: string;
+  province: string;
+  district: string;
+  ward: string;
+  street: string;
+  addressLine: string;
+  postalCode: string;
+  note: string | null;
+  storeOrders: StoreOrder[];
+}
+
+// Order History Response (paginated)
+export interface OrderHistoryResponse {
+  items: CustomerOrder[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
+// Order History Request Parameters
+export interface OrderHistoryRequest {
+  page?: number;
+  size?: number;
+  status?: OrderStatus;
+  search?: string;  // Search by order ID or external order code
+}
+
 export default {};
 
 // ===== CATEGORY TYPES =====
