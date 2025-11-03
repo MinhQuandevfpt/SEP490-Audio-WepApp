@@ -137,19 +137,43 @@ const ShoppingCart: React.FC = () => {
     setItems(prev => prev.map(it => ({ ...it, isSelected: next })));
   };
 
-  const inc = (id: string) => {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, quantity: Math.min((it.quantity + 1), (it.maxQuantity ?? 99)) } : it));
+  const applyCartResponseToUI = (respItems: ApiCartItem[]) => {
+    setItems(respItems.map(mapApiItemToUI));
     window.dispatchEvent(new Event('cartUpdated'));
+  };
+
+  const updateQuantity = async (cartItemId: string, nextQty: number) => {
+    try {
+      const clamped = Math.max(1, Math.min(nextQty, 99));
+      const resp = await CustomerCartService.updateItemQuantity(cartItemId, clamped);
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+    } catch (error: any) {
+      const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
+      showCenterError(msg, 'Lỗi');
+    }
+  };
+
+  const inc = (id: string) => {
+    const current = items.find(it => it.id === id);
+    if (!current) return;
+    updateQuantity(id, current.quantity + 1);
   };
 
   const dec = (id: string) => {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, quantity: Math.max(1, it.quantity - 1) } : it));
-    window.dispatchEvent(new Event('cartUpdated'));
+    const current = items.find(it => it.id === id);
+    if (!current) return;
+    updateQuantity(id, current.quantity - 1);
   };
 
-  const removeItem = (id: string) => {
-    setItems(prev => prev.filter(it => it.id !== id));
-    window.dispatchEvent(new Event('cartUpdated'));
+  const removeItem = async (id: string) => {
+    try {
+      const resp = await CustomerCartService.deleteItems([id]);
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      showCenterSuccess('Đã xóa sản phẩm khỏi giỏ hàng', 'Thành công');
+    } catch (error: any) {
+      const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';
+      showCenterError(msg, 'Lỗi');
+    }
   };
 
   // Handle checkout (COD or PayOS)
@@ -300,7 +324,24 @@ const ShoppingCart: React.FC = () => {
             )}
 
             {/* Header controls */}
-            <SelectAllBar allSelected={allSelected} itemCount={items.length} onToggleAll={toggleAll} />
+            <SelectAllBar
+              allSelected={allSelected}
+              itemCount={items.length}
+              onToggleAll={toggleAll}
+              onDeleteAll={async () => {
+                if (items.length === 0) return;
+                const confirm = window.confirm('Bạn có chắc chắn muốn xóa toàn bộ giỏ hàng?');
+                if (!confirm) return;
+                try {
+                  const resp = await CustomerCartService.deleteCart();
+                  applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+                  showCenterSuccess('Đã xóa toàn bộ giỏ hàng', 'Thành công');
+                } catch (error: any) {
+                  const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa giỏ hàng. Vui lòng thử lại.';
+                  showCenterError(msg, 'Lỗi');
+                }
+              }}
+            />
 
             {/* List */}
             {items.map(it => (
@@ -311,6 +352,7 @@ const ShoppingCart: React.FC = () => {
                 onInc={inc}
                 onDec={dec}
                 onRemove={removeItem}
+                onSetQuantity={(id, q) => updateQuantity(id, q)}
               />
             ))}
           </div>

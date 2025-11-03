@@ -221,6 +221,17 @@ export class HttpInterceptor {
     return this.fetch<T>(endpoint, { ...config, method: 'DELETE' });
   }
 
+  /**
+   * DELETE with JSON body support (for APIs that require bodies in DELETE)
+   */
+  static async deleteWithBody<T = any>(endpoint: string, data?: any, config: RequestConfig = {}): Promise<T> {
+    return this.fetch<T>(endpoint, {
+      ...config,
+      method: 'DELETE',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
   static async patch<T = any>(endpoint: string, data?: any, config: RequestConfig = {}): Promise<T> {
     return this.fetch<T>(endpoint, {
       ...config,

@@ -28,6 +28,44 @@ export class CustomerCartService {
   }
 
   /**
+   * Update quantity of a specific cart item
+   * PATCH /api/v1/customers/{customerId}/cart/item/quantity
+   */
+  static async updateItemQuantity(cartItemId: string, quantity: number): Promise<CartResponse> {
+    try {
+      const customerId = this.getCustomerId();
+      const response = await HttpInterceptor.patch<CartResponse>(
+        `/api/v1/customers/${customerId}/cart/item/quantity`,
+        { cartItemId, quantity },
+        { userType: 'customer' }
+      );
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to update cart item quantity:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete one or multiple cart items
+   * DELETE /api/v1/customers/{customerId}/cart/items
+   */
+  static async deleteItems(cartItemIds: string[]): Promise<CartResponse> {
+    try {
+      const customerId = this.getCustomerId();
+      const response = await HttpInterceptor.deleteWithBody<CartResponse>(
+        `/api/v1/customers/${customerId}/cart/items`,
+        { cartItemIds },
+        { userType: 'customer' }
+      );
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to delete cart items:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get current cart for customer
    * GET /api/v1/customers/{customerId}/cart
    */
@@ -194,6 +232,24 @@ export class CustomerCartService {
       return 'Vui lòng đăng nhập để thêm vào giỏ hàng.';
     }
     return error?.message || 'Đã xảy ra lỗi khi thao tác với giỏ hàng.';
+  }
+
+  /**
+   * Delete entire cart
+   * DELETE /api/v1/customers/{customerId}/cart
+   */
+  static async deleteCart(): Promise<CartResponse> {
+    try {
+      const customerId = this.getCustomerId();
+      const response = await HttpInterceptor.delete<CartResponse>(
+        `/api/v1/customers/${customerId}/cart`,
+        { userType: 'customer' }
+      );
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to delete cart:', error);
+      throw error;
+    }
   }
 }
 
