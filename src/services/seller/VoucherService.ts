@@ -37,8 +37,6 @@ export interface StoreVoucherListResponse {
 
 export interface CreateVoucherProductItem {
   productId: string;
-  discountPercent: number | null;
-  discountAmount: number | null;
   promotionStockLimit: number | null;
   purchaseLimitPerCustomer: number | null;
 }
