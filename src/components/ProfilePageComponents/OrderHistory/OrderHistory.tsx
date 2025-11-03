@@ -1,144 +1,183 @@
-import React from 'react';
-import { loadProfileData } from '../../../data/profiledata';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
+import type { CustomerOrder } from '../../../types/api';
+import { getStatusBadgeClass, getStatusLabel, formatCurrency, formatDate } from '../../../utils/orderStatus';
+import { Package, ArrowRight, ExternalLink, Calendar, Store, Eye } from 'lucide-react';
 
-interface OrderItem {
-  id: string;
-  date: string;
-  total: number;
-  status: string; // Đã giao | Đang giao | Đã hủy | Chuẩn bị hàng | Đã tiếp nhận
-}
+const OrderHistory: React.FC = () => {
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-interface OrderHistoryProps {
-  orders: OrderItem[];
-}
+  // Load recent orders (3 most recent)
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await OrderHistoryService.list({ page: 0, size: 3 });
+        setOrders(response.data);
+      } catch (err: any) {
+        setError(err?.message || 'Không thể tải danh sách đơn hàng');
+        setOrders([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-const formatCurrency = (price: number) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
+    loadOrders();
+  }, []);
 
-const statusStyle = (status: string) => {
-  switch (status) {
-    case 'Đã giao':
-      return 'bg-green-100 text-green-700';
-    case 'Đang giao':
-      return 'bg-blue-100 text-blue-700';
-    case 'Chuẩn bị hàng':
-      return 'bg-amber-100 text-amber-700';
-    case 'Đã tiếp nhận':
-      return 'bg-purple-100 text-purple-700';
-    case 'Đã hủy':
-      return 'bg-red-100 text-red-700';
-    default:
-      return 'bg-gray-100 text-gray-600';
-  }
-};
+  const handleViewAll = () => {
+    navigate('/orders');
+  };
 
-const OrderHistory: React.FC<OrderHistoryProps> = ({ orders }) => {
-  const sorted = [...orders].sort((a, b) => (a.date < b.date ? 1 : -1));
-
-  // Pagination: 5 per page
-  const [page, setPage] = React.useState(1);
-  const pageSize = 5;
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const start = (page - 1) * pageSize;
-  const visible = sorted.slice(start, start + pageSize);
-
-  React.useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [totalPages, page]);
-
-  // Build monthly spending for a simple bar chart (last 6 months present in data)
-  // Source: profiledata.ts to ensure chart always uses global data
-  const monthlyMap = new Map<string, number>(); // key: YYYY-MM
-  const sourceOrders = React.useMemo(() => loadProfileData().orders, []);
-  sourceOrders.forEach((o) => {
-    const d = new Date(o.date);
-    if (!Number.isNaN(d.getTime())) {
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      monthlyMap.set(key, (monthlyMap.get(key) || 0) + o.total);
-    }
-  });
-  const monthly = Array.from(monthlyMap.entries())
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .slice(-6);
-  const maxSpend = Math.max(1, ...monthly.map(([, v]) => v));
+  const handleViewDetail = (orderId: string) => {
+    navigate(`/orders`, { state: { orderId } });
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Đơn hàng gần đây</h2>
-        <span className="text-sm text-gray-500">Tổng: {orders.length}</span>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Đơn hàng gần đây</h2>
+          <p className="text-sm text-gray-500 mt-1">3 đơn hàng mới nhất của bạn</p>
+        </div>
+        {orders.length > 0 && (
+          <button
+            onClick={handleViewAll}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-600 border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
+          >
+            <span>Xem tất cả</span>
+            <ExternalLink className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Monthly spend bar chart */}
-      {monthly.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-end gap-3 h-28">
-            {monthly.map(([label, value]) => (
-              <div key={label} className="flex-1">
-                <div
-                  className="w-full bg-gradient-to-t from-orange-400 to-orange-500 rounded-md"
-                  style={{ height: `${Math.max(8, Math.round((value / maxSpend) * 100))}%` }}
-                  title={`${label}: ${formatCurrency(value)}`}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 flex justify-between text-xs text-gray-500">
-            {monthly.map(([label]) => (
-              <span key={label}>{label}</span>
-            ))}
-          </div>
+      {isLoading ? (
+        <div className="py-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
+          <p className="mt-2 text-sm text-gray-500">Đang tải đơn hàng...</p>
         </div>
-      )}
-
-      {sorted.length === 0 ? (
-        <p className="text-gray-500">Bạn chưa có đơn hàng nào.</p>
+      ) : error ? (
+        <div className="py-4 text-center">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="py-8 text-center">
+          <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 mb-2">Bạn chưa có đơn hàng nào.</p>
+          <p className="text-sm text-gray-400">Hãy bắt đầu mua sắm ngay!</p>
+        </div>
       ) : (
         <>
-          <div className="space-y-3">
-            {visible.map((order) => (
-              <div
-                key={order.id}
-                className="group rounded-lg border border-gray-200 hover:border-orange-200 hover:bg-orange-50/40 transition-colors"
-              >
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-3">
-                      <p className="font-semibold text-gray-900 truncate">Mã đơn: {order.id}</p>
-                      <span className={`text-xs px-2 py-1 rounded-full ${statusStyle(order.status)}`}>{order.status}</span>
+          {/* Orders list - Enhanced UI */}
+          <div className="space-y-4">
+            {orders.map((order) => {
+              const totalItems = order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0);
+              
+              return (
+                <div
+                  key={order.id}
+                  className="group relative rounded-xl border border-gray-200 bg-white hover:border-orange-300 hover:shadow-md transition-all duration-200 overflow-hidden"
+                >
+                  {/* Gradient accent on left */}
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-400 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  
+                  <div className="p-5">
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-2 min-w-0 bg-gray-50 px-3 py-1.5 rounded-lg">
+                            <Package className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                            <span className="text-xs text-gray-500">Mã đơn:</span>
+                            <span className="font-mono font-semibold text-gray-900 text-sm truncate">
+                              {order.id.slice(0, 8)}...
+                            </span>
+                          </div>
+                          <span className={getStatusBadgeClass(order.status)}>
+                            {getStatusLabel(order.status)}
+                          </span>
+                        </div>
+                        
+                        {/* Order Info Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500">Ngày đặt</p>
+                              <p className="font-medium text-gray-900">{formatDate(order.createdAt)}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm">
+                            <Store className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500">Sản phẩm</p>
+                              <p className="font-medium text-gray-900">
+                                {totalItems} sản phẩm
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm">
+                            <Store className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-500">Cửa hàng</p>
+                              <p className="font-medium text-gray-900">
+                                {order.storeOrders.length} {order.storeOrders.length === 1 ? 'cửa hàng' : 'cửa hàng'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Total Amount */}
+                      <div className="text-right ml-4 flex-shrink-0">
+                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg px-4 py-3 border border-orange-200">
+                          <p className="text-xs text-gray-600 mb-1">Tổng tiền</p>
+                          <p className="text-lg font-bold text-orange-600">{formatCurrency(order.grandTotal)}</p>
+                          {order.discountTotal > 0 && (
+                            <p className="text-xs text-gray-500 line-through mt-1">
+                              {formatCurrency(order.totalAmount)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-500">Ngày: {order.date}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900">{formatCurrency(order.total)}</p>
-                    <button className="mt-1 text-sm text-orange-600 hover:text-orange-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                      Xem chi tiết
-                    </button>
+                    
+                    {/* Action Button */}
+                    <div className="flex items-center justify-end pt-4 border-t border-gray-100">
+                      <button
+                        onClick={() => handleViewDetail(order.id)}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors shadow-sm hover:shadow-md"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Xem chi tiết</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Pagination controls */}
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-gray-500">Trang {page}/{totalPages}</span>
-            <div className="flex gap-2">
+          {/* View All Button - Always show if there are orders */}
+          {orders.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1 rounded border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                onClick={handleViewAll}
+                className="w-full px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
               >
-                Trước
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1 rounded border border-gray-300 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Sau
+                <span>Xem tất cả đơn hàng</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { CustomerOrder, OrderStatus } from '../types/api';
-import { OrderHistoryService } from '../services/customer/OrderHistoryService';
+import type { StoreOrder, StoreOrderStatus } from '../types/seller';
+import { StoreOrderService } from '../services/seller/OrderService';
 
-export const useOrderHistory = () => {
-  const [status, setStatus] = useState<OrderStatus | 'ALL'>('ALL');
+export const useStoreOrders = () => {
+  const [status, setStatus] = useState<StoreOrderStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<StoreOrder | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -22,7 +22,7 @@ export const useOrderHistory = () => {
       // Backend uses 0-based indexing
       const backendPage = page - 1;
       
-      const res = await OrderHistoryService.list({
+      const res = await StoreOrderService.getOrders({
         status: status === 'ALL' ? undefined : status,
         search: search || undefined,
         page: backendPage,
@@ -53,10 +53,25 @@ export const useOrderHistory = () => {
 
   const viewDetail = async (orderId: string) => {
     try {
-      const detail = await OrderHistoryService.getById(orderId);
+      const detail = await StoreOrderService.getOrderById(orderId);
       setSelectedOrder(detail);
     } catch (error: any) {
       console.error('Error loading order detail:', error);
+    }
+  };
+
+  const updateStatus = async (orderId: string, newStatus: string) => {
+    try {
+      await StoreOrderService.updateOrderStatus(orderId, newStatus);
+      // Reload orders after status update
+      await load();
+      if (selectedOrder?.id === orderId) {
+        // Reload selected order detail
+        await viewDetail(orderId);
+      }
+    } catch (error: any) {
+      console.error('Error updating order status:', error);
+      throw error;
     }
   };
 
@@ -85,9 +100,9 @@ export const useOrderHistory = () => {
     selectedOrder,
     setSelectedOrder,
     viewDetail,
+    updateStatus,
   };
 };
 
-export default useOrderHistory;
-
+export default useStoreOrders;
 

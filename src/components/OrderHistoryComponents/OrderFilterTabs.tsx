@@ -1,5 +1,6 @@
 import React from 'react';
-import type { OrderStatus } from '../../data/orderHistory';
+import type { OrderStatus } from '../../types/api';
+import { Search, ChevronDown, Filter } from 'lucide-react';
 
 type AllOrStatus = OrderStatus | 'ALL';
 
@@ -10,32 +11,55 @@ interface Props {
   search: string;
 }
 
-const tabs: { key: AllOrStatus; label: string }[] = [
-  { key: 'ALL', label: 'Tất cả' },
-  { key: 'PENDING', label: 'Chờ xác nhận' },
-  { key: 'SHIPPING', label: 'Đang giao' },
-  { key: 'DELIVERED', label: 'Đã giao' },
+const statusOptions: { key: AllOrStatus; label: string }[] = [
+  { key: 'ALL', label: 'Tất cả đơn hàng' },
+  { key: 'UNPAID', label: 'Chờ thanh toán' },
+  { key: 'PENDING', label: 'Chờ xử lý' },
+  { key: 'CONFIRMED', label: 'Đã xác nhận' },
+  { key: 'AWAITING_SHIPMENT', label: 'Chờ lấy hàng' },
+  { key: 'SHIPPING', label: 'Đang giao hàng' },
+  { key: 'COMPLETED', label: 'Đã giao hàng' },
   { key: 'CANCELLED', label: 'Đã hủy' },
+  { key: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng' },
+  { key: 'RETURNED', label: 'Đã trả hàng' },
 ];
 
 const OrderFilterTabs: React.FC<Props> = ({ value, onChange, search, onSearchChange }) => {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map(t => (
-            <button key={t.key} onClick={() => onChange(t.key)} className={`px-3 py-1.5 rounded-full text-sm border ${value === t.key ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>
-              {t.label}
-            </button>
-          ))}
+        {/* Status Filter Dropdown */}
+        <div className="w-full md:w-auto">
+          <label className="text-xs text-gray-500 mb-1.5 block">Lọc theo trạng thái</label>
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <select
+              value={value}
+              onChange={(e) => onChange(e.target.value as AllOrStatus)}
+              className="w-full md:w-64 appearance-none bg-white border border-gray-300 rounded-lg pl-10 pr-10 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent cursor-pointer transition-colors"
+            >
+              {statusOptions.map(option => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
         </div>
+
+        {/* Search Bar */}
         <div className="w-full md:w-80">
-          <input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Nhập mã đơn hàng"
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          />
+          <label className="text-xs text-gray-500 mb-1.5 block">Tìm kiếm</label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Tìm theo mã đơn hàng..."
+              className="w-full border border-gray-300 rounded-lg px-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
         </div>
       </div>
     </div>

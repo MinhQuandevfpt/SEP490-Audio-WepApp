@@ -125,7 +125,7 @@ const Profile: React.FC = () => {
               </div>
 
               <div className={active === 'orders' ? 'block' : 'hidden'}>
-                <OrderHistory orders={data.orders} />
+                <OrderHistory />
               </div>
 
               <div className={active === 'addresses' ? 'block' : 'hidden'}>

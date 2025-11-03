@@ -1,29 +1,125 @@
-/** Mock Order History Service */
-import { dummyOrders } from '../../data/orderHistory';
-import type { OrderDetail, OrderStatus } from '../../data/orderHistory';
+/**
+ * Order History Service
+ * Handles customer order history operations
+ */
+
+import { HttpInterceptor } from '../HttpInterceptor';
+import type {
+  OrderHistoryResponse,
+  OrderHistoryRequest,
+  CustomerOrder,
+  OrderStatus
+} from '../../types/api';
 
 export class OrderHistoryService {
-  static async list(params?: { status?: OrderStatus; search?: string; page?: number; pageSize?: number }): Promise<{ data: OrderDetail[]; total: number }>{
-    await new Promise(r => setTimeout(r, 250));
-    let data = [...dummyOrders];
-    if (params?.status) {
-      data = data.filter(o => o.status === params.status);
+  /**
+   * Get customer ID from localStorage
+   */
+  private static getCustomerId(): string {
+    const customerId = localStorage.getItem('customer_id');
+    if (!customerId) {
+      throw new Error('Customer ID not found. Please login again.');
     }
-    if (params?.search) {
-      const s = params.search.toLowerCase();
-      data = data.filter(o => o.code.toLowerCase().includes(s));
-    }
-    const total = data.length;
-    const page = params?.page ?? 1;
-    const pageSize = params?.pageSize ?? 10;
-    const start = (page - 1) * pageSize;
-    const end = start + pageSize;
-    return { data: data.slice(start, end), total };
+    return customerId;
   }
 
-  static async getByCode(code: string): Promise<OrderDetail | null> {
-    await new Promise(r => setTimeout(r, 200));
-    return dummyOrders.find(o => o.code === code) ?? null;
+  /**
+   * Get order history with pagination and filters
+   * GET /api/customers/{customerId}/orders?page=0&size=20
+   */
+  static async list(params?: OrderHistoryRequest): Promise<{
+    data: CustomerOrder[];
+    total: number;
+    totalPages: number;
+    page: number;
+    size: number;
+  }> {
+    try {
+      const customerId = this.getCustomerId();
+      const page = params?.page ?? 0;  // Backend uses 0-based indexing
+      const size = params?.size ?? 20;
+
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', String(page));
+      queryParams.append('size', String(size));
+      
+      if (params?.status) {
+        queryParams.append('status', params.status);
+      }
+
+      // Note: Search might need to be handled on backend or client-side
+      // For now, we'll filter client-side if search is provided
+
+      const endpoint = `/api/customers/${customerId}/orders?${queryParams.toString()}`;
+      
+      const response = await HttpInterceptor.get<OrderHistoryResponse>(
+        endpoint,
+        { userType: 'customer' }
+      );
+
+      let filteredItems = response.items || [];
+
+      // Client-side search by order ID or external order code
+      if (params?.search) {
+        const searchTerm = params.search.toLowerCase();
+        filteredItems = filteredItems.filter(order => 
+          order.id.toLowerCase().includes(searchTerm) ||
+          (order.externalOrderCode && order.externalOrderCode.toLowerCase().includes(searchTerm))
+        );
+      }
+
+      return {
+        data: filteredItems,
+        total: response.totalElements || 0,
+        totalPages: response.totalPages || 0,
+        page: response.page || 0,
+        size: response.size || size,
+      };
+    } catch (error: any) {
+      console.error('❌ Error fetching order history:', error);
+      throw new Error(error?.message || 'Không thể tải danh sách đơn hàng');
+    }
+  }
+
+  /**
+   * Get order detail by order ID
+   * GET /api/customers/{customerId}/orders/{orderId}
+   */
+  static async getById(orderId: string): Promise<CustomerOrder | null> {
+    try {
+      const customerId = this.getCustomerId();
+      const endpoint = `/api/customers/${customerId}/orders/${orderId}`;
+      
+      const response = await HttpInterceptor.get<CustomerOrder>(
+        endpoint,
+        { userType: 'customer' }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('❌ Error fetching order detail:', error);
+      if (error?.status === 404) {
+        return null;
+      }
+      throw new Error(error?.message || 'Không thể tải chi tiết đơn hàng');
+    }
+  }
+
+  /**
+   * Get order by external order code (PayOS code)
+   * Helper method to find order by external code
+   */
+  static async getByExternalCode(externalCode: string): Promise<CustomerOrder | null> {
+    try {
+      // Since backend might not have this endpoint, we'll search in recent orders
+      const response = await this.list({ size: 100 });
+      const order = response.data.find(o => o.externalOrderCode === externalCode);
+      return order || null;
+    } catch (error: any) {
+      console.error('❌ Error finding order by external code:', error);
+      return null;
+    }
   }
 }
 

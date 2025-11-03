@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Move, Play, Pause, Volume2 } from 'lucide-react';
+import { Plus, Trash2, Move, Play, Pause, Volume2, Headphones } from 'lucide-react';
 import type { Speaker } from './index';
+import { SPEAKER_MODELS } from '../../services/audio/AudioService';
+import type { SpeakerModel } from '../../services/audio/AudioService';
+import AudioPlayer from './AudioPlayer';
 
 interface SpeakerDesignSectionProps {
   speakers: Speaker[];
@@ -39,6 +42,8 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   const [selectedType, setSelectedType] = useState<string>('floor_single');
   const [selectedColor, setSelectedColor] = useState<string>('#000000');
   const [selectedQuality, setSelectedQuality] = useState<string>('premium');
+  const [selectedModelForTrial, setSelectedModelForTrial] = useState<SpeakerModel | null>(null);
+  const [viewMode, setViewMode] = useState<'add' | 'models'>('models'); // 'add' hoặc 'models'
 
   const handleAddSpeaker = () => {
     const newSpeaker: Omit<Speaker, 'id'> = {
@@ -58,16 +63,135 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
     onUpdateSpeaker(speakerId, { isPlaying: !isPlaying });
   };
 
+  // Lọc model loa theo loại đã chọn
+  const filteredModels = SPEAKER_MODELS.filter(model => {
+    if (viewMode === 'models') return true; // Hiển thị tất cả khi xem models
+    return model.type === selectedType;
+  });
+
+  // Audio URL - sử dụng SoundCloud embed hoặc direct URL
+  // Note: SoundCloud không cho phép direct download, cần dùng proxy hoặc upload file lên CDN
+  const AUDIO_URL = './public/See You Again Remix.mp3'; // Placeholder - thay bằng URL thực tế
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-2 mb-4">
-        <span className="text-2xl">🔊</span>
-        <h3 className="text-lg font-semibold text-gray-800">Thiết kế loa</h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center space-x-2">
+          <span className="text-2xl">🔊</span>
+          <h3 className="text-lg font-semibold text-gray-800">Thiết kế loa</h3>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setViewMode('models')}
+            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+              viewMode === 'models'
+                ? 'bg-orange-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Model loa
+          </button>
+          <button
+            onClick={() => setViewMode('add')}
+            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+              viewMode === 'add'
+                ? 'bg-orange-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Thêm loa
+          </button>
+        </div>
       </div>
 
-      {/* Add Speaker */}
-      <div className="space-y-4">
-        <h4 className="text-sm font-medium text-gray-700">Thêm loa</h4>
+      {/* Speaker Models List - View Mode */}
+      {viewMode === 'models' && (
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          <h4 className="text-sm font-medium text-gray-700">Chọn model loa để nghe thử</h4>
+          
+          {filteredModels.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <span className="text-4xl block mb-2">🔊</span>
+              <p className="text-sm">Không có model loa nào</p>
+            </div>
+          ) : (
+            filteredModels.map((model) => (
+              <div
+                key={model.id}
+                className="p-3 bg-white rounded-lg border border-gray-200 hover:border-orange-300 transition-all cursor-pointer"
+                onClick={() => {
+                  // Khi click vào model, có thể thêm vào phòng hoặc chỉ nghe thử
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h5 className="text-sm font-semibold text-gray-800">{model.name}</h5>
+                      <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">
+                        {model.brand}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 mb-2">{model.description}</p>
+                    
+                    {model.specs && (
+                      <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 mb-2">
+                        <div>🎵 {model.specs.frequencyResponse}</div>
+                        <div>⚡ {model.specs.power}</div>
+                      </div>
+                    )}
+
+                    {model.price && (
+                      <div className="text-sm font-semibold text-orange-600">
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(model.price)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 mt-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedModelForTrial(model);
+                    }}
+                    className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                  >
+                    <Headphones className="w-4 h-4" />
+                    <span>Nghe thử</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Thêm loa này vào phòng với thông tin từ model
+                      const newSpeaker: Omit<Speaker, 'id'> = {
+                        name: model.name,
+                        type: model.type,
+                        position: [0, 0, 0],
+                        rotation: [0, 0, 0],
+                        color: '#000000',
+                        power: parseInt(model.specs?.power || '100'),
+                        quality: model.eqPreset.name.toLowerCase().includes('professional') ? 'professional' :
+                                model.eqPreset.name.toLowerCase().includes('premium') ? 'premium' : 'basic',
+                        isPlaying: false
+                      };
+                      onAddSpeaker(newSpeaker);
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                    title="Thêm vào phòng"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Add Speaker - View Mode */}
+      {viewMode === 'add' && (
+        <div className="space-y-4">
+          <h4 className="text-sm font-medium text-gray-700">Thêm loa</h4>
         
         {/* Speaker Type */}
         <div className="space-y-2">
@@ -138,9 +262,10 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
           <Plus className="w-4 h-4" />
           <span>Thêm loa</span>
         </button>
-      </div>
+        </div>
+      )}
 
-      {/* Speaker List */}
+      {/* Speaker List - Hiển thị cho cả 2 modes */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-gray-700">Loa đã thêm</h4>
         
@@ -217,6 +342,15 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
           </div>
         )}
       </div>
+
+      {/* Audio Player - Hiển thị khi chọn model để nghe thử */}
+      {selectedModelForTrial && (
+        <AudioPlayer
+          speakerModel={selectedModelForTrial}
+          audioUrl={AUDIO_URL}
+          onClose={() => setSelectedModelForTrial(null)}
+        />
+      )}
     </div>
   );
 };

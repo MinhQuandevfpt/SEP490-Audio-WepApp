@@ -32,6 +32,11 @@ interface ControlsPanelProps {
   onAddListener: (listener: Omit<Listener, 'id'>) => void;
   onRemoveListener: (id: string) => void;
   onUpdateListener: (id: string, updates: Partial<Listener>) => void;
+  // speakers
+  speakers: Speaker[];
+  onAddSpeaker: (speaker: Omit<Speaker, 'id'>) => void;
+  onRemoveSpeaker: (id: string) => void;
+  onUpdateSpeaker: (id: string, updates: Partial<Speaker>) => void;
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({
@@ -48,31 +53,13 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   listeners,
   onAddListener,
   onRemoveListener,
-  onUpdateListener
+  onUpdateListener,
+  speakers,
+  onAddSpeaker,
+  onRemoveSpeaker,
+  onUpdateSpeaker
 }) => {
   const [activeSection, setActiveSection] = useState<ControlSection>('room');
-  const [speakers, setSpeakers] = useState<Speaker[]>([]);
-
-  // Speaker handlers
-  const handleAddSpeaker = (newSpeaker: Omit<Speaker, 'id'>) => {
-    const speaker: Speaker = {
-      ...newSpeaker,
-      id: `speaker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    setSpeakers(prev => [...prev, speaker]);
-  };
-
-  const handleRemoveSpeaker = (id: string) => {
-    setSpeakers(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleUpdateSpeaker = (id: string, updates: Partial<Speaker>) => {
-    setSpeakers(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-  };
-
-  // Listener handlers are received from parent (3DRoom)
 
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -100,9 +87,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
         return (
           <SpeakerDesignSection
             speakers={speakers}
-            onAddSpeaker={handleAddSpeaker}
-            onRemoveSpeaker={handleRemoveSpeaker}
-            onUpdateSpeaker={handleUpdateSpeaker}
+            onAddSpeaker={onAddSpeaker}
+            onRemoveSpeaker={onRemoveSpeaker}
+            onUpdateSpeaker={onUpdateSpeaker}
           />
         );
       case 'listeners':
