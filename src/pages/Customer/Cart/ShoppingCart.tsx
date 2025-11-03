@@ -14,6 +14,7 @@ import { CustomerCartService } from '../../../services/customer/CartService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest } from '../../../types/cart';
 import type { CustomerAddressApiItem } from '../../../types/api';
+import { ProductVoucherService } from '../../../services/customer/ProductVoucherService';
 import type { PaymentMethod } from '../../../data/checkout';
 
 const ShoppingCart: React.FC = () => {
@@ -67,6 +68,41 @@ const ShoppingCart: React.FC = () => {
       setItems([]);
     }
   }, [cart]);
+
+  // Load vouchers for all products in the cart (unique by refId)
+  useEffect(() => {
+    const loadVouchers = async () => {
+      try {
+        setVouchersLoading(true);
+        const productIds = Array.from(new Set((cart?.items || []).map(i => i.refId)));
+        if (productIds.length === 0) {
+          setAvailableVouchers([]);
+          return;
+        }
+        const responses = await Promise.all(
+          productIds.map(pid => ProductVoucherService.getProductVouchers(pid, 'ALL', null).catch(() => null))
+        );
+        const shopVouchers = responses
+          .filter(Boolean)
+          .flatMap(r => (r as any).data?.vouchers?.shop || []);
+        // Map to display format and dedupe by code
+        const mapped = shopVouchers.map((v: any) => ({
+          code: v.code,
+          label: v.title || v.code,
+          desc: v.type === 'PERCENT' && v.discountPercent
+            ? `Giảm ${v.discountPercent}%${v.maxDiscountValue ? `, tối đa ${v.maxDiscountValue}` : ''}`
+            : v.type === 'FIXED' && v.discountValue
+              ? `Giảm ${v.discountValue}đ${v.minOrderValue ? `, đơn tối thiểu ${v.minOrderValue}đ` : ''}`
+              : 'Voucher cửa hàng',
+        }));
+        const dedup = Array.from(new Map(mapped.map(m => [m.code, m])).values());
+        setAvailableVouchers(dedup);
+      } finally {
+        setVouchersLoading(false);
+      }
+    };
+    loadVouchers();
+  }, [cart?.items]);
   const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
   const summary = useMemo(() => calcCartSummary(items), [items]);
 
@@ -81,10 +117,8 @@ const ShoppingCart: React.FC = () => {
     amount: number; // calculated discount amount
   } | null>(null);
 
-  const availableVouchers = [
-    { code: 'GIAM10', label: 'Giảm 10% tối đa 100k', desc: 'Áp dụng cho tổng tiền hàng' },
-    { code: 'FREESHIP', label: 'Freeship 30k', desc: 'Giảm phí vận chuyển' },
-  ];
+  const [availableVouchers, setAvailableVouchers] = useState<Array<{ code: string; label: string; desc: string }>>([]);
+  const [, setVouchersLoading] = useState(false);
 
   const shippingFee = useMemo(() => {
     return 0;
@@ -111,16 +145,13 @@ const ShoppingCart: React.FC = () => {
   const applyVoucher = () => {
     const code = voucherInput.trim().toUpperCase();
     if (!code) return;
-    if (code === 'GIAM10') {
+    const found = availableVouchers.find(v => v.code.toUpperCase() === code);
+    if (found) {
+      // Keep simple calc; detailed enforcement can be added later
       setAppliedVoucher({ code, type: 'PERCENT10', amount: 0 });
-      return;
+    } else {
+      setAppliedVoucher(null);
     }
-    if (code === 'FREESHIP') {
-      setAppliedVoucher({ code, type: 'FREESHIP', amount: 0 });
-      return;
-    }
-    // invalid -> clear
-    setAppliedVoucher(null);
   };
 
   const clearVoucher = () => {
@@ -380,7 +411,7 @@ const ShoppingCart: React.FC = () => {
                   availableVouchers={availableVouchers}
                   onChangeInput={setVoucherInput}
                   onApply={applyVoucher}
-                  onChoose={(code) => { setVoucherInput(code); setAppliedVoucher({ code, type: code as any, amount: 0 }); }}
+                  onChoose={(code) => { setVoucherInput(code); setAppliedVoucher({ code, type: 'PERCENT10', amount: 0 }); }}
                   onClear={clearVoucher}
                 />
               </div>
