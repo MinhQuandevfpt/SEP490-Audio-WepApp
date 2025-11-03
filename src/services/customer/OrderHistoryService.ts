@@ -8,7 +8,6 @@ import type {
   OrderHistoryResponse,
   OrderHistoryRequest,
   CustomerOrder,
-  OrderStatus
 } from '../../types/api';
 
 export class OrderHistoryService {

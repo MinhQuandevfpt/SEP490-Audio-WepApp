@@ -1,7 +1,7 @@
 import React from 'react';
 import type { StoreOrder } from '../../types/seller';
 import { getStatusBadgeClass, getStatusLabel, formatCurrency, formatDate } from '../../utils/storeOrderStatus';
-import { Package, Calendar, DollarSign, User, Phone, MapPin, ShoppingBag } from 'lucide-react';
+import { Package, Calendar, User, Phone, MapPin, ShoppingBag } from 'lucide-react';
 
 interface Props {
   order: StoreOrder;
