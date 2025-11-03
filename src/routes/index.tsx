@@ -16,9 +16,14 @@ import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
 import ShoppingCart from '../pages/Customer/Cart';
+import StorePage from '../pages/Customer/StorePage';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
+import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
+import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
+import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
+import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import AdminLogin from '../pages/Admin/Login';
@@ -26,12 +31,15 @@ import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import KycManagement from '../pages/Admin/KycManagement';
+import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
+import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
+import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
 import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
@@ -131,8 +139,20 @@ export const router = createBrowserRouter([
     element: <ProductDetail />
   },
   {
+    path: '/store/:storeId',
+    element: <StorePage />
+  },
+  {
     path: '/cart',
     element: <ShoppingCart />
+  },
+  {
+    path: '/orders',
+    element: <ProtectedRoute element={<OrderHistoryPage />} />
+  },
+  {
+    path: '/checkout',
+    element: <ProtectedRoute element={<CheckoutOrderPage />} />
   },
   {
     path: '/oauth2/callback',
@@ -141,6 +161,14 @@ export const router = createBrowserRouter([
   {
     path: '/oauth-success',
     element: <OAuth2Success />
+  },
+  {
+    path: '/payment/success',
+    element: <PayOSSuccess />
+  },
+  {
+    path: '/payment/fail',
+    element: <PayOSFail />
   },
   {
     path: '/3d-room',
@@ -242,6 +270,22 @@ export const router = createBrowserRouter([
       {
         path: 'orders/cancelled',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'staff',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Danh sách nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'staff/create',
+        element: <CreateStaff />
+      },
+      {
+        path: 'staff/update',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Cập nhật nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'staff/delete',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Xóa thông tin nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
       },
       {
         path: 'analytics',
@@ -363,6 +407,14 @@ export const router = createBrowserRouter([
         element: <div>All Stores Page (Coming Soon)</div>
       },
       {
+        path: 'kyc',
+        element: <KycManagement />
+      },
+      {
+        path: 'kyc/:kycId',
+        element: <KycDetail />
+      },
+      {
         path: 'stores/kyc',
         element: <KycManagement />
       },
@@ -373,6 +425,18 @@ export const router = createBrowserRouter([
       {
         path: 'stores/blocked',
         element: <div>Blocked Stores Page (Coming Soon)</div>
+      },
+      {
+        path: 'campaigns',
+        element: <CampaignList />
+      },
+      {
+        path: 'campaigns/create',
+        element: <CreateCampaign />
+      },
+      {
+        path: 'campaigns/:id/edit',
+        element: <EditCampaign />
       },
       {
         path: 'orders',

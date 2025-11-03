@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SectionCard from './SectionCard';
+import { TinyMCEEditor } from '../common';
 import { CategoryService } from '../../services/seller/CategoryService';
 import { ShippingService } from '../../services/seller/ShippingService';
 import { FileUploadService } from '../../services/FileUploadService';
@@ -293,15 +294,7 @@ const Suminputsection: React.FC = () => {
     );
   }, [form, images]);
 
-  // Validation for draft (more lenient)
-  const canSaveDraft = useMemo(() => {
-    return (
-      (form.name || '').trim().length >= 3 &&
-      (form.brandName || '').trim().length >= 2 &&
-      (form.category || '').trim().length > 0 &&
-      (form.shortDescription || '').trim().length > 0
-    );
-  }, [form]);
+  // Draft flow removed per requirement
 
   // ============================================================================
   // FORM HANDLERS
@@ -326,6 +319,32 @@ const Suminputsection: React.FC = () => {
         : [...prev.selectedShippingMethodIds, shippingMethodId];
       return { ...prev, selectedShippingMethodIds: next };
     });
+  };
+
+  // ==========================================================================
+  // DIMENSIONS HELPERS (Length x Width x Height) in mm -> form.dimensions
+  // ==========================================================================
+  const getDimensionParts = useMemo(() => {
+    // Extract numbers from a string like "200 x 150 x 80 mm" or any similar
+    const raw = (form.dimensions || '').toLowerCase();
+    const digits = raw
+      .replace(/cm/g, '')
+      .replace(/mm/g, '')
+      .replace(/[^0-9x ]/g, '')
+      .trim();
+    const parts = digits.split('x').map(p => p.trim()).filter(Boolean);
+    const [l = '', w = '', h = ''] = parts;
+    return { l, w, h };
+  }, [form.dimensions]);
+
+  const setDimensionPart = (part: 'l' | 'w' | 'h', value: string) => {
+    // Keep only digits
+    const val = (value || '').replace(/\D/g, '');
+    const next = { ...getDimensionParts, [part]: val } as { l: string; w: string; h: string };
+    const formatted = [next.l, next.w, next.h].some(v => v)
+      ? `${next.l || '0'} x ${next.w || '0'} x ${next.h || '0'} mm`
+      : '';
+    setForm(prev => ({ ...prev, dimensions: formatted }));
   };
 
   // ============================================================================
@@ -561,7 +580,7 @@ const Suminputsection: React.FC = () => {
     const priceNum = Number(form.price);
     const stockNum = Number(form.stockQuantity);
     const weightNum = form.weight ? Number(form.weight) : undefined;
-    const shipFeeNum = form.shippingFee ? Number(form.shippingFee) : undefined;
+    // Shipping fields hidden; not used
 
     // Normalize extra specs types (boolean/number)
     const booleanKeys = new Set([
@@ -618,8 +637,8 @@ const Suminputsection: React.FC = () => {
       provinceCode: digitsOnly(form.provinceCode) || undefined,
       districtCode: digitsOnly(form.districtCode) || undefined,
       wardCode: digitsOnly(form.wardCode) || undefined,
-      shippingAddress: form.shippingAddress || undefined,
-      shippingFee: Number.isFinite(shipFeeNum as number) ? shipFeeNum : undefined,
+      shippingAddress: null,
+      shippingFee: null,
       supportedShippingMethodIds: form.selectedShippingMethodIds,
       variants: variants
         .map(v => ({ optionName: v.optionName?.trim(), optionValue: v.optionValue?.trim() }))
@@ -696,55 +715,7 @@ const Suminputsection: React.FC = () => {
     }
   };
 
-  const handleSaveDraft = async () => {
-    if (!canSaveDraft) {
-      showCenterError('Vui lòng nhập ít nhất tên sản phẩm, thương hiệu, danh mục và mô tả ngắn');
-      return;
-    }
-    
-    try {
-      setSubmitting(true);
-      const payload = await buildPayload();
-      console.log('📤 Saving draft to API:', JSON.stringify(payload, null, 2));
-      
-      // Explicitly add status to payload to ensure it's sent
-      const draftPayload = {
-        ...payload,
-        status: 'DRAFT'
-      };
-      
-      console.log('📤 Draft payload with explicit status:', JSON.stringify(draftPayload, null, 2));
-      
-      const response = await ProductService.createDraftProduct(draftPayload);
-      console.log('📥 Draft creation response:', JSON.stringify(response, null, 2));
-      
-      showCenterSuccess('Lưu nháp thành công! Đang chuyển đến trang quản lý...');
-      
-      // Reset form
-      setForm(defaultForm);
-      setImages([]);
-      setExtraSpecs({});
-      setVariants([]);
-      setBulkDiscounts([]);
-      setCurrentStep(1);
-      setSelectedProvince(null);
-      setProvinceSearchQuery('');
-      setSelectedDistrict(null);
-      setDistrictSearchQuery('');
-      setSelectedWard(null);
-      setWardSearchQuery('');
-      
-      // Navigate to seller dashboard after a short delay
-      setTimeout(() => {
-        navigate('/seller/dashboard/products');
-      }, 1000);
-    } catch (err: any) {
-      const msg = err?.message ? String(err.message) : 'Không thể lưu nháp. Vui lòng thử lại.';
-      showCenterError(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // Draft flow removed per requirement
 
   const currentCategory = form.category as CategoryKey;
   const specDefs = CATEGORY_SPECS[currentCategory] || [];
@@ -766,8 +737,8 @@ const Suminputsection: React.FC = () => {
             <div className="px-6 py-4">
               <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[1,2,3].map(step => (
-                  <li key={step} className={`flex items-center gap-3 p-3 rounded-lg border ${currentStep === step ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
-                    <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentStep >= step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{step}</span>
+                  <li key={step} className={`flex items-center gap-3 p-3 rounded-lg border ${currentStep === step ? 'border-orange-600 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentStep >= step ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{step}</span>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
                         {step === 1 ? 'Thông tin chung' : step === 2 ? 'Chi tiết & giá' : 'Hình ảnh & Video'}
@@ -792,25 +763,32 @@ const Suminputsection: React.FC = () => {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Tên sản phẩm *</label>
-            <input name="name" value={form.name} onChange={onChange} type="text" placeholder="VD: Sony WH-1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            <input name="name" value={form.name} onChange={onChange} type="text" placeholder="VD: Sony WH-1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Mô tả ngắn *</label>
-            <input name="shortDescription" value={form.shortDescription} onChange={onChange} type="text" placeholder="Tóm tắt 1-2 câu về sản phẩm" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            <input name="shortDescription" value={form.shortDescription} onChange={onChange} type="text" placeholder="Tóm tắt 1-2 câu về sản phẩm" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Mô tả chi tiết</label>
-            <textarea name="description" value={form.description} onChange={onChange} rows={4} placeholder="Mô tả đầy đủ về sản phẩm, tính năng, chất lượng..." className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors resize-none" />
+            <div className="mt-1">
+              <TinyMCEEditor
+                value={form.description}
+                onChange={(content) => setForm({ ...form, description: content })}
+                placeholder="Mô tả đầy đủ về sản phẩm, tính năng, chất lượng..."
+                height={400}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Thương hiệu *</label>
-              <input name="brandName" value={form.brandName} onChange={onChange} type="text" placeholder="VD: Sony, Sennheiser, JBL" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="brandName" value={form.brandName} onChange={onChange} type="text" placeholder="VD: Sony, Sennheiser, JBL" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Danh mục *</label>
-              <select name="category" value={form.category} onChange={onChange} disabled={categoriesLoading} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed">
+              <select name="category" value={form.category} onChange={onChange} disabled={categoriesLoading} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed">
                 <option value="">{categoriesLoading ? 'Đang tải danh mục...' : 'Chọn danh mục'}</option>
                 {categories.map(c => (
                   <option key={c.categoryId} value={c.name}>{c.name}</option>
@@ -822,11 +800,11 @@ const Suminputsection: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Mã model</label>
-              <input name="model" value={form.model} onChange={onChange} type="text" placeholder="VD: WH1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="model" value={form.model} onChange={onChange} type="text" placeholder="VD: WH1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Màu sắc</label>
-              <input name="color" value={form.color} onChange={onChange} type="text" placeholder="VD: Đen, Bạc, Xanh" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="color" value={form.color} onChange={onChange} type="text" placeholder="VD: Đen, Bạc, Xanh" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
           </div>
 
@@ -836,23 +814,50 @@ const Suminputsection: React.FC = () => {
               <input name="material" value={form.material} onChange={onChange} type="text" placeholder="VD: Nhựa ABS, Nhôm, Da" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Kích thước</label>
-              <input name="dimensions" value={form.dimensions} onChange={onChange} type="text" placeholder="VD: 20 x 15 x 8 cm" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <label className="block text-sm font-medium text-gray-700">Kích thước (mm)</label>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                <input
+                  value={getDimensionParts.l}
+                  onChange={(e) => setDimensionPart('l', e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Dài (mm)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+                />
+                <input
+                  value={getDimensionParts.w}
+                  onChange={(e) => setDimensionPart('w', e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Rộng (mm)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+                />
+                <input
+                  value={getDimensionParts.h}
+                  onChange={(e) => setDimensionPart('h', e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Cao (mm)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+                />
+              </div>
+              {/* Hidden combined field stored in form.dimensions as "L x W x H mm" */}
+              <input name="dimensions" value={form.dimensions} onChange={() => {}} type="hidden" />
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Trọng lượng (kg)</label>
-            <input name="weight" value={form.weight} onChange={onChange} type="number" step="0.1" min="0" placeholder="VD: 0.25" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            <input name="weight" value={form.weight} onChange={onChange} type="number" step="0.1" min="0" placeholder="VD: 0.25" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Kết nối</label>
-              <input name="connectionType" value={form.connectionType} onChange={onChange} type="text" placeholder="VD: Bluetooth, RCA, USB" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="connectionType" value={form.connectionType} onChange={onChange} type="text" placeholder="VD: Bluetooth, RCA, USB" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Điện áp</label>
-              <input name="voltageInput" value={form.voltageInput} onChange={onChange} type="text" placeholder="VD: 5V" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="voltageInput" value={form.voltageInput} onChange={onChange} type="text" placeholder="VD: 5V" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
           </div>
         </div>
@@ -865,25 +870,25 @@ const Suminputsection: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Giá gốc (VND) *</label>
-              <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Giá khuyến mãi (VND)</label>
-              <input name="discountPrice" value={formatNumber(form.discountPrice)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'discountPrice', value: n } } as any); }} type="text" placeholder="VD: 4.500.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="discountPrice" value={formatNumber(form.discountPrice)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'discountPrice', value: n } } as any); }} type="text" placeholder="VD: 4.500.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Số lượng tồn *</label>
-              <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">SKU *</label>
-              <input name="sku" value={form.sku} onChange={onChange} type="text" placeholder="VD: SONY-WH1000XM4-BLK" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="sku" value={form.sku} onChange={onChange} type="text" placeholder="VD: SONY-WH1000XM4-BLK" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Đơn vị tiền tệ</label>
-              <select name="currency" value={form.currency} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+              <select name="currency" value={form.currency} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
                 <option value="VND">VND</option>
                 <option value="USD">USD</option>
               </select>
@@ -904,7 +909,7 @@ const Suminputsection: React.FC = () => {
               <button type="button" onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm rounded bg-red-50 text-red-700">Xoá</button>
             </div>
           ))}
-          <button type="button" onClick={() => setVariants(prev => [...prev, { optionName: '', optionValue: '' }])} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">+ Thêm biến thể</button>
+          <button type="button" onClick={() => setVariants(prev => [...prev, { optionName: '', optionValue: '' }])} className="px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700">+ Thêm biến thể</button>
         </div>
       </SectionCard>
       )}
@@ -921,7 +926,7 @@ const Suminputsection: React.FC = () => {
               <button type="button" onClick={() => setBulkDiscounts(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm rounded bg-red-50 text-red-700">Xoá</button>
             </div>
           ))}
-          <button type="button" onClick={() => setBulkDiscounts(prev => [...prev, { fromQuantity: '', toQuantity: '', unitPrice: '' }])} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">+ Thêm mức sỉ</button>
+          <button type="button" onClick={() => setBulkDiscounts(prev => [...prev, { fromQuantity: '', toQuantity: '', unitPrice: '' }])} className="px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700">+ Thêm mức sỉ</button>
         </div>
       </SectionCard>
       )}
@@ -932,11 +937,11 @@ const Suminputsection: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Thời gian bảo hành</label>
-              <input name="warrantyPeriod" value={form.warrantyPeriod} onChange={onChange} type="text" placeholder="VD: 12 tháng" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="warrantyPeriod" value={form.warrantyPeriod} onChange={onChange} type="text" placeholder="VD: 12 tháng" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Loại bảo hành</label>
-              <select name="warrantyType" value={form.warrantyType} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+              <select name="warrantyType" value={form.warrantyType} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
                 <option value="">Chọn loại bảo hành</option>
                 <option value="Chính hãng">Chính hãng</option>
                 <option value="1 đổi 1">1 đổi 1</option>
@@ -947,17 +952,17 @@ const Suminputsection: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Tên nhà sản xuất</label>
-              <input name="manufacturerName" value={form.manufacturerName} onChange={onChange} type="text" placeholder="VD: Sony Corporation" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="manufacturerName" value={form.manufacturerName} onChange={onChange} type="text" placeholder="VD: Sony Corporation" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Địa chỉ nhà sản xuất</label>
-              <input name="manufacturerAddress" value={form.manufacturerAddress} onChange={onChange} type="text" placeholder="VD: Tokyo, Japan" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+              <input name="manufacturerAddress" value={form.manufacturerAddress} onChange={onChange} type="text" placeholder="VD: Tokyo, Japan" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Tình trạng sản phẩm</label>
-              <select name="productCondition" value={form.productCondition} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
+              <select name="productCondition" value={form.productCondition} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
                 <option value="">Chọn tình trạng</option>
                 <option value="Mới 100%">Mới 100%</option>
                 <option value="Refurbished">Refurbished</option>
@@ -965,7 +970,7 @@ const Suminputsection: React.FC = () => {
               </select>
             </div>
             <div className="flex items-center">
-              <input name="isCustomMade" type="checkbox" checked={form.isCustomMade === 'true'} onChange={(e) => onChange({ ...e, target: { ...e.target, name: 'isCustomMade', value: e.target.checked.toString() } } as any)} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+              <input name="isCustomMade" type="checkbox" checked={form.isCustomMade === 'true'} onChange={(e) => onChange({ ...e, target: { ...e.target, name: 'isCustomMade', value: e.target.checked.toString() } } as any)} className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded" />
               <label className="ml-2 block text-sm text-gray-700">Làm theo yêu cầu</label>
             </div>
           </div>
@@ -974,21 +979,29 @@ const Suminputsection: React.FC = () => {
       )}
 
       {currentStep === 2 && (
-      <SectionCard title="Kho hàng & Vận chuyển" description="Địa chỉ và phương thức vận chuyển">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Địa chỉ kho</label>
-              <input name="warehouseLocation" value={form.warehouseLocation} onChange={onChange} type="text" placeholder="VD: Hà Nội - Ba Đình" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+      <SectionCard title="Kho hàng & Vận chuyển" description="Địa chỉ kho và phương thức giao hàng cho đơn">
+        <div className="space-y-5">
+          {/* Warehouse & Location */}
+          <div className=" border border-gray-200 rounded-xl p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-800">Địa chỉ kho</label>
+                <input 
+                  name="warehouseLocation" 
+                  value={form.warehouseLocation} 
+                  onChange={onChange} 
+                  type="text" 
+                  placeholder="VD: Hà Nội - Ba Đình"
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
+                />
+                <p className="mt-1 text-xs text-gray-500">Địa điểm xuất kho để tính khoảng cách giao hàng.</p>
+              </div>
+              {/* Hidden by requirement: shipping fee not shown; API will receive null */}
             </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Phí vận chuyển (VND)</label>
-              <input name="shippingFee" value={formatNumber(form.shippingFee)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'shippingFee', value: n } } as any); }} type="text" placeholder="VD: 30.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tỉnh/Thành phố *</label>
+              <label className="block text-sm font-semibold text-gray-800">Tỉnh/Thành phố <span className="text-red-500">*</span></label>
               <div className="relative mt-1 province-dropdown-container">
                 {/* Province Selection Button */}
                 <button
@@ -1047,7 +1060,7 @@ const Suminputsection: React.FC = () => {
                         value={provinceSearchQuery}
                         onChange={(e) => handleProvinceSearch(e.target.value)}
                         placeholder="Tìm kiếm tỉnh..."
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none"
                         autoFocus
                       />
                     </div>
@@ -1077,7 +1090,7 @@ const Suminputsection: React.FC = () => {
                             onClick={() => handleProvinceSelect(province)}
                             className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
                               selectedProvince?.ProvinceID === province.ProvinceID 
-                                ? 'bg-blue-50 text-blue-700' 
+                                ? 'bg-orange-50 text-orange-700' 
                                 : 'text-gray-900'
                             }`}
                           >
@@ -1101,14 +1114,14 @@ const Suminputsection: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Quận/Huyện *</label>
+              <label className="block text-sm font-semibold text-gray-800">Quận/Huyện <span className="text-red-500">*</span></label>
               <div className="relative mt-1 district-dropdown-container">
                 {/* District Selection Button */}
                 <button
                   type="button"
                   onClick={toggleDistrictDropdown}
                   disabled={districtsLoading || !selectedProvince}
-                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
+                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors ${
                     districtsLoading || !selectedProvince
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedDistrict 
@@ -1162,7 +1175,7 @@ const Suminputsection: React.FC = () => {
                         value={districtSearchQuery}
                         onChange={(e) => handleDistrictSearch(e.target.value)}
                         placeholder="Tìm kiếm quận/huyện..."
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none"
                         autoFocus
                       />
                     </div>
@@ -1192,7 +1205,7 @@ const Suminputsection: React.FC = () => {
                             onClick={() => handleDistrictSelect(district)}
                             className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
                               selectedDistrict?.DistrictID === district.DistrictID 
-                                ? 'bg-blue-50 text-blue-700' 
+                                ? 'bg-orange-50 text-orange-700' 
                                 : 'text-gray-900'
                             }`}
                           >
@@ -1216,14 +1229,14 @@ const Suminputsection: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Phường/Xã *</label>
+              <label className="block text-sm font-semibold text-gray-800">Phường/Xã <span className="text-red-500">*</span></label>
               <div className="relative mt-1 ward-dropdown-container">
                 {/* Ward Selection Button */}
                 <button
                   type="button"
                   onClick={toggleWardDropdown}
                   disabled={wardsLoading || !selectedDistrict}
-                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
+                  className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors ${
                     wardsLoading || !selectedDistrict
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedWard 
@@ -1277,7 +1290,7 @@ const Suminputsection: React.FC = () => {
                         value={wardSearchQuery}
                         onChange={(e) => handleWardSearch(e.target.value)}
                         placeholder="Tìm kiếm phường/xã..."
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none"
                         autoFocus
                       />
                     </div>
@@ -1307,7 +1320,7 @@ const Suminputsection: React.FC = () => {
                             onClick={() => handleWardSelect(ward)}
                             className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
                               selectedWard?.WardCode === ward.WardCode 
-                                ? 'bg-blue-50 text-blue-700' 
+                                ? 'bg-orange-50 text-orange-700' 
                                 : 'text-gray-900'
                             }`}
                           >
@@ -1330,17 +1343,18 @@ const Suminputsection: React.FC = () => {
                 value={form.wardCode} 
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Địa chỉ giao</label>
-              <input name="shippingAddress" value={form.shippingAddress} onChange={onChange} type="text" placeholder="Địa chỉ giao hàng" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            {/* Hidden by requirement: shipping address not shown; API will receive null */}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Phương thức vận chuyển</label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-semibold text-gray-800">Phương thức vận chuyển</label>
+              <span className="text-xs text-gray-500">Chọn các phương thức hỗ trợ đơn này</span>
+            </div>
             {shippingLoading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
                 <span className="ml-2 text-sm text-gray-500">Đang tải phương thức vận chuyển...</span>
               </div>
             ) : shippingMethods.length === 0 ? (
@@ -1350,9 +1364,13 @@ const Suminputsection: React.FC = () => {
                 {shippingMethods.map((method) => {
                   const selected = form.selectedShippingMethodIds.includes(method.shippingMethodId);
                   return (
-                    <div key={method.shippingMethodId} className={`relative flex items-start p-4 border rounded-lg cursor-pointer transition-all duration-200 ${selected ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`} onClick={() => onSelectShipping(method.shippingMethodId)}>
+                    <div 
+                      key={method.shippingMethodId}
+                      className={`relative flex items-start p-4 border rounded-xl cursor-pointer transition-all duration-200 ${selected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                      onClick={() => onSelectShipping(method.shippingMethodId)}
+                    >
                       <div className="flex items-center h-5">
-                        <input type="checkbox" checked={selected} onChange={() => {}} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+                        <input type="checkbox" checked={selected} onChange={() => {}} className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded" />
                       </div>
                       <div className="ml-3 flex-1">
                         <div className="flex items-center space-x-3">
@@ -1365,21 +1383,24 @@ const Suminputsection: React.FC = () => {
                           </div>
                         </div>
                       </div>
+                      {selected && (
+                        <span className="absolute top-2 right-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-800">Đã chọn</span>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
             {form.selectedShippingMethodIds.length > 0 && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm font-medium text-blue-900 mb-2">Đã chọn {form.selectedShippingMethodIds.length} phương thức vận chuyển:</p>
+              <div className="mt-4 p-3 bg-orange-50 rounded-lg">
+                <p className="text-sm font-medium text-orange-900 mb-2">Đã chọn {form.selectedShippingMethodIds.length} phương thức vận chuyển:</p>
                 <div className="flex flex-wrap gap-2">
                   {form.selectedShippingMethodIds.map(id => {
                     const m = shippingMethods.find(x => x.shippingMethodId === id);
                     return (
-                      <span key={id} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                      <span key={id} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
                         {m?.name || id}
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onSelectShipping(id); }} className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-blue-200 transition-colors">×</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onSelectShipping(id); }} className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-200 transition-colors">×</button>
                       </span>
                     );
                   })}
@@ -1499,7 +1520,7 @@ const Suminputsection: React.FC = () => {
                         }} 
                         placeholder={isMultiSelect ? `${spec.placeholder} (cách nhau bằng dấu phẩy)` : spec.placeholder} 
                         list={`suggestions-${spec.key}`}
-                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" 
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
                       />
                       {suggestions.length > 0 && (
                         <datalist id={`suggestions-${spec.key}`}>
@@ -1520,7 +1541,7 @@ const Suminputsection: React.FC = () => {
                           <p className="text-xs text-gray-500 mb-1">Đã chọn:</p>
                           <div className="flex flex-wrap gap-1">
                             {currentValues.map((value, idx) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded border">
+                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded border">
                                 {value}
                                 <button
                                   type="button"
@@ -1528,7 +1549,7 @@ const Suminputsection: React.FC = () => {
                                     console.log('Removing value:', value, 'from field:', spec.key);
                                     handleSuggestionClick(value);
                                   }}
-                                  className="text-blue-600 hover:text-blue-800"
+                                  className="text-orange-600 hover:text-orange-800"
                                 >
                                   ×
                                 </button>
@@ -1558,7 +1579,7 @@ const Suminputsection: React.FC = () => {
                             }}
                             className={`px-2 py-1 text-xs rounded border transition-colors ${
                               isSuggestionSelected(suggestion)
-                                ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                ? 'bg-orange-100 text-orange-800 border-orange-300'
                                 : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
                             }`}
                           >
@@ -1587,14 +1608,14 @@ const Suminputsection: React.FC = () => {
       <SectionCard title="Hình ảnh & Video" description="Tải ảnh hoặc nhập link ảnh">
         <div className="space-y-4">
           <div className="flex mb-4">
-            <button type="button" onClick={() => setIsUrlMode(false)} className={`px-4 py-2 text-sm font-medium rounded-l-lg border ${!isUrlMode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>📁 Từ máy tính</button>
-            <button type="button" onClick={() => setIsUrlMode(true)} className={`px-4 py-2 text-sm font-medium rounded-r-lg border-t border-r border-b ${isUrlMode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>🌐 Từ link</button>
+                <button type="button" onClick={() => setIsUrlMode(false)} className={`px-4 py-2 text-sm font-medium rounded-l-lg border ${!isUrlMode ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>📁 Từ máy tính</button>
+            <button type="button" onClick={() => setIsUrlMode(true)} className={`px-4 py-2 text-sm font-medium rounded-r-lg border-t border-r border-b ${isUrlMode ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>🌐 Từ link</button>
           </div>
           {!isUrlMode ? (
-            <div onDragOver={(e) => { e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files) addImageFiles(e.dataTransfer.files); }} className="rounded-xl border-2 border-dashed border-gray-300 p-6 text-center hover:border-blue-400 transition-colors bg-gray-50">
+            <div onDragOver={(e) => { e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files) addImageFiles(e.dataTransfer.files); }} className="rounded-xl border-2 border-dashed border-gray-300 p-6 text-center hover:border-orange-400 transition-colors bg-gray-50">
               <p className="text-sm text-gray-600">Kéo & thả ảnh vào đây hoặc</p>
               <div className="mt-2">
-                <label className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700">Chọn ảnh
+                <label className="inline-flex items-center px-3 py-2 bg-orange-600 text-white rounded-lg cursor-pointer hover:bg-orange-700">Chọn ảnh
                   <input type="file" accept="image/*" multiple onChange={(e) => { if (e.target.files) addImageFiles(e.target.files); }} className="hidden" />
                 </label>
               </div>
@@ -1603,8 +1624,8 @@ const Suminputsection: React.FC = () => {
           ) : (
             <div className="space-y-4">
               <div className="flex gap-2">
-                <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
-                <button type="button" onClick={addImageFromUrl} disabled={!imageUrl.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">Thêm</button>
+                <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
+                <button type="button" onClick={addImageFromUrl} disabled={!imageUrl.trim()} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">Thêm</button>
               </div>
               <p className="text-xs text-gray-500">💡 Nhập link ảnh từ mạng (JPG, PNG, JPEG, WebP)</p>
             </div>
@@ -1621,7 +1642,7 @@ const Suminputsection: React.FC = () => {
           )}
           <div>
             <label className="block text-sm font-medium text-gray-700">Video URL</label>
-            <input name="videoUrl" value={form.videoUrl} onChange={onChange} type="url" placeholder="VD: https://youtube.com/watch?v=abc123" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
+            <input name="videoUrl" value={form.videoUrl} onChange={onChange} type="url" placeholder="VD: https://youtube.com/watch?v=abc123" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
           </div>
         </div>
       </SectionCard>
@@ -1632,7 +1653,7 @@ const Suminputsection: React.FC = () => {
                 ============================================================================ */}
             {/* Navigation Bar */}
             <div className="pt-4 border-t border-gray-200">
-              {/* Info Banner */}
+              {/* Info Banner
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0">
@@ -1643,12 +1664,12 @@ const Suminputsection: React.FC = () => {
                   <div className="text-sm text-blue-800">
                     <p className="font-medium mb-1">Hướng dẫn:</p>
                     <ul className="space-y-1 text-xs">
-                      <li>• <strong>Lưu nháp:</strong> Chỉ cần tên, thương hiệu, danh mục và mô tả ngắn</li>
+                     
                       <li>• <strong>Lưu và đăng sản phẩm:</strong> Cần đầy đủ thông tin bắt buộc để sản phẩm hiển thị công khai</li>
                     </ul>
                   </div>
                 </div>
-              </div>
+              </div> */}
               
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -1658,23 +1679,9 @@ const Suminputsection: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  {/* Draft Button - Always visible */}
-                  <button 
-                    type="button" 
-                    onClick={handleSaveDraft}
-                    disabled={!canSaveDraft || submitting} 
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      !canSaveDraft || submitting 
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                        : 'bg-gray-600 text-white hover:bg-gray-700'
-                    }`}
-                  >
-                    {submitting ? 'Đang lưu...' : 'Lưu nháp'}
-                  </button>
-                  
                   {/* Next/Publish Button */}
                   {currentStep < 3 ? (
-                <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700">Tiếp tục</button>
+                <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-orange-600 hover:bg-orange-700">Tiếp tục</button>
                   ) : (
                     <button 
                       type="submit" 
@@ -1788,20 +1795,14 @@ const Suminputsection: React.FC = () => {
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
                       <div 
-                        className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                        className="bg-orange-600 h-1.5 rounded-full transition-all duration-300" 
                         style={{ width: `${(contentCheck.optionalCount / contentCheck.totalOptional) * 100}%` }}
                       ></div>
                     </div>
                   </div>
 
-                  {/* Draft Status */}
+                  {/* Publish readiness */}
                   <div className="pt-3 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-700">Lưu nháp:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${canSaveDraft ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {canSaveDraft ? 'Có thể lưu' : 'Cần thông tin cơ bản'}
-                      </span>
-                    </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-gray-700">Đăng sản phẩm:</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${contentCheck.canSubmit ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>

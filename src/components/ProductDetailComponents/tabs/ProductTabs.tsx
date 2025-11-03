@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ProductTabsProps {
-  description?: string[];
+  description?: string[] | string;
   specs: Array<{ key: string; value: string }>;
 }
 
@@ -27,11 +27,24 @@ const ProductTabs: React.FC<ProductTabsProps> = ({ description = [], specs }) =>
       </div>
       <div className="mt-3 bg-white rounded-2xl shadow-md p-4">
         {active === 'desc' && (
-          <div className="space-y-3 text-gray-700 leading-relaxed">
-            {description.length === 0 ? (
+          <div className="text-gray-700 leading-relaxed">
+            {!description || (Array.isArray(description) && description.length === 0) ? (
               <p>Đang cập nhật mô tả...</p>
+            ) : typeof description === 'string' ? (
+              <div 
+                className="prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: description }}
+              />
             ) : (
-              description.map((p, i) => <p key={i}>{p}</p>)
+              <div className="space-y-3">
+                {description.map((p, i) => (
+                  <div 
+                    key={i}
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: p }}
+                  />
+                ))}
+              </div>
             )}
           </div>
         )}

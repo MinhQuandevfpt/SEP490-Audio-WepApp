@@ -1,0 +1,87 @@
+import React from 'react';
+import { MessageCircle, Store } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+interface StoreInfoProps {
+  storeId: string;
+  storeName: string;
+  storeAvatar?: string;
+}
+
+const StoreInfo: React.FC<StoreInfoProps> = ({ storeId, storeName, storeAvatar }) => {
+  const navigate = useNavigate();
+  const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(storeName)}&background=ff6b35&color=fff&size=128`;
+  
+  const handleChatWithStore = () => {
+    // TODO: Implement chat functionality
+    console.log('Chat with store:', storeId);
+  };
+
+  const handleVisitStore = () => {
+    navigate(`/store/${storeId}`);
+  };
+
+  const handleAvatarClick = () => {
+    navigate(`/store/${storeId}`);
+  };
+
+  const handleStoreNameClick = () => {
+    navigate(`/store/${storeId}`);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 mt-4">
+      <div className="flex items-center gap-4">
+        {/* Store Avatar - Clickable */}
+        <div 
+          className="flex-shrink-0 cursor-pointer"
+          onClick={handleAvatarClick}
+        >
+          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-colors">
+            <img
+              src={storeAvatar || defaultAvatar}
+              alt={storeName}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = defaultAvatar;
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Store Name & Actions */}
+        <div className="flex-1 min-w-0">
+          <h3 
+            className="text-lg font-semibold text-gray-900 truncate mb-2 cursor-pointer hover:text-orange-500 transition-colors"
+            onClick={handleStoreNameClick}
+          >
+            {storeName}
+          </h3>
+          
+          <div className="flex gap-2">
+            {/* Chat Button */}
+            <button
+              onClick={handleChatWithStore}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-orange-500 text-orange-600 rounded-lg hover:bg-orange-50 transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span className="text-sm font-medium">Chat</span>
+            </button>
+
+            {/* Visit Store Button */}
+            <button
+              onClick={handleVisitStore}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+            >
+              <Store className="w-4 h-4" />
+              <span className="text-sm font-medium">Xem gian hàng</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default StoreInfo;

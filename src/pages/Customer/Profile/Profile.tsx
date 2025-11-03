@@ -21,11 +21,13 @@ const Profile: React.FC = () => {
   useEffect(() => {
     setData(loadProfileData());
     
-    // Get customer ID for preloading
-    const cid = localStorage.getItem('customer_id');
+    // Get customer ID for preloading - support both 'customerId' and 'customer_id'
+    const cid = localStorage.getItem('customerId') || localStorage.getItem('customer_id');
     if (cid) {
       setCustomerId(cid);
       preloadData(cid);
+    } else {
+      console.error('Customer ID not found. Please login again.');
     }
   }, []);
 

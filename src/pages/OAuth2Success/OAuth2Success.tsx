@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
+import { showSuccess, showError } from '../../utils/notification';
 
 const OAuth2Success = () => {
   const navigate = useNavigate();
@@ -89,20 +89,56 @@ const OAuth2Success = () => {
   useEffect(() => {
     const processOAuth2Success = async () => {
       try {
-        const token = searchParams.get('token');
-        const accountId = searchParams.get('accountId');
-        const customerId = searchParams.get('customerId');
-        const error = searchParams.get('error');
+        // Thử lấy params từ query string - Backend gửi 'accessToken' hoặc 'token'
+        let token = searchParams.get('token') || searchParams.get('accessToken');
+        let refreshToken = searchParams.get('refreshToken');
+        let accountId = searchParams.get('accountId');
+        let customerId = searchParams.get('customerId');
+        let error = searchParams.get('error');
 
+        // Nếu không có trong query, thử lấy từ hash fragment (#token=xxx)
+        if (!token && window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          token = hashParams.get('token') || hashParams.get('accessToken');
+          refreshToken = hashParams.get('refreshToken');
+          accountId = hashParams.get('accountId');
+          customerId = hashParams.get('customerId');
+          error = hashParams.get('error');
+          console.log('OAuth2Success - Found params in hash fragment:', {
+            token: token ? 'Present' : 'Missing',
+            accountId,
+            customerId
+          });
+        }
+
+        // Debug: Log toàn bộ URL và tất cả parameters
+        console.log('OAuth2Success - Current URL:', window.location.href);
+        console.log('OAuth2Success - Query params:', Object.fromEntries(searchParams.entries()));
+        console.log('OAuth2Success - Hash fragment:', window.location.hash);
+        console.log('OAuth2Success - All cookies:', document.cookie);
         console.log('OAuth2Success - Received parameters:', {
-          token: token ? 'Present' : 'Missing',
-          accountId,
-          customerId,
-          error
+          token: token ? `Present (${token.substring(0, 20)}...)` : 'Missing',
+          accountId: accountId || 'Missing',
+          customerId: customerId || 'Missing',
+          error: error || 'None'
         });
 
+        // Thử lấy từ cookie nếu không có trong URL
+        if (!token) {
+          const cookieMatch = document.cookie.match(/(?:^|;\s*)token=([^;]+)/);
+          const accountIdCookie = document.cookie.match(/(?:^|;\s*)accountId=([^;]+)/);
+          const customerIdCookie = document.cookie.match(/(?:^|;\s*)customerId=([^;]+)/);
+          
+          if (cookieMatch) {
+            token = cookieMatch[1];
+            accountId = accountIdCookie ? accountIdCookie[1] : accountId;
+            customerId = customerIdCookie ? customerIdCookie[1] : customerId;
+            console.log('OAuth2Success - Found credentials in cookies!');
+          }
+        }
+
         if (error) {
-          toast.error('Đăng nhập Google thất bại: ' + error);
+          showError('Đăng nhập Google thất bại: ' + error);
           navigate('/auth/login');
           return;
         }
@@ -110,15 +146,23 @@ const OAuth2Success = () => {
         if (token && accountId) {
           console.log('OAuth2Success - Processing authentication...');
           
-          // Lưu token trước để có thể gọi API
+          // Lưu access token và refresh token
           localStorage.setItem('customer_token', token);
           localStorage.setItem('token_type', 'Bearer');
           localStorage.setItem('token', token); // Keep for compatibility
           localStorage.setItem('isAuthenticated', 'true');
           localStorage.setItem('accountId', accountId);
           
+          // Lưu refresh token nếu có
+          if (refreshToken) {
+            localStorage.setItem('refresh_token', refreshToken);
+            console.log('OAuth2Success - Refresh token saved');
+          }
+          
+          // Lưu customerId với cả 2 keys để tương thích
           if (customerId) {
             localStorage.setItem('customerId', customerId);
+            localStorage.setItem('customer_id', customerId); // For backward compatibility
           }
 
           // Đợi một chút để đảm bảo localStorage được set
@@ -140,21 +184,26 @@ const OAuth2Success = () => {
             // Chuyển đổi để phù hợp với format nhất quán 
             // API trả về fullName (camelCase) - đây là tên thật từ database
             const userDataForStorage = {
+              id: customerId || customerProfile.id, // Customer ID
               email: customerProfile.email,
               full_name: customerProfile.fullName, // Use only full_name (database standard)
+              fullName: customerProfile.fullName, // Keep for compatibility
               role: 'CUSTOMER', // Default role
               accountId: accountId,
-              customerId: customerId || ''
+              customerId: customerId || customerProfile.id
             };
             
             console.log('OAuth2Success - Final user data for storage:', userDataForStorage);
             
             localStorage.setItem('customer_user', JSON.stringify(userDataForStorage));
+            localStorage.setItem('customerId', customerId || customerProfile.id || ''); // ← Lưu customerId riêng
+            localStorage.setItem('customer_id', customerId || customerProfile.id || ''); // ← Backward compatibility
             localStorage.setItem('userEmail', userDataForStorage.email);
             localStorage.setItem('userName', userDataForStorage.full_name || 'User'); // Use full_name (real name)
             localStorage.setItem('userRole', userDataForStorage.role);
             
             console.log('OAuth2Success - Saved user profile with real fullName:', userDataForStorage);
+            console.log('OAuth2Success - CustomerId saved:', customerId || customerProfile.id);
             
           } catch (profileError) {
             console.error('OAuth2Success - Failed to load customer profile:', profileError);
@@ -187,16 +236,19 @@ const OAuth2Success = () => {
                 const nameFromEmail = emailFromToken.split('@')[0] || `User_${accountId.slice(-6)}`;
                 
                 const customerProfile = {
+                  id: customerId || payload.customerId || '',
                   email: emailFromToken,
                   full_name: nameFromEmail, // TODO: Should get actual full_name from backend
                   fullName: nameFromEmail,  // Keep for compatibility
                   name: nameFromEmail, 
                   role: payload.role || 'CUSTOMER',
                   accountId: accountId,
-                  customerId: customerId || ''
+                  customerId: customerId || payload.customerId || ''
                 };
                 
                 localStorage.setItem('customer_user', JSON.stringify(customerProfile));
+                localStorage.setItem('customerId', customerId || payload.customerId || ''); // ← Lưu customerId
+                localStorage.setItem('customer_id', customerId || payload.customerId || ''); // ← Backward compatibility
                 localStorage.setItem('userEmail', customerProfile.email);
                 localStorage.setItem('userName', customerProfile.full_name || 'User');
                 localStorage.setItem('userRole', customerProfile.role);
@@ -208,6 +260,7 @@ const OAuth2Success = () => {
               
               // Last fallback: sử dụng accountId một phần làm tên
               const basicProfile = {
+                id: customerId || '',
                 email: '',
                 full_name: `User_${accountId.slice(-6)}`,
                 fullName: `User_${accountId.slice(-6)}`,
@@ -217,6 +270,8 @@ const OAuth2Success = () => {
                 customerId: customerId || ''
               };
               localStorage.setItem('customer_user', JSON.stringify(basicProfile));
+              localStorage.setItem('customerId', customerId || ''); // ← Lưu customerId
+              localStorage.setItem('customer_id', customerId || ''); // ← Backward compatibility
               localStorage.setItem('userName', basicProfile.full_name || 'User');
             }
           }
@@ -225,7 +280,7 @@ const OAuth2Success = () => {
           localStorage.setItem('authStateChanged', Date.now().toString());
 
           console.log('OAuth2Success - Authentication completed, redirecting...');
-          toast.success('Đăng nhập Google thành công!');
+          showSuccess('Đăng nhập thành công!');
           
           // Đợi một chút để đảm bảo localStorage được lưu
           setTimeout(() => {
@@ -235,12 +290,32 @@ const OAuth2Success = () => {
           
         } else {
           console.error('OAuth2Success - Missing required parameters');
-          toast.error('Không nhận được thông tin xác thực từ server');
-          navigate('/auth/login');
+          console.error('OAuth2Success - Debug info:', {
+            hasToken: !!token,
+            hasAccountId: !!accountId,
+            hasCustomerId: !!customerId,
+            url: window.location.href,
+            queryParams: Object.fromEntries(searchParams.entries()),
+            cookies: document.cookie
+          });
+          
+          // Thông báo lỗi chi tiết hơn
+          const missingParams = [];
+          if (!token) missingParams.push('token');
+          if (!accountId) missingParams.push('accountId');
+          
+          showError(
+            `Không nhận được thông tin xác thực từ server. Thiếu: ${missingParams.join(', ')}`
+          );
+          
+          console.log('OAuth2Success - Redirecting to login in 3 seconds...');
+          setTimeout(() => {
+            navigate('/auth/login');
+          }, 3000);
         }
       } catch (error) {
         console.error('OAuth2Success - Error processing authentication:', error);
-        toast.error('Lỗi xử lý đăng nhập');
+        showError('Lỗi xử lý đăng nhập');
         navigate('/auth/login');
       }
     };

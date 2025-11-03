@@ -62,7 +62,7 @@ const SellerLayout: React.FC = () => {
             <div className="absolute top-1/2 right-10 w-16 h-16 bg-white rounded-full opacity-15"></div>
           </div>
           
-          <div className="relative z-10 text-center text-white px-8 max-w-lg">
+          <div className="relative z-10 text-center text-white px-8 py-12 max-w-lg">
             <div className="mb-8">
               <div className="bg-white bg-opacity-20 rounded-full p-4 inline-block mb-6">
                 <ShoppingBag className="w-16 h-16 text-white" />
@@ -143,7 +143,7 @@ const SellerLayout: React.FC = () => {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-8">
+        <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-12">
           <div className="w-full max-w-md">
             <Outlet />
           </div>

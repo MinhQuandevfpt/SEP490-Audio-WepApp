@@ -70,15 +70,26 @@ export const useProductList = () => {
 
       const response: ProductListResponse = await ProductListService.getProducts(params);
       
+      // Handle both array and object response
+      const responseData = Array.isArray(response.data) 
+        ? {
+            content: response.data,
+            totalPages: 1,
+            totalElements: response.data.length,
+            last: true,
+            first: true,
+          }
+        : response.data;
+      
       setState(prev => ({
         ...prev,
-        products: response.data.content,
+        products: responseData.content,
         pagination: {
           ...prev.pagination,
-          totalPages: response.data.totalPages,
-          totalElements: response.data.totalElements,
-          hasNext: !response.data.last,
-          hasPrevious: !response.data.first,
+          totalPages: responseData.totalPages,
+          totalElements: responseData.totalElements,
+          hasNext: !responseData.last,
+          hasPrevious: !responseData.first,
         },
         loading: false,
       }));

@@ -3,7 +3,8 @@ import type {
   KycFilterResponse, 
   KycApproveResponse, 
   KycRejectResponse,
-  KycStatus 
+  KycStatus,
+  KycData
 } from '../../types/admin';
 import { showSuccess, showError } from '../../utils/notification';
 
@@ -75,6 +76,48 @@ export class AdminKycService {
   }
 
   /**
+   * Get KYC detail by ID
+   */
+  static async getKycDetail(kycId: string): Promise<KycData> {
+    try {
+      const token = localStorage.getItem('admin_access_token');
+      
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+      }
+
+      const response = await fetch(`${API_URL}/stores/{storeId}/kyc/${kycId}`, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data: KycData = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Get KYC detail error:', error);
+      showError(error instanceof Error ? error.message : 'Lỗi khi tải chi tiết KYC');
+      throw error;
+    }
+  }
+
+  /**
    * Approve KYC request
    */
   static async approveKyc(kycId: string): Promise<KycApproveResponse> {
@@ -95,11 +138,29 @@ export class AdminKycService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        // Try to get error message, fallback to status text
+        const errorText = await response.text().catch(() => '');
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      const data: KycApproveResponse = await response.json();
+      // API returns plain text, not JSON
+      const responseText = await response.text();
+      
+      // Create response object for consistency
+      const data: KycApproveResponse = {
+        status: response.status,
+        message: responseText || 'KYC approved successfully'
+      };
+      
       showSuccess('Phê duyệt KYC thành công!');
       return data;
     } catch (error) {
@@ -130,11 +191,36 @@ export class AdminKycService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        // Try to get error message, fallback to status text
+        const errorText = await response.text().catch(() => '');
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      const data: KycRejectResponse = await response.json();
+      // API may return plain text or JSON, try to handle both
+      const responseText = await response.text();
+      let data: KycRejectResponse;
+      
+      try {
+        // Try to parse as JSON first
+        const jsonData = JSON.parse(responseText);
+        data = jsonData;
+      } catch {
+        // If not JSON, create response object from text
+        data = {
+          status: response.status,
+          message: responseText || 'KYC rejected successfully'
+        };
+      }
+      
       showSuccess('Đã từ chối KYC!');
       return data;
     } catch (error) {

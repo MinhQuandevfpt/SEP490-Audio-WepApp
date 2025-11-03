@@ -17,7 +17,8 @@ import {
   MessageSquare,
   HelpCircle,
   FileText,
-  Tag
+  Tag,
+  Users
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -86,6 +87,18 @@ const SellerDashboardLayout: React.FC = () => {
         { label: 'Đang giao', path: '/seller/dashboard/orders/shipping' },
         { label: 'Đã giao', path: '/seller/dashboard/orders/delivered' },
         { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' }
+      ]
+    },
+    {
+      icon: Users,
+      label: 'Quản lý nhân viên',
+      path: '/seller/dashboard/staff',
+      badge: null,
+      subItems: [
+        { label: 'Danh sách nhân viên', path: '/seller/dashboard/staff' },
+        { label: 'Tạo nhân viên', path: '/seller/dashboard/staff/create' },
+        { label: 'Cập nhật nhân viên', path: '/seller/dashboard/staff/update' },
+        { label: 'Xóa thông tin nhân viên', path: '/seller/dashboard/staff/delete' }
       ]
     },
     {

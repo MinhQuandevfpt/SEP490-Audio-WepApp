@@ -118,8 +118,10 @@ export class StatusCodeUtils {
       [ApiStatusMessage.REGISTER_SUCCESS]: "Đăng ký thành công",
       [ApiStatusMessage.SELLER_REGISTER_SUCCESS]: "Đăng ký seller thành công",
       
-      // Error messages
-      [ApiStatusMessage.INVALID_CREDENTIALS]: "Email hoặc mật khẩu không chính xác",
+      // Error messages - Authentication (all variations map to same Vietnamese message)
+      'Invalid credentials': 'Tài khoản hoặc mật khẩu không đúng',
+      'invalid credentials': 'Tài khoản hoặc mật khẩu không đúng',
+      [ApiStatusMessage.INVALID_CREDENTIALS]: "Tài khoản hoặc mật khẩu không đúng", // "Invalid email or password"
       [ApiStatusMessage.EMAIL_ALREADY_EXISTS]: "Email đã được sử dụng",
       [ApiStatusMessage.PHONE_ALREADY_EXISTS]: "Số điện thoại đã được sử dụng",
       [ApiStatusMessage.WEAK_PASSWORD]: "Mật khẩu phải có ít nhất 6 ký tự",
@@ -134,7 +136,27 @@ export class StatusCodeUtils {
       [ApiStatusMessage.NETWORK_ERROR]: "Lỗi kết nối mạng"
     };
 
-    return translations[message] || message;
+    // Try exact match first
+    if (translations[message]) {
+      return translations[message];
+    }
+    
+    // Try case-insensitive match
+    const lowerMessage = message.toLowerCase();
+    for (const [key, value] of Object.entries(translations)) {
+      if (key.toLowerCase() === lowerMessage) {
+        return value;
+      }
+    }
+    
+    // Try partial match
+    for (const [key, value] of Object.entries(translations)) {
+      if (lowerMessage.includes(key.toLowerCase())) {
+        return value;
+      }
+    }
+
+    return message;
   }
 
   // Format success message with user info

@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ShoppingCart, User, Bell, Home, MapPin, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { User, Bell, Home, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
-import { useCart } from '../../hooks/useCart';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
+import CartDropdown from './CartDropdown';
 import type { CategoryItem } from '../../types/api';
 
 const Header: React.FC = () => {
+  const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const { cartItemCount, loadCartCount, clearCart } = useCart();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+
+  // Check if current page is homepage or account page
+  const isHomePage = location.pathname === '/';
+  const isAccountPage = location.pathname.startsWith('/account');
 
   useEffect(() => {
     const checkAuth = () => {
@@ -18,11 +22,6 @@ const Header: React.FC = () => {
       const user = CustomerAuthService.getCurrentUser();
       setIsAuthenticated(authStatus);
       setCurrentUser(user);
-      
-      // Load cart count if authenticated
-      if (authStatus) {
-        loadCartCount();
-      }
     };
 
     // Load categories from API
@@ -58,13 +57,12 @@ const Header: React.FC = () => {
       window.removeEventListener('storage', checkAuth);
       clearInterval(authCheckInterval);
     };
-  }, [loadCartCount]);
+  }, []);
 
   const handleLogout = () => {
     CustomerAuthService.logout();
     setIsAuthenticated(false);
     setCurrentUser(null);
-    clearCart();
     window.location.href = '/'; // Hard refresh to clear any cached state
   };
 
@@ -185,43 +183,38 @@ const Header: React.FC = () => {
           </div>
 
           {/* Right side actions */}
-          <div className="flex flex-col items-end space-y-2">
-            {/* Top row - Trang chủ, Tài khoản, Giỏ hàng */}
-            <div className="flex items-center space-x-4">
-              {/* Trang chủ */}
-              <Link to="/" className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
-                <Home className="w-5 h-5" />
-                <span className="text-sm">Trang chủ</span>
-              </Link>
+          <div className="flex items-center space-x-4">
+            {/* Trang chủ */}
+            <Link 
+              to="/" 
+              className={`flex items-center space-x-1 transition-colors ${
+                isHomePage 
+                  ? 'text-orange-500 font-semibold' 
+                  : 'text-gray-700 hover:text-orange-500'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-sm">Trang chủ</span>
+            </Link>
 
-              {/* Divider */}
-              <span className="text-gray-300">|</span>
+            {/* Divider */}
+            <span className="text-gray-300">|</span>
 
-              {/* User Account */}
-              <Link to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} className="flex items-center space-x-1 text-gray-700 hover:text-orange-500">
-                <User className="w-5 h-5" />
-                <span className="text-sm">Tài khoản</span>
-              </Link>
+            {/* User Account */}
+            <Link 
+              to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
+              className={`flex items-center space-x-1 transition-colors ${
+                isAccountPage 
+                  ? 'text-orange-500 font-semibold' 
+                  : 'text-gray-700 hover:text-orange-500'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span className="text-sm">Tài khoản</span>
+            </Link>
 
-              {/* Shopping Cart */}
-              <a href="/cart" className="relative group">
-                <div className="flex items-center text-blue-600 hover:text-blue-700">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
-                {cartItemCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                    {cartItemCount > 99 ? '99+' : cartItemCount}
-                  </span>
-                )}
-              </a>
-            </div>
-
-            {/* Bottom row - Địa chỉ */}
-            <div className="flex items-center space-x-1 border-b border-gray-400 pb-1">
-              <MapPin className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-semibold text-black">Giao đến:</span>
-              <span className="font-medium text-black">Q.1, P. Cô Giang, Hồ Chí Minh</span>
-            </div>
+            {/* Shopping Cart with Dropdown */}
+            <CartDropdown />
           </div>
         </div>
       </div>

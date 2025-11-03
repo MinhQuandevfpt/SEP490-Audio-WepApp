@@ -37,7 +37,7 @@ const TitlePrice: React.FC<TitlePriceProps> = ({ name, brand, rating, reviewsCou
         {shortDescription}
       </div>
       <div className="mt-4 flex items-end gap-3">
-        <div className="text-[28px] font-extrabold" style={{ color: '#E63946' }}>{toVnd(finalPrice)}</div>
+        <div className="text-[28px] font-extrabold text-orange-500">{toVnd(finalPrice)}</div>
         {salePrice && (
           <>
             <div className="text-[#888] line-through text-[16px]">{toVnd(price)}</div>

@@ -6,10 +6,7 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Mail,
-  Phone,
-  Store,
-  FileText
+  Store
 } from 'lucide-react';
 import { StoreService } from '../../../services/seller/StoreService';
 import type { StoreInfo } from '../../../types/seller';
@@ -88,7 +85,7 @@ const KycStatusPage: React.FC = () => {
                 <Clock className="w-12 h-12 text-yellow-500" />
               </div>
               <h1 className="text-3xl font-bold text-white mb-2">Đang xét duyệt</h1>
-              <p className="text-yellow-50 text-lg">Yêu cầu KYC của bạn đang được xem xét</p>
+              <p className="text-yellow-50 text-lg">Yêu cầu của bạn đang được xem xét</p>
             </div>
 
             {/* Content */}
@@ -108,44 +105,7 @@ const KycStatusPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Store Info */}
-              <div className="bg-gray-50 rounded-xl p-6 mb-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Thông tin đã gửi</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <Store className="w-5 h-5 text-gray-400 mr-3" />
-                    <div>
-                      <p className="text-xs text-gray-500">Tên cửa hàng</p>
-                      <p className="text-sm font-medium text-gray-800">{storeInfo?.kycInfo?.storeName || storeInfo?.name}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <Phone className="w-5 h-5 text-gray-400 mr-3" />
-                    <div>
-                      <p className="text-xs text-gray-500">Số điện thoại</p>
-                      <p className="text-sm font-medium text-gray-800">{storeInfo?.kycInfo?.phoneNumber || storeInfo?.phoneNumber}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <Mail className="w-5 h-5 text-gray-400 mr-3" />
-                    <div>
-                      <p className="text-xs text-gray-500">Email</p>
-                      <p className="text-sm font-medium text-gray-800">{storeInfo?.email}</p>
-                    </div>
-                  </div>
-                  {storeInfo?.kycInfo?.submittedAt && (
-                    <div className="flex items-center">
-                      <FileText className="w-5 h-5 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-xs text-gray-500">Ngày gửi</p>
-                        <p className="text-sm font-medium text-gray-800">
-                          {new Date(storeInfo.kycInfo.submittedAt).toLocaleDateString('vi-VN')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* Removed 'Thông tin đã gửi' block per request */}
 
               {/* Timeline */}
               <div className="mb-6">
@@ -254,7 +214,7 @@ const KycStatusPage: React.FC = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
                 <h3 className="font-semibold text-gray-800 mb-3">Hướng dẫn khắc phục</h3>
                 <ul className="text-sm text-gray-700 space-y-2">
-                  <li>• Kiểm tra lại thông tin đã gửi và lý do từ chối</li>
+                  <li>• Kiểm tra lại thông tin đã gửi và lý do từ chối đã được hệ thống gửi về Email</li>
                   <li>• Chuẩn bị đầy đủ giấy tờ hợp lệ (CCCD/CMND, Giấy phép kinh doanh)</li>
                   <li>• Đảm bảo ảnh chụp rõ ràng, không bị mờ hay che khuất</li>
                   <li>• Thông tin phải khớp với giấy tờ thực tế</li>
@@ -262,37 +222,7 @@ const KycStatusPage: React.FC = () => {
                 </ul>
               </div>
 
-              {/* Store Info */}
-              <div className="bg-gray-50 rounded-xl p-6 mb-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Thông tin đã gửi trước đó</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <Store className="w-5 h-5 text-gray-400 mr-3" />
-                    <div>
-                      <p className="text-xs text-gray-500">Tên cửa hàng</p>
-                      <p className="text-sm font-medium text-gray-800">{storeInfo?.kycInfo?.storeName || storeInfo?.name}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <Phone className="w-5 h-5 text-gray-400 mr-3" />
-                    <div>
-                      <p className="text-xs text-gray-500">Số điện thoại</p>
-                      <p className="text-sm font-medium text-gray-800">{storeInfo?.kycInfo?.phoneNumber || storeInfo?.phoneNumber}</p>
-                    </div>
-                  </div>
-                  {storeInfo?.kycInfo?.reviewedAt && (
-                    <div className="flex items-center">
-                      <FileText className="w-5 h-5 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-xs text-gray-500">Ngày xét duyệt</p>
-                        <p className="text-sm font-medium text-gray-800">
-                          {new Date(storeInfo.kycInfo.reviewedAt).toLocaleDateString('vi-VN')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* Removed 'Thông tin đã gửi trước đó' block per request */}
 
               {/* Actions */}
               <div className="flex gap-4">
@@ -340,8 +270,8 @@ const KycStatusPage: React.FC = () => {
             <div className="bg-white p-4 rounded-full inline-block mb-4">
               <Store className="w-12 h-12 text-blue-500" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-2">Chào mừng đến AudioShop</h1>
-            <p className="text-blue-50 text-lg">Hoàn thành KYC để bắt đầu bán hàng</p>
+            <h1 className="text-3xl font-bold text-white mb-2">Chào mừng đến AudioShop!</h1>
+            <p className="text-blue-50 text-lg">Vui lòng cung cấp thông tin để thành lập tài khoản người bán trên AudioShop.</p>
           </div>
 
           {/* Content */}
@@ -351,16 +281,16 @@ const KycStatusPage: React.FC = () => {
               <ul className="text-sm text-gray-700 space-y-2">
                 <li>• Điền đầy đủ thông tin kinh doanh</li>
                 <li>• Cung cấp thông tin thanh toán</li>
-                <li>• Upload giấy tờ định danh (CCCD/CMND)</li>
+                <li>• Upload giấy tờ định danh (CCCD/CMND, Giấy phép kinh doanh)</li>
                 <li>• Chờ xét duyệt từ AudioShop (1-3 ngày)</li>
-              </ul>
+             </ul>
             </div>
 
             <button
               onClick={() => navigate('/seller/onboarding')}
               className="w-full px-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 transition-all font-medium text-lg"
             >
-              Bắt đầu KYC ngay
+              Bắt đầu đăng kí ngay
             </button>
           </div>
         </div>

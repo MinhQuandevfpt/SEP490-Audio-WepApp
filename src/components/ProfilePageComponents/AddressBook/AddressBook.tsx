@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Edit, MapPin, Trash2, Check } from 'lucide-react';
-import ProfileCustomerService from '../../../services/customer/Profilecustomer';
+import { AddressService } from '../../../services/customer/AddressService';
+import { useProvinces } from '../../../hooks/useProvinces';
+import { useDistricts } from '../../../hooks/useDistricts';
+import { useWards } from '../../../hooks/useWards';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import LoadingSkeleton from '../../common/LoadingSkeleton';
+import type { CustomerAddressApiItem, AddressLabel } from '../../../types/api';
 
-interface AddressItem {
-  id: string;
-  name: string;
-  phone: string;
-  addressLine: string;
-  isDefault?: boolean;
-}
+// Using API type directly
+type AddressItem = CustomerAddressApiItem;
 
 interface AddressBookProps {
   preloadedData?: {
@@ -20,14 +19,29 @@ interface AddressBookProps {
   customerId?: string | null;
 }
 
-const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) => {
+const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAddress, setEditingAddress] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState<{
+    receiverName: string;
+    phoneNumber: string;
+    label: AddressLabel;
+    country: string;
+    province: string;
+    district: string;
+    ward: string;
+    street: string;
+    addressLine: string;
+    postalCode: string;
+    note?: string;
+    isDefault: boolean;
+  }>({
+    receiverName: '',
+    phoneNumber: '',
+    label: 'HOME',
     country: 'Việt Nam',
     province: '',
     district: '',
@@ -39,205 +53,202 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
     isDefault: false
   });
 
+  // Province/District/Ward cascading selections (same as AddressFormForCart)
+  const { provinces, loading: provincesLoading } = useProvinces();
+  const selectedProvince = useMemo(() => provinces.find(p => p.ProvinceName === formData.province) || null, [provinces, formData.province]);
+  const { districts, loading: districtsLoading } = useDistricts(selectedProvince ? selectedProvince.ProvinceID : null);
+  const selectedDistrict = useMemo(() => districts.find(d => d.DistrictName === formData.district) || null, [districts, formData.district]);
+  const { wards, loading: wardsLoading } = useWards(selectedDistrict ? selectedDistrict.DistrictID : null);
+
+  const loadAddresses = async () => {
+    if (!AddressService.isAuthenticated()) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const list = await AddressService.getAddresses();
+      setAddresses(list);
+    } catch (error: any) {
+      showCenterError(error?.message || 'Không thể tải danh sách địa chỉ');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Use preloaded data if available
     if (preloadedData?.addresses) {
-      const mapped = preloadedData.addresses.map((a) => ({
-        id: a.id,
-        name: a.receiverName,
-        phone: a.phoneNumber,
-        addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
-        isDefault: !!a.default,
-      }));
-      setAddresses(mapped);
+      setAddresses(preloadedData.addresses as CustomerAddressApiItem[]);
       setIsLoading(false);
       return;
     }
 
-    // Fallback: fetch from API
-    const cid = customerId || localStorage.getItem('customer_id');
-    if (!cid) {
-      setIsLoading(false);
-      return;
-    }
-    
-    setIsLoading(true);
-    ProfileCustomerService.getAddresses(cid)
-      .then((list) => {
-        const mapped = list.map((a) => ({
-          id: a.id,
-          name: a.receiverName,
-          phone: a.phoneNumber,
-          addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
-          isDefault: !!a.default,
-        }));
-        setAddresses(mapped);
-      })
-      .catch(() => {
-        // silent
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [preloadedData, customerId]);
-
-  // Load provinces list on mount (VN public API)
-  const [provinceOptions, setProvinceOptions] = useState<Array<{ code: number; name: string }>>([]);
-  const [districtOptions, setDistrictOptions] = useState<Array<{ code: number; name: string }>>([]);
-  const [wardOptions, setWardOptions] = useState<Array<{ code: number; name: string }>>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  useEffect(() => {
-    // Use preloaded provinces if available
-    if (preloadedData?.provinces) {
-      setProvinceOptions(preloadedData.provinces);
-      return;
-    }
-
-    // Fallback: fetch from API
-    fetch('https://provinces.open-api.vn/api/p/')
-      .then((r) => r.json())
-      .then((data: Array<{ code: number; name: string }>) => setProvinceOptions(data))
-      .catch(() => setProvinceOptions([]));
+    // Fetch from API using AddressService
+    loadAddresses();
   }, [preloadedData]);
 
-  // When province changes, load districts
-  useEffect(() => {
-    const selected = provinceOptions.find((p) => p.name === formData.province);
-    if (!selected) {
-      setDistrictOptions([]);
-      setWardOptions([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleAddAddress = async () => {
+    if (!formData.receiverName || !formData.phoneNumber || !formData.province || !formData.district || !formData.ward || !formData.street) {
+      showCenterError('Vui lòng điền đầy đủ thông tin địa chỉ', 'Lỗi');
       return;
     }
-    fetch(`https://provinces.open-api.vn/api/p/${selected.code}?depth=2`)
-      .then((r) => r.json())
-      .then((data: { districts?: Array<{ code: number; name: string }> }) => {
-        setDistrictOptions(data?.districts || []);
-        setWardOptions([]);
-      })
-      .catch(() => {
-        setDistrictOptions([]);
-        setWardOptions([]);
+
+    if (!formData.addressLine) {
+      formData.addressLine = `${formData.street}, ${formData.ward}, ${formData.district}, ${formData.province}`;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await AddressService.createAddress({
+        receiverName: formData.receiverName,
+        phoneNumber: formData.phoneNumber,
+        label: formData.label,
+        country: formData.country,
+        province: formData.province,
+        district: formData.district,
+        ward: formData.ward,
+        street: formData.street,
+        addressLine: formData.addressLine,
+        postalCode: formData.postalCode,
+        note: formData.note,
+        isDefault: formData.isDefault,
       });
-  }, [formData.province, provinceOptions]);
-
-  // When district changes, load wards
-  useEffect(() => {
-    const district = districtOptions.find((d) => d.name === formData.district);
-    if (!district) {
-      setWardOptions([]);
-      return;
+      showCenterSuccess('Thêm địa chỉ thành công', 'Thành công');
+      await loadAddresses();
+      setFormData({
+        receiverName: '',
+        phoneNumber: '',
+        label: 'HOME',
+        country: 'Việt Nam',
+        province: '',
+        district: '',
+        ward: '',
+        street: '',
+        addressLine: '',
+        postalCode: '',
+        note: '',
+        isDefault: false
+      });
+      setShowAddForm(false);
+    } catch (error: any) {
+      showCenterError(error?.message || 'Thêm địa chỉ thất bại', 'Lỗi');
+    } finally {
+      setIsSubmitting(false);
     }
-    fetch(`https://provinces.open-api.vn/api/d/${district.code}?depth=2`)
-      .then((r) => r.json())
-      .then((data: { wards?: Array<{ code: number; name: string }> }) => setWardOptions(data?.wards || []))
-      .catch(() => setWardOptions([]));
-  }, [formData.district, districtOptions]);
-
-  const handleAddAddress = () => {
-    const cid = customerId || localStorage.getItem('customer_id');
-    if (!cid || !formData.name || !formData.phone || !formData.addressLine) return;
-    const payload = {
-      receiverName: formData.name,
-      phoneNumber: formData.phone,
-      label: 'HOME' as const,
-      country: formData.country,
-      province: formData.province,
-      district: formData.district,
-      ward: formData.ward,
-      street: formData.street,
-      addressLine: formData.addressLine,
-      postalCode: formData.postalCode,
-      note: formData.note,
-      isDefault: !!formData.isDefault,
-    };
-    ProfileCustomerService.addAddress(cid, payload)
-      .then((resp) => {
-        const a: any = resp?.data;
-        if (!a) return;
-        const item: AddressItem = {
-          id: a.id,
-          name: a.receiverName,
-          phone: a.phoneNumber,
-          addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
-          isDefault: !!(a.default ?? a.isDefault),
-        };
-        setAddresses((prev) => [...prev, item]);
-        showCenterSuccess('Thêm địa chỉ thành công', 'Thành công');
-        setFormData({ name: '', phone: '', country: '', province: '', district: '', ward: '', street: '', addressLine: '', postalCode: '', note: '', isDefault: false });
-        setShowAddForm(false);
-      })
-      .catch((e) => showCenterError(e?.message || 'Thêm địa chỉ thất bại', 'Lỗi'));
   };
 
   const handleEditAddress = (address: AddressItem) => {
     setFormData({
-      name: address.name,
-      phone: address.phone,
-      country: '',
-      province: '',
-      district: '',
-      ward: '',
-      street: '',
+      receiverName: address.receiverName,
+      phoneNumber: address.phoneNumber,
+      label: address.label,
+      country: address.country,
+      province: address.province,
+      district: address.district,
+      ward: address.ward,
+      street: address.street,
       addressLine: address.addressLine,
-      postalCode: '',
-      note: '',
-      isDefault: address.isDefault || false
+      postalCode: address.postalCode || '',
+      note: address.note || '',
+      isDefault: address.default || false
     });
     setEditingAddress(address.id);
     setShowAddForm(false);
   };
 
-  const handleSaveEdit = () => {
-    const cid = customerId || localStorage.getItem('customer_id');
-    if (!cid || !editingAddress || !formData.name || !formData.phone || !formData.addressLine) return;
-    const payload = {
-      receiverName: formData.name,
-      phoneNumber: formData.phone,
-      label: 'HOME' as const,
-      country: formData.country,
-      province: formData.province,
-      district: formData.district,
-      ward: formData.ward,
-      street: formData.street,
-      addressLine: formData.addressLine,
-      postalCode: formData.postalCode,
-      note: formData.note,
-      isDefault: !!formData.isDefault,
-    };
-    ProfileCustomerService.updateAddress(cid, editingAddress, payload)
-      .then((a) => {
-        const item: AddressItem = {
-          id: a.id,
-          name: a.receiverName,
-          phone: a.phoneNumber,
-          addressLine: `${a.addressLine || ''}${a.street ? `, ${a.street}` : ''}${a.ward ? `, ${a.ward}` : ''}${a.district ? `, ${a.district}` : ''}${a.province ? `, ${a.province}` : ''}${a.country ? `, ${a.country}` : ''}${a.postalCode ? ` (${a.postalCode})` : ''}`,
-          isDefault: !!(a.default ?? (a as any).isDefault),
-        };
-        setAddresses((prev) => prev.map(addr => addr.id === editingAddress ? item : addr));
-        showCenterSuccess('Cập nhật địa chỉ thành công', 'Thành công');
-        setEditingAddress(null);
-        setFormData({ name: '', phone: '', country: '', province: '', district: '', ward: '', street: '', addressLine: '', postalCode: '', note: '', isDefault: false });
-      })
-      .catch((e) => showCenterError(e?.message || 'Cập nhật địa chỉ thất bại', 'Lỗi'));
+  const handleSaveEdit = async () => {
+    if (!editingAddress || !formData.receiverName || !formData.phoneNumber || !formData.province || !formData.district || !formData.ward || !formData.street) {
+      showCenterError('Vui lòng điền đầy đủ thông tin địa chỉ', 'Lỗi');
+      return;
+    }
+
+    if (!formData.addressLine) {
+      formData.addressLine = `${formData.street}, ${formData.ward}, ${formData.district}, ${formData.province}`;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await AddressService.updateAddress(editingAddress, {
+        receiverName: formData.receiverName,
+        phoneNumber: formData.phoneNumber,
+        label: formData.label,
+        country: formData.country,
+        province: formData.province,
+        district: formData.district,
+        ward: formData.ward,
+        street: formData.street,
+        addressLine: formData.addressLine,
+        postalCode: formData.postalCode,
+        note: formData.note,
+        isDefault: formData.isDefault,
+      });
+      showCenterSuccess('Cập nhật địa chỉ thành công', 'Thành công');
+      await loadAddresses();
+      setEditingAddress(null);
+      setFormData({
+        receiverName: '',
+        phoneNumber: '',
+        label: 'HOME',
+        country: 'Việt Nam',
+        province: '',
+        district: '',
+        ward: '',
+        street: '',
+        addressLine: '',
+        postalCode: '',
+        note: '',
+        isDefault: false
+      });
+    } catch (error: any) {
+      showCenterError(error?.message || 'Cập nhật địa chỉ thất bại', 'Lỗi');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
     setShowAddForm(false);
     setEditingAddress(null);
-    setFormData({ name: '', phone: '', country: '', province: '', district: '', ward: '', street: '', addressLine: '', postalCode: '', note: '', isDefault: false });
+    setFormData({
+      receiverName: '',
+      phoneNumber: '',
+      label: 'HOME',
+      country: 'Việt Nam',
+      province: '',
+      district: '',
+      ward: '',
+      street: '',
+      addressLine: '',
+      postalCode: '',
+      note: '',
+      isDefault: false
+    });
   };
 
-  const handleDeleteAddress = (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này?')) return;
-    // Chưa có API xóa -> cập nhật local
-    setAddresses((prev) => prev.filter(a => a.id !== id));
-    setSelectedAddress(null);
-  };
+  const handleDeleteAddress = async (id: string) => {
+    const addressToDelete = addresses.find(a => a.id === id);
+    if (!addressToDelete) return;
 
-  const handleSetDefault = (id: string) => {
-    // Nếu backend có endpoint, có thể gọi updateAddress với isDefault=true
-    setAddresses((prev) => prev.map(a => ({ ...a, isDefault: a.id === id })));
+    const confirmDelete = window.confirm(`Bạn có chắc chắn muốn xóa địa chỉ "${addressToDelete.receiverName}"?`);
+    if (!confirmDelete) return;
+
+    try {
+      setIsSubmitting(true);
+      await AddressService.deleteAddress(id);
+      showCenterSuccess('Xóa địa chỉ thành công', 'Thành công');
+      await loadAddresses();
+      if (selectedAddress === id) {
+        setSelectedAddress(null);
+      }
+    } catch (error: any) {
+      showCenterError(error?.message || 'Không thể xóa địa chỉ. Vui lòng thử lại.', 'Lỗi');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Show loading skeleton while data is being fetched
@@ -272,8 +283,8 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
               </label>
               <input
                 type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={formData.receiverName}
+                onChange={(e) => setFormData({ ...formData, receiverName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Nhập họ và tên"
               />
@@ -284,11 +295,23 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
               </label>
               <input
                 type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                value={formData.phoneNumber}
+                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Nhập số điện thoại"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Loại địa chỉ</label>
+              <select
+                value={formData.label}
+                onChange={(e) => setFormData({ ...formData, label: e.target.value as AddressLabel })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              >
+                <option value="HOME">Nhà riêng</option>
+                <option value="WORK">Cơ quan</option>
+                <option value="OTHER">Khác</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Quốc gia</label>
@@ -304,11 +327,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
               <select
                 value={formData.province}
                 onChange={(e) => setFormData({ ...formData, province: e.target.value, district: '', ward: '' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+                disabled={provincesLoading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white disabled:bg-gray-100"
               >
-                <option value="">-- Chọn Tỉnh/Thành --</option>
-                {provinceOptions.map((p) => (
-                  <option key={p.code} value={p.name}>{p.name}</option>
+                <option value="">{provincesLoading ? 'Đang tải tỉnh/thành...' : '-- Chọn Tỉnh/Thành --'}</option>
+                {provinces.map((p) => (
+                  <option key={p.ProvinceID} value={p.ProvinceName}>{p.ProvinceName}</option>
                 ))}
               </select>
             </div>
@@ -317,12 +341,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
               <select
                 value={formData.district}
                 onChange={(e) => setFormData({ ...formData, district: e.target.value, ward: '' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
-                disabled={!formData.province}
+                disabled={!formData.province || districtsLoading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white disabled:bg-gray-100"
               >
-                <option value="">-- Chọn Quận/Huyện --</option>
-                {districtOptions.map((d) => (
-                  <option key={d.code} value={d.name}>{d.name}</option>
+                <option value="">{!formData.province ? 'Chọn tỉnh trước' : (districtsLoading ? 'Đang tải quận/huyện...' : '-- Chọn Quận/Huyện --')}</option>
+                {districts.map((d) => (
+                  <option key={d.DistrictID} value={d.DistrictName}>{d.DistrictName}</option>
                 ))}
               </select>
             </div>
@@ -331,12 +355,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
               <select
                 value={formData.ward}
                 onChange={(e) => setFormData({ ...formData, ward: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
-                disabled={!formData.district}
+                disabled={!formData.district || wardsLoading}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white disabled:bg-gray-100"
               >
-                <option value="">-- Chọn Phường/Xã --</option>
-                {wardOptions.map((w) => (
-                  <option key={w.code} value={w.name}>{w.name}</option>
+                <option value="">{!formData.district ? 'Chọn quận/huyện trước' : (wardsLoading ? 'Đang tải phường/xã...' : '-- Chọn Phường/Xã --')}</option>
+                {wards.map((w) => (
+                  <option key={w.WardCode} value={w.WardName}>{w.WardName}</option>
                 ))}
               </select>
             </div>
@@ -395,14 +419,16 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
           <div className="flex gap-3 mt-4">
             <button
               onClick={editingAddress ? handleSaveEdit : handleAddAddress}
-              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
             >
               <Check className="w-4 h-4" />
-              {editingAddress ? 'Lưu thay đổi' : 'Thêm địa chỉ'}
+              {isSubmitting ? 'Đang lưu...' : (editingAddress ? 'Lưu thay đổi' : 'Thêm địa chỉ')}
             </button>
             <button
               onClick={handleCancel}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Hủy
             </button>
@@ -437,12 +463,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <p className="font-semibold text-gray-900">{addr.name}</p>
+                    <p className="font-semibold text-gray-900">{addr.receiverName}</p>
                     <span className="text-gray-500">·</span>
-                    <p className="text-gray-600">{addr.phone}</p>
+                    <p className="text-gray-600">{addr.phoneNumber}</p>
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{addr.addressLine}</p>
-                  {addr.isDefault && (
+                  {addr.default && (
                     <span className="inline-block text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
                       Mặc định
                     </span>
@@ -462,13 +488,23 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    {!addr.isDefault && (
+                    {!addr.default && (
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          handleSetDefault(addr.id);
+                          try {
+                            await AddressService.updateAddress(addr.id, {
+                              ...addr,
+                              isDefault: true,
+                            } as any);
+                            showCenterSuccess('Đặt làm địa chỉ mặc định thành công', 'Thành công');
+                            await loadAddresses();
+                          } catch (error: any) {
+                            showCenterError(error?.message || 'Không thể đặt làm mặc định', 'Lỗi');
+                          }
                         }}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        disabled={isSubmitting}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
                         title="Đặt làm mặc định"
                       >
                         <Check className="w-4 h-4" />
@@ -479,7 +515,8 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData, customerId }) 
                         e.stopPropagation();
                         handleDeleteAddress(addr.id);
                       }}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      disabled={isSubmitting}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                       title="Xóa địa chỉ"
                     >
                       <Trash2 className="w-4 h-4" />

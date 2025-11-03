@@ -17,6 +17,7 @@ import { showTikiNotification } from '../../../utils/notification';
 import { KycService } from '../../../services/seller/KycService';
 import type { KycRequest } from '../../../types/seller';
 import { FileUploadService } from '../../../services/FileUploadService';
+import { BankSelector } from '../../../components/common';
 
 interface OnboardingData {
   // Business Information (matching API schema)
@@ -59,6 +60,14 @@ const SellerOnboarding: React.FC = () => {
     isOfficial: false,
   });
 
+  // Guard to prevent accidental submit when transitioning steps
+  const ignoreNextSubmitRef = React.useRef(false);
+
+  // Clear errors when step changes
+  React.useEffect(() => {
+    setErrors({});
+  }, [currentStep]);
+
   // Phone number validation
   const validatePhoneNumber = (phone: string): boolean => {
     const phoneRegex = /^(0|\+84)[3|5|7|8|9][0-9]{8}$/;
@@ -77,6 +86,15 @@ const SellerOnboarding: React.FC = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const newValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    
+    // Validate numeric fields - only allow numbers
+    const numericFields = ['phoneNumber', 'businessLicenseNumber', 'taxCode', 'bankAccountNumber'];
+    if (numericFields.includes(name) && typeof newValue === 'string') {
+      // Only allow digits
+      if (newValue !== '' && !/^\d+$/.test(newValue)) {
+        return; // Don't update if it contains non-numeric characters
+      }
+    }
     
     setFormData(prev => ({
       ...prev,
@@ -122,10 +140,10 @@ const SellerOnboarding: React.FC = () => {
     }));
   };
 
-  const validateCurrentStep = (): boolean => {
+  const validateCurrentStep = (stepToValidate = currentStep, forceValidate = false): boolean => {
     const newErrors: Record<string, string> = {};
     
-    switch (currentStep) {
+    switch (stepToValidate) {
       case 1:
         if (!formData.storeName.trim()) {
           newErrors.storeName = 'Vui lòng nhập tên cửa hàng';
@@ -135,6 +153,12 @@ const SellerOnboarding: React.FC = () => {
         } else if (!validatePhoneNumber(formData.phoneNumber)) {
           newErrors.phoneNumber = 'Số điện thoại không đúng định dạng';
         }
+        if (!formData.businessLicenseNumber.trim()) {
+          newErrors.businessLicenseNumber = 'Vui lòng nhập số giấy phép kinh doanh';
+        }
+        if (!formData.taxCode.trim()) {
+          newErrors.taxCode = 'Vui lòng nhập mã số thuế';
+        }
         break;
       case 2:
         if (!formData.bankName) {
@@ -142,17 +166,26 @@ const SellerOnboarding: React.FC = () => {
         }
         if (!formData.bankAccountNumber.trim()) {
           newErrors.bankAccountNumber = 'Vui lòng nhập số tài khoản';
+        } else if (!/^\d+$/.test(formData.bankAccountNumber)) {
+          newErrors.bankAccountNumber = 'Số tài khoản chỉ được chứa số';
         }
         if (!formData.bankAccountName.trim()) {
           newErrors.bankAccountName = 'Vui lòng nhập tên chủ tài khoản';
         }
         break;
       case 3:
-        if (!formData.frontIdImage) {
-          newErrors.frontIdImage = 'Vui lòng tải lên ảnh mặt trước CCCD/CMND';
-        }
-        if (!formData.backIdImage) {
-          newErrors.backIdImage = 'Vui lòng tải lên ảnh mặt sau CCCD/CMND';
+        // Only validate step 3 when explicitly requested (when user clicks submit)
+        if (forceValidate) {
+          if (!formData.frontIdImage) {
+            newErrors.frontIdImage = 'Vui lòng tải lên ảnh mặt trước CCCD/CMND';
+          }
+          if (!formData.backIdImage) {
+            newErrors.backIdImage = 'Vui lòng tải lên ảnh mặt sau CCCD/CMND';
+          }
+          if (!formData.businessLicenseImage) {
+            newErrors.businessLicenseImage = 'Vui lòng tải lên giấy phép kinh doanh';
+          }
+          
         }
         break;
     }
@@ -162,28 +195,40 @@ const SellerOnboarding: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (validateCurrentStep()) {
-      setCurrentStep(prev => prev + 1);
+    if (validateCurrentStep(currentStep)) {
+      // Prevent accidental submit caused by button type switching during the same click
+      ignoreNextSubmitRef.current = true;
+
+      // Blur the active element to avoid click carryover
+      (document.activeElement as HTMLElement | null)?.blur?.();
+
+      // Defer step change to next tick so the original click finishes first
+      setTimeout(() => {
+        setCurrentStep(prev => prev + 1);
+        ignoreNextSubmitRef.current = false;
+      }, 0);
     }
   };
 
   const handlePrev = () => {
+    // Just move to previous step, errors will be cleared by useEffect
     setCurrentStep(prev => prev - 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // If this submit was triggered by the same click that advanced steps, ignore it
+    if (ignoreNextSubmitRef.current) {
+      return;
+    }
     
-    if (!validateCurrentStep()) {
+    // Validate step 3 with force flag set to true
+    if (!validateCurrentStep(3, true)) {
       return;
     }
 
-    if (currentStep < 3) {
-      handleNext();
-      return;
-    }
-
-    // If we're at step 3, submit the form
+    // If validation passes, submit the form
     setIsLoading(true);
 
     try {
@@ -223,13 +268,20 @@ const SellerOnboarding: React.FC = () => {
       // Submit KYC request
       await KycService.submitKyc(kycData);
       
-      // Move to step 4 (completion step)
-      setCurrentStep(4);
+      // Show success notification
+      showTikiNotification(
+        'Gửi yêu cầu xác minh thành công! Chúng tôi sẽ xem xét và phản hồi trong thời gian sớm nhất.',
+        'Thành công',
+        'success'
+      );
+      
+      // Redirect to KYC status page to prevent form resubmission on refresh
+      navigate('/seller/kyc-status', { replace: true });
       
     } catch (error: any) {
       console.error('KYC submission failed:', error);
       
-      let errorMessage = 'Gửi yêu cầu KYC thất bại. Vui lòng thử lại!';
+      let errorMessage = 'Gửi yêu cầu thất bại. Vui lòng thử lại!';
       
       // Handle specific upload errors
       if (error.message?.includes('upload') || error.message?.includes('Cloudinary')) {
@@ -346,7 +398,9 @@ const SellerOnboarding: React.FC = () => {
         <div className="relative">
           <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
-            type="tel"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             name="phoneNumber"
             value={formData.phoneNumber}
             onChange={handleInputChange}
@@ -361,6 +415,7 @@ const SellerOnboarding: React.FC = () => {
               errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="Nhập số điện thoại (VD: 0987654321)"
+            maxLength={11}
             required
           />
         </div>
@@ -375,6 +430,8 @@ const SellerOnboarding: React.FC = () => {
           <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             name="businessLicenseNumber"
             value={formData.businessLicenseNumber}
             onChange={handleInputChange}
@@ -401,6 +458,8 @@ const SellerOnboarding: React.FC = () => {
           <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             name="taxCode"
             value={formData.taxCode}
             onChange={handleInputChange}
@@ -413,6 +472,7 @@ const SellerOnboarding: React.FC = () => {
               errors.taxCode ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="Nhập mã số thuế"
+            maxLength={13}
             required
           />
         </div>
@@ -435,29 +495,22 @@ const SellerOnboarding: React.FC = () => {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Tên ngân hàng *
         </label>
-        <select
-          name="bankName"
+        <BankSelector
           value={formData.bankName}
-          onChange={handleInputChange}
+          onChange={(_bankCode, bankName) => {
+            setFormData(prev => ({
+              ...prev,
+              bankName: bankName
+            }));
+            clearError('bankName');
+          }}
+          error={errors.bankName}
           onBlur={() => {
             if (!formData.bankName) {
               setErrors(prev => ({ ...prev, bankName: 'Vui lòng chọn ngân hàng' }));
             }
           }}
-          className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.bankName ? 'border-red-500' : 'border-gray-300'
-          }`}
-          required
-        >
-          <option value="">Chọn ngân hàng</option>
-          <option value="Vietcombank">Vietcombank</option>
-          <option value="Techcombank">Techcombank</option>
-          <option value="BIDV">BIDV</option>
-          <option value="VietinBank">VietinBank</option>
-          <option value="Sacombank">Sacombank</option>
-          <option value="ACB">ACB</option>
-          <option value="Other">Khác</option>
-        </select>
+        />
         <ErrorMessage fieldName="bankName" />
       </div>
 
@@ -467,18 +520,23 @@ const SellerOnboarding: React.FC = () => {
         </label>
         <input
           type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           name="bankAccountNumber"
           value={formData.bankAccountNumber}
           onChange={handleInputChange}
           onBlur={() => {
             if (!formData.bankAccountNumber.trim()) {
               setErrors(prev => ({ ...prev, bankAccountNumber: 'Vui lòng nhập số tài khoản' }));
+            } else if (!/^\d+$/.test(formData.bankAccountNumber)) {
+              setErrors(prev => ({ ...prev, bankAccountNumber: 'Số tài khoản chỉ được chứa số' }));
             }
           }}
           className={`w-full px-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
             errors.bankAccountNumber ? 'border-red-500' : 'border-gray-300'
           }`}
           placeholder="Nhập số tài khoản"
+          maxLength={20}
           required
         />
         <ErrorMessage fieldName="bankAccountNumber" />
@@ -617,9 +675,11 @@ const SellerOnboarding: React.FC = () => {
         {/* Business License Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Giấy phép kinh doanh
+            Giấy phép kinh doanh *
           </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+          <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors ${
+            errors.businessLicenseImage ? 'border-red-500' : 'border-gray-300'
+          }`}>
             {formData.businessLicenseImage ? (
               <div className="relative">
                 <img
@@ -657,6 +717,7 @@ const SellerOnboarding: React.FC = () => {
               </div>
             )}
           </div>
+          <ErrorMessage fieldName="businessLicenseImage" />
         </div>
       </div>
 
@@ -689,7 +750,7 @@ const SellerOnboarding: React.FC = () => {
         <CheckCircle className="w-24 h-24 text-green-500 mx-auto mb-6" />
         <h3 className="text-3xl font-bold text-gray-800 mb-4">Đã gửi yêu cầu thành công!</h3>
         <p className="text-lg text-gray-600 mb-6">
-          Yêu cầu xác minh KYC của bạn đã được gửi đến hệ thống.
+          Yêu cầu xác minh của bạn đã được gửi đến hệ thống.
         </p>
       </div>
 
@@ -706,21 +767,7 @@ const SellerOnboarding: React.FC = () => {
         </p>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-        <h5 className="text-lg font-semibold text-gray-800 mb-4">Thông tin đã gửi:</h5>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-          <div>
-            <p className="text-sm text-gray-600"><strong>Tên cửa hàng:</strong> {formData.storeName}</p>
-            <p className="text-sm text-gray-600"><strong>Số điện thoại:</strong> {formData.phoneNumber}</p>
-            <p className="text-sm text-gray-600"><strong>Số giấy phép:</strong> {formData.businessLicenseNumber}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-600"><strong>Ngân hàng:</strong> {formData.bankName}</p>
-            <p className="text-sm text-gray-600"><strong>Số tài khoản:</strong> {formData.bankAccountNumber}</p>
-            <p className="text-sm text-gray-600"><strong>Chủ tài khoản:</strong> {formData.bankAccountName}</p>
-          </div>
-        </div>
-      </div>
+      {/* Removed the submitted info preview as requested */}
 
       <div className="flex justify-center mt-8">
         <button
