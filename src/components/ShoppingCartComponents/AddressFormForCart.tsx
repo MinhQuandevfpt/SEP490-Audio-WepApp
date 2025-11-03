@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { CustomerAddressApiItem, AddressLabel } from '../../types/api';
 import { AddressService } from '../../services/customer/AddressService';
 import { toast } from 'react-toastify';
@@ -36,6 +36,9 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
     postalCode: string;
     note?: string;
     isDefault: boolean;
+    provinceCode: string;
+    districtId: number | null;
+    wardCode: string;
   }>(() => {
     if (editingAddress) {
       return {
@@ -51,6 +54,9 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
         postalCode: editingAddress.postalCode || '',
         note: editingAddress.note || '',
         isDefault: editingAddress.default,
+        provinceCode: (editingAddress as any).provinceCode || '',
+        districtId: (editingAddress as any).districtId ?? null,
+        wardCode: (editingAddress as any).wardCode || '',
       };
     }
     return {
@@ -66,6 +72,9 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
       postalCode: '',
       note: '',
       isDefault: false,
+      provinceCode: '',
+      districtId: null,
+      wardCode: '',
     };
   });
 
@@ -76,6 +85,29 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
   const selectedDistrict = useMemo(() => districts.find(d => d.DistrictName === form.district) || null, [districts, form.district]);
   const { wards, loading: wardsLoading } = useWards(selectedDistrict ? selectedDistrict.DistrictID : null);
 
+  // Sync code fields when selections change
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      provinceCode: selectedProvince ? String(selectedProvince.ProvinceID) : '',
+    }));
+  }, [selectedProvince]);
+
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      districtId: selectedDistrict ? selectedDistrict.DistrictID : null,
+    }));
+  }, [selectedDistrict]);
+
+  useEffect(() => {
+    const matchedWard = wards.find(w => w.WardName === form.ward);
+    setForm(prev => ({
+      ...prev,
+      wardCode: matchedWard ? matchedWard.WardCode : '',
+    }));
+  }, [wards, form.ward]);
+
   const submitForm = async () => {
     if (!form.receiverName || !form.phoneNumber || !form.province || !form.district || !form.ward || !form.street) {
       toast.error('Vui lòng điền đầy đủ thông tin địa chỉ');
@@ -84,6 +116,14 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
 
     if (!form.addressLine) {
       form.addressLine = `${form.street}, ${form.ward}, ${form.district}, ${form.province}`;
+    }
+
+    // Validate new code fields for create
+    if (!isEditMode) {
+      if (!form.provinceCode || form.districtId == null || !form.wardCode) {
+        toast.error('Thiếu mã địa lý: vui lòng chọn Tỉnh/Quận/Phường hợp lệ');
+        return;
+      }
     }
 
     try {
@@ -97,7 +137,23 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
         }
         if (onCancel) onCancel();
       } else {
-        const newAddress = await AddressService.createAddress(form);
+        const newAddress = await AddressService.createAddress({
+          receiverName: form.receiverName,
+          phoneNumber: form.phoneNumber,
+          label: form.label,
+          country: form.country,
+          province: form.province,
+          district: form.district,
+          ward: form.ward,
+          street: form.street,
+          addressLine: form.addressLine,
+          postalCode: form.postalCode,
+          note: form.note,
+          isDefault: form.isDefault,
+          provinceCode: form.provinceCode,
+          districtId: form.districtId as number,
+          wardCode: form.wardCode,
+        });
         toast.success('Thêm địa chỉ thành công!');
         onAddressesChange();
         onSelect(newAddress.id);
@@ -186,12 +242,19 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
               <option key={w.WardCode} value={w.WardName}>{w.WardName}</option>
             ))}
           </select>
-          {/* Đường/Số nhà */}
+          {/* Đường */}
           <input 
-            placeholder="Đường/Số nhà *" 
-            className="border rounded px-3 py-2 md:col-span-2"
+            placeholder="Đường *" 
+            className="border rounded px-3 py-2"
             value={form.street} 
             onChange={(e) => setForm({ ...form, street: e.target.value })} 
+          />
+          {/* Số nhà/Địa chỉ chi tiết */}
+          <input 
+            placeholder="Số nhà/Địa chỉ chi tiết *" 
+            className="border rounded px-3 py-2"
+            value={form.addressLine} 
+            onChange={(e) => setForm({ ...form, addressLine: e.target.value })} 
           />
           <input 
             placeholder="Mã bưu điện" 

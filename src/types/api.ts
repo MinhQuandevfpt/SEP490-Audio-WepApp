@@ -135,6 +135,9 @@ export interface AddCustomerAddressRequest {
   postalCode: string;
   note?: string;
   isDefault: boolean;
+  provinceCode: string;
+  districtId: number;
+  wardCode: string;
 }
 
 export interface CustomerAddress {
@@ -179,6 +182,9 @@ export interface CustomerAddressApiItem {
   postalCode: string;
   note?: string;
   default: boolean;
+  provinceCode: string | null;
+  districtId: number | null;
+  wardCode: string | null;
 }
 
 export type GetCustomerAddressesResponse = CustomerAddressApiItem[];

@@ -4,7 +4,7 @@
  */
 
 import { HttpInterceptor } from '../HttpInterceptor';
-import type { CustomerAddressApiItem, AddCustomerAddressRequest } from '../../types/api';
+import type { CustomerAddressApiItem, AddCustomerAddressRequest, UpdateCustomerAddressRequest } from '../../types/api';
 import { CustomerAuthService } from './Authcustomer';
 
 export class AddressService {
@@ -70,7 +70,7 @@ export class AddressService {
    */
   static async updateAddress(
     addressId: string,
-    data: Omit<AddCustomerAddressRequest, 'customerId'>
+    data: Omit<UpdateCustomerAddressRequest, 'customerId' | 'addressId'>
   ): Promise<CustomerAddressApiItem> {
     try {
       const customerId = this.getCustomerId();

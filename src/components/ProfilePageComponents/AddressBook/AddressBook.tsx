@@ -38,6 +38,9 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
     postalCode: string;
     note?: string;
     isDefault: boolean;
+    provinceCode: string;
+    districtId: number | null;
+    wardCode: string;
   }>({
     receiverName: '',
     phoneNumber: '',
@@ -50,7 +53,10 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
     addressLine: '',
     postalCode: '',
     note: '',
-    isDefault: false
+    isDefault: false,
+    provinceCode: '',
+    districtId: null,
+    wardCode: ''
   });
 
   // Province/District/Ward cascading selections (same as AddressFormForCart)
@@ -59,6 +65,29 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
   const { districts, loading: districtsLoading } = useDistricts(selectedProvince ? selectedProvince.ProvinceID : null);
   const selectedDistrict = useMemo(() => districts.find(d => d.DistrictName === formData.district) || null, [districts, formData.district]);
   const { wards, loading: wardsLoading } = useWards(selectedDistrict ? selectedDistrict.DistrictID : null);
+
+  // Sync code fields when selections change
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      provinceCode: selectedProvince ? String(selectedProvince.ProvinceID) : '',
+    }));
+  }, [selectedProvince]);
+
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      districtId: selectedDistrict ? selectedDistrict.DistrictID : null,
+    }));
+  }, [selectedDistrict]);
+
+  useEffect(() => {
+    const matchedWard = wards.find(w => w.WardName === formData.ward);
+    setFormData(prev => ({
+      ...prev,
+      wardCode: matchedWard ? matchedWard.WardCode : '',
+    }));
+  }, [wards, formData.ward]);
 
   const loadAddresses = async () => {
     if (!AddressService.isAuthenticated()) {
@@ -101,6 +130,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
       formData.addressLine = `${formData.street}, ${formData.ward}, ${formData.district}, ${formData.province}`;
     }
 
+    // Validate new code fields
+    if (!formData.provinceCode || formData.districtId == null || !formData.wardCode) {
+      showCenterError('Thiếu mã địa lý: vui lòng chọn Tỉnh/Quận/Phường hợp lệ', 'Lỗi');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       await AddressService.createAddress({
@@ -116,6 +151,9 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
         postalCode: formData.postalCode,
         note: formData.note,
         isDefault: formData.isDefault,
+        provinceCode: formData.provinceCode,
+        districtId: formData.districtId,
+        wardCode: formData.wardCode,
       });
       showCenterSuccess('Thêm địa chỉ thành công', 'Thành công');
       await loadAddresses();
@@ -131,7 +169,10 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
         addressLine: '',
         postalCode: '',
         note: '',
-        isDefault: false
+        isDefault: false,
+        provinceCode: '',
+        districtId: null,
+        wardCode: ''
       });
       setShowAddForm(false);
     } catch (error: any) {
@@ -154,7 +195,10 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
       addressLine: address.addressLine,
       postalCode: address.postalCode || '',
       note: address.note || '',
-      isDefault: address.default || false
+      isDefault: address.default || false,
+      provinceCode: (address as any).provinceCode || '',
+      districtId: (address as any).districtId ?? null,
+      wardCode: (address as any).wardCode || ''
     });
     setEditingAddress(address.id);
     setShowAddForm(false);
@@ -201,7 +245,10 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
         addressLine: '',
         postalCode: '',
         note: '',
-        isDefault: false
+        isDefault: false,
+        provinceCode: '',
+        districtId: null,
+        wardCode: ''
       });
     } catch (error: any) {
       showCenterError(error?.message || 'Cập nhật địa chỉ thất bại', 'Lỗi');
@@ -225,7 +272,10 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
       addressLine: '',
       postalCode: '',
       note: '',
-      isDefault: false
+      isDefault: false,
+      provinceCode: '',
+      districtId: null,
+      wardCode: ''
     });
   };
 
@@ -467,7 +517,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
                     <span className="text-gray-500">·</span>
                     <p className="text-gray-600">{addr.phoneNumber}</p>
                   </div>
-                  <p className="text-sm text-gray-600 mb-2">{addr.addressLine}</p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    {([addr.street, addr.addressLine].filter(Boolean) as string[]).join(', ')}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {([addr.ward, addr.district, addr.province].filter(Boolean) as string[]).join(', ')}
+                  </p>
                   {addr.default && (
                     <span className="inline-block text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
                       Mặc định

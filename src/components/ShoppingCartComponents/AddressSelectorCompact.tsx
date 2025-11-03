@@ -105,7 +105,12 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">{selected.receiverName} • {selected.phoneNumber}</p>
-                  <p className="text-sm text-gray-600">{selected.addressLine}</p>
+                  <p className="text-sm text-gray-600">
+                    {([selected.street, selected.addressLine].filter(Boolean) as string[]).join(', ')}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {([selected.ward, selected.district, selected.province].filter(Boolean) as string[]).join(', ')}
+                  </p>
                   {selected.default && <span className="inline-block text-xs text-white bg-gray-800 rounded px-2 py-0.5 mt-1">Mặc định</span>}
                 </div>
                 <div className="flex items-center gap-2 ml-2">
@@ -145,7 +150,12 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">{a.receiverName} • {a.phoneNumber}</p>
-                        <p className="text-xs text-gray-600">{a.addressLine}</p>
+                        <p className="text-xs text-gray-600">
+                          {([a.street, a.addressLine].filter(Boolean) as string[]).join(', ')}
+                        </p>
+                        <p className="text-[11px] text-gray-600">
+                          {([a.ward, a.district, a.province].filter(Boolean) as string[]).join(', ')}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2 ml-2">
                         <button
