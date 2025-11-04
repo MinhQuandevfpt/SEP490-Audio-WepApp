@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import { OrderFilterTabs, OrderCard, OrderDetailModal } from '../../../components/OrderHistoryComponents';
 import useOrderHistory from '../../../hooks/useOrderHistory';
+import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
+import { showError, showSuccess } from '../../../utils/notification';
 import { Home, ChevronRight, Package, ChevronDown } from 'lucide-react';
 
 const OrderHistoryPage: React.FC = () => {
@@ -23,7 +25,14 @@ const OrderHistoryPage: React.FC = () => {
     selectedOrder,
     setSelectedOrder,
     viewDetail,
+    reload,
   } = useOrderHistory();
+
+  // Cancel modal state
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
+  const [cancelNote, setCancelNote] = useState<string>('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Auto-open order detail modal if orderId is passed via navigation state
   useEffect(() => {
@@ -63,7 +72,23 @@ const OrderHistoryPage: React.FC = () => {
             ) : (
               <div className="space-y-3">
                 {orders.map(order => (
-                  <OrderCard key={order.id} order={order} />
+                  <div key={order.id}>
+                    <OrderCard order={order} />
+                    {order.status === 'PENDING' && (
+                      <div className="flex justify-end mt-2">
+                        <button
+                          onClick={() => {
+                            setCancelTargetId(order.id);
+                            setCancelReason('CHANGE_OF_MIND');
+                            setCancelNote('');
+                          }}
+                          className="px-4 py-2 text-sm font-medium rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          Hủy đơn hàng
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ))}
                 {orders.length === 0 && (
                   <div className="text-center py-16">
@@ -130,6 +155,73 @@ const OrderHistoryPage: React.FC = () => {
       </div>
 
       <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+
+      {/* Cancel Order Modal */}
+      {cancelTargetId && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="p-5 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Hủy đơn hàng</h3>
+              <p className="text-sm text-gray-500 mt-1">Chỉ có thể hủy khi trạng thái đơn là PENDING.</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lý do hủy</label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="CHANGE_OF_MIND">Đổi ý</option>
+                  <option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</option>
+                  <option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</option>
+                  <option value="ORDERED_BY_ACCIDENT">Đặt nhầm</option>
+                  <option value="OTHER">Khác</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <textarea
+                  value={cancelNote}
+                  onChange={(e) => setCancelNote(e.target.value)}
+                  placeholder="VD: Đặt nhầm phiên bản"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 min-h-[90px]"
+                />
+                <p className="text-xs text-gray-400 mt-1">Ghi chú sẽ gửi kèm yêu cầu hủy.</p>
+              </div>
+            </div>
+            <div className="p-5 border-t flex items-center justify-end gap-2">
+              <button
+                onClick={() => !isCancelling && setCancelTargetId(null)}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                disabled={isCancelling}
+              >
+                Đóng
+              </button>
+              <button
+                onClick={async () => {
+                  if (!cancelTargetId) return;
+                  try {
+                    setIsCancelling(true);
+                    await OrderHistoryService.cancel(cancelTargetId, cancelReason, cancelNote);
+                    showSuccess('Hủy đơn hàng thành công');
+                    setCancelTargetId(null);
+                    await reload();
+                  } catch (err: any) {
+                    showError(err?.message || 'Hủy đơn hàng thất bại');
+                  } finally {
+                    setIsCancelling(false);
+                  }
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                disabled={isCancelling}
+              >
+                {isCancelling ? 'Đang hủy...' : 'Xác nhận hủy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
