@@ -141,7 +141,7 @@ const OrderHistory: React.FC = () => {
                           <p className="text-xs text-gray-600 mb-1">Tổng tiền</p>
                           <p className="text-lg font-bold text-orange-600">{formatCurrency(order.grandTotal)}</p>
                           {order.discountTotal > 0 && (
-                            <p className="text-xs text-gray-500 line-through mt-1">
+                            <p className="text-xs text-gray-500 line-through mt-1 hidden">
                               {formatCurrency(order.totalAmount)}
                             </p>
                           )}

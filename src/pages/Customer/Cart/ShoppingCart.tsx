@@ -1,21 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calcCartSummary, type CartItem as UICartItem } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
-import SelectAllBar from '../../../components/ShoppingCartComponents/SelectAllBar';
-import CartItemRow from '../../../components/ShoppingCartComponents/CartItemRow';
-import AddressSelectorCompact from '../../../components/ShoppingCartComponents/AddressSelectorCompact';
-import PaymentMethodDropdown from '../../../components/CheckoutOrderComponents/PaymentMethodDropdown';
-import VoucherSection from '../../../components/ShoppingCartComponents/VoucherSection';
-import SummaryBox from '../../../components/ShoppingCartComponents/SummaryBox';
+import CartItemsList from '../../../components/ShoppingCartComponents/CartItemsList';
+import CartSummarySidebar from '../../../components/ShoppingCartComponents/CartSummarySidebar';
 import { useCart } from '../../../hooks/useCart';
+import { useServiceTypeCalculator } from '../../../hooks/useServiceTypeCalculator';
+import { useAutoShippingFee } from '../../../hooks/useAutoShippingFee';
 import { AddressService } from '../../../services/customer/AddressService';
 import { CustomerCartService } from '../../../services/customer/CartService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
-import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest } from '../../../types/cart';
+import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher, ServiceTypeIds } from '../../../types/cart';
 import type { CustomerAddressApiItem } from '../../../types/api';
 import { ProductVoucherService } from '../../../services/customer/ProductVoucherService';
 import type { PaymentMethod } from '../../../data/checkout';
+import type { ShopVoucher } from '../../../components/ShoppingCartComponents/VoucherSection';
+import { ProductListService } from '../../../services/customer/ProductListService';
 
 const ShoppingCart: React.FC = () => {
   const navigate = useNavigate();
@@ -25,6 +25,16 @@ const ShoppingCart: React.FC = () => {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  // Use service type calculator hook
+  const {
+    serviceTypeId,
+    setServiceTypeId,
+    packageWeight,
+    setPackageWeight,
+    productCache,
+    setProductCache,
+  } = useServiceTypeCalculator({ items });
 
   // Map API cart items to UI items used by existing components
   const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
@@ -70,6 +80,9 @@ const ShoppingCart: React.FC = () => {
   }, [cart]);
 
   // Load vouchers for all products in the cart (unique by refId)
+  const [availableVouchers, setAvailableVouchers] = useState<ShopVoucher[]>([]);
+  const [, setVouchersLoading] = useState(false);
+
   useEffect(() => {
     const loadVouchers = async () => {
       try {
@@ -79,30 +92,49 @@ const ShoppingCart: React.FC = () => {
           setAvailableVouchers([]);
           return;
         }
+
+        // Fetch vouchers and product details to get storeId
         const responses = await Promise.all(
-          productIds.map(pid => ProductVoucherService.getProductVouchers(pid, 'ALL', null).catch(() => null))
+          productIds.map(async (pid) => {
+            try {
+              const [voucherRes, productRes] = await Promise.all([
+                ProductVoucherService.getProductVouchers(pid, 'ALL', null).catch(() => null),
+                ProductListService.getProductById(pid).catch(() => null),
+              ]);
+              return { productId: pid, voucherRes, productRes };
+            } catch {
+              return { productId: pid, voucherRes: null, productRes: null };
+            }
+          })
         );
-        const shopVouchers = responses
-          .filter(Boolean)
-          .flatMap(r => (r as any).data?.vouchers?.shop || []);
-        // Map to display format and dedupe by code
-        const mapped = shopVouchers.map((v: any) => ({
-          code: v.code,
-          label: v.title || v.code,
-          desc: v.type === 'PERCENT' && v.discountPercent
-            ? `Giảm ${v.discountPercent}%${v.maxDiscountValue ? `, tối đa ${v.maxDiscountValue}` : ''}`
-            : v.type === 'FIXED' && v.discountValue
-              ? `Giảm ${v.discountValue}đ${v.minOrderValue ? `, đơn tối thiểu ${v.minOrderValue}đ` : ''}`
-              : 'Voucher cửa hàng',
-        }));
-        const dedup = Array.from(new Map(mapped.map(m => [m.code, m])).values());
-        setAvailableVouchers(dedup);
+
+        // Extract shop vouchers with storeId
+        const shopVouchers: ShopVoucher[] = [];
+        responses.forEach(({ voucherRes, productRes }) => {
+          if (voucherRes && productRes) {
+            const storeId = productRes.data?.storeId;
+            const vouchers = voucherRes.data?.vouchers?.shop || [];
+            vouchers.forEach((v: any) => {
+              shopVouchers.push({
+                ...v,
+                storeId: storeId || undefined,
+              });
+            });
+          }
+        });
+
+        // Dedupe by code (keep first occurrence)
+        const deduped = Array.from(
+          new Map(shopVouchers.map(v => [v.code, v])).values()
+        );
+        setAvailableVouchers(deduped);
       } finally {
         setVouchersLoading(false);
       }
     };
     loadVouchers();
   }, [cart?.items]);
+
   const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
   const summary = useMemo(() => calcCartSummary(items), [items]);
 
@@ -113,45 +145,160 @@ const ShoppingCart: React.FC = () => {
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<{
     code: string;
-    type: 'PERCENT10' | 'FREESHIP';
-    amount: number; // calculated discount amount
+    type: 'FIXED' | 'PERCENT';
+    discountValue: number;
+    storeId: string;
   } | null>(null);
 
-  const [availableVouchers, setAvailableVouchers] = useState<Array<{ code: string; label: string; desc: string }>>([]);
-  const [, setVouchersLoading] = useState(false);
+  // Shipping fee estimation state
+  const [shippingFee, setShippingFee] = useState<number>(0);
 
-  const shippingFee = useMemo(() => {
-    return 0;
-  }, []);
+  // Auto-calculate shipping fee when items/address change
+  useAutoShippingFee({
+    items,
+    addresses,
+    selectedAddressId,
+    productCache,
+    serviceTypeId,
+    onShippingFeeChange: setShippingFee,
+    onProductCacheUpdate: setProductCache,
+    autoCalculate: true, // Enable auto calculation
+  });
 
+  // Store applied voucher code separately to avoid dependency issues
+  const appliedVoucherCodeRef = useRef<string | null>(null);
+  useEffect(() => {
+    appliedVoucherCodeRef.current = appliedVoucher?.code || null;
+  }, [appliedVoucher?.code]);
+
+  // Auto-update applied voucher discount when items change
+  useEffect(() => {
+    const voucherCode = appliedVoucherCodeRef.current;
+    if (!voucherCode) return;
+
+    // Recalculate voucher discount when items change
+    const selectedItems = items.filter(it => it.isSelected);
+    if (selectedItems.length === 0) {
+      // Nếu không còn sản phẩm nào được chọn, gỡ voucher
+      setAppliedVoucher(null);
+      setVoucherInput('');
+      return;
+    }
+
+    // Find the voucher to get current details
+    const voucher = availableVouchers.find(v => v.code === voucherCode);
+    if (!voucher) {
+      // Voucher không tồn tại trong danh sách, gỡ voucher
+      setAppliedVoucher(null);
+      setVoucherInput('');
+      return;
+    }
+
+    // Calculate store total for this voucher
+    let storeTotal = 0;
+    selectedItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product && product.storeId === voucher.storeId) {
+        storeTotal += item.price * item.quantity;
+      }
+    });
+
+    // Kiểm tra minOrderValue - nếu không đủ điều kiện, tự động gỡ voucher
+    if (voucher.minOrderValue && voucher.minOrderValue > 0) {
+      if (storeTotal < voucher.minOrderValue) {
+        // Không đủ điều kiện, gỡ voucher và hiển thị thông báo
+        setAppliedVoucher(null);
+        setVoucherInput('');
+        showCenterError(
+          `Voucher đã được gỡ vì đơn hàng không đạt tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ. Hiện tại: ${storeTotal.toLocaleString('vi-VN')}đ`,
+          'Thông báo'
+        );
+        return;
+      }
+    }
+
+    // Calculate new discount value
+    let newDiscountValue = 0;
+    if (voucher.type === 'FIXED') {
+      newDiscountValue = voucher.discountValue || 0;
+    } else if (voucher.type === 'PERCENT') {
+      const percent = voucher.discountPercent || 0;
+      const discount = Math.round((storeTotal * percent) / 100);
+      
+      // Áp dụng maxDiscountValue nếu có
+      if (voucher.maxDiscountValue && discount > voucher.maxDiscountValue) {
+        newDiscountValue = voucher.maxDiscountValue;
+      } else {
+        newDiscountValue = discount;
+      }
+    }
+
+    // Only update if discount value changed and voucher is still applied
+    setAppliedVoucher(prev => {
+      if (!prev || prev.code !== voucherCode) return prev;
+      if (prev.discountValue === newDiscountValue) return prev;
+      
+      return {
+        ...prev,
+        discountValue: newDiscountValue,
+      };
+    });
+  }, [items, productCache, availableVouchers]); // Recalculate when items/productCache/availableVouchers change
+
+  // Calculate voucher discount based on store total (for display)
   const voucherDiscount = useMemo(() => {
     if (!appliedVoucher) return 0;
-    if (appliedVoucher.type === 'PERCENT10') {
-      // 10% trên tổng tiền hàng đã chọn, tối đa 100k
-      return Math.min(Math.round(summary.total * 0.1), 100_000);
-    }
-    if (appliedVoucher.type === 'FREESHIP') {
-      // Voucher FREESHIP không còn áp dụng khi không có phí vận chuyển
-      return 0;
-    }
-    return 0;
-  }, [appliedVoucher, summary.total]);
+    return appliedVoucher.discountValue;
+  }, [appliedVoucher]);
 
   const grandTotal = useMemo(() => {
     const total = summary.total + shippingFee - voucherDiscount;
     return Math.max(0, total);
   }, [summary.total, shippingFee, voucherDiscount]);
 
-  const applyVoucher = () => {
-    const code = voucherInput.trim().toUpperCase();
-    if (!code) return;
-    const found = availableVouchers.find(v => v.code.toUpperCase() === code);
-    if (found) {
-      // Keep simple calc; detailed enforcement can be added later
-      setAppliedVoucher({ code, type: 'PERCENT10', amount: 0 });
-    } else {
-      setAppliedVoucher(null);
+  // Calculate discount amount for a voucher
+  const calculateVoucherDiscount = (voucher: ShopVoucher, storeTotal: number): number => {
+    if (voucher.type === 'FIXED') {
+      return voucher.discountValue || 0;
+    } else if (voucher.type === 'PERCENT') {
+      const percent = voucher.discountPercent || 0;
+      const discount = Math.round((storeTotal * percent) / 100);
+      
+      // Áp dụng maxDiscountValue nếu có
+      if (voucher.maxDiscountValue && discount > voucher.maxDiscountValue) {
+        return voucher.maxDiscountValue;
+      }
+      
+      return discount;
     }
+    return 0;
+  };
+
+  const handleApplyVoucher = (voucher: ShopVoucher) => {
+    // Tính tổng tiền của các sản phẩm cùng storeId
+    const selectedItems = items.filter(it => it.isSelected);
+    let storeTotal = 0;
+
+    selectedItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product && product.storeId === voucher.storeId) {
+        storeTotal += item.price * item.quantity;
+      }
+    });
+
+    const discountValue = calculateVoucherDiscount(voucher, storeTotal);
+
+    setAppliedVoucher({
+      code: voucher.code,
+      type: voucher.type,
+      discountValue,
+      storeId: voucher.storeId || '',
+    });
+  };
+
+  const handleChooseVoucher = (voucher: ShopVoucher) => {
+    handleApplyVoucher(voucher);
+    setVoucherInput(voucher.code);
   };
 
   const clearVoucher = () => {
@@ -207,6 +354,74 @@ const ShoppingCart: React.FC = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (items.length === 0) return;
+    const confirm = window.confirm('Bạn có chắc chắn muốn xóa toàn bộ giỏ hàng?');
+    if (!confirm) return;
+    try {
+      const resp = await CustomerCartService.deleteCart();
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      showCenterSuccess('Đã xóa toàn bộ giỏ hàng', 'Thành công');
+    } catch (error: any) {
+      const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa giỏ hàng. Vui lòng thử lại.';
+      showCenterError(msg, 'Lỗi');
+    }
+  };
+
+  // Helper: Tính serviceTypeId cho một store dựa trên tổng weight của items thuộc store đó
+  const calculateServiceTypeIdForStore = (storeItems: typeof items): 2 | 5 => {
+    let totalWeight = 0;
+    
+    storeItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product) {
+        const weightKg = product.weight && product.weight > 0 ? product.weight : 0.5;
+        totalWeight += weightKg * 1000 * item.quantity; // Convert to grams
+      }
+    });
+    
+    // Nếu tổng weight <= 7500g thì serviceTypeId = 2 (hàng nhẹ), ngược lại = 5 (hàng nặng)
+    return totalWeight <= 7500 ? 2 : 5;
+  };
+
+  // Helper: Xác định các storeId trong selected items và tính serviceTypeId cho mỗi store
+  const buildServiceTypeIds = (selectedItems: typeof items): ServiceTypeIds => {
+    const storeIds = new Set<string>();
+    
+    // Lấy tất cả storeId từ selected items
+    selectedItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product && product.storeId) {
+        storeIds.add(product.storeId);
+      }
+    });
+    
+    // Tính serviceTypeId cho mỗi store
+    const serviceTypeIds: ServiceTypeIds = {};
+    storeIds.forEach(storeId => {
+      const storeItems = selectedItems.filter(item => {
+        const product = productCache.get(item.productId);
+        return product && product.storeId === storeId;
+      });
+      serviceTypeIds[storeId] = calculateServiceTypeIdForStore(storeItems);
+    });
+    
+    return serviceTypeIds;
+  };
+
+  // Helper: Nhóm voucher theo storeId
+  const buildStoreVouchers = (): StoreVoucher[] => {
+    if (!appliedVoucher || !appliedVoucher.storeId) {
+      return [];
+    }
+    
+    // Nếu có applied voucher, tạo storeVoucher cho store đó
+    return [{
+      storeId: appliedVoucher.storeId,
+      codes: [appliedVoucher.code],
+    }];
+  };
+
   // Handle checkout (COD or PayOS)
   const handleCheckout = async () => {
     // Validate
@@ -251,13 +466,21 @@ const ShoppingCart: React.FC = () => {
         quantity: item.quantity,
       }));
 
+      // Build storeVouchers từ appliedVoucher
+      const storeVouchers = buildStoreVouchers();
+
+      // Build serviceTypeIds cho từng store
+      const serviceTypeIds = buildServiceTypeIds(selectedItems);
+
       if (paymentMethod === 'cod') {
         // Handle COD checkout
         const checkoutRequest: CheckoutCodRequest = {
           items: checkoutItems,
           addressId: selectedAddressId,
           message: message || undefined,
-          storeVouchers: [], // Empty array as specified
+          storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
+          platformVouchers: null, // Hiện tại chưa có, set null
+          serviceTypeIds: Object.keys(serviceTypeIds).length > 0 ? serviceTypeIds : undefined,
         };
 
         console.log('💳 Processing COD checkout:', checkoutRequest);
@@ -290,7 +513,9 @@ const ShoppingCart: React.FC = () => {
           message: message || undefined,
           description: `Đơn hàng từ AudioShop - ${selectedItems.length} sản phẩm`,
           items: checkoutItems,
-          storeVouchers: [], // Empty array as specified
+          storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
+          platformVouchers: null, // Hiện tại chưa có, set null
+          serviceTypeIds: Object.keys(serviceTypeIds).length > 0 ? serviceTypeIds : undefined,
           returnUrl,
           cancelUrl,
         };
@@ -336,100 +561,57 @@ const ShoppingCart: React.FC = () => {
         ) : error ? (
           <div className="py-16 text-center text-red-600">{error}</div>
         ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Items */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Address Section (compact) */}
-            {addressesLoading ? (
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
-                <p className="text-center text-sm text-gray-500 mt-2">Đang tải địa chỉ...</p>
-              </div>
-            ) : (
-              <AddressSelectorCompact
-                addresses={addresses}
-                selectedAddressId={selectedAddressId}
-                onSelect={setSelectedAddressId}
-                onAddressesChange={loadAddresses}
-              />
-            )}
-
-            {/* Header controls */}
-            <SelectAllBar
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Items List */}
+            <CartItemsList
+              items={items}
+              addresses={addresses}
+              selectedAddressId={selectedAddressId}
+              addressesLoading={addressesLoading}
               allSelected={allSelected}
-              itemCount={items.length}
+              onAddressSelect={setSelectedAddressId}
+              onAddressesChange={loadAddresses}
               onToggleAll={toggleAll}
-              onDeleteAll={async () => {
-                if (items.length === 0) return;
-                const confirm = window.confirm('Bạn có chắc chắn muốn xóa toàn bộ giỏ hàng?');
-                if (!confirm) return;
-                try {
-                  const resp = await CustomerCartService.deleteCart();
-                  applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
-                  showCenterSuccess('Đã xóa toàn bộ giỏ hàng', 'Thành công');
-                } catch (error: any) {
-                  const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa giỏ hàng. Vui lòng thử lại.';
-                  showCenterError(msg, 'Lỗi');
-                }
-              }}
+              onDeleteAll={handleDeleteAll}
+              onToggleItem={toggleItem}
+              onInc={inc}
+              onDec={dec}
+              onRemove={removeItem}
+              onSetQuantity={updateQuantity}
             />
 
-            {/* List */}
-            {items.map(it => (
-              <CartItemRow
-                key={it.id}
-                item={it}
-                onToggle={toggleItem}
-                onInc={inc}
-                onDec={dec}
-                onRemove={removeItem}
-                onSetQuantity={(id, q) => updateQuantity(id, q)}
-              />
-            ))}
+            {/* Summary Sidebar */}
+            <CartSummarySidebar
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={setPaymentMethod}
+              voucherInput={voucherInput}
+              appliedVoucher={appliedVoucher}
+              availableVouchers={availableVouchers}
+              onVoucherInputChange={setVoucherInput}
+              onApplyVoucher={handleApplyVoucher}
+              onChooseVoucher={handleChooseVoucher}
+              onClearVoucher={clearVoucher}
+              items={items}
+              addresses={addresses}
+              selectedAddressId={selectedAddressId}
+              productCache={productCache}
+              onProductCacheUpdate={setProductCache}
+              serviceTypeId={serviceTypeId}
+              onServiceTypeIdChange={setServiceTypeId}
+              packageWeight={packageWeight}
+              onPackageWeightChange={setPackageWeight}
+              shippingFee={shippingFee}
+              onShippingFeeChange={setShippingFee}
+              subtotal={summary.subtotal}
+              discount={summary.discount}
+              voucherDiscount={voucherDiscount}
+              selectedCount={summary.selectedCount}
+              grandTotal={grandTotal}
+              onCheckout={handleCheckout}
+              isCheckingOut={isCheckingOut}
+              disabled={!selectedAddressId || !paymentMethod || (paymentMethod !== 'cod' && paymentMethod !== 'payos')}
+            />
           </div>
-
-          {/* Summary */}
-          <aside className="lg:col-span-1">
-            <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-              {/* <div className="flex justify-between text-gray-600">
-                <span>Tạm tính</span>
-                <span>{formatCurrency(summary.subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Giảm giá</span>
-                <span className="text-green-600">-{formatCurrency(summary.discount)}</span>
-              </div> */}
-
-              {/* Payment Method - above voucher section */}
-              <PaymentMethodDropdown value={paymentMethod} onChange={setPaymentMethod} />
-
-              {/* Voucher - input or choose */}
-              <div className="pt-2">
-                <VoucherSection
-                  voucherInput={voucherInput}
-                  appliedVoucher={appliedVoucher}
-                  availableVouchers={availableVouchers}
-                  onChangeInput={setVoucherInput}
-                  onApply={applyVoucher}
-                  onChoose={(code) => { setVoucherInput(code); setAppliedVoucher({ code, type: 'PERCENT10', amount: 0 }); }}
-                  onClear={clearVoucher}
-                />
-              </div>
-
-              <SummaryBox
-                subtotal={summary.subtotal}
-                discount={summary.discount}
-                shippingFee={shippingFee}
-                voucherDiscount={voucherDiscount}
-                selectedCount={summary.selectedCount}
-                grandTotal={grandTotal}
-                onCheckout={handleCheckout}
-                isCheckingOut={isCheckingOut}
-                disabled={!selectedAddressId || !paymentMethod || (paymentMethod !== 'cod' && paymentMethod !== 'payos')}
-              />
-            </div>
-          </aside>
-        </div>
         )}
       </div>
     </Layout>
@@ -437,4 +619,3 @@ const ShoppingCart: React.FC = () => {
 };
 
 export default ShoppingCart;
-
