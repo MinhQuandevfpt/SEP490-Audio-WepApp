@@ -1,3 +1,5 @@
+import type { ApiResponse } from './api';
+
 // Seller Authentication Types
 export interface SellerRegisterRequest {
   name: string;
@@ -415,6 +417,20 @@ export interface StoreOrdersRequest {
   search?: string;
 }
 
+// Assign Delivery Staff Request
+export interface AssignDeliveryStaffRequest {
+  deliveryStaffId: string; // Bắt buộc
+  preparedByStaffId?: string | null; // Tùy chọn
+  note?: string | null; // Ghi chú giao hàng
+}
+
+// Assign Delivery Staff Response
+export interface AssignDeliveryStaffResponse {
+  status: number;
+  message: string;
+  data: StoreOrder; // Updated order data
+}
+
 // Legacy OrderItem interface (keep for backward compatibility)
 export interface OrderItem {
   productId: string;
@@ -618,8 +634,19 @@ export interface UpdateStaffRequest {
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 }
 
-// Staff List Response
-export interface StaffListResponse {
+// Staff List Data (actual API response data structure)
+export interface StaffListData {
+  total: number;
+  page: number;
+  content: StaffInfo[];
+  size: number;
+}
+
+// Staff List Response (wrapped in ApiResponse)
+export interface StaffListResponse extends ApiResponse<StaffListData> {}
+
+// Legacy StaffListResponse (keep for backward compatibility if needed)
+export interface StaffListResponseLegacy {
   content: StaffInfo[];
   pageable: {
     pageNumber: number;

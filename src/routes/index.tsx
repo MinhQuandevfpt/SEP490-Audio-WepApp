@@ -41,6 +41,7 @@ import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
+import StaffList from '../pages/Seller/StaffList/StaffList';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
 import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
@@ -274,7 +275,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'staff',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Danh sách nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+        element: <StaffList />
       },
       {
         path: 'staff/create',

@@ -1,14 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { StoreOrder } from '../../types/seller';
 import { getStatusBadgeClass, getStatusLabel, formatCurrency, formatDate } from '../../utils/storeOrderStatus';
-import { Package, Calendar, User, Phone, MapPin, ShoppingBag } from 'lucide-react';
+import { Package, Calendar, User, Phone, MapPin, ShoppingBag, Eye, EyeOff, Users } from 'lucide-react';
+import AssignDeliveryModal from './AssignDeliveryModal';
 
 interface Props {
   order: StoreOrder;
   onView: (orderId: string) => void;
+  onAssignSuccess?: () => void; // Callback khi assign thành công để refresh list
 }
 
-const StoreOrderCard: React.FC<Props> = ({ order, onView }) => {
+const StoreOrderCard: React.FC<Props> = ({ order, onView, onAssignSuccess }) => {
+  const [showFullCode, setShowFullCode] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -20,11 +24,20 @@ const StoreOrderCard: React.FC<Props> = ({ order, onView }) => {
             <Package className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <span className="text-sm text-gray-600">Mã đơn hàng:</span>
             <span className="font-mono font-semibold text-gray-900 text-sm">
-              {order.id.slice(0, 8)}...
+              {showFullCode ? order.id : `${order.id.slice(0, 8)}...`}
             </span>
+            <button
+              onClick={() => setShowFullCode(!showFullCode)}
+              className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+              title={showFullCode ? 'Thu gọn mã' : 'Hiển thị đầy đủ mã'}
+            >
+              {showFullCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            Đơn khách hàng: <span className="font-medium">{order.customerOrderId.slice(0, 8)}...</span>
+            Đơn khách hàng: <span className="font-medium">
+              {showFullCode ? order.customerOrderId : `${order.customerOrderId.slice(0, 8)}...`}
+            </span>
           </div>
         </div>
         <span className={getStatusBadgeClass(order.status)}>
@@ -57,13 +70,38 @@ const StoreOrderCard: React.FC<Props> = ({ order, onView }) => {
 
       {/* Shipping Address */}
       <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-        <div className="flex items-start gap-2 mb-2">
+        <div className="flex items-start gap-2">
           <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-xs text-gray-500 mb-1">Địa chỉ giao hàng:</p>
-            <p className="text-sm font-medium text-gray-900">{order.shipReceiverName}</p>
-            <p className="text-xs text-gray-600">{order.shipPhoneNumber}</p>
-            <p className="text-sm text-gray-700 mt-1">{order.shipAddressLine}</p>
+            {/* Receiver Name & Phone */}
+            <div className="flex items-center gap-2 mb-1">
+              <p className="text-sm font-medium text-gray-900">{order.shipReceiverName}</p>
+              <span className="text-gray-400">·</span>
+              <p className="text-sm text-gray-600 flex items-center gap-1">
+                <Phone className="w-3 h-3" />
+                {order.shipPhoneNumber}
+              </p>
+            </div>
+            {/* AddressLine, Street, Ward, District, Province */}
+            {([order.shipAddressLine, order.shipStreet, order.shipWard, order.shipDistrict, order.shipProvince].filter(Boolean) as string[]).length > 0 && (
+              <p className="text-sm text-gray-700 mb-1">
+                {([order.shipAddressLine, order.shipStreet, order.shipWard, order.shipDistrict, order.shipProvince].filter(Boolean) as string[]).join(', ')}
+              </p>
+            )}
+            {/* Country - PostalCode */}
+            {(order.shipCountry || order.shipPostalCode) && (
+              <p className="text-xs text-gray-600">
+                {[order.shipCountry, order.shipPostalCode].filter(Boolean).join(' - ')}
+              </p>
+            )}
+            {/* Note if exists */}
+            {order.shipNote && (
+              <div className="mt-2 pt-2 border-t border-gray-200">
+                <p className="text-xs text-gray-500">Ghi chú:</p>
+                <p className="text-sm text-gray-700">{order.shipNote}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -102,13 +140,35 @@ const StoreOrderCard: React.FC<Props> = ({ order, onView }) => {
             </p>
           )}
         </div>
-        <button
-          onClick={() => onView(order.id)}
-          className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors"
-        >
-          Xem chi tiết
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAssignModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+            title="Phân công nhân viên"
+          >
+            <Users className="w-4 h-4" />
+            <span>Phân công</span>
+          </button>
+          <button
+            onClick={() => onView(order.id)}
+            className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors"
+          >
+            Xem chi tiết
+          </button>
+        </div>
       </div>
+
+      {/* Assign Delivery Modal */}
+      {showAssignModal && (
+        <AssignDeliveryModal
+          orderId={order.id}
+          onClose={() => setShowAssignModal(false)}
+          onSuccess={() => {
+            onAssignSuccess?.();
+            setShowAssignModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };

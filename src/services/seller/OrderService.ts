@@ -8,8 +8,11 @@ import { StoreService } from './StoreService';
 import type {
   StoreOrdersResponse,
   StoreOrdersRequest,
-  StoreOrder
+  StoreOrder,
+  AssignDeliveryStaffRequest,
+  AssignDeliveryStaffResponse
 } from '../../types/seller';
+import type { ApiResponse } from '../../types/api';
 
 export class StoreOrderService {
   /**
@@ -130,6 +133,42 @@ export class StoreOrderService {
     } catch (error: any) {
       console.error('❌ Error updating order status:', error);
       throw new Error(error?.message || 'Không thể cập nhật trạng thái đơn hàng');
+    }
+  }
+
+  /**
+   * Assign delivery staff to order
+   * POST /api/v1/stores/{storeId}/orders/{storeOrderId}/delivery/assign
+   */
+  static async assignDeliveryStaff(
+    storeOrderId: string,
+    request: AssignDeliveryStaffRequest
+  ): Promise<AssignDeliveryStaffResponse> {
+    try {
+      const storeId = await this.getStoreId();
+      const endpoint = `/api/v1/stores/${storeId}/orders/${storeOrderId}/delivery/assign`;
+      
+      console.log('📦 Assigning delivery staff:', { storeId, storeOrderId, request });
+
+      const response = await HttpInterceptor.post<ApiResponse<StoreOrder>>(
+        endpoint,
+        {
+          deliveryStaffId: request.deliveryStaffId,
+          preparedByStaffId: request.preparedByStaffId || null,
+          note: request.note || null,
+        },
+        { userType: 'seller' }
+      );
+
+      console.log('✅ Delivery staff assigned successfully');
+      return {
+        status: response.status || 200,
+        message: response.message || 'Phân công nhân viên giao hàng thành công',
+        data: response.data as StoreOrder,
+      } as AssignDeliveryStaffResponse;
+    } catch (error: any) {
+      console.error('❌ Error assigning delivery staff:', error);
+      throw new Error(error?.message || 'Không thể phân công nhân viên giao hàng');
     }
   }
 }

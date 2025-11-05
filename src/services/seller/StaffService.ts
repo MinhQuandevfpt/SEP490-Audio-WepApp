@@ -10,8 +10,10 @@ import type {
   StaffResponse,
   StaffInfo,
   UpdateStaffRequest,
-  StaffListResponse
+  StaffListResponse,
+  StaffListData
 } from '../../types/seller';
+import type { ApiResponse } from '../../types/api';
 
 export class StaffService {
   /**
@@ -56,24 +58,24 @@ export class StaffService {
 
   /**
    * Get list of staff members
-   * GET /api/stores/{storeId}/staff
+   * GET /api/stores/{storeId}/staff?page=0&size=10
    * 
-   * @param page - Page number (optional)
-   * @param size - Page size (optional)
-   * @returns List of staff members
+   * @param page - Page number (default: 0)
+   * @param size - Page size (default: 10)
+   * @returns List of staff members wrapped in ApiResponse
    */
-  static async getStaffList(page: number = 0, size: number = 20): Promise<StaffListResponse> {
+  static async getStaffList(page: number = 0, size: number = 10): Promise<StaffListResponse> {
     try {
       const storeId = await this.getStoreId();
       console.log('👥 Fetching staff list:', { storeId, page, size });
 
-      const response = await HttpInterceptor.get<StaffListResponse>(
+      const response = await HttpInterceptor.get<ApiResponse<StaffListData>>(
         `/api/stores/${storeId}/staff?page=${page}&size=${size}`,
         { userType: 'seller' }
       );
 
       console.log('✅ Staff list fetched successfully');
-      return response;
+      return response as StaffListResponse;
     } catch (error) {
       console.error('❌ Failed to fetch staff list:', error);
       throw error;

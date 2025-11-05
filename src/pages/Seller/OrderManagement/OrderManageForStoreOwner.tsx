@@ -20,6 +20,7 @@ const OrderManageForStoreOwner: React.FC = () => {
     selectedOrder,
     setSelectedOrder,
     viewDetail,
+    refresh,
   } = useStoreOrders();
 
   return (
@@ -56,7 +57,12 @@ const OrderManageForStoreOwner: React.FC = () => {
         <>
           <div className="space-y-3">
             {orders.map(order => (
-              <StoreOrderCard key={order.id} order={order} onView={viewDetail} />
+              <StoreOrderCard 
+                key={order.id} 
+                order={order} 
+                onView={viewDetail}
+                onAssignSuccess={refresh}
+              />
             ))}
             {orders.length === 0 && (
               <div className="text-center py-16">

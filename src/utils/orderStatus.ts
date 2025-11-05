@@ -63,9 +63,11 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
 /**
  * Get status badge class names
  */
-export const getStatusBadgeClass = (status: OrderStatus): string => {
-  const config = ORDER_STATUS_CONFIG[status];
-  return `px-3 py-1.5 text-xs font-medium rounded-full border ${config.color} ${config.bgColor}`;
+export const getStatusBadgeClass = (status: OrderStatus | string | undefined | null): string => {
+  const config = status ? ORDER_STATUS_CONFIG[status as OrderStatus] : undefined;
+  const safeColor = config?.color ?? 'text-gray-600';
+  const safeBg = config?.bgColor ?? 'bg-gray-50 border-gray-200';
+  return `px-3 py-1.5 text-xs font-medium rounded-full border ${safeColor} ${safeBg}`;
 };
 
 /**
