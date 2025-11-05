@@ -122,11 +122,27 @@ class ProfileCache {
     const cacheKey = ProfileCache.KEYS.PROVINCES;
     const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
-
-    const response = await fetch('https://provinces.open-api.vn/api/p/');
-    const data = await response.json();
-    this.set(cacheKey, data, 30 * 60 * 1000); // 30 minutes (provinces rarely change)
-    return data;
+    try {
+      // Try HTTPS first
+      let response = await fetch('https://provinces.open-api.vn/api/p/');
+      if (!response.ok) throw new Error(`Provinces HTTP ${response.status}`);
+      const data = await response.json();
+      this.set(cacheKey, data, 30 * 60 * 1000); // 30 minutes (provinces rarely change)
+      return data;
+    } catch (err) {
+      console.warn('Provinces API HTTPS failed, retrying via HTTP:', err);
+      try {
+        // Fallback to HTTP (some environments have SSL date issues)
+        const response2 = await fetch('http://provinces.open-api.vn/api/p/');
+        if (!response2.ok) throw new Error(`Provinces HTTP ${response2.status}`);
+        const data2 = await response2.json();
+        this.set(cacheKey, data2, 30 * 60 * 1000);
+        return data2;
+      } catch (err2) {
+        console.error('Failed to fetch provinces list:', err2);
+        return [];
+      }
+    }
   }
 
   async getDistricts(provinceCode: number): Promise<any[]> {
@@ -134,10 +150,27 @@ class ProfileCache {
     const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const response = await fetch(`https://provinces.open-api.vn/api/p/${provinceCode}?depth=2`);
-    const data = await response.json();
-    this.set(cacheKey, data.districts || [], 30 * 60 * 1000); // 30 minutes
-    return data.districts || [];
+    try {
+      let response = await fetch(`https://provinces.open-api.vn/api/p/${provinceCode}?depth=2`);
+      if (!response.ok) throw new Error(`Districts HTTP ${response.status}`);
+      const data = await response.json();
+      const districts = data.districts || [];
+      this.set(cacheKey, districts, 30 * 60 * 1000); // 30 minutes
+      return districts;
+    } catch (err) {
+      console.warn('Districts API HTTPS failed, retrying via HTTP:', err);
+      try {
+        const response2 = await fetch(`http://provinces.open-api.vn/api/p/${provinceCode}?depth=2`);
+        if (!response2.ok) throw new Error(`Districts HTTP ${response2.status}`);
+        const data2 = await response2.json();
+        const districts2 = data2.districts || [];
+        this.set(cacheKey, districts2, 30 * 60 * 1000);
+        return districts2;
+      } catch (err2) {
+        console.error('Failed to fetch districts:', err2);
+        return [];
+      }
+    }
   }
 
   async getWards(districtCode: number): Promise<any[]> {
@@ -145,10 +178,27 @@ class ProfileCache {
     const cached = this.get<any[]>(cacheKey);
     if (cached) return cached;
 
-    const response = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}?depth=2`);
-    const data = await response.json();
-    this.set(cacheKey, data.wards || [], 30 * 60 * 1000); // 30 minutes
-    return data.wards || [];
+    try {
+      let response = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}?depth=2`);
+      if (!response.ok) throw new Error(`Wards HTTP ${response.status}`);
+      const data = await response.json();
+      const wards = data.wards || [];
+      this.set(cacheKey, wards, 30 * 60 * 1000); // 30 minutes
+      return wards;
+    } catch (err) {
+      console.warn('Wards API HTTPS failed, retrying via HTTP:', err);
+      try {
+        const response2 = await fetch(`http://provinces.open-api.vn/api/d/${districtCode}?depth=2`);
+        if (!response2.ok) throw new Error(`Wards HTTP ${response2.status}`);
+        const data2 = await response2.json();
+        const wards2 = data2.wards || [];
+        this.set(cacheKey, wards2, 30 * 60 * 1000);
+        return wards2;
+      } catch (err2) {
+        console.error('Failed to fetch wards:', err2);
+        return [];
+      }
+    }
   }
 
   // Invalidate cache when data is updated

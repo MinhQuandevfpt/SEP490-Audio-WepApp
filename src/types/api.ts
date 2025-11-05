@@ -402,3 +402,46 @@ export interface CategoryListResponse {
 // ==================== CART TYPES ====================
 // Cart types have been moved to src/types/cart.ts
 // Please import from there: import { CartResponse, AddToCartRequest, etc } from './cart';
+
+// ==================== PAYOS CHECKOUT TYPES ====================
+
+export type PayOSItemType = 'PRODUCT' | 'COMBO';
+
+export interface PayOSCheckoutItem {
+  id: string; // product or combo id
+  type: PayOSItemType; // 'PRODUCT' | 'COMBO'
+  quantity: number;
+}
+
+export interface PayOSStoreVoucher {
+  storeId: string;
+  codes: string[];
+}
+
+export interface PayOSPlatformVoucher {
+  campaignProductId: string;
+  quantity: number;
+}
+
+export interface PayOSCheckoutRequestBody {
+  addressId: string;
+  message?: string | null;
+  description?: string | null;
+  items: PayOSCheckoutItem[];
+  storeVouchers?: PayOSStoreVoucher[] | null;
+  platformVouchers?: PayOSPlatformVoucher[] | null;
+  serviceTypeIds: Record<string, number>; // { [storeId]: serviceTypeId }
+  returnUrl: string;
+  cancelUrl: string;
+}
+
+export interface PayOSCheckoutData {
+  customerOrderId: string;
+  amount: number;
+  payOSOrderCode: number;
+  checkoutUrl: string;
+  qrCode: string;
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'FAILED' | string;
+}
+
+export interface PayOSCheckoutResponse extends ApiResponse<PayOSCheckoutData> {}

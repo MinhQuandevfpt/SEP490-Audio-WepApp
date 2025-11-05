@@ -1,5 +1,5 @@
 import React from 'react';
-import { User as UserIcon, Camera, Upload, X, Check, Star, TrendingUp } from 'lucide-react';
+import { User as UserIcon, Camera, Upload, X, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import ProfileCustomerService from '../../../services/customer/Profilecustomer';
@@ -40,41 +40,7 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
 
   const genderLabel = gender === 'male' ? 'Nam' : gender === 'female' ? 'Nữ' : 'Khác';
 
-  // Membership level configuration
-  const MEMBERSHIP_LEVELS = {
-    bronze: { name: 'Đồng', minPoints: 0, color: 'from-amber-600 to-amber-800', icon: '🥉', bgColor: 'bg-amber-50', textColor: 'text-amber-700' },
-    silver: { name: 'Bạc', minPoints: 500, color: 'from-gray-400 to-gray-600', icon: '🥈', bgColor: 'bg-gray-50', textColor: 'text-gray-700' },
-    gold: { name: 'Vàng', minPoints: 1000, color: 'from-yellow-500 to-yellow-700', icon: '🥇', bgColor: 'bg-yellow-50', textColor: 'text-yellow-700' },
-    platinum: { name: 'Bạch Kim', minPoints: 2000, color: 'from-blue-400 to-blue-600', icon: '💎', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
-    diamond: { name: 'Kim Cương', minPoints: 5000, color: 'from-purple-500 to-purple-700', icon: '💠', bgColor: 'bg-purple-50', textColor: 'text-purple-700' }
-  };
-
-  const getMembershipInfo = () => {
-    return MEMBERSHIP_LEVELS[membershipLevel] || MEMBERSHIP_LEVELS.bronze;
-  };
-
-  const getNextLevelInfo = () => {
-    const levels = Object.keys(MEMBERSHIP_LEVELS) as Array<keyof typeof MEMBERSHIP_LEVELS>;
-    const currentIndex = levels.indexOf(membershipLevel);
-    
-    if (currentIndex < levels.length - 1) {
-      const nextLevel = levels[currentIndex + 1];
-      const nextPoints = MEMBERSHIP_LEVELS[nextLevel].minPoints;
-      const pointsNeeded = nextPoints - membershipPoints;
-      
-      return {
-        level: nextLevel,
-        pointsNeeded: Math.max(0, pointsNeeded),
-        ...MEMBERSHIP_LEVELS[nextLevel]
-      };
-    }
-    
-    return null;
-  };
-
-  const formatPoints = (points: number) => {
-    return new Intl.NumberFormat('vi-VN').format(points);
-  };
+  // Loyalty UI removed
 
   const [isEditing, setIsEditing] = React.useState(false);
   const [form, setForm] = React.useState({
@@ -219,20 +185,6 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
             <UserIcon className="w-4 h-4 text-gray-400" />
             Thành viên AudioShop
           </p>
-          
-          {/* Membership Info */}
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${getMembershipInfo().bgColor}`}>
-              <span className="text-lg">{getMembershipInfo().icon}</span>
-              <span className={`text-sm font-medium ${getMembershipInfo().textColor}`}>
-                {getMembershipInfo().name}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <Star className="w-4 h-4 text-yellow-500" />
-              <span className="font-medium">{formatPoints(membershipPoints)} điểm</span>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -291,60 +243,10 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
           )}
         </div>
 
-        {/* Row 4: Membership Points - Membership Level */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 hidden">
-          <div>
-            <span className="text-sm text-gray-500">Điểm thành viên</span>
-            {isEditing ? (
-              <div className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500">Chỉ admin có thể thay đổi</div>
-            ) : (
-              <div className="flex items-center gap-2 mt-1">
-                <Star className="w-4 h-4 text-yellow-500" />
-                <p className="font-medium text-gray-900">{formatPoints(membershipPoints)} điểm</p>
-              </div>
-            )}
-          </div>
-          <div>
-            <span className="text-sm text-gray-500">Cấp bậc thành viên</span>
-            {isEditing ? (
-              <div className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 text-gray-500">Chỉ admin có thể thay đổi</div>
-            ) : (
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-lg">{getMembershipInfo().icon}</span>
-                <p className="font-medium text-gray-900">{getMembershipInfo().name}</p>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Loyalty fields removed from UI */}
       </div>
 
-      {/* Membership Progress */}
-      {!isEditing && getNextLevelInfo() && (
-        <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-900">
-                Tiến tới cấp {getNextLevelInfo()?.name}
-              </span>
-            </div>
-            <span className="text-sm text-blue-700">
-              Còn {formatPoints(getNextLevelInfo()?.pointsNeeded || 0)} điểm
-            </span>
-          </div>
-          <div className="w-full bg-blue-200 rounded-full h-2">
-            <div 
-              className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${Math.min(100, ((membershipPoints - getMembershipInfo().minPoints) / (getNextLevelInfo()?.pointsNeeded || 1)) * 100)}%` 
-              }}
-            />
-          </div>
-          <p className="text-xs text-blue-600 mt-1">
-            {formatPoints(membershipPoints)} / {formatPoints((getNextLevelInfo()?.minPoints || 0) + (getNextLevelInfo()?.pointsNeeded || 0))} điểm
-          </p>
-        </div>
-      )}
+      {/* Loyalty progress removed */}
 
       {/* Actions */}
       <div className="mt-5 flex gap-3">

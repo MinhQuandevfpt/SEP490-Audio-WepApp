@@ -85,7 +85,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
     
     // Add to cart and navigate to checkout
     handleAddToCart().then(() => {
-      navigate('/checkout');
+      navigate('/cart');
     });
   };
 
