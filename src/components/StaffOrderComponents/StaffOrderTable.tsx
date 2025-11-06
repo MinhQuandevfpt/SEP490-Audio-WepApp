@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Typography, Descriptions, Button, message } from 'antd';
+import { Table, Tag, Typography, Descriptions, Button, message, List } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Package, Truck } from 'lucide-react';
 import type { DeliveryAssignment } from '../../services/staff/OrdersService';
 import { StaffOrderService } from '../../services/staff/OrdersService';
-import { getStatusLabel } from '../../utils/orderStatus';
+import { getStatusLabel, formatCurrency } from '../../utils/orderStatus';
 
 interface PaginationState {
   current: number;
@@ -161,6 +161,15 @@ const StaffOrderTable: React.FC = () => {
       )
     },
     {
+      title: 'Tổng tiền',
+      key: 'orderTotal',
+      render: (_, record) => (
+        <div className="font-semibold text-orange-600">
+          {formatCurrency(record.orderTotal || 0)}
+        </div>
+      )
+    },
+    {
       title: 'Hành động',
       key: 'action',
       width: 200,
@@ -266,6 +275,48 @@ const StaffOrderTable: React.FC = () => {
                     {record.shipPhoneNumber}
                   </Descriptions.Item>
                 </Descriptions>
+              </div>
+
+              <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
+                <Descriptions title="Thông tin đơn hàng" size="small" column={1} bordered>
+                  <Descriptions.Item label="Tổng tiền đơn hàng">
+                    <span className="font-semibold text-orange-600 text-lg">
+                      {formatCurrency(record.orderTotal || 0)}
+                    </span>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Số lượng sản phẩm">
+                    {record.items?.length || 0} sản phẩm
+                  </Descriptions.Item>
+                </Descriptions>
+                
+                {record.items && record.items.length > 0 && (
+                  <div className="mt-4">
+                    <Typography.Text strong className="block mb-2">Danh sách sản phẩm</Typography.Text>
+                    <List
+                      size="small"
+                      bordered
+                      dataSource={record.items}
+                      renderItem={(item) => (
+                        <List.Item>
+                          <div className="w-full">
+                            <div className="flex justify-between items-start mb-1">
+                              <Typography.Text strong className="text-sm">
+                                {item.name}
+                              </Typography.Text>
+                              <Typography.Text className="text-sm font-semibold text-orange-600">
+                                {formatCurrency(item.lineTotal)}
+                              </Typography.Text>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500">
+                              <span>Số lượng: {item.quantity}</span>
+                              <span>Đơn giá: {formatCurrency(item.unitPrice)}</span>
+                            </div>
+                          </div>
+                        </List.Item>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           );

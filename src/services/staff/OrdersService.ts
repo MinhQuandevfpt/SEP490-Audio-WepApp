@@ -1,6 +1,16 @@
 import { HttpInterceptor } from '../HttpInterceptor';
 import { StoreStaffAuthService } from './AuthStaff';
 
+export interface DeliveryAssignmentItem {
+  id: string;
+  type: string;
+  refId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
 export interface DeliveryAssignment {
   id: string;
   storeOrderId: string;
@@ -15,6 +25,8 @@ export interface DeliveryAssignment {
   pickUpAt: string | null;
   deliveredAt: string | null;
   note: string | null;
+  orderTotal: number;
+  items: DeliveryAssignmentItem[];
 }
 
 export interface GetStaffOrdersParams {
