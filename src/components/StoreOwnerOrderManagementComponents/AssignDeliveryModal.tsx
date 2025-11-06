@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Package, FileText, Check } from 'lucide-react';
+import { X, User, FileText, Check } from 'lucide-react';
 import { StaffService } from '../../services/seller/StaffService';
 import { StoreOrderService } from '../../services/seller/OrderService';
 import { showCenterSuccess, showCenterError } from '../../utils/notification';
@@ -17,8 +17,7 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Form data
-  const [deliveryStaffId, setDeliveryStaffId] = useState<string>('');
-  const [preparedByStaffId, setPreparedByStaffId] = useState<string>('');
+  const [staffId, setStaffId] = useState<string>('');
   const [note, setNote] = useState<string>('');
 
   // Load staff list
@@ -43,24 +42,25 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
 
   const handleSubmit = async () => {
     // Validate
-    if (!deliveryStaffId) {
-      showCenterError('Vui lòng chọn nhân viên giao hàng', 'Lỗi');
+    if (!staffId) {
+      showCenterError('Vui lòng chọn nhân viên tiếp nhận', 'Lỗi');
       return;
     }
 
     try {
       setIsSubmitting(true);
+      // Set cả deliveryStaffId và preparedByStaffId cùng giá trị (ẩn phía sau)
       await StoreOrderService.assignDeliveryStaff(orderId, {
-        deliveryStaffId,
-        preparedByStaffId: preparedByStaffId || null,
+        deliveryStaffId: staffId,
+        preparedByStaffId: staffId, // Tự động set cùng ID
         note: note || null,
       });
 
-      showCenterSuccess('Phân công nhân viên giao hàng thành công', 'Thành công');
+      showCenterSuccess('Phân công nhân viên tiếp nhận thành công', 'Thành công');
       onSuccess?.();
       onClose();
     } catch (error: any) {
-      showCenterError(error?.message || 'Không thể phân công nhân viên giao hàng', 'Lỗi');
+      showCenterError(error?.message || 'Không thể phân công nhân viên tiếp nhận', 'Lỗi');
     } finally {
       setIsSubmitting(false);
     }
@@ -85,22 +85,22 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Delivery Staff (Required) */}
+          {/* Staff Selection (Required) */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
               <User className="w-4 h-4 text-orange-500" />
-              <span>Chọn nhân viên giao hàng *</span>
+              <span>Chọn nhân viên tiếp nhận *</span>
             </label>
             {isLoadingStaff ? (
               <div className="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
             ) : (
               <select
-                value={deliveryStaffId}
-                onChange={(e) => setDeliveryStaffId(e.target.value)}
+                value={staffId}
+                onChange={(e) => setStaffId(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 required
               >
-                <option value="">-- Chọn nhân viên giao hàng --</option>
+                <option value="">-- Chọn nhân viên tiếp nhận --</option>
                 {staffList.map((staff) => (
                   <option key={staff.id} value={staff.id}>
                     {staff.fullName} ({staff.username}) - {staff.phone}
@@ -110,30 +110,6 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
             )}
             {staffList.length === 0 && !isLoadingStaff && (
               <p className="text-xs text-gray-500 mt-1">Chưa có nhân viên nào trong cửa hàng</p>
-            )}
-          </div>
-
-          {/* Prepared By Staff (Optional) */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
-              <Package className="w-4 h-4 text-blue-500" />
-              <span>Chọn nhân viên kho chuẩn bị (Tùy chọn)</span>
-            </label>
-            {isLoadingStaff ? (
-              <div className="h-10 bg-gray-200 rounded-lg animate-pulse"></div>
-            ) : (
-              <select
-                value={preparedByStaffId}
-                onChange={(e) => setPreparedByStaffId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              >
-                <option value="">-- Không chọn --</option>
-                {staffList.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.fullName} ({staff.username}) - {staff.phone}
-                  </option>
-                ))}
-              </select>
             )}
           </div>
 
@@ -165,7 +141,7 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || !deliveryStaffId}
+            disabled={isSubmitting || !staffId}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link, NavLink } from 'react-router-dom';
-import { Headphones, LogOut, Shield, User, LayoutDashboard, ShoppingCart, Users, BarChart2, Settings } from 'lucide-react';
+import { Headphones, LogOut, User, LayoutDashboard, ShoppingCart, Users, BarChart2, Settings } from 'lucide-react';
 import { StoreStaffAuthService } from '../../services/staff/AuthStaff';
 
 const StaffDashboardLayout: React.FC = () => {
@@ -24,10 +24,6 @@ const StaffDashboardLayout: React.FC = () => {
           </Link>
 
           <div className="flex items-center space-x-4">
-            <Link to="/seller/dashboard" className="hidden md:inline-flex items-center text-sm text-gray-600 hover:text-gray-800">
-              <Shield className="w-4 h-4 mr-1" />
-              Kênh Chủ Cửa Hàng
-            </Link>
             <button onClick={handleLogout} className="inline-flex items-center text-sm text-gray-700 hover:text-red-600">
               <LogOut className="w-4 h-4 mr-1" />
               Đăng xuất
