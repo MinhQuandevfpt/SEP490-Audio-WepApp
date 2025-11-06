@@ -65,6 +65,16 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     color: 'text-cyan-600',
     bgColor: 'bg-cyan-50 border-cyan-200',
   },
+  READY_FOR_DELIVERY: {
+    label: 'Chờ giao hàng',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50 border-cyan-200',
+  },
+  OUT_FOR_DELIVERY: {
+    label: 'Đang giao hàng',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50 border-purple-200',
+  },
 };
 
 /**

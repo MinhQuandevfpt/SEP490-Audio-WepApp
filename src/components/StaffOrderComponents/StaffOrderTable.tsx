@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Typography, Descriptions, List, Divider } from 'antd';
+import { Table, Tag, Typography, Descriptions, Button, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { StoreOrder } from '../../types/seller';
+import { Package, Truck } from 'lucide-react';
+import type { DeliveryAssignment } from '../../services/staff/OrdersService';
 import { StaffOrderService } from '../../services/staff/OrdersService';
-import { formatCurrency, getStatusLabel } from '../../utils/orderStatus';
+import { getStatusLabel } from '../../utils/orderStatus';
 
 interface PaginationState {
   current: number;
@@ -15,17 +16,67 @@ const { Text } = Typography;
 
 const StaffOrderTable: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<StoreOrder[]>([]);
+  const [data, setData] = useState<DeliveryAssignment[]>([]);
   const [pagination, setPagination] = useState<PaginationState>({ current: 1, pageSize: 20, total: 0 });
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [processingActions, setProcessingActions] = useState<Map<string, string>>(new Map()); // storeOrderId -> action type
 
   const load = async (page = 1, size = 20) => {
     setLoading(true);
     try {
-      const res = await StaffOrderService.getOrders({ page: page - 1, size });
-      setData(res.items || []);
+      const res = await StaffOrderService.getOrders({ page: page - 1, size, sort: 'assignedAt' });
+      setData(res.content || []);
       setPagination({ current: page, pageSize: size, total: res.totalElements || 0 });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleMarkAsReady = async (storeOrderId: string) => {
+    setProcessingIds(prev => new Set(prev).add(storeOrderId));
+    setProcessingActions(prev => new Map(prev).set(storeOrderId, 'ready'));
+    try {
+      const response = await StaffOrderService.markAsReadyForDelivery(storeOrderId);
+      message.success(response.message || 'Đã đánh dấu sẵn sàng giao hàng thành công');
+      // Refresh danh sách
+      await load(pagination.current, pagination.pageSize);
+    } catch (error: any) {
+      message.error(error?.message || 'Không thể đánh dấu sẵn sàng giao hàng');
+    } finally {
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(storeOrderId);
+        return newSet;
+      });
+      setProcessingActions(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(storeOrderId);
+        return newMap;
+      });
+    }
+  };
+
+  const handleOutForDelivery = async (storeOrderId: string) => {
+    setProcessingIds(prev => new Set(prev).add(storeOrderId));
+    setProcessingActions(prev => new Map(prev).set(storeOrderId, 'out-for-delivery'));
+    try {
+      const response = await StaffOrderService.markAsOutForDelivery(storeOrderId);
+      message.success(response.message || 'Đã đánh dấu đang giao hàng thành công');
+      // Refresh danh sách
+      await load(pagination.current, pagination.pageSize);
+    } catch (error: any) {
+      message.error(error?.message || 'Không thể đánh dấu đang giao hàng');
+    } finally {
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(storeOrderId);
+        return newSet;
+      });
+      setProcessingActions(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(storeOrderId);
+        return newMap;
+      });
     }
   };
 
@@ -33,34 +84,33 @@ const StaffOrderTable: React.FC = () => {
     load(1, 20);
   }, []);
 
-  const columns: ColumnsType<StoreOrder> = [
+  const columns: ColumnsType<DeliveryAssignment> = [
     {
       title: 'Mã đơn',
-      dataIndex: 'id',
-      key: 'id',
+      dataIndex: 'storeOrderId',
+      key: 'storeOrderId',
       render: (id: string) => <Text code>{id.slice(0, 8)}</Text>,
     },
     {
-      title: 'Khách hàng',
-      dataIndex: 'customerName',
-      key: 'customerName',
-      render: (v: string, record) => (
+      title: 'Người nhận',
+      key: 'receiver',
+      render: (_, record) => (
         <div>
-          <div className="font-medium text-gray-800">{v}</div>
-          <div className="text-xs text-gray-500">{/* optional phone if available */}{(record as any).customerPhone || ''}</div>
+          <div className="font-medium text-gray-800">{record.shipReceiverName}</div>
+          <div className="text-xs text-gray-500">{record.shipPhoneNumber}</div>
         </div>
       )
     },
     {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
+      title: 'Ngày phân công',
+      dataIndex: 'assignedAt',
+      key: 'assignedAt',
       render: (v: string) => new Date(v).toLocaleString('vi-VN')
     },
     {
       title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
+      dataIndex: 'orderStatus',
+      key: 'orderStatus',
       render: (status: string) => {
         const label = getStatusLabel(status as any);
         const colorMap: Record<string, string> = {
@@ -78,34 +128,77 @@ const StaffOrderTable: React.FC = () => {
           DELIVERED_WAITING_CONFIRM: 'gold',
           DELIVERY_SUCCESS: 'green',
           DELIVERY_DENIED: 'red',
+          READY_FOR_DELIVERY: 'cyan',
         };
         return <Tag color={colorMap[status] || 'default'}>{label}</Tag>;
       }
     },
     {
-      title: 'Tổng tiền',
-      key: 'grandTotal',
-      render: (_, r) => (
+      title: 'Nhân viên giao',
+      key: 'deliveryStaff',
+      render: (_, record) => (
         <div>
-          <div className="font-semibold text-gray-800">{formatCurrency(r.grandTotal)}</div>
-          <div className="text-xs text-gray-500">SP: {r.items?.reduce((s, i) => s + i.quantity, 0) || 0}</div>
+          <div className="font-medium text-gray-800">{record.deliveryStaffName}</div>
+          <div className="text-xs text-gray-500">Chuẩn bị: {record.preparedByName}</div>
         </div>
       )
     },
     {
-      title: 'Địa chỉ giao',
-      key: 'shipAddress',
-      render: (_, r) => {
-        const anyR = r as any;
-        const top = `${anyR.shipReceiverName || ''} ${anyR.shipPhoneNumber ? '- ' + anyR.shipPhoneNumber : ''}`.trim();
-        const addr = [anyR.shipStreet, anyR.shipWard, anyR.shipDistrict, anyR.shipProvince].filter(Boolean).join(', ');
+      title: 'Thời gian',
+      key: 'timeline',
+      render: (_, record) => (
+        <div className="text-xs">
+          {record.pickUpAt && (
+            <div className="text-gray-600">Lấy: {new Date(record.pickUpAt).toLocaleString('vi-VN')}</div>
+          )}
+          {record.deliveredAt && (
+            <div className="text-green-600">Giao: {new Date(record.deliveredAt).toLocaleString('vi-VN')}</div>
+          )}
+          {!record.pickUpAt && !record.deliveredAt && (
+            <div className="text-gray-400">Chưa lấy hàng</div>
+          )}
+        </div>
+      )
+    },
+    {
+      title: 'Hành động',
+      key: 'action',
+      width: 200,
+      render: (_, record) => {
+        const isReadyForPickup = record.orderStatus === 'READY_FOR_PICKUP';
+        const isReadyForDelivery = record.orderStatus === 'READY_FOR_DELIVERY';
+        const isProcessing = processingIds.has(record.storeOrderId);
+        const currentAction = processingActions.get(record.storeOrderId);
+        const isProcessingReady = isProcessing && currentAction === 'ready';
+        const isProcessingOutForDelivery = isProcessing && currentAction === 'out-for-delivery';
+        
         return (
-          <div className="max-w-xs truncate">
-            {top}
-            <div className="text-xs text-gray-500 truncate">{addr}</div>
+          <div className="flex gap-2">
+            <Button
+              type="primary"
+              icon={<Package className="w-4 h-4" />}
+              onClick={() => handleMarkAsReady(record.storeOrderId)}
+              disabled={!isReadyForPickup || isProcessing}
+              loading={isProcessingReady}
+              size="small"
+              title={!isReadyForPickup ? 'Chỉ có thể xuất kho khi đơn hàng ở trạng thái "Kho đang chuẩn bị"' : 'Đánh dấu sẵn sàng giao hàng'}
+            >
+              Xuất kho
+            </Button>
+            <Button
+              type="primary"
+              icon={<Truck className="w-4 h-4" />}
+              onClick={() => handleOutForDelivery(record.storeOrderId)}
+              disabled={!isReadyForDelivery || isProcessing}
+              loading={isProcessingOutForDelivery}
+              size="small"
+              title={!isReadyForDelivery ? 'Chỉ có thể giao đơn hàng khi đơn hàng ở trạng thái "Chờ giao hàng"' : 'Đánh dấu đang giao hàng'}
+            >
+              Giao đơn hàng
+            </Button>
           </div>
         );
-      }
+      },
     },
   ];
 
@@ -118,56 +211,61 @@ const StaffOrderTable: React.FC = () => {
       expandable={{
         expandRowByClick: true,
         expandedRowRender: (record) => {
-          const r: any = record as any;
-          const addr = [r.shipStreet, r.shipWard, r.shipDistrict, r.shipProvince].filter(Boolean).join(', ');
           return (
             <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <Descriptions title="Thông tin khách hàng" size="small" column={1} bordered>
-                    <Descriptions.Item label="Tên">{r.customerName}</Descriptions.Item>
-                    <Descriptions.Item label="SĐT">{r.customerPhone || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="Ghi chú KH">{r.customerMessage || '-'}</Descriptions.Item>
+                  <Descriptions title="Thông tin phân công" size="small" column={1} bordered>
+                    <Descriptions.Item label="Mã đơn hàng">
+                      <Text code>{record.storeOrderId}</Text>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Trạng thái">
+                      <Tag color={record.orderStatus === 'DELIVERY_SUCCESS' ? 'green' : 'default'}>
+                        {getStatusLabel(record.orderStatus as any)}
+                      </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Ngày phân công">
+                      {new Date(record.assignedAt).toLocaleString('vi-VN')}
+                    </Descriptions.Item>
+                    {record.pickUpAt && (
+                      <Descriptions.Item label="Ngày lấy hàng">
+                        {new Date(record.pickUpAt).toLocaleString('vi-VN')}
+                      </Descriptions.Item>
+                    )}
+                    {record.deliveredAt && (
+                      <Descriptions.Item label="Ngày giao hàng">
+                        {new Date(record.deliveredAt).toLocaleString('vi-VN')}
+                      </Descriptions.Item>
+                    )}
                   </Descriptions>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <Descriptions title="Giao hàng" size="small" column={1} bordered>
-                    <Descriptions.Item label="Người nhận">{r.shipReceiverName || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="SĐT nhận">{r.shipPhoneNumber || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="Địa chỉ">{addr || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="Ghi chú">{r.shipNote || '-'}</Descriptions.Item>
-                  </Descriptions>
-                </div>
-
-                <div className="bg-white border border-gray-200 rounded-lg p-4">
-                  <Descriptions title="Thanh toán" size="small" column={1} bordered>
-                    <Descriptions.Item label="Tạm tính">{formatCurrency(record.totalAmount)}</Descriptions.Item>
-                    <Descriptions.Item label="Giảm giá">{formatCurrency(record.discountTotal)}</Descriptions.Item>
-                    <Descriptions.Item label="Phí vận chuyển">{formatCurrency(record.shippingFee)}</Descriptions.Item>
-                    <Descriptions.Item label="Tổng cộng">{formatCurrency(record.grandTotal)}</Descriptions.Item>
+                  <Descriptions title="Thông tin nhân viên" size="small" column={1} bordered>
+                    <Descriptions.Item label="Nhân viên giao hàng">
+                      {record.deliveryStaffName}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Nhân viên chuẩn bị">
+                      {record.preparedByName}
+                    </Descriptions.Item>
+                    {record.note && (
+                      <Descriptions.Item label="Ghi chú">
+                        {record.note}
+                      </Descriptions.Item>
+                    )}
                   </Descriptions>
                 </div>
               </div>
 
-              <Divider className="my-4" />
-
-              <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <div className="text-sm font-semibold mb-2">Sản phẩm ({record.items?.length || 0})</div>
-                <List
-                  dataSource={record.items || []}
-                  renderItem={(item: any) => (
-                    <List.Item>
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-800">{item.name}</div>
-                          <div className="text-xs text-gray-500">SL: {item.quantity} × {formatCurrency(item.unitPrice)}</div>
-                        </div>
-                        <div className="text-right font-semibold">{formatCurrency(item.lineTotal)}</div>
-                      </div>
-                    </List.Item>
-                  )}
-                />
+              <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
+                <Descriptions title="Thông tin người nhận" size="small" column={1} bordered>
+                  <Descriptions.Item label="Tên người nhận">
+                    {record.shipReceiverName}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Số điện thoại">
+                    {record.shipPhoneNumber}
+                  </Descriptions.Item>
+                </Descriptions>
               </div>
             </div>
           );
