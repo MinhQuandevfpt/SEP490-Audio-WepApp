@@ -45,11 +45,15 @@ import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
 import StaffList from '../pages/Seller/StaffList/StaffList';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
 import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
+import StaffDashboardHome from '../pages/StoreStaff/Dashboard/StaffDashboardHome';
+import StaffDashboardLayout from '../components/StaffDashboardLayout';
+import OrderPageStaff from '../pages/StoreStaff/Order/OrderPageStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
 import { StoreService } from '../services/seller/StoreService';
+import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -124,6 +128,14 @@ function ProtectedAdminRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = AdminAuthService.isAuthenticated();
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
+  }
+  return element;
+}
+
+function ProtectedStaffRoute({ element }: { element: ReactElement }) {
+  const isAuthenticated = StoreStaffAuthService.isAuthenticated();
+  if (!isAuthenticated) {
+    return <Navigate to="/store-staff/login" replace />;
   }
   return element;
 }
@@ -373,6 +385,14 @@ export const router = createBrowserRouter([
         path: 'register',
         element: <RegisterForStaff />
       }
+    ]
+  },
+  {
+    path: '/store-staff/dashboard',
+    element: <ProtectedStaffRoute element={<StaffDashboardLayout />} />,
+    children: [
+      { path: '', element: <StaffDashboardHome /> },
+      { path: 'orders', element: <OrderPageStaff /> }
     ]
   },
   // Admin routes

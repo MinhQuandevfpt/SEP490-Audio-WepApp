@@ -12,7 +12,8 @@ export interface StatusConfig {
   icon?: string;
 }
 
-export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
+// Use a string index to allow extended internal statuses beyond public API enum
+export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   UNPAID: {
     label: 'Chờ thanh toán',
     color: 'text-orange-600',
@@ -58,6 +59,12 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
     color: 'text-gray-600',
     bgColor: 'bg-gray-50 border-gray-200',
   },
+  // ==== Extended internal statuses ====
+  READY_FOR_PICKUP: {
+    label: 'Kho đang chuẩn bị',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50 border-cyan-200',
+  },
 };
 
 /**
@@ -73,8 +80,8 @@ export const getStatusBadgeClass = (status: OrderStatus | string | undefined | n
 /**
  * Get status label
  */
-export const getStatusLabel = (status: OrderStatus): string => {
-  return ORDER_STATUS_CONFIG[status]?.label || status;
+export const getStatusLabel = (status: OrderStatus | string): string => {
+  return ORDER_STATUS_CONFIG[status]?.label || (status as string);
 };
 
 /**

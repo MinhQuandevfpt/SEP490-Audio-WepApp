@@ -445,3 +445,30 @@ export interface PayOSCheckoutData {
 }
 
 export interface PayOSCheckoutResponse extends ApiResponse<PayOSCheckoutData> {}
+
+// ==================== STAFF AUTH TYPES ====================
+
+export interface StaffLoginRequestBody {
+  email: string;
+  password: string;
+}
+
+export interface StaffLoginData {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  user: {
+    email: string;
+    fullName: string;
+    role: string;
+  };
+  staff: {
+    staffId: string;
+    storeId: string;
+    fullName: string;
+    email: string;
+    phone: string;
+  };
+}
+
+export interface StaffLoginResponse extends ApiResponse<StaffLoginData> {}
