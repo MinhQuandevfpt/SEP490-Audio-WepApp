@@ -1,6 +1,7 @@
 // Store Service for managing store information and status
 import type { StoreInfo, StoreStatusResponse } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
+import { getSellerStoreId, safeSetLocalStorage } from '../../utils/authHelper';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -45,16 +46,21 @@ export class StoreService {
   }
 
   /**
-   * Get store ID
+   * Get store ID with improved caching and error handling
    */
   static async getStoreId(): Promise<string> {
     try {
-      // First, try to get store ID from localStorage
-      const cachedStoreId = localStorage.getItem('seller_store_id');
+      // First, try to get store ID using helper (checks both cache and seller_user)
+      let cachedStoreId = getSellerStoreId();
+      
       if (cachedStoreId) {
+        console.log('✅ Using cached store ID:', cachedStoreId);
         return cachedStoreId;
       }
-      // Use the official API endpoint to get store ID
+      
+      console.log('🔄 Fetching store ID from API...');
+      
+      // Use the official API endpoint to get store ID (with auto token refresh)
       const storeData = await HttpInterceptor.get<any>(`${API_URL}/stores/me/id`, {
         headers: {
           'Accept': '*/*',
@@ -66,15 +72,30 @@ export class StoreService {
       const storeId = storeData.data;
       
       if (!storeId) {
-        throw new Error('Không tìm thấy store ID trong response.');
+        console.error('❌ Store ID not found in API response:', storeData);
+        throw new Error('Không tìm thấy store ID. Vui lòng đăng nhập lại.');
       }
 
-      // Cache the store ID
-      localStorage.setItem('seller_store_id', storeId);
+      console.log('✅ Store ID fetched from API:', storeId);
+      
+      // Cache the store ID using safe setter
+      safeSetLocalStorage('seller_store_id', storeId);
       
       return storeId;
-    } catch (error) {
-      console.error('Error getting store ID:', error);
+    } catch (error: any) {
+      console.error('❌ Error getting store ID:', error);
+      
+      // If 404, user might not have a store yet
+      if (error?.status === 404) {
+        throw new Error('Bạn chưa có cửa hàng. Vui lòng hoàn tất thông tin KYC.');
+      }
+      
+      // If 401, token might be invalid - clear and redirect
+      if (error?.status === 401) {
+        this.clearStoreCache();
+        throw new Error('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.');
+      }
+      
       throw error;
     }
   }

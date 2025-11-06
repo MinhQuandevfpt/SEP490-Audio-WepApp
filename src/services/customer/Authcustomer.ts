@@ -248,18 +248,16 @@ export class CustomerAuthService {
   }
 
   /**
-   * Logout customer
+   * Logout customer - Clear all tokens and user data
    */
   static logout(): void {
-    // Remove customer auth tokens using RefreshTokenService
-    RefreshTokenService.clearTokens('customer');
+    // Clear ALL data using RefreshTokenService
+    RefreshTokenService.clearAllData('customer');
     
-    // Remove customer auth tokens (backward compatibility)
-    localStorage.removeItem('customer_token');
-    localStorage.removeItem('customer_user');
+    // Remove customer-specific data (backward compatibility)
     localStorage.removeItem('token_type');
-    localStorage.removeItem('account_id');      // New from thongln branch
-    localStorage.removeItem('customer_id');     // New from thongln branch
+    localStorage.removeItem('account_id');
+    localStorage.removeItem('customer_id');
     
     // Remove OAuth2 related data
     localStorage.removeItem('token');
@@ -271,7 +269,7 @@ export class CustomerAuthService {
     localStorage.removeItem('userRole');
     localStorage.removeItem('authStateChanged');
     
-    console.log('👋 Customer logged out');
+    console.log('✅ Customer logged out successfully');
   }
 
   /**

@@ -94,17 +94,13 @@ export class SellerAuthService {
   }
 
   /**
-   * Logout seller
+   * Logout seller - Clear all tokens and user data
    */
   static logout(): void {
-    // Clear tokens using RefreshTokenService
-    RefreshTokenService.clearTokens('seller');
+    // Clear ALL data using RefreshTokenService
+    RefreshTokenService.clearAllData('seller');
     
-    // Also clear old format for backward compatibility
-    localStorage.removeItem('seller_token');
-    localStorage.removeItem('seller_user');
-    localStorage.removeItem('seller_store_id');
-    localStorage.removeItem('seller_store_info');
+    console.log('✅ Seller logged out successfully');
   }
 
   /**

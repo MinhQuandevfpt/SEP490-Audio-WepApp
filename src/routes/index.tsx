@@ -75,6 +75,7 @@ function ProtectedSellerRoute({ element }: { element: ReactElement }) {
 function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
   const [isLoading, setIsLoading] = useState(true);
   const [storeStatus, setStoreStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const checkStoreStatus = async () => {
@@ -86,11 +87,25 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
       }
       
       try {
+        console.log('🔍 Checking store status...');
         const statusResponse = await StoreService.getStoreStatus();
+        console.log('✅ Store status:', statusResponse.status);
         setStoreStatus(statusResponse.status);
-      } catch (error) {
-        console.error('Error checking store status:', error);
+        setError(null);
+      } catch (error: any) {
+        console.error('❌ Error checking store status:', error);
+        
+        // Handle specific errors
+        if (error?.message?.includes('Phiên đăng nhập hết hạn')) {
+          // Token expired and refresh failed - redirect to login
+          SellerAuthService.logout();
+          window.location.href = '/seller/login';
+          return;
+        }
+        
+        // For other errors, assume INACTIVE (will redirect to KYC page)
         setStoreStatus('INACTIVE');
+        setError(error?.message || 'Không thể kiểm tra trạng thái cửa hàng');
       } finally {
         setIsLoading(false);
       }
@@ -104,7 +119,7 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang kiểm tra thông tin...</p>
+          <p className="mt-4 text-gray-600">Đang kiểm tra thông tin cửa hàng...</p>
         </div>
       </div>
     );
@@ -118,6 +133,9 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
   
   // Only ACTIVE stores can access dashboard
   if (storeStatus !== 'ACTIVE') {
+    if (error) {
+      console.warn('⚠️ Redirecting to KYC status due to error:', error);
+    }
     return <Navigate to="/seller/kyc-status" replace />;
   }
   

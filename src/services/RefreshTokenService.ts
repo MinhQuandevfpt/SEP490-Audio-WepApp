@@ -89,8 +89,29 @@ export class RefreshTokenService {
 
   /**
    * Clear tokens for a specific user type
+   * NOTE: This does NOT clear user info - only auth tokens
+   * This is used when token refresh fails but we want to keep user logged in state
    */
   static clearTokens(userType: 'customer' | 'seller' | 'staff' | 'admin'): void {
+    if (userType === 'admin') {
+      localStorage.removeItem('admin_access_token');
+      localStorage.removeItem('admin_refresh_token');
+      localStorage.removeItem('admin_token_type');
+      // NOTE: Keep admin_user for better UX
+    } else {
+      localStorage.removeItem(`${userType}_token`);
+      localStorage.removeItem(`${userType}_refresh_token`);
+      localStorage.removeItem(`${userType}_token_type`);
+      // NOTE: Keep user info and store_id for better UX
+    }
+    console.log(`🗑️ Tokens cleared for ${userType} (user info preserved)`);
+  }
+
+  /**
+   * Clear all data for a user type (including user info and cache)
+   * Use this for logout
+   */
+  static clearAllData(userType: 'customer' | 'seller' | 'staff' | 'admin'): void {
     if (userType === 'admin') {
       localStorage.removeItem('admin_access_token');
       localStorage.removeItem('admin_refresh_token');
@@ -100,8 +121,15 @@ export class RefreshTokenService {
       localStorage.removeItem(`${userType}_token`);
       localStorage.removeItem(`${userType}_refresh_token`);
       localStorage.removeItem(`${userType}_token_type`);
+      localStorage.removeItem(`${userType}_user`);
+      
+      // Clear seller-specific data
+      if (userType === 'seller') {
+        localStorage.removeItem('seller_store_id');
+        localStorage.removeItem('seller_store_info');
+      }
     }
-    console.log(`🗑️ Tokens cleared for ${userType}`);
+    console.log(`🗑️ All data cleared for ${userType}`);
   }
 
   /**

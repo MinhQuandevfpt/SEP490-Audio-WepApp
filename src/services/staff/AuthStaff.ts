@@ -99,17 +99,13 @@ export class StoreStaffAuthService {
   }
 
   /**
-   * Logout store staff
+   * Logout store staff - Clear all tokens and user data
    */
   static logout(): void {
-    // Clear tokens using RefreshTokenService
-    RefreshTokenService.clearTokens('staff');
+    // Clear ALL data using RefreshTokenService
+    RefreshTokenService.clearAllData('staff');
     
-    // Also clear old format for backward compatibility
-    localStorage.removeItem('staff_token');
-    localStorage.removeItem('staff_user');
-    
-    console.log('👋 Store staff logged out');
+    console.log('✅ Store staff logged out successfully');
   }
 
   /**
