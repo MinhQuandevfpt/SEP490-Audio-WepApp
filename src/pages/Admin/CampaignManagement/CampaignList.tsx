@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Tag, Button, Tooltip, Modal } from 'antd';
+import { Table, Tag, Button, Tooltip, Modal, Typography, Space, Card, Row, Col, Statistic, Tabs, Empty } from 'antd';
 import { 
   EyeOutlined, 
   EditOutlined, 
@@ -274,120 +274,70 @@ const CampaignManagement: React.FC = () => {
   }), [campaigns]);
 
   return (
-    <div className="p-6">
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {/* Page Header */}
-      <div className="md:flex md:items-center md:justify-between mb-6">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Typography.Title level={3} style={{ margin: 0 }}>
             Quản lý chiến dịch khuyến mãi
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
+          </Typography.Title>
+          <Typography.Text type="secondary">
             Quản lý các chiến dịch Mega Sale và Flash Sale
-          </p>
+          </Typography.Text>
         </div>
-        <div className="mt-4 flex md:mt-0 md:ml-4">
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            size="large"
-            onClick={() => navigate('/admin/campaigns/create')}
-            style={{ 
-              background: 'linear-gradient(to right, #f97316, #ea580c)',
-              borderColor: '#f97316'
-            }}
-          >
-            Tạo chiến dịch mới
-          </Button>
-        </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          onClick={() => navigate('/admin/campaigns/create')}
+        >
+          Tạo chiến dịch mới
+        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Tổng chiến dịch</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-blue-100 text-blue-600">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M13 7H7v6h6V7z"/>
-                <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Đang diễn ra</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.active}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-green-100 text-green-600">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Mega Sale</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.megaSale}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-purple-100 text-purple-600">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Flash Sale</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.flashSale}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-orange-100 text-orange-600">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/>
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Tổng chiến dịch" value={stats.total} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Đang diễn ra" value={stats.active} valueStyle={{ color: '#3f8600' }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Mega Sale" value={stats.megaSale} valueStyle={{ color: '#722ed1' }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Flash Sale" value={stats.flashSale} valueStyle={{ color: '#fa8c16' }} />
+          </Card>
+        </Col>
+      </Row>
 
       {/* Filter Tabs */}
-      <div className="mb-6 flex gap-2 border-b border-gray-200">
-        {(['ALL', 'DRAFT', 'ONOPEN', 'ACTIVE', 'DISABLED', 'EXPIRED'] as const).map((status) => (
-          <button
-            key={status}
-            onClick={() => setSelectedStatus(status)}
-            className={`px-4 py-2 font-medium text-sm transition-colors duration-200 border-b-2 ${
-              selectedStatus === status
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {status === 'ALL' ? 'Tất cả' : CampaignService.getStatusLabel(status)}
-            {status !== 'ALL' && (
-              <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
-                {campaigns.filter(c => c.status === status).length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        activeKey={selectedStatus}
+        onChange={(key) => setSelectedStatus(key as any)}
+        items={(['ALL', 'DRAFT', 'ONOPEN', 'ACTIVE', 'DISABLED', 'EXPIRED'] as const).map((status) => ({
+          key: status,
+          label: (
+            <Space>
+              <span>{status === 'ALL' ? 'Tất cả' : CampaignService.getStatusLabel(status)}</span>
+              {status !== 'ALL' && (
+                <Tag>{campaigns.filter(c => c.status === status).length}</Tag>
+              )}
+            </Space>
+          ),
+        }))}
+      />
 
-     
-
-      {/* Ant Design Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {/* Table */}
+      <Card>
         <Table
           columns={columns}
           dataSource={filteredData}
@@ -395,21 +345,19 @@ const CampaignManagement: React.FC = () => {
           rowKey="id"
           pagination={pagination}
           onChange={handleTableChange}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1200 }}
           locale={{
             emptyText: (
-              <div className="py-12">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-                </svg>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">Chưa có chiến dịch nào</h3>
-                <p className="mt-2 text-gray-500">Tạo chiến dịch đầu tiên để bắt đầu.</p>
-              </div>
+              <Empty description={
+                <span>
+                  Chưa có chiến dịch nào. Tạo chiến dịch đầu tiên để bắt đầu.
+                </span>
+              } />
             ),
           }}
         />
-      </div>
-    </div>
+      </Card>
+    </Space>
   );
 };
 

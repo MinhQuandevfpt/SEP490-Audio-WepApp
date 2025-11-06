@@ -30,8 +30,17 @@ const SellerDashboardLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
+  const [sellerUserName, setSellerUserName] = useState<string>('');
+  const [sellerUserEmail, setSellerUserEmail] = useState<string>('');
 
   useEffect(() => {
+    // Prime UI with seller user info immediately (fallback while store info loads)
+    const user = SellerAuthService.getCurrentUser();
+    if (user) {
+      setSellerUserName(user.full_name || '');
+      setSellerUserEmail(user.email || '');
+    }
+
     loadStoreInfo();
   }, []);
 
@@ -203,10 +212,10 @@ const SellerDashboardLayout: React.FC = () => {
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-gray-800">
-                    {storeInfo?.name || 'Đang tải...'}
+                      {storeInfo?.name || sellerUserName || '—'}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {storeInfo?.email || ''}
+                      {storeInfo?.email || sellerUserEmail || ''}
                   </p>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-600" />
@@ -216,8 +225,8 @@ const SellerDashboardLayout: React.FC = () => {
               {isProfileMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
                   <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-800">{storeInfo?.name}</p>
-                    <p className="text-xs text-gray-500">{storeInfo?.email}</p>
+                    <p className="text-sm font-medium text-gray-800">{storeInfo?.name || sellerUserName || '—'}</p>
+                    <p className="text-xs text-gray-500">{storeInfo?.email || sellerUserEmail || ''}</p>
                     <div className="mt-2">
                       <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${
                         storeInfo?.status === 'ACTIVE' 
@@ -226,7 +235,7 @@ const SellerDashboardLayout: React.FC = () => {
                           ? 'bg-yellow-100 text-yellow-700'
                           : 'bg-gray-100 text-gray-700'
                       }`}>
-                        {storeInfo?.status || 'LOADING'}
+                        {storeInfo?.status || 'INACTIVE'}
                       </span>
                     </div>
                   </div>

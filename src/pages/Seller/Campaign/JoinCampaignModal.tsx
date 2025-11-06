@@ -77,10 +77,10 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       // HttpInterceptor sẽ gửi seller_token trong Authorization header
       // Backend decode token -> lấy storeId -> chỉ trả về products của store đó
       // Không cần truyền storeId parameter vì backend tự extract từ token
-      const response = await ProductService.getProducts({
-        status: 'ACTIVE', // Chỉ lấy sản phẩm đang hoạt động
+      const response = await ProductService.getMyProducts({
+        status: 'ACTIVE', // chỉ lấy sản phẩm đang hoạt động
         page: 0,
-        size: 100, // Lấy tối đa 100 sản phẩm của store này
+        size: 100, // tối đa 100 sản phẩm của cửa hàng hiện tại
       });
       
       const fetchedProducts = response.data?.content || [];
@@ -506,26 +506,32 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   return (
     <Modal
       title={
-        <div className="flex items-center gap-3">
+        <Space size="middle" align="center">
           <div
-            className="w-12 h-12 rounded-lg flex items-center justify-center"
             style={{
+              width: 48,
+              height: 48,
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               background: `linear-gradient(135deg, ${campaign?.badgeColor || '#f97316'}, ${campaign?.badgeColor || '#f97316'}dd)`,
+              color: '#fff'
             }}
           >
             {isFlashSale ? (
-              <ThunderboltOutlined className="text-2xl text-white" />
+              <ThunderboltOutlined style={{ fontSize: 20 }} />
             ) : (
-              <ShoppingOutlined className="text-2xl text-white" />
+              <ShoppingOutlined style={{ fontSize: 20 }} />
             )}
           </div>
           <div>
-            <div className="text-lg font-bold">Đăng ký tham gia chiến dịch</div>
-            <div className="text-sm font-normal text-gray-600">
+            <div style={{ fontSize: 16, fontWeight: 600 }}>Đăng ký tham gia chiến dịch</div>
+            <div style={{ color: '#666' }}>
               {campaign?.name} • {campaign?.code}
             </div>
           </div>
-        </div>
+        </Space>
       }
       open={visible}
       onCancel={handleClose}
@@ -534,7 +540,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       destroyOnClose
     >
       {/* Steps */}
-      <Steps current={currentStep} className="mb-6">
+      <Steps current={currentStep} style={{ marginBottom: 24 }}>
         <Step title="Chọn sản phẩm" icon={<ShoppingOutlined />} />
         <Step title="Cấu hình giảm giá" icon={<SettingOutlined />} />
       </Steps>
@@ -543,7 +549,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       {renderStepContent()}
 
       {/* Footer Actions */}
-      <div className="flex justify-between mt-6 pt-4 border-t">
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
         <div>
           {currentStep === 1 && (
             <Button onClick={() => setCurrentStep(0)}>
@@ -569,10 +575,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               loading={isSubmitting}
               disabled={selectedProducts.length === 0}
               icon={<CheckCircleOutlined />}
-              style={{
-                background: `linear-gradient(135deg, ${campaign?.badgeColor || '#f97316'}, ${campaign?.badgeColor || '#f97316'}dd)`,
-                borderColor: campaign?.badgeColor || '#f97316',
-              }}
             >
               Xác nhận đăng ký ({selectedProducts.length} sản phẩm)
             </Button>

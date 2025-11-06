@@ -1,18 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Card,
-  Button,
-  InputNumber,
-  Select,
-  Table,
-  Tag,
-  Modal,
-  Spin,
-  Alert,
-  Image,
-  Steps,
-} from 'antd';
+import { Card, Button, InputNumber, Select, Table, Tag, Modal, Spin, Alert, Image, Steps, Typography, Space } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   ArrowLeftOutlined,
@@ -83,7 +71,7 @@ const JoinCampaign: React.FC = () => {
   const fetchProducts = async () => {
     try {
       // Get store's products - you may need to adjust based on your store context
-      const response = await ProductService.getProducts({
+      const response = await ProductService.getMyProducts({
         status: 'ACTIVE',
         page: 0,
         size: 100,
@@ -439,148 +427,130 @@ const JoinCampaign: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => navigate('/seller/campaigns')}
-              >
-                Quay lại
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+      <Card bordered={false} style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space size="middle" align="center">
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/seller/campaigns')}>
+              Quay lại
+            </Button>
+            <div>
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                <Space>
                   {campaign.type === 'MEGA_SALE' ? (
-                    <FireOutlined className="text-purple-600" />
+                    <FireOutlined style={{ color: '#722ed1' }} />
                   ) : (
-                    <ThunderboltOutlined className="text-orange-600" />
+                    <ThunderboltOutlined style={{ color: '#fa8c16' }} />
                   )}
                   Đăng ký tham gia: {campaign.name}
-                </h1>
-                <p className="text-sm text-gray-500">Mã: {campaign.code}</p>
-              </div>
+                </Space>
+              </Typography.Title>
+              <Typography.Text type="secondary">Mã: {campaign.code}</Typography.Text>
             </div>
-            <Tag
-              color={campaign.type === 'MEGA_SALE' ? 'purple' : 'orange'}
-              className="text-base px-4 py-1"
-            >
-              {SellerCampaignService.getTypeLabel(campaign.type)}
-            </Tag>
-          </div>
-        </div>
-      </div>
+          </Space>
+          <Tag color={campaign.type === 'MEGA_SALE' ? 'purple' : 'orange'}>
+            {SellerCampaignService.getTypeLabel(campaign.type)}
+          </Tag>
+        </Space>
+      </Card>
 
-      <div className="max-w-7xl mx-auto px-6 mt-6">
-        {/* Steps */}
-        <Card className="mb-6">
-          <Steps current={currentStep} className="mb-4">
-            <Step title="Chọn sản phẩm" icon={<CheckCircleOutlined />} />
-            <Step title="Cấu hình giảm giá" />
-            <Step title="Xác nhận & Gửi" />
-          </Steps>
-        </Card>
+      {/* Steps */}
+      <Card>
+        <Steps current={currentStep} style={{ marginBottom: 8 }}>
+          <Step title="Chọn sản phẩm" icon={<CheckCircleOutlined />} />
+          <Step title="Cấu hình giảm giá" />
+          <Step title="Xác nhận & Gửi" />
+        </Steps>
+      </Card>
 
-        {/* Campaign Info */}
-        <Card className="mb-6" title="Thông tin chiến dịch">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Campaign Info */}
+      <Card title="Thông tin chiến dịch">
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Space size="large" wrap>
             <div>
-              <div className="text-sm text-gray-600">Thời gian diễn ra:</div>
-              <div className="font-medium">
-                {SellerCampaignService.formatDate(campaign.startTime)} -{' '}
-                {SellerCampaignService.formatDate(campaign.endTime)}
+              <Typography.Text type="secondary">Thời gian diễn ra:</Typography.Text>
+              <div>
+                <Typography.Text strong>
+                  {SellerCampaignService.formatDate(campaign.startTime)} - {SellerCampaignService.formatDate(campaign.endTime)}
+                </Typography.Text>
               </div>
             </div>
             {isFlashSale && campaign.flashSlots && (
               <div>
-                <div className="text-sm text-gray-600">
-                  Số khung giờ Flash Sale:
+                <Typography.Text type="secondary">Số khung giờ Flash Sale:</Typography.Text>
+                <div>
+                  <Typography.Text strong>{campaign.flashSlots.length} khung</Typography.Text>
                 </div>
-                <div className="font-medium">{campaign.flashSlots.length} khung</div>
               </div>
             )}
-          </div>
+          </Space>
 
           <Alert
             message="Lưu ý quan trọng"
             description={
-              <ul className="list-disc pl-5 space-y-1 mt-2">
-                <li>Sản phẩm phải đã được cập nhật ≥ 7 ngày trước</li>
-                <li>Sản phẩm phải ở trạng thái ACTIVE (đang hoạt động)</li>
+              <div>
+                <div>- Sản phẩm phải đã được cập nhật ≥ 7 ngày trước</div>
+                <div>- Sản phẩm phải ở trạng thái ACTIVE (đang hoạt động)</div>
                 {isFlashSale && (
-                  <li className="text-orange-600 font-medium">
-                    Sản phẩm Flash Sale bắt buộc phải chọn khung giờ
-                  </li>
+                  <div style={{ color: '#fa8c16', fontWeight: 500 }}>
+                    - Sản phẩm Flash Sale bắt buộc phải chọn khung giờ
+                  </div>
                 )}
-                <li>
-                  Sản phẩm sẽ ở trạng thái chờ duyệt sau khi đăng ký thành công
-                </li>
-              </ul>
+                <div>- Sản phẩm sẽ ở trạng thái chờ duyệt sau khi đăng ký thành công</div>
+              </div>
             }
             type="info"
             showIcon
             icon={<InfoCircleOutlined />}
-            className="mt-4"
           />
-        </Card>
+        </Space>
+      </Card>
 
-        {/* Selected Products */}
-        <Card
-          title={`Sản phẩm đã chọn (${selectedProducts.length})`}
-          extra={
-            <Button type="primary" onClick={handleAddProducts}>
-              + Thêm sản phẩm
-            </Button>
-          }
-          className="mb-6"
-        >
-          {selectedProducts.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">
-                Chưa có sản phẩm nào được chọn
-              </p>
-              <Button
-                type="primary"
-                size="large"
-                onClick={handleAddProducts}
-                className="mt-4"
-              >
+      {/* Selected Products */}
+      <Card
+        title={`Sản phẩm đã chọn (${selectedProducts.length})`}
+        extra={
+          <Button type="primary" onClick={handleAddProducts}>
+            + Thêm sản phẩm
+          </Button>
+        }
+      >
+        {selectedProducts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <Typography.Text type="secondary">Chưa có sản phẩm nào được chọn</Typography.Text>
+            <div style={{ marginTop: 12 }}>
+              <Button type="primary" size="large" onClick={handleAddProducts}>
                 Chọn sản phẩm ngay
               </Button>
             </div>
-          ) : (
-            <Table
-              columns={selectedProductColumns}
-              dataSource={selectedProducts}
-              rowKey="productId"
-              pagination={false}
-              scroll={{ x: 1400 }}
-            />
-          )}
-        </Card>
+          </div>
+        ) : (
+          <Table
+            columns={selectedProductColumns}
+            dataSource={selectedProducts}
+            rowKey="productId"
+            pagination={false}
+            scroll={{ x: 1200 }}
+          />
+        )}
+      </Card>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-4">
-          <Button size="large" onClick={() => navigate('/seller/campaigns')}>
-            Hủy
-          </Button>
-          <Button
-            type="primary"
-            size="large"
-            onClick={handleSubmit}
-            loading={isSubmitting}
-            disabled={selectedProducts.length === 0}
-            className="bg-gradient-to-r from-orange-500 to-red-500 border-0 min-w-[200px]"
-            style={{
-              background: 'linear-gradient(to right, #f97316, #ef4444)',
-            }}
-          >
-            Xác nhận đăng ký ({selectedProducts.length} sản phẩm)
-          </Button>
-        </div>
-      </div>
+      {/* Action Buttons */}
+      <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+        <Button size="large" onClick={() => navigate('/seller/campaigns')}>
+          Hủy
+        </Button>
+        <Button
+          type="primary"
+          size="large"
+          onClick={handleSubmit}
+          loading={isSubmitting}
+          disabled={selectedProducts.length === 0}
+        >
+          Xác nhận đăng ký ({selectedProducts.length} sản phẩm)
+        </Button>
+      </Space>
 
       {/* Product Selection Modal */}
       <Modal
@@ -609,7 +579,7 @@ const JoinCampaign: React.FC = () => {
           pagination={{ pageSize: 5 }}
         />
       </Modal>
-    </div>
+    </Space>
   );
 };
 
