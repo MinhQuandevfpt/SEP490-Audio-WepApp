@@ -1,0 +1,128 @@
+import HttpInterceptor from '../HttpInterceptor';
+
+// Params for /api/products/view
+export interface ProductViewParams {
+  status?: string;
+  categoryId?: string;
+  storeId?: string;
+  keyword?: string;
+  provinceCode?: string;
+  districtCode?: string;
+  wardCode?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface ProductViewStoreInfo {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'INACTIVE' | string;
+  provinceCode: string | null;
+  districtCode: string | null;
+  wardCode: string | null;
+}
+
+export interface ProductViewItem {
+  productId: string;
+  name: string;
+  brandName: string | null;
+  price: number | null;
+  discountPrice: number | null;
+  finalPrice: number | null;
+  category: string | null;
+  thumbnailUrl: string | null;
+  ratingAverage: number | null;
+  reviewCount: number | null;
+  store: ProductViewStoreInfo | null;
+  vouchers?: any;
+}
+
+export interface ProductViewPageInfo {
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  totalElements: number;
+}
+
+export interface ProductViewApiResponse {
+  status: number;
+  message: string;
+  data: {
+    data: ProductViewItem[];
+    page: ProductViewPageInfo;
+  };
+}
+
+// Voucher types for product detail vouchers API
+export interface ProductVoucherItem {
+  source: 'SHOP' | 'PLATFORM' | string;
+  shopVoucherId?: string;
+  shopVoucherProductId?: string;
+  code: string;
+  title: string;
+  type: 'FIXED' | 'PERCENT' | string;
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  startTime: string;
+  endTime: string;
+}
+
+export interface ProductVoucherProductSummary {
+  productId: string;
+  name: string;
+  price: number | null;
+  discountPrice: number | null;
+  finalPrice: number | null;
+  brandName: string | null;
+  category: string | null;
+  thumbnailUrl: string | null;
+}
+
+export interface ProductVouchersResponse {
+  status: number;
+  message: string;
+  data: {
+    product: ProductVoucherProductSummary;
+    vouchers: {
+      shop: ProductVoucherItem[];
+    };
+  };
+}
+
+export class ProductViewService {
+  private static readonly BASE_URL = '/api/products/view';
+
+  static async getProductViews(params: ProductViewParams = {}): Promise<ProductViewApiResponse> {
+    const query = new URLSearchParams();
+
+    if (params.status) query.append('status', params.status);
+    if (params.categoryId) query.append('categoryId', params.categoryId);
+    if (params.storeId) query.append('storeId', params.storeId);
+    if (params.keyword) query.append('keyword', params.keyword);
+    if (params.provinceCode) query.append('provinceCode', params.provinceCode);
+    if (params.districtCode) query.append('districtCode', params.districtCode);
+    if (params.wardCode) query.append('wardCode', params.wardCode);
+    query.append('page', String(params.page ?? 0));
+    query.append('size', String(params.size ?? 20));
+
+    const endpoint = `${this.BASE_URL}?${query.toString()}`;
+    // Use customer context for token if present
+    return await HttpInterceptor.get<ProductViewApiResponse>(endpoint, { userType: 'customer' });
+  }
+
+  static async getProductVouchers(
+    productId: string,
+    params: { type?: string; campaignType?: string } = {}
+  ): Promise<ProductVouchersResponse> {
+    const query = new URLSearchParams();
+    if (params.type) query.append('type', params.type);
+    if (params.campaignType) query.append('campaignType', params.campaignType);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    const endpoint = `${this.BASE_URL}/${productId}/vouchers${suffix}`;
+    return await HttpInterceptor.get<ProductVouchersResponse>(endpoint, { userType: 'customer' });
+  }
+}
+
+export default ProductViewService;

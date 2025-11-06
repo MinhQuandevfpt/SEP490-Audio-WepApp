@@ -124,6 +124,7 @@ const SellerDashboardLayout: React.FC = () => {
       path: '/seller/dashboard/marketing',
       badge: null,
       subItems: [
+        { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
         { label: 'Khuyến mãi', path: '/seller/dashboard/marketing/promotions' },
         { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
         { label: 'Flash Sale', path: '/seller/dashboard/marketing/flash-sale' }

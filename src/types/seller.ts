@@ -674,3 +674,52 @@ export interface StaffListResponseLegacy {
   numberOfElements: number;
   empty: boolean;
 }
+
+// Campaign Types for Seller
+export interface CampaignForSeller {
+  id: string;
+  name: string;
+  code: string;
+  type: 'MEGA_SALE' | 'FAST_SALE';
+  status: 'DRAFT' | 'ONOPEN' | 'ACTIVE' | 'APPROVE' | 'DISABLED' | 'EXPIRED';
+  startTime: string;
+  endTime: string;
+  description?: string;
+  allowRegistration?: boolean;
+  badgeLabel?: string;
+  badgeColor?: string;
+  badgeIconUrl?: string;
+  flashSlots?: FlashSlot[];
+}
+
+export interface FlashSlot {
+  slotId: string;
+  openTime: string;
+  closeTime: string;
+  status: string;
+}
+
+export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
+
+export interface CampaignProductRequest {
+  productId: string;
+  slotId?: string; 
+  type: VoucherType;
+  discountValue?: number;
+  discountPercent?: number;
+  maxDiscountValue?: number;
+  minOrderValue?: number;
+  totalVoucherIssued?: number;
+  totalUsageLimit?: number;
+  usagePerUser?: number;
+}
+
+export interface JoinCampaignRequest {
+  products: CampaignProductRequest[];
+}
+
+export interface JoinCampaignResponse {
+  status: number;
+  message: string;
+  data: any;
+}

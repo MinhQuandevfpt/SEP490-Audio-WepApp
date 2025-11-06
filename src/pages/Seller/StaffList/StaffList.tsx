@@ -30,12 +30,13 @@ const StaffList: React.FC = () => {
     navigate(`/seller/dashboard/staff/edit/${staffId}`);
   };
 
-  const handleDeleteStaff = async (staffId: string, staffName: string) => {
+  const handleDeleteStaff = async (_staffId: string, staffName: string) => {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa nhân viên "${staffName}"?`)) {
       return;
     }
     try {
-      // Implement delete functionality later
+      // TODO: Implement delete functionality later
+      // await StaffService.deleteStaff(staffId);
       showCenterError('Chức năng xóa nhân viên đang được phát triển', 'Thông báo');
     } catch (err: any) {
       showCenterError(err?.message || 'Không thể xóa nhân viên', 'Lỗi');
@@ -95,7 +96,7 @@ const StaffList: React.FC = () => {
       {/* Loading State */}
       {isLoading && (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <LoadingSkeleton type="table" />
+          <LoadingSkeleton type="list" />
         </div>
       )}
 

@@ -12,6 +12,7 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
+import { CampaignList as SellerCampaignList, JoinCampaign } from '../pages/Seller/Campaign';
 import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
@@ -328,6 +329,18 @@ export const router = createBrowserRouter([
       {
         path: 'marketing/flash-sale',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Flash Sale</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'campaigns',
+        element: <SellerCampaignList />
+      },
+      {
+        path: 'campaigns/:campaignId',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Chi tiết chiến dịch</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'campaigns/:campaignId/join',
+        element: <JoinCampaign />
       },
       {
         path: 'messages',

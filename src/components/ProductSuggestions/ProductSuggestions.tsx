@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lightbulb } from 'lucide-react';
-import { ProductListService, type Product } from '../../services/customer/ProductListService';
+import { type Product } from '../../services/customer/ProductListService';
+import { ProductViewService, type ProductViewItem } from '../../services/customer/ProductViewService';
 import SimpleProductCard from '../ProductCard/SimpleProductCard';
 
 const ProductSuggestions: React.FC = () => {
@@ -18,36 +19,89 @@ const ProductSuggestions: React.FC = () => {
     fetchProducts(0, true);
   }, []);
 
+  const mapToProduct = (item: ProductViewItem): Product => {
+    const originalPrice = item.price ?? item.finalPrice ?? 0;
+    const finalPrice = item.finalPrice ?? item.price ?? 0;
+    const hasDiscount = finalPrice < originalPrice;
+
+    const promotionPercent = hasDiscount && originalPrice > 0
+      ? Math.round(((originalPrice - finalPrice) / originalPrice) * 100)
+      : null;
+
+    return {
+      productId: item.productId,
+      storeId: item.store?.id || '',
+      storeName: item.store?.name || '',
+      categoryId: '',
+      categoryName: item.category || '',
+      brandName: item.brandName || '',
+      name: item.name,
+      slug: '',
+      shortDescription: '',
+      description: '',
+      model: '',
+      color: '',
+      material: '',
+      dimensions: '',
+      weight: 0,
+      variants: [],
+      images: item.thumbnailUrl ? [item.thumbnailUrl] : [],
+      videoUrl: null,
+      sku: '',
+      price: originalPrice,
+      discountPrice: hasDiscount ? finalPrice : null,
+      promotionPercent,
+      priceAfterPromotion: finalPrice,
+      priceBeforeVoucher: originalPrice,
+      voucherAmount: null,
+      finalPrice: finalPrice,
+      platformFeePercent: null,
+      currency: 'VND',
+      stockQuantity: 0,
+      warehouseLocation: null,
+      provinceCode: item.store?.provinceCode || null,
+      districtCode: item.store?.districtCode || null,
+      wardCode: item.store?.wardCode || null,
+      shippingAddress: null,
+      shippingFee: null,
+      supportedShippingMethodIds: [],
+      bulkDiscounts: [],
+      status: item.store?.status || 'ACTIVE',
+      isFeatured: false,
+      ratingAverage: item.ratingAverage ?? null,
+      reviewCount: item.reviewCount ?? null,
+      viewCount: null,
+      createdAt: '',
+      updatedAt: '',
+      lastUpdatedAt: '',
+      lastUpdateIntervalDays: 0,
+      createdBy: '',
+      updatedBy: '',
+    } as Product;
+  };
+
   const fetchProducts = async (page: number, reset: boolean = false) => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await ProductListService.getProducts({
+      const response = await ProductViewService.getProductViews({
         page: page,
         size: itemsPerPage,
-        status: 'ACTIVE' // Chỉ lấy sản phẩm đang active
+        // Không truyền status để tránh lỗi enum từ backend
       });
 
       console.log('📦 API Response:', response);
 
       if (response && response.data) {
-        let newProducts: Product[] = [];
-        let total = 0;
-        let isLast = true;
-        
-        // Handle both array and pagination response
-        if (Array.isArray(response.data)) {
-          // Data is array directly
-          newProducts = response.data;
-          total = response.data.length;
-          isLast = true;
-        } else {
-          // Data has pagination structure
-          newProducts = response.data.content || [];
-          total = response.data.totalElements || 0;
-          isLast = response.data.last ?? true;
-        }
+        const items = response.data.data || [];
+        const pageInfo = response.data.page;
+
+        const newProducts: Product[] = items.map(mapToProduct);
+        const total = pageInfo?.totalElements ?? newProducts.length;
+        const currentPage = pageInfo?.pageNumber ?? page;
+        const totalPages = pageInfo?.totalPages ?? (newProducts.length < itemsPerPage ? currentPage + 1 : currentPage + 2);
+        const isLast = currentPage >= totalPages - 1 || newProducts.length < itemsPerPage;
 
         console.log('✅ Processed products:', {
           count: newProducts.length,
@@ -59,7 +113,7 @@ const ProductSuggestions: React.FC = () => {
         setProducts(prev => reset ? newProducts : [...prev, ...newProducts]);
         setTotalElements(total);
         setHasMore(!isLast);
-        setCurrentPage(page);
+        setCurrentPage(currentPage);
       }
     } catch (err) {
       console.error('❌ Error fetching products:', err);
