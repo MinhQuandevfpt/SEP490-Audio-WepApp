@@ -684,6 +684,7 @@ export interface CampaignForSeller {
   status: 'DRAFT' | 'ONOPEN' | 'ACTIVE' | 'APPROVE' | 'DISABLED' | 'EXPIRED';
   startTime: string;
   endTime: string;
+  createdAt?: string;
   description?: string;
   allowRegistration?: boolean;
   badgeLabel?: string;

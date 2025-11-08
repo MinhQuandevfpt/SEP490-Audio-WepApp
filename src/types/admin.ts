@@ -120,3 +120,67 @@ export interface CampaignListResponse {
   data: Campaign[];
 }
 
+// Campaign Product Approval Types
+export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
+export type VoucherStatus = 'DRAFT' | 'APPROVE' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+
+export interface CampaignVoucher {
+  type: VoucherType;
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  status: VoucherStatus;
+  startTime: string;
+  endTime: string;
+}
+
+export interface FlashSaleSlot {
+  slotId: string;
+  openTime: string;
+  closeTime: string;
+  status: string;
+}
+
+export interface CampaignProduct {
+  campaignProductId: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  originalPrice: number;
+  storeId: string;
+  storeName: string;
+  voucher: CampaignVoucher;
+  flashSaleSlots: FlashSaleSlot[] | null;
+}
+
+export interface CampaignOverviewItem {
+  campaignId: string;
+  campaignName: string;
+  campaignType: CampaignType;
+  products: CampaignProduct[];
+}
+
+export interface CampaignOverviewData {
+  page: number;
+  totalCampaigns: number;
+  size: number;
+  data: CampaignOverviewItem[];
+}
+
+export interface CampaignOverviewResponse {
+  status: number;
+  message: string;
+  data: CampaignOverviewData;
+}
+
+export interface ApproveProductsRequest {
+  campaignProductIds: string[];
+}
+
+export interface ApproveProductsResponse {
+  status: number;
+  message: string;
+  data?: any;
+}
+

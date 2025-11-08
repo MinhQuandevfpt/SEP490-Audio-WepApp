@@ -36,6 +36,7 @@ import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
+import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
@@ -490,6 +491,10 @@ export const router = createBrowserRouter([
       {
         path: 'campaigns/:id/edit',
         element: <EditCampaign />
+      },
+      {
+        path: 'campaigns/products/approval',
+        element: <CampaignProductApproval />
       },
       {
         path: 'orders',

@@ -4,11 +4,10 @@ import {
   Card, Tag, Button, Tabs, Input, Empty, Spin, Badge, Space
 } from 'antd';
 import {
-  ClockCircleOutlined,
   FireOutlined,
   ThunderboltOutlined,
   SearchOutlined,
-  CalendarOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { SellerCampaignService } from '../../../services/seller/CampaignService';
 import type { CampaignForSeller } from '../../../types/seller';
@@ -127,140 +126,116 @@ const SellerCampaignList: React.FC = () => {
 
   const CampaignCard = ({ campaign }: { campaign: CampaignForSeller }) => {
     const isMegaSale = campaign.type === 'MEGA_SALE';
-    const canJoin = SellerCampaignService.canJoinCampaign(campaign.status);
+    const canJoin = SellerCampaignService.canJoinCampaign(
+      campaign.status,
+      campaign.startTime
+    );
     const badgeColor = campaign.badgeColor || (isMegaSale ? '#9333ea' : '#f97316');
 
     return (
       <Card
         hoverable
-        className="mb-4 rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300"
+        className="mb-6 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border-0"
         bodyStyle={{ padding: 0 }}
-        style={{ 
-          border: canJoin ? `2px solid ${badgeColor}` : '1px solid #e5e7eb',
-        }}
       >
-        {/* Header with custom gradient from badge color */}
-        <div
-          className="relative p-6"
-          style={{
-            background: `linear-gradient(135deg, ${badgeColor}dd, ${badgeColor})`
-          }}
-        >
-          {/* Badge Icon */}
-          {campaign.badgeIconUrl && (
-            <div className="absolute top-4 right-4">
-              <img 
-                src={campaign.badgeIconUrl} 
-                alt={campaign.badgeLabel}
-                className="w-16 h-16 object-contain opacity-90"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+        {/* Campaign Header: image left, info right */}
+        <div className="bg-white p-4">
+          <div className="flex items-start gap-4">
+            {/* Left Image */}
+            <div className="w-28 h-28 md:w-32 md:h-32 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200 bg-gray-50">
+              {campaign.badgeIconUrl ? (
+                <img
+                  src={campaign.badgeIconUrl}
+                  alt={campaign.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div
+                  className="w-full h-full"
+                  style={{ background: `linear-gradient(135deg, ${badgeColor}dd, ${badgeColor})` }}
+                />
+              )}
             </div>
-          )}
 
-          <div className="flex items-start justify-between pr-20">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-                  {isMegaSale ? (
-                    <FireOutlined className="text-2xl text-white" />
-                  ) : (
-                    <ThunderboltOutlined className="text-2xl text-white animate-pulse" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-white m-0 drop-shadow-lg">
-                    {campaign.name}
-                  </h3>
-                  {campaign.badgeLabel && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <Tag 
-                        className="bg-white bg-opacity-25 text-white border-white border-opacity-50 text-xs font-semibold"
-                      >
-                        {campaign.badgeLabel}
-                      </Tag>
-                      <span className="text-white text-opacity-80 text-xs font-medium">
-                        #{campaign.code}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            {/* Right Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                {isMegaSale ? (
+                  <FireOutlined className="text-orange-600" />
+                ) : (
+                  <ThunderboltOutlined className="text-orange-600" />
+                )}
+                <Tag color="gold" className="font-semibold">{SellerCampaignService.getTypeLabel(campaign.type)}</Tag>
+                <div className="ml-auto">{getStatusTag(campaign.status)}</div>
+              </div>
+              <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 truncate">{campaign.name}</h3>
+              <div className="text-sm text-gray-600 mb-1">Mã: <span className="font-medium text-gray-800">{campaign.code}</span></div>
+              <div className="text-sm text-gray-800 font-medium space-y-0.5">
+                <div>Thời gian chương trình: {SellerCampaignService.formatDate(campaign.startTime)} - {SellerCampaignService.formatDate(campaign.endTime)}</div>
+                {campaign.createdAt && (
+                  <div className="text-xs text-gray-500">Tạo lúc: {SellerCampaignService.formatDate(campaign.createdAt)}</div>
+                )}
+              </div>
+              <div className="text-sm mt-2">
+                {canJoin ? (
+                  <span className="text-red-600 font-medium">
+                    Kết thúc trong: {SellerCampaignService.getTimeRemainingDetailed(campaign.startTime)}
+                  </span>
+                ) : (
+                  <span className="text-gray-500 font-medium">Đã đóng đăng ký</span>
+                )}
               </div>
             </div>
-          </div>
-
-          {/* Status Badge */}
-          <div className="absolute bottom-4 right-4">
-            {getStatusTag(campaign.status)}
           </div>
         </div>
 
         {/* Body */}
-        <div className="p-6 bg-gradient-to-b from-gray-50 to-white">
-          {/* Time Info with Icons */}
-          <div className="bg-white rounded-lg p-4 mb-4 shadow-sm border border-gray-100">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-start gap-2">
-                <CalendarOutlined className="text-blue-500 mt-1" />
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Bắt đầu</div>
-                  <div className="text-sm font-semibold text-gray-900">
-                    {SellerCampaignService.formatDate(campaign.startTime)}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <CalendarOutlined className="text-red-500 mt-1" />
-                <div>
-                  <div className="text-xs text-gray-500 mb-1">Kết thúc</div>
-                  <div className="text-sm font-semibold text-gray-900">
-                    {SellerCampaignService.formatDate(campaign.endTime)}
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {canJoin && (
-              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center gap-2 text-orange-600 font-semibold">
-                <ClockCircleOutlined className="animate-pulse" />
-                <span className="text-sm">
-                  {SellerCampaignService.getTimeRemaining(campaign.endTime)}
-                </span>
-              </div>
-            )}
-          </div>
+        <div className="p-6 bg-white">
+          {/* Compact spacing after header */}
+          <div className="h-2" />
 
           {/* Flash Slots */}
           {campaign.flashSlots && campaign.flashSlots.length > 0 && (
-            <div className="mb-4 bg-orange-50 rounded-lg p-4 border border-orange-200">
-              <div className="flex items-center gap-2 text-sm font-semibold text-orange-800 mb-3">
-                <ThunderboltOutlined className="text-lg" />
-                <span>Khung giờ Flash Sale ({campaign.flashSlots.length} khung)</span>
+            <div className="mb-5 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-5 border-2 border-orange-200 shadow-sm">
+              <div className="flex items-center gap-2 text-base font-bold text-orange-800 mb-4">
+                <div className="bg-orange-500 p-2 rounded-lg shadow-md">
+                  <ThunderboltOutlined className="text-white text-lg animate-pulse" />
+                </div>
+                <span>Khung giờ Flash Sale</span>
+                <Tag color="orange" className="ml-auto font-bold">
+                  {campaign.flashSlots.length} khung
+                </Tag>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {campaign.flashSlots.slice(0, 4).map(slot => (
-                  <Tag
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {campaign.flashSlots.slice(0, 8).map(slot => (
+                  <div
                     key={slot.slotId}
-                    color="orange"
-                    className="text-xs font-medium px-3 py-1 rounded-full"
+                    className="bg-white border-2 border-orange-300 rounded-lg p-3 text-center hover:border-orange-500 hover:shadow-md transition-all"
                   >
-                    🔥 {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}{' '}
-                    -{' '}
-                    {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Tag>
+                    <div className="text-orange-600 text-xs font-semibold mb-1">
+                      🔥 Flash Sale
+                    </div>
+                    <div className="text-gray-900 font-bold text-sm">
+                      {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                    <div className="text-gray-500 text-xs">đến</div>
+                    <div className="text-gray-900 font-bold text-sm">
+                      {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
                 ))}
-                {campaign.flashSlots.length > 4 && (
-                  <Tag className="text-xs px-3 py-1 bg-gray-100 border-gray-300 rounded-full">
-                    +{campaign.flashSlots.length - 4} khung khác
-                  </Tag>
+                {campaign.flashSlots.length > 8 && (
+                  <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-3 flex items-center justify-center">
+                    <span className="text-gray-600 font-semibold text-sm">
+                      +{campaign.flashSlots.length - 8} khung
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -268,25 +243,28 @@ const SellerCampaignList: React.FC = () => {
 
           {/* Description */}
           {campaign.description && (
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-sm text-gray-700 line-clamp-2 m-0">
-                💡 {campaign.description}
-              </p>
+            <div className="mb-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
+              <div className="flex items-start gap-2">
+                <div className="text-blue-600 text-lg mt-0.5">💡</div>
+                <p className="text-sm text-gray-700 leading-relaxed m-0 flex-1">
+                  {campaign.description}
+                </p>
+              </div>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-3">
             <Button
               type="primary"
               size="large"
               disabled={!canJoin}
               onClick={() => handleJoinCampaign(campaign)}
-              className={`flex-1 h-12 font-semibold text-base rounded-lg ${
+              className={`flex-1 h-14 font-bold text-base rounded-xl ${
                 canJoin
-                  ? 'shadow-lg hover:shadow-xl'
+                  ? 'shadow-lg hover:shadow-xl hover:scale-105'
                   : ''
-              }`}
+              } transition-all duration-300`}
               style={
                 canJoin
                   ? {
@@ -295,17 +273,18 @@ const SellerCampaignList: React.FC = () => {
                     }
                   : {}
               }
-              icon={canJoin ? <FireOutlined /> : undefined}
+              icon={canJoin ? <FireOutlined className="text-lg" /> : undefined}
             >
-              {canJoin ? 'Đăng ký ngay' : 'Không thể đăng ký'}
+              {canJoin ? 'Đăng ký tham gia ngay' : 'Không thể đăng ký'}
             </Button>
             <Button
               type="default"
               size="large"
               onClick={() => navigate(`/seller/campaigns/${campaign.id}`)}
-              className="h-12 px-6 font-medium rounded-lg border-2 hover:border-blue-500 hover:text-blue-500"
+              className="h-14 px-8 font-bold text-base rounded-xl border-2 border-gray-300 hover:border-blue-500 hover:text-blue-500 hover:shadow-md transition-all duration-300"
+              icon={<EyeOutlined className="text-lg" />}
             >
-              Chi tiết
+              Xem chi tiết
             </Button>
           </div>
         </div>

@@ -139,8 +139,16 @@ export class SellerCampaignService {
   /**
    * Check if campaign is open for registration
    */
-  static canJoinCampaign(status: CampaignForSeller['status']): boolean {
-    return status === 'ONOPEN';
+  static canJoinCampaign(
+    status: CampaignForSeller['status'],
+    startTime?: string
+  ): boolean {
+    if (status !== 'ONOPEN') return false;
+    // Registration is open only before the campaign start time (if provided)
+    if (startTime) {
+      return new Date().getTime() < new Date(startTime).getTime();
+    }
+    return true;
   }
 
   /**
@@ -160,6 +168,26 @@ export class SellerCampaignService {
     if (days > 0) return `Còn ${days} ngày`;
     if (hours > 0) return `Còn ${hours} giờ`;
     return `Còn ${minutes} phút`;
+  }
+
+  /**
+   * Get detailed remaining time: X ngày Y giờ Z phút
+   */
+  static getTimeRemainingDetailed(targetTime: string): string {
+    const now = Date.now();
+    const target = new Date(targetTime).getTime();
+    let diff = target - now;
+    if (diff <= 0) return '0 phút';
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    diff -= days * 24 * 60 * 60 * 1000;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    diff -= hours * 60 * 60 * 1000;
+    const minutes = Math.floor(diff / (1000 * 60));
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days} ngày`);
+    if (hours > 0) parts.push(`${hours} giờ`);
+    parts.push(`${minutes} phút`);
+    return parts.join(' ');
   }
 
   /**
