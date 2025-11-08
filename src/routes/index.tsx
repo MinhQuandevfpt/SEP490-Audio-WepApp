@@ -27,6 +27,7 @@ import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
+import FlashSaleDetail from '../pages/Customer/FlashSaleDetail/FlashSaleDetail';
 import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -215,6 +216,10 @@ export const router = createBrowserRouter([
   {
     path: '/products/demo',
     element: <ProductListDemo />
+  },
+  {
+    path: '/flash-sale/:campaignId',
+    element: <FlashSaleDetail />
   },
   {
     path: '/auth',

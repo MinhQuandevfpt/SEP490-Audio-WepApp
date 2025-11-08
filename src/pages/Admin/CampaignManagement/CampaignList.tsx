@@ -27,6 +27,15 @@ const CampaignManagement: React.FC = () => {
     showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} chiến dịch`,
   });
 
+  // State cho Modal xác nhận thay đổi status
+  const [statusChangeModal, setStatusChangeModal] = useState<{
+    visible: boolean;
+    campaignId: string;
+    campaignName: string;
+    currentStatus: CampaignStatus;
+    newStatus: CampaignStatus;
+  } | null>(null);
+
   useEffect(() => {
     fetchCampaigns();
   }, []);
@@ -68,7 +77,10 @@ const CampaignManagement: React.FC = () => {
     currentStatus: CampaignStatus, 
     newStatus: CampaignStatus
   ) => {
+    console.log('🔔 handleStatusChange called:', { id, name, currentStatus, newStatus });
+    
     if (!CampaignService.canChangeStatus(currentStatus, newStatus)) {
+      console.warn('❌ Cannot change status:', currentStatus, '→', newStatus);
       showTikiNotification(
         `Không thể chuyển từ ${CampaignService.getStatusLabel(currentStatus)} sang ${CampaignService.getStatusLabel(newStatus)}`,
         'Lỗi',
@@ -77,28 +89,50 @@ const CampaignManagement: React.FC = () => {
       return;
     }
 
-    const statusLabel = CampaignService.getStatusTransitionLabel(newStatus);
+    console.log('✅ Status change allowed. Opening modal...');
     
-    Modal.confirm({
-      title: 'Xác nhận thay đổi trạng thái',
-      content: `Bạn có chắc chắn muốn ${statusLabel.toLowerCase()} chiến dịch "${name}"?`,
-      okText: 'Xác nhận',
-      cancelText: 'Hủy',
-      onOk: async () => {
-        try {
-          await CampaignService.updateCampaignStatus(id, newStatus);
-          showTikiNotification(
-            `${statusLabel} chiến dịch thành công!`,
-            'Thành công',
-            'success'
-          );
-          fetchCampaigns();
-        } catch (error: any) {
-          showTikiNotification(error.message || 'Không thể cập nhật trạng thái', 'Lỗi', 'error');
-        }
-      }
+    // Mở modal xác nhận
+    setStatusChangeModal({
+      visible: true,
+      campaignId: id,
+      campaignName: name,
+      currentStatus,
+      newStatus
     });
-  }, [fetchCampaigns]);
+  }, []);
+
+  // Xử lý khi user confirm trong modal
+  const handleConfirmStatusChange = useCallback(async () => {
+    if (!statusChangeModal) return;
+
+    const { campaignId, newStatus } = statusChangeModal;
+    const statusLabel = CampaignService.getStatusTransitionLabel(newStatus);
+
+    console.log('🚀 User confirmed. Calling API...');
+    
+    try {
+      const result = await CampaignService.updateCampaignStatus(campaignId, newStatus);
+      console.log('✅ API Response:', result);
+      
+      showTikiNotification(
+        `${statusLabel} chiến dịch thành công!`,
+        'Thành công',
+        'success'
+      );
+      
+      // Đóng modal
+      setStatusChangeModal(null);
+      
+      // Refresh danh sách
+      fetchCampaigns();
+    } catch (error: any) {
+      console.error('❌ API Error:', error);
+      showTikiNotification(error.message || 'Không thể cập nhật trạng thái', 'Lỗi', 'error');
+      
+      // Đóng modal kể cả khi lỗi
+      setStatusChangeModal(null);
+    }
+  }, [statusChangeModal, fetchCampaigns]);
 
   const getStatusTag = useMemo(() => (status: CampaignStatus) => {
     const statusConfig: Record<CampaignStatus, { color: string; text: string }> = {
@@ -357,6 +391,28 @@ const CampaignManagement: React.FC = () => {
           }}
         />
       </Card>
+
+      {/* Modal xác nhận thay đổi trạng thái */}
+      <Modal
+        title="Xác nhận thay đổi trạng thái"
+        open={statusChangeModal?.visible || false}
+        onOk={handleConfirmStatusChange}
+        onCancel={() => setStatusChangeModal(null)}
+        okText="Xác nhận"
+        cancelText="Hủy"
+        centered
+        zIndex={2000}
+      >
+        {statusChangeModal && (
+          <p>
+            Bạn có chắc chắn muốn{' '}
+            <strong>
+              {CampaignService.getStatusTransitionLabel(statusChangeModal.newStatus).toLowerCase()}
+            </strong>{' '}
+            chiến dịch <strong>"{statusChangeModal.campaignName}"</strong>?
+          </p>
+        )}
+      </Modal>
     </Space>
   );
 };

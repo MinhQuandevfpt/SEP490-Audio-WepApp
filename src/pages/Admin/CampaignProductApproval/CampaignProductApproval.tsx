@@ -110,8 +110,8 @@ const CampaignProductApproval: React.FC = () => {
   // Statistics
   const stats = useMemo(() => {
     const total = allProducts.length;
-    const draft = allProducts.filter(p => p.voucher.status === 'DRAFT').length;
-    const approved = allProducts.filter(p => p.voucher.status === 'APPROVE').length;
+    const draft = allProducts.filter(p => p.voucher?.status === 'DRAFT').length;
+    const approved = allProducts.filter(p => p.voucher?.status === 'APPROVE').length;
     const uniqueStores = new Set(allProducts.map(p => p.storeId)).size;
 
     return { total, draft, approved, uniqueStores };
@@ -244,18 +244,21 @@ const CampaignProductApproval: React.FC = () => {
       key: 'discount',
       width: 120,
       align: 'center',
-      render: (_, record) => (
-        <div>
-          <Tag color="red" className="font-bold">
-            {CampaignProductService.formatDiscount(record.voucher)}
-          </Tag>
-          {record.voucher.type === 'PERCENT' && record.voucher.maxDiscountValue && (
-            <div className="text-xs text-gray-400 mt-1">
-              Tối đa: {record.voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
-            </div>
-          )}
-        </div>
-      )
+      render: (_, record) => {
+        if (!record.voucher) return <span className="text-gray-400">N/A</span>;
+        return (
+          <div>
+            <Tag color="red" className="font-bold">
+              {CampaignProductService.formatDiscount(record.voucher)}
+            </Tag>
+            {record.voucher.type === 'PERCENT' && record.voucher.maxDiscountValue && (
+              <div className="text-xs text-gray-400 mt-1">
+                Tối đa: {record.voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       title: 'Giá sau giảm',
@@ -263,6 +266,13 @@ const CampaignProductApproval: React.FC = () => {
       width: 120,
       align: 'right',
       render: (_, record) => {
+        if (!record.voucher) {
+          return (
+            <span className="text-gray-400">
+              {record.originalPrice.toLocaleString('vi-VN')}₫
+            </span>
+          );
+        }
         const finalPrice = CampaignProductService.calculateDiscountedPrice(
           record.originalPrice,
           record.voucher
@@ -280,27 +290,37 @@ const CampaignProductApproval: React.FC = () => {
       key: 'status',
       width: 120,
       align: 'center',
-      render: (status: VoucherStatus) => (
-        <Tag color={CampaignProductService.getVoucherStatusColor(status)}>
-          {CampaignProductService.getVoucherStatusLabel(status)}
-        </Tag>
-      )
+      render: (status: VoucherStatus, record) => {
+        if (!record.voucher?.status) {
+          return <Tag color="default">Không rõ</Tag>;
+        }
+        return (
+          <Tag color={CampaignProductService.getVoucherStatusColor(status)}>
+            {CampaignProductService.getVoucherStatusLabel(status)}
+          </Tag>
+        );
+      }
     },
     {
       title: 'Thời gian',
       key: 'time',
       width: 180,
-      render: (_, record) => (
-        <div className="text-xs">
-          <div className="flex items-center gap-1 text-gray-600">
-            <ClockCircleOutlined />
-            <span>{new Date(record.voucher.startTime).toLocaleDateString('vi-VN')}</span>
+      render: (_, record) => {
+        if (!record.voucher?.startTime || !record.voucher?.endTime) {
+          return <span className="text-gray-400 text-xs">N/A</span>;
+        }
+        return (
+          <div className="text-xs">
+            <div className="flex items-center gap-1 text-gray-600">
+              <ClockCircleOutlined />
+              <span>{new Date(record.voucher.startTime).toLocaleDateString('vi-VN')}</span>
+            </div>
+            <div className="text-gray-400 mt-1">
+              đến {new Date(record.voucher.endTime).toLocaleDateString('vi-VN')}
+            </div>
           </div>
-          <div className="text-gray-400 mt-1">
-            đến {new Date(record.voucher.endTime).toLocaleDateString('vi-VN')}
-          </div>
-        </div>
-      )
+        );
+      }
     }
   ];
 
@@ -310,7 +330,7 @@ const CampaignProductApproval: React.FC = () => {
       setSelectedProducts(selectedRowKeys as string[]);
     },
     getCheckboxProps: (record: CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }) => ({
-      disabled: !['DRAFT', 'APPROVE'].includes(record.voucher.status),
+      disabled: !record.voucher?.status || !['DRAFT', 'APPROVE'].includes(record.voucher.status),
       name: record.productName
     })
   };
