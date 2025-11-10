@@ -74,7 +74,7 @@ export class StoreStaffAuthService {
         const tokenType = (data.data.tokenType || 'Bearer').trim();
         
         // Store tokens using RefreshTokenService
-        RefreshTokenService.storeTokens('staff', data.data.accessToken, refreshToken, tokenType);
+        RefreshTokenService.storeTokens('STAFF', data.data.accessToken, refreshToken, tokenType);
         
         // Also store in old format for backward compatibility
         localStorage.setItem('staff_token', data.data.accessToken);
@@ -103,7 +103,7 @@ export class StoreStaffAuthService {
    */
   static logout(): void {
     // Clear ALL data using RefreshTokenService
-    RefreshTokenService.clearAllData('staff');
+    RefreshTokenService.clearAllData('STAFF');
     
     console.log('✅ Store staff logged out successfully');
   }
@@ -155,11 +155,15 @@ export class StoreStaffAuthService {
     try {
       console.log('🔄 Refreshing store staff token...');
       
-      const result = await RefreshTokenService.refreshUserToken('staff');
+      const result = await RefreshTokenService.refreshUserToken('STAFF');
       
       if (!result) {
         throw new Error('Failed to refresh token');
       }
+      
+      // Update staff_token in localStorage for backward compatibility
+      localStorage.setItem('staff_token', result.accessToken);
+      localStorage.setItem('staff_refresh_token', result.refreshToken);
       
       console.log('✅ Store staff token refreshed successfully');
       return result.accessToken;
@@ -174,7 +178,7 @@ export class StoreStaffAuthService {
    * Get refresh token
    */
   static getRefreshToken(): string | null {
-    return RefreshTokenService.getRefreshToken('staff');
+    return RefreshTokenService.getRefreshToken('STAFF');
   }
 }
 

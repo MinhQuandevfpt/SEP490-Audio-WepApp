@@ -69,7 +69,7 @@ export class SellerAuthService {
         const tokenType = data.data.tokenType || 'Bearer';
         
         // Store tokens using RefreshTokenService
-        RefreshTokenService.storeTokens('seller', data.data.accessToken, refreshToken, tokenType);
+        RefreshTokenService.storeTokens('STOREOWNER', data.data.accessToken, refreshToken, tokenType);
         
         // Also store in old format for backward compatibility
         localStorage.setItem('seller_token', data.data.accessToken);
@@ -98,7 +98,7 @@ export class SellerAuthService {
    */
   static logout(): void {
     // Clear ALL data using RefreshTokenService
-    RefreshTokenService.clearAllData('seller');
+    RefreshTokenService.clearAllData('STOREOWNER');
     
     console.log('✅ Seller logged out successfully');
   }
@@ -150,11 +150,14 @@ export class SellerAuthService {
     try {
       console.log('🔄 Refreshing seller token...');
       
-      const result = await RefreshTokenService.refreshUserToken('seller');
+      const result = await RefreshTokenService.refreshUserToken('STOREOWNER');
       
       if (!result) {
         throw new Error('Failed to refresh token');
       }
+      
+      // Update seller_token in localStorage for backward compatibility
+      localStorage.setItem('seller_token', result.accessToken);
       
       console.log('✅ Seller token refreshed successfully');
       return result.accessToken;
@@ -169,6 +172,6 @@ export class SellerAuthService {
    * Get refresh token
    */
   static getRefreshToken(): string | null {
-    return RefreshTokenService.getRefreshToken('seller');
+    return RefreshTokenService.getRefreshToken('STOREOWNER');
   }
 }

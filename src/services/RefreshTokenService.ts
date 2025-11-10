@@ -53,16 +53,16 @@ export class RefreshTokenService {
   /**
    * Check if refresh token exists for a specific user type
    */
-  static hasRefreshToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): boolean {
-    const key = userType === 'admin' ? 'admin_refresh_token' : `${userType}_refresh_token`;
+  static hasRefreshToken(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): boolean {
+    const key = userType === 'ADMIN' ? 'admin_refresh_token' : `${userType}_refresh_token`;
     return !!localStorage.getItem(key);
   }
 
   /**
    * Get refresh token for a specific user type
    */
-  static getRefreshToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): string | null {
-    const key = userType === 'admin' ? 'admin_refresh_token' : `${userType}_refresh_token`;
+  static getRefreshToken(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): string | null {
+    const key = userType === 'ADMIN' ? 'admin_refresh_token' : `${userType}_refresh_token`;
     return localStorage.getItem(key);
   }
 
@@ -70,12 +70,12 @@ export class RefreshTokenService {
    * Store tokens for a specific user type
    */
   static storeTokens(
-    userType: 'customer' | 'seller' | 'staff' | 'admin',
+    userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN',
     accessToken: string,
     refreshToken: string,
     tokenType: string = 'Bearer'
   ): void {
-    if (userType === 'admin') {
+    if (userType === 'ADMIN') {
       localStorage.setItem('admin_access_token', accessToken);
       localStorage.setItem('admin_refresh_token', refreshToken);
       localStorage.setItem('admin_token_type', tokenType);
@@ -92,8 +92,8 @@ export class RefreshTokenService {
    * NOTE: This does NOT clear user info - only auth tokens
    * This is used when token refresh fails but we want to keep user logged in state
    */
-  static clearTokens(userType: 'customer' | 'seller' | 'staff' | 'admin'): void {
-    if (userType === 'admin') {
+      static clearTokens(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): void {
+    if (userType === 'ADMIN') {
       localStorage.removeItem('admin_access_token');
       localStorage.removeItem('admin_refresh_token');
       localStorage.removeItem('admin_token_type');
@@ -111,8 +111,8 @@ export class RefreshTokenService {
    * Clear all data for a user type (including user info and cache)
    * Use this for logout
    */
-  static clearAllData(userType: 'customer' | 'seller' | 'staff' | 'admin'): void {
-    if (userType === 'admin') {
+  static clearAllData(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): void {
+    if (userType === 'ADMIN') {
       localStorage.removeItem('admin_access_token');
       localStorage.removeItem('admin_refresh_token');
       localStorage.removeItem('admin_token_type');
@@ -124,7 +124,7 @@ export class RefreshTokenService {
       localStorage.removeItem(`${userType}_user`);
       
       // Clear seller-specific data
-      if (userType === 'seller') {
+      if (userType === 'STOREOWNER') {
         localStorage.removeItem('seller_store_id');
         localStorage.removeItem('seller_store_info');
       }
@@ -135,7 +135,7 @@ export class RefreshTokenService {
   /**
    * Refresh token for a specific user type
    */
-  static async refreshUserToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): Promise<{ accessToken: string; refreshToken: string } | null> {
+      static async refreshUserToken(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): Promise<{ accessToken: string; refreshToken: string } | null> {
     try {
       const currentRefreshToken = this.getRefreshToken(userType);
       
@@ -153,6 +153,19 @@ export class RefreshTokenService {
         response.data.refreshToken,
         response.data.tokenType
       );
+
+      // Update backward compatibility tokens
+      if (userType === 'STOREOWNER') {
+        localStorage.setItem('seller_token', response.data.accessToken);
+      } else if (userType === 'CUSTOMER') {
+        localStorage.setItem('customer_token', response.data.accessToken);
+      } else if (userType === 'STAFF') {
+        localStorage.setItem('staff_token', response.data.accessToken);
+        localStorage.setItem('staff_refresh_token', response.data.refreshToken);
+      } else if (userType === 'ADMIN') {
+        localStorage.setItem('admin_access_token', response.data.accessToken);
+        localStorage.setItem('admin_refresh_token', response.data.refreshToken);
+      }
 
       return {
         accessToken: response.data.accessToken,

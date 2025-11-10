@@ -5,17 +5,17 @@
 
 import { RefreshTokenService } from '../services/RefreshTokenService';
 
-export type UserType = 'customer' | 'seller' | 'staff' | 'admin';
+export type UserType = 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN';
 
 /**
  * Check if a user is authenticated
  */
 export function isAuthenticated(userType: UserType): boolean {
   const tokenKeys: Record<UserType, string> = {
-    customer: 'customer_token',
-    seller: 'seller_token',
-    staff: 'staff_token',
-    admin: 'admin_access_token',
+    CUSTOMER: 'customer_token',
+    STOREOWNER: 'seller_token',
+    STAFF: 'staff_token',
+    ADMIN: 'admin_access_token',
   };
   
   const token = localStorage.getItem(tokenKeys[userType]);
@@ -53,10 +53,10 @@ export function isNotFoundError(error: any): boolean {
  */
 export function getUserInfo(userType: UserType): any | null {
   const userKeys: Record<UserType, string> = {
-    customer: 'customer_user',
-    seller: 'seller_user',
-    staff: 'staff_user',
-    admin: 'admin_user',
+    CUSTOMER: 'customer_user',
+    STOREOWNER: 'seller_user',
+    STAFF: 'staff_user',
+    ADMIN: 'admin_user',
   };
   
   const userStr = localStorage.getItem(userKeys[userType]);
@@ -79,7 +79,7 @@ export function getSellerStoreId(): string | null {
   
   // Fallback to seller_user object
   if (!storeId) {
-    const sellerUser = getUserInfo('seller');
+    const sellerUser = getUserInfo('STOREOWNER');
     if (sellerUser?.storeId) {
       storeId = String(sellerUser.storeId);
       // Update cache
@@ -99,7 +99,7 @@ export function getCustomerId(): string | null {
   
   // Fallback to customer_user object
   if (!customerId) {
-    const customerUser = getUserInfo('customer');
+    const customerUser = getUserInfo('CUSTOMER');
     if (customerUser?.customerId) {
       customerId = String(customerUser.customerId);
       // Update cache
@@ -119,7 +119,7 @@ export function getAccountId(): string | null {
   
   // Fallback to customer_user object
   if (!accountId) {
-    const customerUser = getUserInfo('customer');
+    const customerUser = getUserInfo('CUSTOMER');
     if (customerUser?.accountId) {
       accountId = String(customerUser.accountId);
       // Update cache
@@ -141,10 +141,10 @@ export function handleAuthError(userType: UserType): void {
   
   // Redirect to login
   const loginPaths: Record<UserType, string> = {
-    customer: '/auth/login',
-    seller: '/seller/login',
-    staff: '/store-staff/login',
-    admin: '/admin/login',
+    CUSTOMER: '/auth/login',
+    STOREOWNER: '/seller/login',
+    STAFF: '/store-staff/login',
+    ADMIN: '/admin/login',
   };
   
   const loginPath = loginPaths[userType];
@@ -166,10 +166,10 @@ export function logout(userType: UserType): void {
   
   // Redirect to login
   const loginPaths: Record<UserType, string> = {
-    customer: '/auth/login',
-    seller: '/seller/login',
-    staff: '/store-staff/login',
-    admin: '/admin/login',
+    CUSTOMER: '/customer/login',
+    STOREOWNER: '/seller/login',
+    STAFF: '/store-staff/login',
+    ADMIN: '/admin/login',
   };
   
   window.location.href = loginPaths[userType];

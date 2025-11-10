@@ -58,7 +58,7 @@ class AdminAuthServiceClass {
         const tokenType = result.data.tokenType || 'Bearer';
 
         // Store tokens using RefreshTokenService
-        RefreshTokenService.storeTokens('admin', accessToken, refreshToken, tokenType);
+        RefreshTokenService.storeTokens('ADMIN', accessToken, refreshToken, tokenType);
         
         // Also store in old format for backward compatibility
         localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
@@ -99,7 +99,7 @@ class AdminAuthServiceClass {
 
   logout(): void {
     // Clear ALL data using RefreshTokenService
-    RefreshTokenService.clearAllData('admin');
+    RefreshTokenService.clearAllData('ADMIN');
     
     console.log('✅ Admin logged out successfully');
   }
@@ -135,9 +135,13 @@ class AdminAuthServiceClass {
       console.log('🔄 Refreshing admin token...');
       
       // Use RefreshTokenService for better handling
-      const result = await RefreshTokenService.refreshUserToken('admin');
+      const result = await RefreshTokenService.refreshUserToken('ADMIN');
       
       if (result) {
+        // Update admin_access_token in localStorage for backward compatibility
+        localStorage.setItem(this.ACCESS_TOKEN_KEY, result.accessToken);
+        localStorage.setItem(this.REFRESH_TOKEN_KEY, result.refreshToken);
+        
         console.log('✅ Admin token refreshed successfully');
         return true;
       }

@@ -206,7 +206,7 @@ export class CustomerAuthService {
         const tokenType = response.data.tokenType || 'Bearer';
         
         // Store tokens using RefreshTokenService
-        RefreshTokenService.storeTokens('customer', response.data.accessToken, refreshToken, tokenType);
+        RefreshTokenService.storeTokens('CUSTOMER', response.data.accessToken, refreshToken, tokenType);
         
         // Also store in old format for backward compatibility
         localStorage.setItem('customer_token', response.data.accessToken);
@@ -252,7 +252,7 @@ export class CustomerAuthService {
    */
   static logout(): void {
     // Clear ALL data using RefreshTokenService
-    RefreshTokenService.clearAllData('customer');
+    RefreshTokenService.clearAllData('CUSTOMER');
     
     // Remove customer-specific data (backward compatibility)
     localStorage.removeItem('token_type');
@@ -361,7 +361,7 @@ export class CustomerAuthService {
     try {
       console.log('🔄 Refreshing customer token...');
       
-      const result = await RefreshTokenService.refreshUserToken('customer');
+        const result = await RefreshTokenService.refreshUserToken('CUSTOMER');
       
       if (!result) {
         throw new Error('Failed to refresh token');
@@ -380,7 +380,7 @@ export class CustomerAuthService {
    * Get refresh token
    */
   static getRefreshToken(): string | null {
-    return RefreshTokenService.getRefreshToken('customer');
+    return RefreshTokenService.getRefreshToken('CUSTOMER');
   }
 
   /**

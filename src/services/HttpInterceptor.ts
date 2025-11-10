@@ -9,12 +9,26 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 
 export type UserType = 'customer' | 'seller' | 'staff' | 'admin';
 
+type RefreshTokenUserType = 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN';
+
 interface RequestConfig extends RequestInit {
   userType?: UserType;
   skipAuthRefresh?: boolean; // Skip auto-refresh for this request
 }
 
 export class HttpInterceptor {
+  /**
+   * Map UserType (lowercase) to RefreshTokenUserType (uppercase)
+   */
+  private static mapUserTypeToRefreshTokenType(userType: UserType): RefreshTokenUserType {
+    const mapping: Record<UserType, RefreshTokenUserType> = {
+      customer: 'CUSTOMER',
+      seller: 'STOREOWNER',
+      staff: 'STAFF',
+      admin: 'ADMIN',
+    };
+    return mapping[userType];
+  }
   /**
    * Make an HTTP request with automatic token refresh on 401
    */
@@ -35,7 +49,13 @@ export class HttpInterceptor {
           console.log(`🔄 Token expired for ${userType}, attempting refresh...`);
           
           // Try to refresh token
-          const refreshed = await RefreshTokenService.refreshUserToken(userType);
+          const refreshTokenType = this.mapUserTypeToRefreshTokenType(userType);
+          const refreshed = await RefreshTokenService.refreshUserToken(refreshTokenType);
+          
+          // Update token in localStorage for backward compatibility
+          if (refreshed && userType === 'seller') {
+            localStorage.setItem('seller_token', refreshed.accessToken);
+          }
           
           if (refreshed) {
             console.log(`✅ Token refreshed for ${userType}, retrying request...`);
@@ -162,7 +182,8 @@ export class HttpInterceptor {
    */
   private static handleAuthFailure(userType: UserType): void {
     // Clear tokens for all user types using RefreshTokenService
-    RefreshTokenService.clearTokens(userType);
+    const refreshTokenType = this.mapUserTypeToRefreshTokenType(userType);
+    RefreshTokenService.clearTokens(refreshTokenType);
     
     // Redirect to appropriate login page
     const loginPaths: Record<UserType, string> = {
