@@ -7,16 +7,17 @@ import CartSummarySidebar from '../../../components/ShoppingCartComponents/CartS
 import type { AppliedStoreVoucher } from '../../../components/ShoppingCartComponents/StoreVoucherPicker';
 import { useCart } from '../../../hooks/useCart';
 import { useServiceTypeCalculator } from '../../../hooks/useServiceTypeCalculator';
-import { useAutoShippingFee } from '../../../hooks/useAutoShippingFee';
 import { AddressService } from '../../../services/customer/AddressService';
 import { CustomerCartService } from '../../../services/customer/CartService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
-import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher, ServiceTypeIds } from '../../../types/cart';
+import type { CartItem as ApiCartItem } from '../../../types/cart';
 import type { CustomerAddressApiItem } from '../../../types/api';
 import { ProductVoucherService } from '../../../services/customer/ProductVoucherService';
-import type { PaymentMethod } from '../../../data/checkout';
 import type { ShopVoucher } from '../../../components/ShoppingCartComponents/VoucherSection';
 import { ProductListService } from '../../../services/customer/ProductListService';
+import { Home, ChevronRight } from 'lucide-react';
+
+const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
 
 const ShoppingCart: React.FC = () => {
   const navigate = useNavigate();
@@ -25,7 +26,6 @@ const ShoppingCart: React.FC = () => {
   const [addresses, setAddresses] = useState<CustomerAddressApiItem[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [addressesLoading, setAddressesLoading] = useState(false);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // Use service type calculator hook
   const {
@@ -139,26 +139,14 @@ const ShoppingCart: React.FC = () => {
   const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
   const summary = useMemo(() => calcCartSummary(items), [items]);
 
-  // Payment Method
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
-
   // Store vouchers
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
 
   // Shipping fee estimation state
   const [shippingFee, setShippingFee] = useState<number>(0);
 
-  // Auto-calculate shipping fee when items/address change
-  useAutoShippingFee({
-    items,
-    addresses,
-    selectedAddressId,
-    productCache,
-    serviceTypeId,
-    onShippingFeeChange: setShippingFee,
-    onProductCacheUpdate: setProductCache,
-    autoCalculate: true, // Enable auto calculation
-  });
+  // Note: Shipping fee is no longer calculated on the cart page.
+  // It will be determined on the checkout page after address and shipping methods are confirmed.
 
   // Ensure product cache contains store info for all items
   useEffect(() => {
@@ -411,184 +399,43 @@ const ShoppingCart: React.FC = () => {
     }
   };
 
-  // Helper: Tính serviceTypeId cho một store dựa trên tổng weight của items thuộc store đó
-  const calculateServiceTypeIdForStore = (storeItems: typeof items): 2 | 5 => {
-    let totalWeight = 0;
-    
-    storeItems.forEach(item => {
-      const product = productCache.get(item.productId);
-      if (product) {
-        const weightKg = product.weight && product.weight > 0 ? product.weight : 0.5;
-        totalWeight += weightKg * 1000 * item.quantity; // Convert to grams
-      }
-    });
-    
-    // Nếu tổng weight <= 7500g thì serviceTypeId = 2 (hàng nhẹ), ngược lại = 5 (hàng nặng)
-    return totalWeight <= 7500 ? 2 : 5;
-  };
-
-  // Helper: Xác định các storeId trong selected items và tính serviceTypeId cho mỗi store
-  const buildServiceTypeIds = (selectedItems: typeof items): ServiceTypeIds => {
-    const storeIds = new Set<string>();
-    
-    // Lấy tất cả storeId từ selected items
-    selectedItems.forEach(item => {
-      const product = productCache.get(item.productId);
-      if (product && product.storeId) {
-        storeIds.add(product.storeId);
-      }
-    });
-    
-    // Tính serviceTypeId cho mỗi store
-    const serviceTypeIds: ServiceTypeIds = {};
-    storeIds.forEach(storeId => {
-      const storeItems = selectedItems.filter(item => {
-        const product = productCache.get(item.productId);
-        return product && product.storeId === storeId;
-      });
-      serviceTypeIds[storeId] = calculateServiceTypeIdForStore(storeItems);
-    });
-    
-    return serviceTypeIds;
-  };
-
-  // Helper: Nhóm voucher theo storeId
-  const buildStoreVouchers = (): StoreVoucher[] => {
-    return Object.values(appliedStoreVouchers).map(voucher => ({
-      storeId: voucher.storeId,
-      codes: [voucher.code],
-    }));
-  };
-
-  // Handle checkout (COD or PayOS)
-  const handleCheckout = async () => {
-    // Validate
-    if (summary.selectedCount === 0) {
-      showCenterError('Vui lòng chọn ít nhất một sản phẩm để thanh toán', 'Lỗi');
-      return;
-    }
-
-    if (!selectedAddressId) {
-      showCenterError('Vui lòng chọn địa chỉ nhận hàng', 'Lỗi');
-      return;
-    }
-
-    if (!paymentMethod) {
-      showCenterError('Vui lòng chọn phương thức thanh toán', 'Lỗi');
-      return;
-    }
-
-    if (paymentMethod !== 'cod' && paymentMethod !== 'payos') {
-      showCenterError('Phương thức thanh toán không hợp lệ', 'Lỗi');
-      return;
-    }
-
-    // Get selected items
+  const handleProceedToCheckout = () => {
     const selectedItems = items.filter(item => item.isSelected);
     if (selectedItems.length === 0) {
-      showCenterError('Vui lòng chọn sản phẩm cần thanh toán', 'Lỗi');
+      showCenterError('Vui lòng chọn ít nhất một sản phẩm để mua.', 'Lỗi');
       return;
     }
 
-    // Get address note
-    const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
-    const message = selectedAddress?.note || '';
-
-    setIsCheckingOut(true);
+    const payload = {
+      selectedCartItemIds: selectedItems.map(item => item.id),
+      storeVouchers: appliedStoreVouchers,
+      selectedAddressId,
+      createdAt: Date.now(),
+    };
 
     try {
-      // Prepare items for both payment methods
-      const checkoutItems = selectedItems.map(item => ({
-        id: item.productId, // productId
-        type: 'PRODUCT' as const,
-        quantity: item.quantity,
-      }));
-
-      // Build store vouchers từ trạng thái đã áp dụng
-      const storeVouchers = buildStoreVouchers();
-
-      // Build serviceTypeIds cho từng store
-      const serviceTypeIds = buildServiceTypeIds(selectedItems);
-
-      if (paymentMethod === 'cod') {
-        // Handle COD checkout
-        const checkoutRequest: CheckoutCodRequest = {
-          items: checkoutItems,
-          addressId: selectedAddressId,
-          message: message || undefined,
-          storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
-          platformVouchers: null, // Hiện tại chưa có, set null
-          serviceTypeIds: Object.keys(serviceTypeIds).length > 0 ? serviceTypeIds : undefined,
-        };
-
-        console.log('💳 Processing COD checkout:', checkoutRequest);
-        const response = await CustomerCartService.checkoutCod(checkoutRequest);
-
-        if (response.status === 200) {
-          showCenterSuccess(
-            response.message || 'Đặt hàng thành công!',
-            'Thành công',
-            5000
-          );
-
-          // Redirect to home after 5 seconds
-          setTimeout(() => {
-            navigate('/');
-          }, 5000);
-        } else {
-          showCenterError(
-            response.message || 'Đặt hàng thất bại. Vui lòng thử lại.',
-            'Lỗi'
-          );
-        }
-      } else if (paymentMethod === 'payos') {
-        // Handle PayOS checkout
-        const returnUrl = `${window.location.origin}/payment/success`;
-        const cancelUrl = `${window.location.origin}/payment/fail`;
-
-        const checkoutRequest: CheckoutPayOSRequest = {
-          addressId: selectedAddressId,
-          message: message || undefined,
-          description: `Đơn hàng từ AudioShop - ${selectedItems.length} sản phẩm`,
-          items: checkoutItems,
-          storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
-          platformVouchers: null, // Hiện tại chưa có, set null
-          serviceTypeIds: Object.keys(serviceTypeIds).length > 0 ? serviceTypeIds : undefined,
-          returnUrl,
-          cancelUrl,
-        };
-
-        console.log('💳 Processing PayOS checkout:', checkoutRequest);
-        const response = await CustomerCartService.checkoutPayOS(checkoutRequest);
-
-        if (response.status === 200 && response.data?.checkoutUrl) {
-          // Redirect to PayOS checkout URL
-          window.location.href = response.data.checkoutUrl;
-        } else {
-          showCenterError(
-            response.message || 'Không thể tạo link thanh toán PayOS. Vui lòng thử lại.',
-            'Lỗi'
-          );
-        }
-      }
-    } catch (error: any) {
-      console.error(`❌ Checkout ${paymentMethod?.toUpperCase()} failed:`, error);
-      
-      // Handle error response
-      const errorMessage = error?.message || 
-                          error?.data?.message || 
-                          CustomerCartService.formatCartError(error) ||
-                          'Đã xảy ra lỗi khi đặt hàng. Vui lòng thử lại.';
-      
-      showCenterError(errorMessage, 'Lỗi đặt hàng');
-    } finally {
-      setIsCheckingOut(false);
+      sessionStorage.setItem(CHECKOUT_SESSION_KEY, JSON.stringify(payload));
+      navigate('/checkout');
+    } catch (error) {
+      console.error('Failed to cache checkout payload:', error);
+      showCenterError('Không thể chuẩn bị dữ liệu thanh toán. Vui lòng thử lại.', 'Lỗi');
     }
   };
 
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Breadcrumb / Progress bar */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-5">
+          <div className="flex items-center gap-2 px-6 py-4 text-sm text-gray-600">
+            <Home className="w-4 h-4" />
+            <span className="font-medium text-gray-900">Giỏ hàng</span>
+            <ChevronRight className="w-4 h-4" />
+            <span>Thanh toán</span>
+            <ChevronRight className="w-4 h-4" />
+            <span>Xác nhận</span>
+          </div>
+        </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Giỏ hàng</h1>
 
         {isLoading ? (
@@ -604,6 +451,7 @@ const ShoppingCart: React.FC = () => {
             <CartItemsList
               storeGroups={storeGroups}
               totalItemCount={items.length}
+              showAddress={false}
               addresses={addresses}
               selectedAddressId={selectedAddressId}
               addressesLoading={addressesLoading}
@@ -623,8 +471,6 @@ const ShoppingCart: React.FC = () => {
 
             {/* Summary Sidebar */}
             <CartSummarySidebar
-              paymentMethod={paymentMethod}
-              onPaymentMethodChange={setPaymentMethod}
               items={items}
               addresses={addresses}
               selectedAddressId={selectedAddressId}
@@ -641,9 +487,9 @@ const ShoppingCart: React.FC = () => {
               voucherDiscount={voucherDiscount}
               selectedCount={summary.selectedCount}
               grandTotal={grandTotal}
-              onCheckout={handleCheckout}
-              isCheckingOut={isCheckingOut}
-              disabled={!selectedAddressId || !paymentMethod || (paymentMethod !== 'cod' && paymentMethod !== 'payos')}
+              onCheckout={handleProceedToCheckout}
+              isCheckingOut={false}
+              disabled={false}
             />
           </div>
         )}

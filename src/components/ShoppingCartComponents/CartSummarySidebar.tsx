@@ -1,15 +1,11 @@
 import React from 'react';
-import PaymentMethodDropdown from '../CheckoutOrderComponents/PaymentMethodDropdown';
 import ShippingFeeCalculator from './ShippingFeeCalculator';
 import SummaryBox from './SummaryBox';
-import type { PaymentMethod } from '../../data/checkout';
 import type { CartItem } from '../../data/shoppingcart';
 import type { CustomerAddressApiItem } from '../../types/api';
 import type { Product } from '../../services/customer/ProductListService';
 
 interface CartSummarySidebarProps {
-  paymentMethod: PaymentMethod | null;
-  onPaymentMethodChange: (method: PaymentMethod | null) => void;
   items: CartItem[];
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
@@ -32,8 +28,6 @@ interface CartSummarySidebarProps {
 }
 
 const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
-  paymentMethod,
-  onPaymentMethodChange,
   items,
   addresses,
   selectedAddressId,
@@ -57,8 +51,6 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
   return (
     <aside className="lg:col-span-1">
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-        <PaymentMethodDropdown value={paymentMethod} onChange={onPaymentMethodChange} />
-
         <ShippingFeeCalculator
           items={items}
           addresses={addresses}

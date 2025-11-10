@@ -20,6 +20,7 @@ interface StoreGroup {
 interface CartItemsListProps {
   storeGroups: StoreGroup[];
   totalItemCount: number;
+  showAddress?: boolean;
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
   addressesLoading: boolean;
@@ -44,6 +45,7 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
   selectedAddressId,
   addressesLoading,
   allSelected,
+  showAddress = true,
   onAddressSelect,
   onAddressesChange,
   onToggleAll,
@@ -58,18 +60,20 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
 }) => {
   return (
     <div className="lg:col-span-2 space-y-4">
-      {addressesLoading ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="text-center text-sm text-gray-500 mt-2">Đang tải địa chỉ...</p>
-        </div>
-      ) : (
-        <AddressSelectorCompact
-          addresses={addresses}
-          selectedAddressId={selectedAddressId}
-          onSelect={onAddressSelect}
-          onAddressesChange={onAddressesChange}
-        />
+      {showAddress && (
+        addressesLoading ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
+            <p className="text-center text-sm text-gray-500 mt-2">Đang tải địa chỉ...</p>
+          </div>
+        ) : (
+          <AddressSelectorCompact
+            addresses={addresses}
+            selectedAddressId={selectedAddressId}
+            onSelect={onAddressSelect}
+            onAddressesChange={onAddressesChange}
+          />
+        )
       )}
 
       <SelectAllBar

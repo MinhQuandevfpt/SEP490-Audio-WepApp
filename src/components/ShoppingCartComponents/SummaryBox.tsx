@@ -30,11 +30,11 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
         <span>Tạm tính</span>
         <span>{formatCurrency(subtotal)}</span>
       </div>
-      <div className="flex justify-between text-gray-600">
+      <div className="flex justify-between text-gray-600 hidden">
         <span>Giảm giá</span>
         <span className="text-green-600">-{formatCurrency(discount)}</span>
       </div>
-      <div className="flex justify-between text-gray-600">
+      <div className="flex justify-between text-gray-600 hidden">
         <span>Phí vận chuyển</span>
         <span>{formatCurrency(shippingFee)}</span>
       </div>
@@ -59,7 +59,7 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
         disabled={disabled || selectedCount === 0 || isCheckingOut}
         onClick={onCheckout}
       >
-        {isCheckingOut ? 'Đang xử lý...' : 'Thanh toán'}
+        {isCheckingOut ? 'Đang xử lý...' : 'Mua hàng'}
       </button>
     </div>
   );
