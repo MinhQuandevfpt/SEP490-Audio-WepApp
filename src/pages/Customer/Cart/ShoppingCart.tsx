@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calcCartSummary, type CartItem as UICartItem } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
 import CartItemsList from '../../../components/ShoppingCartComponents/CartItemsList';
 import CartSummarySidebar from '../../../components/ShoppingCartComponents/CartSummarySidebar';
+import type { AppliedStoreVoucher } from '../../../components/ShoppingCartComponents/StoreVoucherPicker';
 import { useCart } from '../../../hooks/useCart';
 import { useServiceTypeCalculator } from '../../../hooks/useServiceTypeCalculator';
 import { useAutoShippingFee } from '../../../hooks/useAutoShippingFee';
@@ -141,14 +142,8 @@ const ShoppingCart: React.FC = () => {
   // Payment Method
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
 
-  // Voucher
-  const [voucherInput, setVoucherInput] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState<{
-    code: string;
-    type: 'FIXED' | 'PERCENT';
-    discountValue: number;
-    storeId: string;
-  } | null>(null);
+  // Store vouchers
+  const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
 
   // Shipping fee estimation state
   const [shippingFee, setShippingFee] = useState<number>(0);
@@ -165,91 +160,130 @@ const ShoppingCart: React.FC = () => {
     autoCalculate: true, // Enable auto calculation
   });
 
-  // Store applied voucher code separately to avoid dependency issues
-  const appliedVoucherCodeRef = useRef<string | null>(null);
+  // Ensure product cache contains store info for all items
   useEffect(() => {
-    appliedVoucherCodeRef.current = appliedVoucher?.code || null;
-  }, [appliedVoucher?.code]);
+    const ensureProductDetails = async () => {
+      const missingProductIds = items
+        .map(item => item.productId)
+        .filter(pid => !productCache.has(pid));
 
-  // Auto-update applied voucher discount when items change
-  useEffect(() => {
-    const voucherCode = appliedVoucherCodeRef.current;
-    if (!voucherCode) return;
+      if (missingProductIds.length === 0) return;
 
-    // Recalculate voucher discount when items change
-    const selectedItems = items.filter(it => it.isSelected);
-    if (selectedItems.length === 0) {
-      // Nếu không còn sản phẩm nào được chọn, gỡ voucher
-      setAppliedVoucher(null);
-      setVoucherInput('');
-      return;
-    }
+      const productDetails = await Promise.all(
+        missingProductIds.map(async (pid) => {
+          try {
+            const res = await ProductListService.getProductById(pid);
+            return res.data;
+          } catch (error) {
+            console.error(`Failed to fetch product ${pid}:`, error);
+            return null;
+          }
+        })
+      );
 
-    // Find the voucher to get current details
-    const voucher = availableVouchers.find(v => v.code === voucherCode);
-    if (!voucher) {
-      // Voucher không tồn tại trong danh sách, gỡ voucher
-      setAppliedVoucher(null);
-      setVoucherInput('');
-      return;
-    }
-
-    // Calculate store total for this voucher
-    let storeTotal = 0;
-    selectedItems.forEach(item => {
-      const product = productCache.get(item.productId);
-      if (product && product.storeId === voucher.storeId) {
-        storeTotal += item.price * item.quantity;
+      const newCache = new Map(productCache);
+      productDetails.forEach(product => {
+        if (product) {
+          newCache.set(product.productId, product);
+        }
+      });
+      if (productDetails.some(Boolean)) {
+        setProductCache(newCache);
       }
-    });
+    };
 
-    // Kiểm tra minOrderValue - nếu không đủ điều kiện, tự động gỡ voucher
-    if (voucher.minOrderValue && voucher.minOrderValue > 0) {
-      if (storeTotal < voucher.minOrderValue) {
-        // Không đủ điều kiện, gỡ voucher và hiển thị thông báo
-        setAppliedVoucher(null);
-        setVoucherInput('');
-        showCenterError(
-          `Voucher đã được gỡ vì đơn hàng không đạt tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ. Hiện tại: ${storeTotal.toLocaleString('vi-VN')}đ`,
-          'Thông báo'
-        );
+    if (items.length > 0) {
+      ensureProductDetails();
+    }
+  }, [items, productCache, setProductCache]);
+
+  const storeVoucherMap = useMemo(() => {
+    const map = new Map<string, ShopVoucher[]>();
+    availableVouchers.forEach(voucher => {
+      if (!voucher.storeId) {
         return;
       }
-    }
+      if (!map.has(voucher.storeId)) {
+        map.set(voucher.storeId, []);
+      }
+      map.get(voucher.storeId)!.push(voucher);
+    });
+    return map;
+  }, [availableVouchers]);
 
-    // Calculate new discount value
-    let newDiscountValue = 0;
+  const calculateVoucherDiscount = (voucher: ShopVoucher, storeTotal: number): number => {
     if (voucher.type === 'FIXED') {
-      newDiscountValue = voucher.discountValue || 0;
-    } else if (voucher.type === 'PERCENT') {
+      return voucher.discountValue || 0;
+    }
+    if (voucher.type === 'PERCENT') {
       const percent = voucher.discountPercent || 0;
       const discount = Math.round((storeTotal * percent) / 100);
-      
-      // Áp dụng maxDiscountValue nếu có
       if (voucher.maxDiscountValue && discount > voucher.maxDiscountValue) {
-        newDiscountValue = voucher.maxDiscountValue;
-      } else {
-        newDiscountValue = discount;
+        return voucher.maxDiscountValue;
       }
+      return discount;
     }
+    return 0;
+  };
 
-    // Only update if discount value changed and voucher is still applied
-    setAppliedVoucher(prev => {
-      if (!prev || prev.code !== voucherCode) return prev;
-      if (prev.discountValue === newDiscountValue) return prev;
-      
-      return {
-        ...prev,
-        discountValue: newDiscountValue,
-      };
+  const calculateSelectedTotalForStore = (storeId: string): number => {
+    return items.reduce((sum, item) => {
+      if (!item.isSelected) return sum;
+      const product = productCache.get(item.productId);
+      const itemStoreId = product?.storeId || `unknown-${item.productId}`;
+      if (itemStoreId !== storeId) return sum;
+      return sum + item.price * item.quantity;
+    }, 0);
+  };
+
+  useEffect(() => {
+    const messages: string[] = [];
+
+    setAppliedStoreVouchers(prev => {
+      let changed = false;
+      const next: Record<string, AppliedStoreVoucher> = {};
+
+      Object.entries(prev).forEach(([storeId, applied]) => {
+        const vouchers = storeVoucherMap.get(storeId) || [];
+        const matchedVoucher = vouchers.find(v => v.code === applied.code);
+        const storeTotal = calculateSelectedTotalForStore(storeId);
+
+        if (!matchedVoucher || storeTotal <= 0) {
+          changed = true;
+          return;
+        }
+
+        if (matchedVoucher.minOrderValue && storeTotal < matchedVoucher.minOrderValue) {
+          changed = true;
+          messages.push(
+            `Voucher ${applied.code} đã được gỡ vì đơn hàng của cửa hàng không đạt tối thiểu ${matchedVoucher.minOrderValue.toLocaleString('vi-VN')}đ.`
+          );
+          return;
+        }
+
+        const discountValue = calculateVoucherDiscount(matchedVoucher, storeTotal);
+        next[storeId] = {
+          ...applied,
+          discountValue,
+        };
+        if (discountValue !== applied.discountValue) {
+          changed = true;
+        }
+      });
+
+      if (!changed && Object.keys(next).length === Object.keys(prev).length) {
+        return prev;
+      }
+
+      return next;
     });
-  }, [items, productCache, availableVouchers]); // Recalculate when items/productCache/availableVouchers change
 
-  // Calculate voucher discount based on store total (for display)
+    messages.forEach(msg => showCenterError(msg, 'Voucher'));
+  }, [items, productCache, storeVoucherMap]);
+
   const voucherDiscount = useMemo(() => {
-    if (!appliedVoucher) return 0;
-    return appliedVoucher.discountValue;
-  }, [appliedVoucher]);
+    return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
+  }, [appliedStoreVouchers]);
 
   const grandTotal = useMemo(() => {
     const total = summary.total + shippingFee - voucherDiscount;
@@ -257,54 +291,63 @@ const ShoppingCart: React.FC = () => {
   }, [summary.total, shippingFee, voucherDiscount]);
 
   // Calculate discount amount for a voucher
-  const calculateVoucherDiscount = (voucher: ShopVoucher, storeTotal: number): number => {
-    if (voucher.type === 'FIXED') {
-      return voucher.discountValue || 0;
-    } else if (voucher.type === 'PERCENT') {
-      const percent = voucher.discountPercent || 0;
-      const discount = Math.round((storeTotal * percent) / 100);
-      
-      // Áp dụng maxDiscountValue nếu có
-      if (voucher.maxDiscountValue && discount > voucher.maxDiscountValue) {
-        return voucher.maxDiscountValue;
-      }
-      
-      return discount;
-    }
-    return 0;
+  const handleApplyStoreVoucher = (storeId: string, voucher: ShopVoucher, discountValue: number) => {
+    setAppliedStoreVouchers(prev => ({
+      ...prev,
+      [storeId]: {
+        code: voucher.code,
+        type: voucher.type,
+        discountValue,
+        storeId,
+      },
+    }));
   };
 
-  const handleApplyVoucher = (voucher: ShopVoucher) => {
-    // Tính tổng tiền của các sản phẩm cùng storeId
-    const selectedItems = items.filter(it => it.isSelected);
-    let storeTotal = 0;
+  const handleRemoveStoreVoucher = (storeId: string) => {
+    setAppliedStoreVouchers(prev => {
+      if (!prev[storeId]) return prev;
+      const { [storeId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
 
-    selectedItems.forEach(item => {
+  const storeGroups = useMemo(() => {
+    const groups = new Map<string, {
+      storeId: string;
+      storeName: string;
+      items: UICartItem[];
+      vouchers: ShopVoucher[];
+      appliedVoucher?: AppliedStoreVoucher;
+      selectedTotal: number;
+    }>();
+
+    items.forEach(item => {
       const product = productCache.get(item.productId);
-      if (product && product.storeId === voucher.storeId) {
-        storeTotal += item.price * item.quantity;
+      const storeId = product?.storeId || `unknown-${item.productId}`;
+      const storeName = product?.storeName || 'Cửa hàng chưa xác định';
+
+      if (!groups.has(storeId)) {
+        groups.set(storeId, {
+          storeId,
+          storeName,
+          items: [],
+          vouchers: storeVoucherMap.get(storeId) || [],
+          appliedVoucher: appliedStoreVouchers[storeId],
+          selectedTotal: 0,
+        });
       }
+
+      const group = groups.get(storeId)!;
+      group.items.push(item);
+      if (item.isSelected) {
+        group.selectedTotal += item.price * item.quantity;
+      }
+      group.vouchers = storeVoucherMap.get(storeId) || [];
+      group.appliedVoucher = appliedStoreVouchers[storeId];
     });
 
-    const discountValue = calculateVoucherDiscount(voucher, storeTotal);
-
-    setAppliedVoucher({
-      code: voucher.code,
-      type: voucher.type,
-      discountValue,
-      storeId: voucher.storeId || '',
-    });
-  };
-
-  const handleChooseVoucher = (voucher: ShopVoucher) => {
-    handleApplyVoucher(voucher);
-    setVoucherInput(voucher.code);
-  };
-
-  const clearVoucher = () => {
-    setAppliedVoucher(null);
-    setVoucherInput('');
-  };
+    return Array.from(groups.values());
+  }, [items, productCache, storeVoucherMap, appliedStoreVouchers]);
 
   const toggleItem = (id: string) => {
     setItems(prev => prev.map(it => it.id === id ? { ...it, isSelected: !it.isSelected } : it));
@@ -411,15 +454,10 @@ const ShoppingCart: React.FC = () => {
 
   // Helper: Nhóm voucher theo storeId
   const buildStoreVouchers = (): StoreVoucher[] => {
-    if (!appliedVoucher || !appliedVoucher.storeId) {
-      return [];
-    }
-    
-    // Nếu có applied voucher, tạo storeVoucher cho store đó
-    return [{
-      storeId: appliedVoucher.storeId,
-      codes: [appliedVoucher.code],
-    }];
+    return Object.values(appliedStoreVouchers).map(voucher => ({
+      storeId: voucher.storeId,
+      codes: [voucher.code],
+    }));
   };
 
   // Handle checkout (COD or PayOS)
@@ -466,7 +504,7 @@ const ShoppingCart: React.FC = () => {
         quantity: item.quantity,
       }));
 
-      // Build storeVouchers từ appliedVoucher
+      // Build store vouchers từ trạng thái đã áp dụng
       const storeVouchers = buildStoreVouchers();
 
       // Build serviceTypeIds cho từng store
@@ -564,7 +602,8 @@ const ShoppingCart: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Items List */}
             <CartItemsList
-              items={items}
+              storeGroups={storeGroups}
+              totalItemCount={items.length}
               addresses={addresses}
               selectedAddressId={selectedAddressId}
               addressesLoading={addressesLoading}
@@ -578,19 +617,14 @@ const ShoppingCart: React.FC = () => {
               onDec={dec}
               onRemove={removeItem}
               onSetQuantity={updateQuantity}
+              onApplyVoucher={handleApplyStoreVoucher}
+              onRemoveVoucher={handleRemoveStoreVoucher}
             />
 
             {/* Summary Sidebar */}
             <CartSummarySidebar
               paymentMethod={paymentMethod}
               onPaymentMethodChange={setPaymentMethod}
-              voucherInput={voucherInput}
-              appliedVoucher={appliedVoucher}
-              availableVouchers={availableVouchers}
-              onVoucherInputChange={setVoucherInput}
-              onApplyVoucher={handleApplyVoucher}
-              onChooseVoucher={handleChooseVoucher}
-              onClearVoucher={clearVoucher}
               items={items}
               addresses={addresses}
               selectedAddressId={selectedAddressId}

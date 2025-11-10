@@ -47,7 +47,6 @@ const CartItemRow: React.FC<CartItemRowProps> = ({ item: it, onToggle, onInc, on
           <div className="min-w-0">
             <p className="text-gray-900 font-medium truncate" title={it.name}>{it.name}</p>
             <p className="text-sm text-gray-500 mt-1">Phân loại: {it.variant || 'Mặc định'}</p>
-            {it.shopName && <p className="text-sm text-gray-500">Cửa hàng: {it.shopName}</p>}
           </div>
           <button onClick={() => onRemove(it.id)} className="text-red-600 hover:text-red-700">
             <Trash2 className="w-5 h-5" />

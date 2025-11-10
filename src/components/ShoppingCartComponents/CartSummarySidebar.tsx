@@ -1,6 +1,5 @@
 import React from 'react';
 import PaymentMethodDropdown from '../CheckoutOrderComponents/PaymentMethodDropdown';
-import VoucherSection, { type ShopVoucher } from './VoucherSection';
 import ShippingFeeCalculator from './ShippingFeeCalculator';
 import SummaryBox from './SummaryBox';
 import type { PaymentMethod } from '../../data/checkout';
@@ -11,18 +10,6 @@ import type { Product } from '../../services/customer/ProductListService';
 interface CartSummarySidebarProps {
   paymentMethod: PaymentMethod | null;
   onPaymentMethodChange: (method: PaymentMethod | null) => void;
-  voucherInput: string;
-  appliedVoucher: {
-    code: string;
-    type: 'FIXED' | 'PERCENT';
-    discountValue: number;
-    storeId: string;
-  } | null;
-  availableVouchers: ShopVoucher[];
-  onVoucherInputChange: (input: string) => void;
-  onApplyVoucher: (voucher: ShopVoucher) => void;
-  onChooseVoucher: (voucher: ShopVoucher) => void;
-  onClearVoucher: () => void;
   items: CartItem[];
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
@@ -47,13 +34,6 @@ interface CartSummarySidebarProps {
 const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
   paymentMethod,
   onPaymentMethodChange,
-  voucherInput,
-  appliedVoucher,
-  availableVouchers,
-  onVoucherInputChange,
-  onApplyVoucher,
-  onChooseVoucher,
-  onClearVoucher,
   items,
   addresses,
   selectedAddressId,
@@ -77,26 +57,8 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
   return (
     <aside className="lg:col-span-1">
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-        {/* Payment Method - above voucher section */}
         <PaymentMethodDropdown value={paymentMethod} onChange={onPaymentMethodChange} />
 
-        {/* Voucher - input or choose */}
-        <div className="pt-2">
-          <VoucherSection
-            voucherInput={voucherInput}
-            appliedVoucher={appliedVoucher}
-            availableVouchers={availableVouchers}
-            items={items}
-            productCache={productCache}
-            subtotal={subtotal}
-            onChangeInput={onVoucherInputChange}
-            onApply={onApplyVoucher}
-            onChoose={onChooseVoucher}
-            onClear={onClearVoucher}
-          />
-        </div>
-
-        {/* Shipping Fee Check (GHN) */}
         <ShippingFeeCalculator
           items={items}
           addresses={addresses}
@@ -110,7 +72,6 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
           onShippingFeeChange={onShippingFeeChange}
         />
 
-        {/* Summary Box */}
         <SummaryBox
           subtotal={subtotal}
           discount={discount}
