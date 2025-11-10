@@ -251,23 +251,29 @@ export class CustomerAuthService {
    * Logout customer - Clear all tokens and user data
    */
   static logout(): void {
-    // Clear ALL data using RefreshTokenService
+    console.log('🚪 Logging out customer...');
+    
+    // Get token before clearing (for storage event)
+    const oldToken = localStorage.getItem('customer_token');
+    
+    // Clear ALL data using RefreshTokenService (includes all backward compatibility keys)
     RefreshTokenService.clearAllData('CUSTOMER');
     
-    // Remove customer-specific data (backward compatibility)
-    localStorage.removeItem('token_type');
-    localStorage.removeItem('account_id');
-    localStorage.removeItem('customer_id');
+    // Trigger storage event to notify other tabs/components
+    try {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'customer_token',
+        oldValue: oldToken,
+        newValue: null,
+        storageArea: localStorage
+      }));
+    } catch (e) {
+      // StorageEvent might not be supported in all browsers, use custom event instead
+      window.dispatchEvent(new CustomEvent('authStateChanged', { detail: { loggedOut: true } }));
+    }
     
-    // Remove OAuth2 related data
-    localStorage.removeItem('token');
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('accountId');
-    localStorage.removeItem('customerId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('authStateChanged');
+    // Set authStateChanged flag for Header component
+    localStorage.setItem('authStateChanged', 'true');
     
     console.log('✅ Customer logged out successfully');
   }

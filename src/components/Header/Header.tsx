@@ -60,10 +60,23 @@ const Header: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    CustomerAuthService.logout();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    window.location.href = '/'; // Hard refresh to clear any cached state
+    try {
+      // Clear auth state immediately
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      
+      // Call logout service to clear all data
+      CustomerAuthService.logout();
+      
+      // Small delay to ensure localStorage is cleared before redirect
+      setTimeout(() => {
+        window.location.href = '/'; // Hard refresh to clear any cached state
+      }, 100);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Force redirect even if there's an error
+      window.location.href = '/';
+    }
   };
 
   const getEncodedCustomerParam = () => {

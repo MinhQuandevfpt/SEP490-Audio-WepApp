@@ -117,17 +117,59 @@ export class RefreshTokenService {
       localStorage.removeItem('admin_refresh_token');
       localStorage.removeItem('admin_token_type');
       localStorage.removeItem('admin_user');
-    } else {
-      localStorage.removeItem(`${userType}_token`);
-      localStorage.removeItem(`${userType}_refresh_token`);
-      localStorage.removeItem(`${userType}_token_type`);
-      localStorage.removeItem(`${userType}_user`);
+    } else if (userType === 'CUSTOMER') {
+      // Clear uppercase keys (new format)
+      localStorage.removeItem('CUSTOMER_token');
+      localStorage.removeItem('CUSTOMER_refresh_token');
+      localStorage.removeItem('CUSTOMER_token_type');
+      localStorage.removeItem('CUSTOMER_user');
+      
+      // Clear lowercase keys (backward compatibility)
+      localStorage.removeItem('customer_token');
+      localStorage.removeItem('customer_refresh_token');
+      localStorage.removeItem('customer_token_type');
+      localStorage.removeItem('customer_user');
+      
+      // Clear additional customer-specific keys
+      localStorage.removeItem('token_type');
+      localStorage.removeItem('account_id');
+      localStorage.removeItem('customer_id');
+      localStorage.removeItem('token');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('accountId');
+      localStorage.removeItem('customerId');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('authStateChanged');
+    } else if (userType === 'STOREOWNER') {
+      // Clear uppercase keys (new format)
+      localStorage.removeItem('STOREOWNER_token');
+      localStorage.removeItem('STOREOWNER_refresh_token');
+      localStorage.removeItem('STOREOWNER_token_type');
+      localStorage.removeItem('STOREOWNER_user');
+      
+      // Clear lowercase keys (backward compatibility)
+      localStorage.removeItem('seller_token');
+      localStorage.removeItem('seller_refresh_token');
+      localStorage.removeItem('seller_token_type');
+      localStorage.removeItem('seller_user');
       
       // Clear seller-specific data
-      if (userType === 'STOREOWNER') {
-        localStorage.removeItem('seller_store_id');
-        localStorage.removeItem('seller_store_info');
-      }
+      localStorage.removeItem('seller_store_id');
+      localStorage.removeItem('seller_store_info');
+    } else if (userType === 'STAFF') {
+      // Clear uppercase keys (new format)
+      localStorage.removeItem('STAFF_token');
+      localStorage.removeItem('STAFF_refresh_token');
+      localStorage.removeItem('STAFF_token_type');
+      localStorage.removeItem('STAFF_user');
+      
+      // Clear lowercase keys (backward compatibility)
+      localStorage.removeItem('staff_token');
+      localStorage.removeItem('staff_refresh_token');
+      localStorage.removeItem('staff_token_type');
+      localStorage.removeItem('staff_user');
     }
     console.log(`🗑️ All data cleared for ${userType}`);
   }
