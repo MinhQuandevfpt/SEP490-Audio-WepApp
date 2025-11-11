@@ -1,15 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Card, Select, Input, Button, Pagination, Empty, Spin, Modal, message, Space, Typography, Breadcrumb } from 'antd';
-import { Home, Package, Search } from 'lucide-react';
+import { 
+  Card, 
+  Select, 
+  Input, 
+  Button, 
+  Pagination, 
+  Empty, 
+  Spin, 
+  Modal, 
+  message, 
+  Space, 
+  Typography, 
+  Breadcrumb,
+  Row,
+  Col,
+  Statistic,
+  Divider
+} from 'antd';
+import { Home, Package, ShoppingBag, DollarSign, FileText } from 'lucide-react';
 import Layout from '../../../components/Layout';
-import { OrderCard, OrderDetailModal } from '../../../components/OrderHistoryComponents';
+import { OrderCard, OrderDetailModal, OrderFilterTabs } from '../../../components/OrderHistoryComponents';
 import useOrderHistory from '../../../hooks/useOrderHistory';
 import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
+import { formatCurrency } from '../../../utils/orderStatus';
 
 const { Option } = Select;
 const { TextArea } = Input;
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const OrderHistoryPage: React.FC = () => {
   const location = useLocation();
@@ -30,6 +48,7 @@ const OrderHistoryPage: React.FC = () => {
     setSelectedOrder,
     viewDetail,
     reload,
+    total,
   } = useOrderHistory();
 
   // Cancel modal state
@@ -48,104 +67,143 @@ const OrderHistoryPage: React.FC = () => {
     }
   }, [location.state, viewDetail]);
 
-  const statusOptions = [
-    { value: 'ALL', label: 'Tất cả đơn hàng' },
-    { value: 'UNPAID', label: 'Chờ thanh toán' },
-    { value: 'PENDING', label: 'Chờ xử lý' },
-    { value: 'CONFIRMED', label: 'Đã xác nhận' },
-    { value: 'AWAITING_SHIPMENT', label: 'Chờ lấy hàng' },
-    { value: 'SHIPPING', label: 'Đang giao hàng' },
-    { value: 'COMPLETED', label: 'Đã giao hàng' },
-    { value: 'CANCELLED', label: 'Đã hủy' },
-    { value: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng' },
-    { value: 'RETURNED', label: 'Đã trả hàng' },
-  ];
+  // Calculate statistics
+  const totalAmount = orders.reduce((sum, order) => sum + order.grandTotal, 0);
+  const totalItems = orders.reduce((sum, order) => {
+    const orderItems = order.storeOrders.reduce((s, so) => 
+      s + so.items.reduce((i, item) => i + item.quantity, 0), 0
+    );
+    return sum + orderItems;
+  }, 0);
 
   return (
     <Layout>
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Breadcrumb
-            className="mb-4"
+            className="mb-6"
             items={[
-              { title: <><Home className="w-4 h-4 inline mr-1" />Tài khoản</> },
+              { 
+                title: (
+                  <Space>
+                    <Home className="w-4 h-4" />
+                    <span>Tài khoản</span>
+                  </Space>
+                )
+              },
               { title: 'Đơn hàng của tôi' },
             ]}
+            style={{ fontSize: '14px' }}
           />
 
-          <div className="space-y-4">
-            <Title level={2} className="!mb-0">Đơn hàng của tôi</Title>
-            
-            <Card>
-              <Space direction="vertical" size="middle" className="w-full">
-                <Space className="w-full" size="middle" wrap>
-                  <Select
-                    value={status}
-                    onChange={setStatus}
-                    style={{ width: 250 }}
-                    placeholder="Lọc theo trạng thái"
-                  >
-                    {statusOptions.map(option => (
-                      <Option key={option.value} value={option.value}>
-                        {option.label}
-                      </Option>
-                    ))}
-                  </Select>
-                  
-                  <Input
-                    placeholder="Tìm theo mã đơn hàng..."
-                    prefix={<Search className="w-4 h-4" />}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ width: 300 }}
-                    allowClear
-                  />
-                </Space>
-              </Space>
+          <div className="space-y-6">
+            {/* Header */}
+            <div>
+              <Title level={2} className="!mb-2 !text-gray-900">Đơn hàng của tôi</Title>
+              <Text type="secondary" className="text-base">
+                Quản lý và theo dõi tất cả đơn hàng của bạn
+              </Text>
+            </div>
+
+            {/* Statistics Cards */}
+            {!isLoading && orders.length > 0 && (
+              <Row gutter={[16, 16]}>
+                <Col xs={24} sm={8}>
+                  <Card className="border-gray-200 shadow-sm">
+                    <Statistic
+                      title={<><FileText className="w-4 h-4 inline mr-1" />Tổng đơn hàng</>}
+                      value={total || 0}
+                      valueStyle={{ color: '#f97316', fontSize: '24px', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card className="border-gray-200 shadow-sm">
+                    <Statistic
+                      title={<><ShoppingBag className="w-4 h-4 inline mr-1" />Tổng sản phẩm</>}
+                      value={totalItems}
+                      suffix="sản phẩm"
+                      valueStyle={{ color: '#3b82f6', fontSize: '24px', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card className="border-gray-200 shadow-sm">
+                    <Statistic
+                      title={<><DollarSign className="w-4 h-4 inline mr-1" />Tổng giá trị</>}
+                      value={totalAmount}
+                      formatter={(value) => formatCurrency(Number(value))}
+                      valueStyle={{ color: '#10b981', fontSize: '24px', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            )}
+
+            {/* Filter Section */}
+            <Card className="border-gray-200 shadow-sm">
+              <OrderFilterTabs
+                value={status}
+                onChange={setStatus}
+                search={search}
+                onSearchChange={setSearch}
+              />
             </Card>
 
+            {/* Orders List */}
             {isLoading ? (
-              <Card>
+              <Card className="border-gray-200 shadow-sm">
                 <div className="py-16 text-center">
                   <Spin size="large" style={{ color: '#f97316' }} />
-                  <p className="mt-4 text-gray-500">Đang tải đơn hàng...</p>
+                  <p className="mt-4 text-gray-500 text-base">Đang tải đơn hàng...</p>
                 </div>
               </Card>
             ) : error ? (
-              <Card>
-                <div className="p-3 text-center">
-                  <Typography.Text type="danger">{error}</Typography.Text>
+              <Card className="border-gray-200 shadow-sm">
+                <div className="py-8 text-center">
+                  <Text type="danger" className="text-base">{error}</Text>
                 </div>
               </Card>
             ) : (
-              <Space direction="vertical" size="middle" className="w-full">
+              <Space direction="vertical" size="large" className="w-full">
                 {orders.map(order => (
                   <div key={order.id}>
                     <OrderCard order={order} />
                     {order.status === 'PENDING' && (
-                      <div className="flex justify-end mt-2">
-                        <Button
-                          danger
-                          onClick={() => {
-                            setCancelTargetId(order.id);
-                            setCancelReason('CHANGE_OF_MIND');
-                            setCancelNote('');
-                          }}
-                        >
-                          Hủy đơn hàng
-                        </Button>
-                      </div>
+                      <Card 
+                        className="mt-3 border-orange-200 bg-orange-50"
+                        styles={{ body: { padding: '12px 16px' } }}
+                      >
+                        <div className="flex justify-end">
+                          <Button
+                            danger
+                            size="large"
+                            onClick={() => {
+                              setCancelTargetId(order.id);
+                              setCancelReason('CHANGE_OF_MIND');
+                              setCancelNote('');
+                            }}
+                            style={{ borderRadius: '8px' }}
+                          >
+                            Hủy đơn hàng
+                          </Button>
+                        </div>
+                      </Card>
                     )}
                   </div>
                 ))}
                 {orders.length === 0 && (
-                  <Card>
+                  <Card className="border-gray-200 shadow-sm">
                     <Empty
-                      image={<Package className="w-16 h-16 text-gray-300 mx-auto" />}
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
                       description={
                         <div>
-                          <p className="text-gray-600 font-medium">Chưa có đơn hàng nào</p>
-                          <p className="text-sm text-gray-500 mt-1">Bạn chưa có đơn hàng phù hợp với bộ lọc đã chọn.</p>
+                          <p className="text-gray-600 font-medium text-base mb-1">Chưa có đơn hàng nào</p>
+                          <p className="text-sm text-gray-500">
+                            {search || status !== 'ALL' 
+                              ? 'Bạn chưa có đơn hàng phù hợp với bộ lọc đã chọn.' 
+                              : 'Bạn chưa có đơn hàng nào. Hãy bắt đầu mua sắm ngay!'}
+                          </p>
                         </div>
                       }
                     />
@@ -156,34 +214,75 @@ const OrderHistoryPage: React.FC = () => {
 
             {/* Pagination & Page Size Selector */}
             {orders.length > 0 && (
-              <Card>
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <Space>
-                    <span className="text-sm text-gray-600">Hiển thị:</span>
-                    <Select
-                      value={pageSize}
-                      onChange={setPageSize}
-                      style={{ width: 120 }}
-                    >
-                      <Option value={5}>5 đơn hàng</Option>
-                      <Option value={10}>10 đơn hàng</Option>
-                      <Option value={15}>15 đơn hàng</Option>
-                      <Option value={20}>20 đơn hàng</Option>
-                    </Select>
-                    <span className="text-sm text-gray-500">/ trang</span>
-                  </Space>
+              <Card 
+                className="border-gray-200 shadow-sm"
+                styles={{ 
+                  body: { padding: '20px 24px' }
+                }}
+              >
+                <Row gutter={[24, 16]} align="middle" justify="space-between">
+                  {/* Page Size Selector */}
+                  <Col xs={24} sm={12} md={8}>
+                    <Space size="middle" className="w-full sm:w-auto">
+                      <div className="flex items-center gap-2">
+                        <Text className="text-sm font-medium text-gray-700">Hiển thị:</Text>
+                        <Select
+                          value={pageSize}
+                          onChange={setPageSize}
+                          style={{ 
+                            width: 150, 
+                            borderRadius: '8px',
+                            minWidth: '150px'
+                          }}
+                          size="large"
+                        >
+                          <Option value={5}>5 đơn hàng</Option>
+                          <Option value={10}>10 đơn hàng</Option>
+                          <Option value={15}>15 đơn hàng</Option>
+                          <Option value={20}>20 đơn hàng</Option>
+                        </Select>
+                        <Text className="text-sm text-gray-500 hidden sm:inline">/ trang</Text>
+                      </div>
+                    </Space>
+                  </Col>
 
-                  {totalPages > 1 && (
-                    <Pagination
-                      current={page}
-                      total={totalPages * pageSize}
-                      pageSize={pageSize}
-                      onChange={(newPage) => setPage(newPage)}
-                      showSizeChanger={false}
-                      showTotal={() => `Trang ${page} / ${totalPages}`}
-                    />
-                  )}
-                </div>
+                  {/* Pagination */}
+                  <Col xs={24} sm={12} md={16}>
+                    <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
+                      {/* Total Info */}
+                      <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        <Text className="text-sm text-gray-600">
+                          Trang <strong className="text-gray-900">{page}</strong> / <strong className="text-gray-900">{totalPages}</strong>
+                        </Text>
+                        <Divider type="vertical" style={{ height: '16px', margin: '0 8px' }} />
+                        <Text className="text-sm text-gray-600">
+                          Tổng: <strong className="text-orange-600">{total || 0}</strong> đơn hàng
+                        </Text>
+                      </div>
+
+                      {/* Pagination Component */}
+                      {totalPages > 1 && (
+                        <Pagination
+                          current={page}
+                          total={totalPages * pageSize}
+                          pageSize={pageSize}
+                          onChange={(newPage) => setPage(newPage)}
+                          showSizeChanger={false}
+                          showQuickJumper={totalPages > 5}
+                          showTotal={(total, range) => (
+                            <span className="text-sm text-gray-600 hidden lg:inline">
+                              Hiển thị <strong className="text-gray-900">{range[0]}-{range[1]}</strong> của <strong className="text-gray-900">{total}</strong> đơn hàng
+                            </span>
+                          )}
+                          style={{ 
+                            textAlign: 'right',
+                          }}
+                          className="custom-pagination"
+                        />
+                      )}
+                    </div>
+                  </Col>
+                </Row>
               </Card>
             )}
           </div>
@@ -194,17 +293,29 @@ const OrderHistoryPage: React.FC = () => {
 
       {/* Cancel Order Modal */}
       <Modal
-        title="Hủy đơn hàng"
+        title={
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-orange-500" />
+            <span className="text-lg font-semibold">Hủy đơn hàng</span>
+          </div>
+        }
         open={!!cancelTargetId}
         onCancel={() => !isCancelling && setCancelTargetId(null)}
         footer={[
-          <Button key="cancel" onClick={() => !isCancelling && setCancelTargetId(null)} disabled={isCancelling}>
+          <Button 
+            key="cancel" 
+            onClick={() => !isCancelling && setCancelTargetId(null)} 
+            disabled={isCancelling}
+            size="large"
+            style={{ borderRadius: '8px' }}
+          >
             Đóng
           </Button>,
           <Button
             key="confirm"
             danger
             loading={isCancelling}
+            size="large"
             onClick={async () => {
               if (!cancelTargetId) return;
               try {
@@ -219,20 +330,31 @@ const OrderHistoryPage: React.FC = () => {
                 setIsCancelling(false);
               }
             }}
+            style={{ borderRadius: '8px' }}
           >
             Xác nhận hủy
           </Button>,
         ]}
+        styles={{ 
+          body: { padding: '24px' },
+          header: { borderBottom: '1px solid #f0f0f0', padding: '16px 24px' }
+        }}
       >
-        <Space direction="vertical" size="middle" className="w-full">
-          <Typography.Text type="secondary">Chỉ có thể hủy khi trạng thái đơn là PENDING.</Typography.Text>
+        <Space direction="vertical" size="large" className="w-full">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <Text type="secondary" className="text-sm">
+              <strong>Lưu ý:</strong> Chỉ có thể hủy khi trạng thái đơn là <strong>PENDING</strong>.
+            </Text>
+          </div>
           
           <div>
-            <Typography.Text strong className="block mb-2">Lý do hủy</Typography.Text>
+            <Text strong className="block mb-2 text-base">Lý do hủy</Text>
             <Select
               value={cancelReason}
               onChange={setCancelReason}
               className="w-full"
+              size="large"
+              style={{ borderRadius: '8px' }}
             >
               <Option value="CHANGE_OF_MIND">Đổi ý</Option>
               <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
@@ -243,14 +365,17 @@ const OrderHistoryPage: React.FC = () => {
           </div>
           
           <div>
-            <Typography.Text strong className="block mb-2">Ghi chú</Typography.Text>
+            <Text strong className="block mb-2 text-base">Ghi chú</Text>
             <TextArea
               value={cancelNote}
               onChange={(e) => setCancelNote(e.target.value)}
-              placeholder="VD: Đặt nhầm phiên bản"
+              placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
               rows={4}
+              style={{ borderRadius: '8px' }}
             />
-            <Typography.Text type="secondary" className="text-xs mt-1 block">Ghi chú sẽ gửi kèm yêu cầu hủy.</Typography.Text>
+            <Text type="secondary" className="text-xs mt-2 block">
+              Ghi chú sẽ được gửi kèm yêu cầu hủy đơn hàng.
+            </Text>
           </div>
         </Space>
       </Modal>

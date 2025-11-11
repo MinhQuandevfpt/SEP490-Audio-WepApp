@@ -288,6 +288,18 @@ const CheckoutOrderContainer: React.FC = () => {
   }, [cartItems]);
 
   useEffect(() => {
+    // Chỉ validate khi đã có đủ dữ liệu
+    // Nếu availableVouchers đang rỗng (chưa load xong) hoặc cartItems rỗng, giữ nguyên voucher
+    if (cartItems.length === 0) return;
+    
+    // Kiểm tra xem productCache đã có đủ data cho tất cả items chưa
+    const allProductsCached = cartItems.every(item => productCache.has(item.productId));
+    
+    // Nếu chưa có đủ data, giữ nguyên voucher (không validate)
+    if (!allProductsCached && productCache.size === 0) {
+      return;
+    }
+
     const messages: string[] = [];
 
     setAppliedStoreVouchers(prev => {
@@ -296,11 +308,41 @@ const CheckoutOrderContainer: React.FC = () => {
       const next: Record<string, AppliedStoreVoucher> = {};
 
       Object.entries(prev).forEach(([storeId, applied]) => {
+        // Nếu availableVouchers chưa load xong, giữ nguyên voucher với discountValue hiện tại
+        if (availableVouchers.length === 0) {
+          next[storeId] = applied;
+          return;
+        }
+
         const voucher = availableVouchers.find(v => v.code === applied.code);
         const storeTotal = calculateStoreTotal(cartItems, storeId, productCache);
 
-        if (!voucher || storeTotal <= 0) {
+        // Nếu không tìm thấy voucher trong availableVouchers, nhưng availableVouchers đã load xong
+        // thì có thể voucher đã hết hạn hoặc không còn hợp lệ
+        if (!voucher) {
+          // Chỉ xóa nếu availableVouchers đã load xong (length > 0)
+          // Nếu đang loading (length = 0), giữ nguyên
+          if (availableVouchers.length > 0) {
+            changed = true;
+            messages.push(`Voucher ${applied.code} không còn hợp lệ.`);
+            return;
+          } else {
+            // Đang loading, giữ nguyên
+            next[storeId] = applied;
+            return;
+          }
+        }
+
+        // Nếu storeTotal = 0, có thể do productCache chưa có đủ data
+        // Chỉ xóa nếu chắc chắn storeTotal = 0 (tất cả products đã có trong cache)
+        if (storeTotal <= 0 && allProductsCached) {
           changed = true;
+          return;
+        }
+
+        // Nếu storeTotal = 0 nhưng chưa có đủ cache, giữ nguyên voucher
+        if (storeTotal <= 0) {
+          next[storeId] = applied;
           return;
         }
 
