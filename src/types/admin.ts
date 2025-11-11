@@ -140,6 +140,7 @@ export interface FlashSaleSlot {
   openTime: string;
   closeTime: string;
   status: string;
+  voucher?: CampaignVoucher | null; // Flash Sale slot có voucher riêng
 }
 
 export interface CampaignProduct {

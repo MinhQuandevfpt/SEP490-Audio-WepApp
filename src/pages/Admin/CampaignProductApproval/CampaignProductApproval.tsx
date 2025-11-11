@@ -17,7 +17,8 @@ import type {
   CampaignOverviewItem,
   CampaignType,
   VoucherStatus,
-  Campaign
+  Campaign,
+  CampaignVoucher
 } from '../../../types/admin';
 import { showTikiNotification } from '../../../utils/notification';
 
@@ -91,6 +92,24 @@ const CampaignProductApproval: React.FC = () => {
     }
   };
 
+  // Helper: Lấy voucher từ product (xử lý cả Mega Sale và Flash Sale)
+  const getProductVoucher = useCallback((product: CampaignProduct): CampaignVoucher | null => {
+    // Mega Sale: voucher trực tiếp
+    if (product.voucher) {
+      return product.voucher;
+    }
+    
+    // Flash Sale: voucher trong flashSaleSlots[0]
+    if (product.flashSaleSlots && product.flashSaleSlots.length > 0) {
+      const firstSlot = product.flashSaleSlots[0];
+      if (firstSlot.voucher) {
+        return firstSlot.voucher;
+      }
+    }
+    
+    return null;
+  }, []);
+
   // Flatten products from all campaigns for table display
   const allProducts = useMemo(() => {
     const products: (CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType })[] = [];
@@ -110,12 +129,18 @@ const CampaignProductApproval: React.FC = () => {
   // Statistics
   const stats = useMemo(() => {
     const total = allProducts.length;
-    const draft = allProducts.filter(p => p.voucher?.status === 'DRAFT').length;
-    const approved = allProducts.filter(p => p.voucher?.status === 'APPROVE').length;
+    const draft = allProducts.filter(p => {
+      const voucher = getProductVoucher(p);
+      return voucher?.status === 'DRAFT';
+    }).length;
+    const approved = allProducts.filter(p => {
+      const voucher = getProductVoucher(p);
+      return voucher?.status === 'APPROVE';
+    }).length;
     const uniqueStores = new Set(allProducts.map(p => p.storeId)).size;
 
     return { total, draft, approved, uniqueStores };
-  }, [allProducts]);
+  }, [allProducts, getProductVoucher]);
 
   const handleApproveSelected = useCallback(() => {
     if (selectedProducts.length === 0) {
@@ -177,7 +202,7 @@ const CampaignProductApproval: React.FC = () => {
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
-  const columns: ColumnsType<CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }> = [
+  const columns: ColumnsType<CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }> = useMemo(() => [
     {
       title: 'Sản phẩm',
       dataIndex: 'productName',
@@ -245,15 +270,16 @@ const CampaignProductApproval: React.FC = () => {
       width: 120,
       align: 'center',
       render: (_, record) => {
-        if (!record.voucher) return <span className="text-gray-400">N/A</span>;
+        const voucher = getProductVoucher(record);
+        if (!voucher) return <span className="text-gray-400">N/A</span>;
         return (
           <div>
             <Tag color="red" className="font-bold">
-              {CampaignProductService.formatDiscount(record.voucher)}
+              {CampaignProductService.formatDiscount(voucher)}
             </Tag>
-            {record.voucher.type === 'PERCENT' && record.voucher.maxDiscountValue && (
+            {voucher.type === 'PERCENT' && voucher.maxDiscountValue && (
               <div className="text-xs text-gray-400 mt-1">
-                Tối đa: {record.voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
+                Tối đa: {voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
               </div>
             )}
           </div>
@@ -266,7 +292,8 @@ const CampaignProductApproval: React.FC = () => {
       width: 120,
       align: 'right',
       render: (_, record) => {
-        if (!record.voucher) {
+        const voucher = getProductVoucher(record);
+        if (!voucher) {
           return (
             <span className="text-gray-400">
               {record.originalPrice.toLocaleString('vi-VN')}₫
@@ -275,7 +302,7 @@ const CampaignProductApproval: React.FC = () => {
         }
         const finalPrice = CampaignProductService.calculateDiscountedPrice(
           record.originalPrice,
-          record.voucher
+          voucher
         );
         return (
           <span className="text-red-600 font-bold">
@@ -286,17 +313,17 @@ const CampaignProductApproval: React.FC = () => {
     },
     {
       title: 'Trạng thái',
-      dataIndex: ['voucher', 'status'],
       key: 'status',
       width: 120,
       align: 'center',
-      render: (status: VoucherStatus, record) => {
-        if (!record.voucher?.status) {
+      render: (_, record) => {
+        const voucher = getProductVoucher(record);
+        if (!voucher?.status) {
           return <Tag color="default">Không rõ</Tag>;
         }
         return (
-          <Tag color={CampaignProductService.getVoucherStatusColor(status)}>
-            {CampaignProductService.getVoucherStatusLabel(status)}
+          <Tag color={CampaignProductService.getVoucherStatusColor(voucher.status)}>
+            {CampaignProductService.getVoucherStatusLabel(voucher.status)}
           </Tag>
         );
       }
@@ -306,33 +333,37 @@ const CampaignProductApproval: React.FC = () => {
       key: 'time',
       width: 180,
       render: (_, record) => {
-        if (!record.voucher?.startTime || !record.voucher?.endTime) {
+        const voucher = getProductVoucher(record);
+        if (!voucher?.startTime || !voucher?.endTime) {
           return <span className="text-gray-400 text-xs">N/A</span>;
         }
         return (
           <div className="text-xs">
             <div className="flex items-center gap-1 text-gray-600">
               <ClockCircleOutlined />
-              <span>{new Date(record.voucher.startTime).toLocaleDateString('vi-VN')}</span>
+              <span>{new Date(voucher.startTime).toLocaleDateString('vi-VN')}</span>
             </div>
             <div className="text-gray-400 mt-1">
-              đến {new Date(record.voucher.endTime).toLocaleDateString('vi-VN')}
+              đến {new Date(voucher.endTime).toLocaleDateString('vi-VN')}
             </div>
           </div>
         );
       }
     }
-  ];
+  ], [getProductVoucher]);
 
   const rowSelection = {
     selectedRowKeys: selectedProducts,
     onChange: (selectedRowKeys: React.Key[]) => {
       setSelectedProducts(selectedRowKeys as string[]);
     },
-    getCheckboxProps: (record: CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }) => ({
-      disabled: !record.voucher?.status || !['DRAFT', 'APPROVE'].includes(record.voucher.status),
-      name: record.productName
-    })
+    getCheckboxProps: (record: CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }) => {
+      const voucher = getProductVoucher(record);
+      return {
+        disabled: !voucher?.status || !['DRAFT', 'APPROVE'].includes(voucher.status),
+        name: record.productName
+      };
+    }
   };
 
   return (

@@ -89,6 +89,57 @@ export class SellerCampaignService {
   }
 
   /**
+   * Get joined campaigns for store
+   * @param storeId - Store ID
+   * @param campaignStatus - Filter by campaign status (ONOPEN | ACTIVE | EXPIRED)
+   * @param storeApproved - Filter by store approval status (true | false | null)
+   */
+  static async getJoinedCampaigns(
+    storeId: string,
+    campaignStatus?: 'ONOPEN' | 'ACTIVE' | 'EXPIRED',
+    storeApproved?: boolean | null
+  ): Promise<CampaignForSeller[]> {
+    try {
+      const params = new URLSearchParams();
+      params.append('storeId', storeId);
+      
+      if (campaignStatus) {
+        params.append('campaignStatus', campaignStatus);
+      }
+      
+      if (storeApproved !== undefined && storeApproved !== null) {
+        params.append('storeApproved', storeApproved.toString());
+      }
+
+      console.log('🚀 Fetching joined campaigns from:', `${API_BASE_URL}/joined-campaigns?${params.toString()}`);
+      
+      const response = await HttpInterceptor.fetch<any[]>(
+        `${API_BASE_URL}/joined-campaigns?${params.toString()}`,
+        { 
+          method: 'GET',
+          userType: 'seller' 
+        }
+      );
+      
+      console.log('📦 Joined campaigns response:', response);
+      
+      // Response trả về trực tiếp là array, không có wrapper
+      // API trả về campaignType thay vì type, cần map lại
+      if (Array.isArray(response)) {
+        return response.map(campaign => ({
+          ...campaign,
+          type: campaign.campaignType || campaign.type, // Map campaignType -> type
+        }));
+      }
+      
+      return [];
+    } catch (error: any) {
+      console.error('❌ Error fetching joined campaigns:', error);
+      throw new Error(error.message || 'Không thể tải danh sách chiến dịch đã tham gia');
+    }
+  }
+
+  /**
    * Format date for display
    */
   static formatDate(dateString: string): string {
