@@ -53,9 +53,9 @@ export class CampaignProductService {
    * @param campaignProductIds - Array of campaign product IDs
    */
   static async approveProducts(campaignId: string, campaignProductIds: string[]): Promise<void> {
-    const response = await HttpInterceptor.post(
-      `/api/campaigns/${campaignId}/products/approve`,
-      { campaignProductIds },
+    const response = await HttpInterceptor.put(
+      `/api/campaigns/${campaignId}/approve-products`,
+      campaignProductIds,
       { userType: 'admin' }
     );
     return response.data;

@@ -13,6 +13,7 @@ import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
 import { CampaignList as SellerCampaignList } from '../pages/Seller/Campaign';
+import CampaignProductDetails from '../pages/Seller/Campaign/CampaignProductDetails';
 import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
@@ -371,8 +372,8 @@ export const router = createBrowserRouter([
         element: <SellerCampaignList />
       },
       {
-        path: 'campaigns/:campaignId',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Chi tiết chiến dịch</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+        path: 'campaigns/:campaignId/products',
+        element: <CampaignProductDetails />
       },
       {
         path: 'messages',

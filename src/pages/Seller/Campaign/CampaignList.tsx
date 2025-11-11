@@ -190,8 +190,8 @@ const SellerCampaignList: React.FC = () => {
     return (
       <Card
         hoverable
-        className="mb-6 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border-0"
-        bodyStyle={{ padding: 0 }}
+        className="mb-6 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border-0 flex flex-col"
+        bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}
       >
         {/* Campaign Header: image left, info right */}
         <div className="bg-white p-4">
@@ -247,63 +247,52 @@ const SellerCampaignList: React.FC = () => {
           </div>
         </div>
 
-        {/* Body */}
-        <div className="p-6 bg-white">
-          {/* Compact spacing after header */}
-          <div className="h-2" />
-
-          {/* Flash Slots */}
+        {/* Body - flex-1 để đẩy buttons xuống dưới */}
+        <div className="p-6 bg-white flex-1 flex flex-col">
+          {/* Flash Slots - Horizontal scroll, no wrap */}
           {campaign.flashSlots && campaign.flashSlots.length > 0 && (
-            <div className="mb-5 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-5 border-2 border-orange-200 shadow-sm">
-              <div className="flex items-center gap-2 text-base font-bold text-orange-800 mb-4">
-                <div className="bg-orange-500 p-2 rounded-lg shadow-md">
-                  <ThunderboltOutlined className="text-white text-lg animate-pulse" />
-                </div>
-                <span>Khung giờ Flash Sale</span>
-                <Tag color="orange" className="ml-auto font-bold">
+            <div className="mb-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-3 border border-orange-200">
+              <div className="flex items-center gap-2 mb-2">
+                <ThunderboltOutlined className="text-orange-600 text-base" />
+                <span className="text-sm font-bold text-orange-800">Khung giờ Flash Sale</span>
+                <Tag color="orange" className="text-xs font-semibold">
                   {campaign.flashSlots.length} khung
                 </Tag>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {campaign.flashSlots.slice(0, 8).map(slot => (
-                  <div
-                    key={slot.slotId}
-                    className="bg-white border-2 border-orange-300 rounded-lg p-3 text-center hover:border-orange-500 hover:shadow-md transition-all"
-                  >
-                    <div className="text-orange-600 text-xs font-semibold mb-1">
-                      🔥 Flash Sale
+              {/* Horizontal scroll container */}
+              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-orange-300 scrollbar-track-orange-100">
+                <div className="flex gap-2 pb-1" style={{ minWidth: 'max-content' }}>
+                  {campaign.flashSlots.map(slot => (
+                    <div
+                      key={slot.slotId}
+                      className="inline-flex items-center gap-1 bg-white border border-orange-300 rounded-md px-2 py-1 text-xs font-semibold text-gray-900 hover:border-orange-500 hover:shadow-sm transition-all whitespace-nowrap flex-shrink-0"
+                    >
+                      <span className="text-orange-600">🔥</span>
+                      <span>
+                        {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <span className="text-gray-400">-</span>
+                      <span>
+                        {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
                     </div>
-                    <div className="text-gray-900 font-bold text-sm">
-                      {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                    <div className="text-gray-500 text-xs">đến</div>
-                    <div className="text-gray-900 font-bold text-sm">
-                      {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </div>
-                ))}
-                {campaign.flashSlots.length > 8 && (
-                  <div className="bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-3 flex items-center justify-center">
-                    <span className="text-gray-600 font-semibold text-sm">
-                      +{campaign.flashSlots.length - 8} khung
-                    </span>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
           {/* Description */}
           {campaign.description && (
-            <div className="mb-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-start gap-2">
-                <div className="text-blue-600 text-lg mt-0.5">💡</div>
+                <div className="text-blue-600 text-base mt-0.5">💡</div>
                 <p className="text-sm text-gray-700 leading-relaxed m-0 flex-1">
                   {campaign.description}
                 </p>
@@ -311,9 +300,11 @@ const SellerCampaignList: React.FC = () => {
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {!isJoined ? (
+          {/* Spacer để đẩy buttons xuống dưới cùng */}
+          <div className="flex-1"></div>
+
+          {/* Action Buttons - luôn ở dưới cùng */}
+          <div className="flex gap-3 mt-4">{!isJoined ? (
               <>
                 <Button
                   type="primary"
@@ -340,7 +331,7 @@ const SellerCampaignList: React.FC = () => {
                 <Button
                   type="default"
                   size="large"
-                  onClick={() => navigate(`/seller/campaigns/${campaign.id}`)}
+                  onClick={() => navigate(`/seller/dashboard/campaigns/${campaign.id}/products`)}
                   className="h-14 px-8 font-bold text-base rounded-xl border-2 border-gray-300 hover:border-blue-500 hover:text-blue-500 hover:shadow-md transition-all duration-300"
                   icon={<EyeOutlined className="text-lg" />}
                 >
@@ -351,7 +342,7 @@ const SellerCampaignList: React.FC = () => {
               <Button
                 type="primary"
                 size="large"
-                onClick={() => navigate(`/seller/campaigns/${campaign.id}`)}
+                onClick={() => navigate(`/seller/dashboard/campaigns/${campaign.id}/products`)}
                 className="flex-1 h-14 font-bold text-base rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
                 style={{
                   background: `linear-gradient(135deg, ${badgeColor}, ${badgeColor}dd)`,

@@ -20,6 +20,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { SellerCampaignService } from '../../../services/seller/CampaignService';
 import { ProductService } from '../../../services/seller/ProductService';
+import { StoreService } from '../../../services/seller/StoreService';
 import type {
   CampaignForSeller,
   VoucherType,
@@ -63,13 +64,43 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
 
   useEffect(() => {
     if (visible && campaign) {
-      fetchProducts();
+      fetchJoinedProducts();
       setSelectedRowKeys([]);
     }
   }, [visible, campaign]);
 
-  const fetchProducts = async () => {
+  const fetchJoinedProducts = async () => {
+    if (!campaign) return;
+    
     setIsLoadingProducts(true);
+    try {
+      // Get store ID
+      const storeId = await StoreService.getStoreId();
+      
+      // Fetch already joined products for this campaign
+      const joinedProducts = await SellerCampaignService.getCampaignProductDetails(
+        storeId,
+        campaign.id
+      );
+      
+      const joinedIds = new Set(joinedProducts.map(p => p.productId));
+      
+      console.log('📦 Already joined product IDs:', Array.from(joinedIds));
+      
+      // Fetch available products
+      await fetchProducts(joinedIds);
+    } catch (error: any) {
+      console.error('❌ Error fetching joined products:', error);
+      showTikiNotification(
+        error.message || 'Không thể tải danh sách sản phẩm',
+        'Lỗi',
+        'error'
+      );
+      setIsLoadingProducts(false);
+    }
+  };
+
+  const fetchProducts = async (joinedIds: Set<string>) => {
     try {
       const response = await ProductService.getMyProducts({
         status: 'ACTIVE',
@@ -79,9 +110,14 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       
       const fetchedProducts = response.data?.content || [];
       console.log('📦 Fetched products for current store:', fetchedProducts.length);
+      console.log('🚫 Already joined IDs:', Array.from(joinedIds));
+      
+      // ✅ Filter out products that are already joined to this campaign
+      const availableProducts = fetchedProducts.filter(product => !joinedIds.has(product.productId));
+      console.log('✅ Available products (not joined yet):', availableProducts.length);
       
       // Map products with default config values
-      const productsWithConfig: ProductWithConfig[] = fetchedProducts.map(product => ({
+      const productsWithConfig: ProductWithConfig[] = availableProducts.map(product => ({
         ...product,
         slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
         type: 'PERCENT' as VoucherType,
@@ -93,12 +129,12 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       
       setProducts(productsWithConfig);
       
-      if (fetchedProducts.length === 0) {
-        showTikiNotification(
-          'Bạn chưa có sản phẩm ACTIVE nào để đăng ký chiến dịch. Vui lòng tạo sản phẩm mới hoặc kích hoạt sản phẩm hiện có.',
-          'Không có sản phẩm',
-          'error'
-        );
+      if (availableProducts.length === 0) {
+        const message = joinedIds.size > 0 
+          ? 'Tất cả sản phẩm của bạn đã được đăng ký vào chiến dịch này.'
+          : 'Bạn chưa có sản phẩm ACTIVE nào để đăng ký chiến dịch. Vui lòng tạo sản phẩm mới hoặc kích hoạt sản phẩm hiện có.';
+        
+        showTikiNotification(message, 'Không có sản phẩm khả dụng', 'error');
       }
     } catch (error: any) {
       showTikiNotification(

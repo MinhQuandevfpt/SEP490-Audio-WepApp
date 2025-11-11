@@ -28,6 +28,7 @@ const SellerDashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
   const [sellerUserName, setSellerUserName] = useState<string>('');
@@ -163,6 +164,10 @@ const SellerDashboardLayout: React.FC = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
+  const toggleExpand = (path: string) => {
+    setExpandedItems(prev => prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Header */}
@@ -282,32 +287,41 @@ const SellerDashboardLayout: React.FC = () => {
             {menuItems.map((item, index) => {
               const Icon = item.icon;
               const isCurrentActive = isActive(item.path);
-              
+              const isExpanded = expandedItems.includes(item.path) || isCurrentActive;
+
               return (
                 <div key={index}>
-                  <Link
-                    to={item.path}
-                    className={`flex items-center justify-between px-4 py-3 rounded-lg mb-1 transition-all ${
-                      isCurrentActive
-                        ? 'bg-orange-50 text-orange-600 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
+                  <div className={`flex items-center justify-between mb-1 rounded-lg transition-all ${isCurrentActive ? 'bg-orange-50' : ''}`}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center px-4 py-3 rounded-lg flex-1 transition-all ${
+                        isCurrentActive ? 'text-orange-600 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
                       <Icon className={`w-5 h-5 ${isCurrentActive ? 'text-orange-600' : 'text-gray-600'}`} />
                       {isSidebarOpen && (
-                        <span className="text-sm">{item.label}</span>
+                        <span className="ml-3 text-sm">{item.label}</span>
                       )}
-                    </div>
+                    </Link>
+
+                    {isSidebarOpen && item.subItems && (
+                      <button
+                        onClick={() => toggleExpand(item.path)}
+                        className="p-2 mr-2 rounded hover:bg-gray-100"
+                        aria-label="Toggle submenu"
+                      >
+                        <ChevronDown className={`w-4 h-4 text-gray-500 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
                     {isSidebarOpen && item.badge && (
-                      <span className="bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
+                      <span className="bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full mr-3">
                         {item.badge}
                       </span>
                     )}
-                  </Link>
-                  
+                  </div>
+
                   {/* Sub Items */}
-                  {isSidebarOpen && item.subItems && isCurrentActive && (
+                  {isSidebarOpen && item.subItems && isExpanded && (
                     <div className="ml-8 mb-2">
                       {item.subItems.map((subItem, subIndex) => (
                         <Link

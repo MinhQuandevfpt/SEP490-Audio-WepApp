@@ -724,3 +724,53 @@ export interface JoinCampaignResponse {
   message: string;
   data: any;
 }
+
+// Campaign Product Detail Types
+export type CampaignProductStatus = 'DRAFT' | 'ACTIVE' | 'APPROVE' | 'EXPIRED' | 'REJECTED' | 'DISABLED';
+
+export interface CampaignProductSlot {
+  slotId: string;
+  openTime: string;
+  closeTime: string;
+  slotStatus: string;
+}
+
+export interface CampaignProductDetail {
+  campaignProductId: string;
+  campaignId: string;
+  campaignName: string;
+  campaignType: 'MEGA_SALE' | 'FAST_SALE';
+  storeId: string;
+  storeName: string;
+  productId: string;
+  productName: string;
+  brandName: string;
+  category: string;
+  originalPrice: number;
+  discountedPrice: number;
+  discountType: VoucherType;
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  totalVoucherIssued: number;
+  totalUsageLimit: number;
+  usagePerUser: number;
+  remainingUsage: number;
+  approved: boolean;
+  approvedAt: string | null;
+  registeredAt: string;
+  status: CampaignProductStatus;
+  reason: string | null;
+  startTime: string;
+  endTime: string;
+  slot: CampaignProductSlot | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CampaignProductDetailsResponse {
+  status: number;
+  message: string;
+  data: CampaignProductDetail[];
+}
