@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import SectionCard from './SectionCard';
 import { TinyMCEEditor } from '../common';
 import { CategoryService } from '../../services/seller/CategoryService';
@@ -243,6 +244,20 @@ const Suminputsection: React.FC = () => {
     };
     loadData();
   }, []);
+
+  // Reload shipping methods without showing success popup
+  const reloadShippingMethods = async () => {
+    try {
+      setShippingLoading(true);
+      const shipRes = await ShippingService.getShippingMethods();
+      setShippingMethods(shipRes.data || []);
+      // Không hiển thị popup khi reload thành công
+    } catch (e) {
+      showCenterError('Không thể tải lại phương thức vận chuyển');
+    } finally {
+      setShippingLoading(false);
+    }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -1364,7 +1379,20 @@ const Suminputsection: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-semibold text-gray-800">Phương thức vận chuyển</label>
-              <span className="text-xs text-gray-500">Chọn các phương thức hỗ trợ đơn này</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">Chọn các phương thức hỗ trợ đơn này</span>
+                <button
+                  type="button"
+                  onClick={reloadShippingMethods}
+                  disabled={shippingLoading}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Tải lại phương thức vận chuyển"
+                >
+                  <RefreshCw 
+                    className={`h-4 w-4 text-gray-600 ${shippingLoading ? 'animate-spin' : ''}`} 
+                  />
+                </button>
+              </div>
             </div>
             {shippingLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -1703,7 +1731,7 @@ const Suminputsection: React.FC = () => {
                       className={`px-5 py-2 rounded-lg text-white font-medium transition-colors ${
                         !canSubmit || submitting 
                           ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-green-600 hover:bg-green-700'
+                          : 'bg-orange-600 hover:bg-orange-700'
                       }`}
                     >
                       {submitting ? 'Đang lưu...' : 'Lưu và đăng sản phẩm'}

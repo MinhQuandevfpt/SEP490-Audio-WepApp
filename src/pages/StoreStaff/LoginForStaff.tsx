@@ -7,7 +7,6 @@ import { showCenterError, showCenterSuccess } from '../../utils/notification';
 interface LoginData {
   email: string;
   password: string;
-  storeCode: string;
 }
 
 const LoginForStaff: React.FC = () => {
@@ -25,8 +24,7 @@ const LoginForStaff: React.FC = () => {
       // Call the actual API using StoreStaffAuthService
       const response = await StoreStaffAuthService.login({
         email: data.email,
-        password: data.password,
-        storeCode: data.storeCode
+        password: data.password
       });
       
       if (response.status === 200) {

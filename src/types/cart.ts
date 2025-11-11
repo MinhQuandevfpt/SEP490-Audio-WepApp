@@ -66,12 +66,23 @@ export interface StoreVoucher {
   codes: string[];
 }
 
+// Platform Voucher
+export interface PlatformVoucher {
+  campaignProductId: string;
+  quantity: number;
+}
+
+// Service Type IDs - object với key là storeId và value là serviceTypeId
+export type ServiceTypeIds = Record<string, number>;
+
 // Checkout COD Request
 export interface CheckoutCodRequest {
   items: CheckoutCodItem[];
   addressId: string;
   message?: string;  // Note from address
   storeVouchers?: StoreVoucher[];
+  platformVouchers?: PlatformVoucher[] | null;
+  serviceTypeIds?: ServiceTypeIds;
 }
 
 // Checkout COD Response Data
@@ -119,6 +130,8 @@ export interface CheckoutPayOSRequest {
   description?: string;
   items: CheckoutPayOSItem[];
   storeVouchers?: StoreVoucher[];
+  platformVouchers?: PlatformVoucher[] | null;
+  serviceTypeIds?: ServiceTypeIds;
   returnUrl: string;  // URL to redirect after successful payment
   cancelUrl: string;  // URL to redirect after failed payment
 }

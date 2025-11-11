@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import Layout from '../../components/Layout';
 import Sidebar from '../../components/Sidebar';
 import BannerSlider from '../../components/BannerSlider';
-import FlashSale from '../../components/FlashSale';
+import FlashSaleHome from '../../components/FlashSale/FlashSaleHome';
 import TopDeals from '../../components/TopDeals';
 import FeaturedBrands from '../../components/FeaturedBrands';
 import ProductSuggestions from '../../components/ProductSuggestions';
@@ -49,7 +49,7 @@ const HomePage: React.FC = () => {
             <BannerSlider />
 
             {/* Flash Sale Section */}
-            <FlashSale />
+            <FlashSaleHome />
 
             {/* Top Deals Section */}
             <TopDeals />

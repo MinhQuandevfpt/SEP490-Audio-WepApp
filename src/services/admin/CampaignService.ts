@@ -169,15 +169,53 @@ export class CampaignService {
 
   /**
    * Cập nhật trạng thái chiến dịch
+   * 
+   * 📝 FLOW CHÍNH XÁC:
+   * 1. DRAFT (Bản nháp)
+   *    - Admin vừa tạo xong
+   *    - ❌ Seller CHƯA thấy campaign này
+   *    - ❌ Chưa thể đăng ký tham gia
+   * 
+   * 2. Admin nhấn "Gửi/Mở đăng ký" → ONOPEN
+   *    - ✅ Seller BẮT ĐẦU thấy campaign
+   *    - ✅ Seller có thể đăng ký tham gia
+   *    - ⏳ Chờ đến startTime
+   * 
+   * 3. ONOPEN → ACTIVE (⏰ Scheduler tự động khi đến startTime)
+   *    - Campaign bắt đầu chạy thực sự
+   * 
+   * 4. ACTIVE → EXPIRED (⏰ Scheduler tự động khi qua endTime)
+   *    - Campaign kết thúc
+   * 
+   * 5. DISABLED (🚫 Admin khóa bất cứ lúc nào)
+   *    - Khẩn cấp tắt campaign từ bất kỳ trạng thái nào
+   * 
+   * FE chỉ được phép chuyển:
+   * - DRAFT → ONOPEN (Gửi campaign cho seller)
+   * - Bất kỳ → DISABLED (Khóa campaign)
+   * 
+   * KHÔNG được chuyển thủ công:
+   * - → ACTIVE (Scheduler tự bật khi tới startTime)
+   * - → EXPIRED (Scheduler tự tắt khi qua endTime)
    */
-  static async updateCampaignStatus(id: string, status: CampaignStatus): Promise<Campaign> {
+  static async updateCampaignStatus(id: string, status: CampaignStatus): Promise<string> {
     try {
-      const response = await HttpInterceptor.fetch<CampaignResponse>(
-        `/api/campaigns/${id}/status`,
+      // Validate allowed transitions from FE
+      if (status === 'ACTIVE') {
+        throw new Error('Không thể chuyển sang ACTIVE thủ công. Hệ thống sẽ tự động kích hoạt khi đến giờ bắt đầu.');
+      }
+      if (status === 'EXPIRED') {
+        throw new Error('Không thể chuyển sang EXPIRED thủ công. Hệ thống sẽ tự động hết hạn khi qua thời gian kết thúc.');
+      }
+
+      const response = await HttpInterceptor.fetch<{
+        status: number;
+        message: string;
+        data: string;
+      }>(
+        `/api/campaigns/${id}/status?status=${status}`,
         {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status }),
           userType: 'admin'
         }
       );
@@ -189,17 +227,63 @@ export class CampaignService {
   }
 
   /**
+   * Kiểm tra xem có thể chuyển trạng thái hay không
+   */
+  static canChangeStatus(currentStatus: CampaignStatus, newStatus: CampaignStatus): boolean {
+    // Allowed transitions from FE perspective
+    const allowedTransitions: Record<CampaignStatus, CampaignStatus[]> = {
+      'DRAFT': ['ONOPEN', 'DISABLED'],
+      'ONOPEN': ['DISABLED'],
+      'ACTIVE': ['DISABLED'], // BE sẽ tự chuyển ACTIVE, nhưng admin có thể disable
+      'DISABLED': ['ONOPEN', 'DRAFT'],
+      'APPROVE': ['DISABLED'],
+      'EXPIRED': [] // Không được chuyển từ EXPIRED
+    };
+
+    return allowedTransitions[currentStatus]?.includes(newStatus) || false;
+  }
+
+  /**
+   * Lấy label mô tả cho status transition
+   */
+  static getStatusTransitionLabel(status: CampaignStatus): string {
+    const labels: Record<CampaignStatus, string> = {
+      'DRAFT': 'Lưu nháp',
+      'ONOPEN': 'Gửi & Mở đăng ký', // Seller bắt đầu thấy campaign
+      'ACTIVE': 'Kích hoạt',
+      'DISABLED': 'Vô hiệu hóa',
+      'APPROVE': 'Phê duyệt',
+      'EXPIRED': 'Hết hạn'
+    };
+    return labels[status] || status;
+  }
+
+  /**
+   * Lấy mô tả chi tiết cho status
+   */
+  static getStatusDescription(status: CampaignStatus): string {
+    const descriptions: Record<CampaignStatus, string> = {
+      'DRAFT': '📝 Bản nháp - Seller chưa thấy campaign này',
+      'ONOPEN': '📢 Đang mở đăng ký - Seller có thể tham gia',
+      'ACTIVE': '🔥 Đang diễn ra - Campaign đang chạy',
+      'DISABLED': '🚫 Đã vô hiệu hóa - Campaign bị khóa',
+      'APPROVE': '✅ Đã phê duyệt',
+      'EXPIRED': '⏱️ Đã hết hạn - Campaign kết thúc'
+    };
+    return descriptions[status] || status;
+  }
+
+  /**
    * Format status label
    */
   static getStatusLabel(status: CampaignStatus): string {
     const labels: Record<CampaignStatus, string> = {
       DRAFT: 'Bản nháp',
-      SCHEDULED: 'Đã lên lịch',
+      ONOPEN: 'Đang mở đăng ký',
       ACTIVE: 'Đang diễn ra',
-      ENDED: 'Đã kết thúc',
-      CANCELLED: 'Đã hủy',
-      EXPIRED: 'Đã hết hạn',
-      PENDING: 'Chờ xử lý'
+      APPROVE: 'Đã phê duyệt',
+      DISABLED: 'Đã vô hiệu hóa',
+      EXPIRED: 'Đã hết hạn'
     };
     return labels[status] || status;
   }
@@ -210,12 +294,11 @@ export class CampaignService {
   static getStatusColor(status: CampaignStatus): string {
     const colors: Record<CampaignStatus, string> = {
       DRAFT: 'bg-gray-100 text-gray-800',
-      SCHEDULED: 'bg-blue-100 text-blue-800',
+      ONOPEN: 'bg-blue-100 text-blue-800',
       ACTIVE: 'bg-green-100 text-green-800',
-      ENDED: 'bg-red-100 text-red-800',
-      CANCELLED: 'bg-orange-100 text-orange-800',
-      EXPIRED: 'bg-red-100 text-red-800',
-      PENDING: 'bg-yellow-100 text-yellow-800'
+      APPROVE: 'bg-purple-100 text-purple-800',
+      DISABLED: 'bg-orange-100 text-orange-800',
+      EXPIRED: 'bg-red-100 text-red-800'
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   }

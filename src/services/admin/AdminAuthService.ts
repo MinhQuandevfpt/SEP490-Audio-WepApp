@@ -1,4 +1,5 @@
 import { translateError } from '../../utils/errorTranslation';
+import { RefreshTokenService } from '../RefreshTokenService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
@@ -54,11 +55,17 @@ class AdminAuthServiceClass {
 
       if (response.ok && result.status === 200) {
         const { accessToken, refreshToken, user } = result.data;
+        const tokenType = result.data.tokenType || 'Bearer';
 
-        // Store tokens and user info
+        // Store tokens using RefreshTokenService
+        RefreshTokenService.storeTokens('ADMIN', accessToken, refreshToken, tokenType);
+        
+        // Also store in old format for backward compatibility
         localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
         localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
         localStorage.setItem(this.ADMIN_USER_KEY, JSON.stringify(user));
+
+        console.log('✅ Admin login successful');
 
         return {
           success: true,
@@ -91,9 +98,10 @@ class AdminAuthServiceClass {
   }
 
   logout(): void {
-    localStorage.removeItem(this.ACCESS_TOKEN_KEY);
-    localStorage.removeItem(this.REFRESH_TOKEN_KEY);
-    localStorage.removeItem(this.ADMIN_USER_KEY);
+    // Clear ALL data using RefreshTokenService
+    RefreshTokenService.clearAllData('ADMIN');
+    
+    console.log('✅ Admin logged out successfully');
   }
 
   isAuthenticated(): boolean {
@@ -124,31 +132,24 @@ class AdminAuthServiceClass {
 
   async refreshToken(): Promise<boolean> {
     try {
-      const refreshToken = this.getRefreshToken();
-      if (!refreshToken) return false;
-
-      // Call refresh token API
-      const response = await fetch(`${API_BASE_URL}/api/account/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${refreshToken}`
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        const { accessToken, refreshToken: newRefreshToken } = result.data;
-
-        localStorage.setItem(this.ACCESS_TOKEN_KEY, accessToken);
-        localStorage.setItem(this.REFRESH_TOKEN_KEY, newRefreshToken);
-
+      console.log('🔄 Refreshing admin token...');
+      
+      // Use RefreshTokenService for better handling
+      const result = await RefreshTokenService.refreshUserToken('ADMIN');
+      
+      if (result) {
+        // Update admin_access_token in localStorage for backward compatibility
+        localStorage.setItem(this.ACCESS_TOKEN_KEY, result.accessToken);
+        localStorage.setItem(this.REFRESH_TOKEN_KEY, result.refreshToken);
+        
+        console.log('✅ Admin token refreshed successfully');
         return true;
       }
-
+      
+      console.warn('⚠️ Admin token refresh failed');
       return false;
     } catch (error) {
-      console.error('Token refresh error:', error);
+      console.error('❌ Admin token refresh error:', error);
       return false;
     }
   }

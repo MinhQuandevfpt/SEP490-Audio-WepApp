@@ -125,11 +125,17 @@ export class ProductService {
    */
   static async getMyProducts(params: Omit<ProductQueryParams, 'storeId'> = {}): Promise<ProductListResponse> {
     try {
-      // Get store ID from localStorage
-      const storeId = localStorage.getItem('seller_store_id');
-      
+      // Get store ID from localStorage or fetch via StoreService as fallback
+      let storeId = localStorage.getItem('seller_store_id');
+
       if (!storeId) {
-        throw new Error('Không tìm thấy thông tin cửa hàng. Vui lòng đăng nhập lại.');
+        try {
+          const { StoreService } = await import('./StoreService');
+          storeId = await StoreService.getStoreId();
+        } catch (e) {
+          console.warn('⚠️ Could not resolve store ID for getMyProducts:', e);
+          throw new Error('Không tìm thấy thông tin cửa hàng. Vui lòng đăng nhập lại.');
+        }
       }
 
       return this.getProducts({

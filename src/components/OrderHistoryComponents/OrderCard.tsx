@@ -107,7 +107,7 @@ const OrderCard: React.FC<Props> = ({ order }) => {
             <p className="text-xs text-gray-500">Tổng tiền</p>
             <p className="text-sm font-semibold text-orange-600">{formatCurrency(order.grandTotal)}</p>
             {order.discountTotal > 0 && (
-              <p className="text-xs text-gray-500 line-through">{formatCurrency(order.totalAmount)}</p>
+              <p className="text-xs text-gray-500 line-through hidden">{formatCurrency(order.totalAmount)}</p>
             )}
           </div>
         </div>

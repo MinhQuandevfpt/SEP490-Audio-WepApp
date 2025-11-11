@@ -5,6 +5,8 @@
 
 import type { CheckoutAddress, CheckoutCartItem, ShippingMethod, PaymentMethod } from '../../data/checkout';
 import { dummyAddresses, dummyCartItems, calcCheckoutSummary } from '../../data/checkout';
+import { HttpInterceptor } from '../HttpInterceptor';
+import type { ApiResponse, PayOSCheckoutRequestBody, PayOSCheckoutResponse } from '../../types/api';
 
 export interface CheckoutData {
   addresses: CheckoutAddress[];
@@ -36,6 +38,20 @@ export class CheckoutService {
     const shippingFee = await this.estimateShipping(params.shippingMethod);
     const total = calcCheckoutSummary(dummyCartItems, shippingFee).total;
     return { orderId: 'OD' + Date.now(), total };
+  }
+
+  /**
+   * Create PayOS checkout session (real API)
+   * POST /api/v1/payos/checkout?customerId=...
+   */
+  static async createPayOSCheckout(
+    customerId: string,
+    body: PayOSCheckoutRequestBody
+  ): Promise<PayOSCheckoutResponse> {
+    const endpoint = `/api/v1/payos/checkout?customerId=${encodeURIComponent(customerId)}`;
+    const res = await HttpInterceptor.post<ApiResponse>(endpoint, body, { userType: 'customer' });
+    // Normalize to typed response
+    return res as PayOSCheckoutResponse;
   }
 }
 

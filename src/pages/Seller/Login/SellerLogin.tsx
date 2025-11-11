@@ -100,7 +100,7 @@ const SellerLogin: React.FC = () => {
         <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-3 rounded-full inline-block mb-4">
           <Store className="w-8 h-8 text-white" />
         </div>
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Đăng nhập Seller</h2>
+        <h2 className="text-3xl font-bold text-gray-800 mb-2">Đăng nhập</h2>
         <p className="text-gray-600">Truy cập vào Seller Center để quản lý cửa hàng</p>
       </div>
 
@@ -193,7 +193,7 @@ const SellerLogin: React.FC = () => {
           disabled={isLoading}
           className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
-          {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập vào Seller Center'}
+          {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
 
        
@@ -210,7 +210,7 @@ const SellerLogin: React.FC = () => {
 
         {/* Quick Registration CTA */}
         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6 text-center">
-          <h3 className="font-semibold text-gray-800 mb-2">Chưa có tài khoản?</h3>
+          <h3 className="font-semibold text-gray-800 mb-2">Bạn đã có tài khoản?</h3>
           <p className="text-sm text-gray-600 mb-4">
             Đăng ký ngay để bắt đầu kinh doanh cùng AudioShop
           </p>
@@ -219,35 +219,14 @@ const SellerLogin: React.FC = () => {
               to="/seller/register"
               className="block w-full bg-white text-blue-600 py-3 px-4 rounded-lg font-medium border border-blue-600 hover:bg-blue-50 transition-colors"
             >
-              Đăng ký làm Seller
+              Đăng ký 
             </Link>
-            <Link
-              to="/seller/guide"
-              className="block text-sm text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              Tìm hiểu về chương trình Seller →
-            </Link>
+            
           </div>
         </div>
       </form>
 
-      {/* Support Links */}
-      <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-        <p className="text-sm text-gray-600 mb-3">Cần hỗ trợ?</p>
-        <div className="flex justify-center space-x-4 text-xs">
-          <Link to="/seller/help" className="text-blue-600 hover:text-blue-700">
-            Trung tâm hỗ trợ
-          </Link>
-          <span className="text-gray-300">•</span>
-          <Link to="/seller/contact" className="text-blue-600 hover:text-blue-700">
-            Liên hệ
-          </Link>
-          <span className="text-gray-300">•</span>
-          <Link to="/seller/faq" className="text-blue-600 hover:text-blue-700">
-            FAQ
-          </Link>
-        </div>
-      </div>
+     
     </div>
   );
 };

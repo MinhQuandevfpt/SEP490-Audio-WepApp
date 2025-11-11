@@ -85,6 +85,8 @@ export const useOrderHistory = () => {
     selectedOrder,
     setSelectedOrder,
     viewDetail,
+    // expose reload for external refresh
+    reload: load,
   };
 };
 

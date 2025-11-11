@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, EyeOff, User, Lock, Building2, Shield, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, Shield, ArrowRight } from 'lucide-react';
 
 interface StaffLoginFormProps {
-  onSubmit: (data: { email: string; password: string; storeCode: string }) => void;
+  onSubmit: (data: { email: string; password: string }) => void;
   loading?: boolean;
   error?: string;
 }
@@ -11,8 +11,7 @@ interface StaffLoginFormProps {
 const StaffLoginForm: React.FC<StaffLoginFormProps> = ({ onSubmit, loading = false, error }) => {
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    storeCode: ''
+    password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -42,11 +41,7 @@ const StaffLoginForm: React.FC<StaffLoginFormProps> = ({ onSubmit, loading = fal
       newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
     }
 
-    if (!formData.storeCode.trim()) {
-      newErrors.storeCode = 'Mã cửa hàng là bắt buộc';
-    } else if (formData.storeCode.length < 3) {
-      newErrors.storeCode = 'Mã cửa hàng phải có ít nhất 3 ký tự';
-    }
+    // No store code required for staff login API
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -55,7 +50,7 @@ const StaffLoginForm: React.FC<StaffLoginFormProps> = ({ onSubmit, loading = fal
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      onSubmit(formData);
+      onSubmit({ email: formData.email, password: formData.password });
     }
   };
 
@@ -88,31 +83,6 @@ const StaffLoginForm: React.FC<StaffLoginFormProps> = ({ onSubmit, loading = fal
 
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Store Code */}
-        <div>
-          <label htmlFor="storeCode" className="block text-sm font-medium text-gray-700 mb-2">
-            Mã cửa hàng *
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Building2 className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              id="storeCode"
-              name="storeCode"
-              type="text"
-              value={formData.storeCode}
-              onChange={handleChange}
-              className={`block w-full pl-10 pr-3 py-3 border rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors ${
-                errors.storeCode ? 'border-red-300' : 'border-gray-300'
-              }`}
-              placeholder="Nhập mã cửa hàng"
-            />
-          </div>
-          {errors.storeCode && (
-            <p className="mt-1 text-sm text-red-600">{errors.storeCode}</p>
-          )}
-        </div>
 
         {/* Email */}
         <div>

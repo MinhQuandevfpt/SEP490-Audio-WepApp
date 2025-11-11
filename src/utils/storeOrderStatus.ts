@@ -57,16 +57,19 @@ export const STORE_ORDER_STATUS_CONFIG: Record<StoreOrderStatus, StatusConfig> =
 /**
  * Get status badge class names
  */
-export const getStatusBadgeClass = (status: StoreOrderStatus): string => {
-  const config = STORE_ORDER_STATUS_CONFIG[status];
-  return `px-3 py-1.5 text-xs font-medium rounded-full border ${config.color} ${config.bgColor}`;
+export const getStatusBadgeClass = (status: StoreOrderStatus | string | undefined | null): string => {
+  const config = status ? STORE_ORDER_STATUS_CONFIG[status as StoreOrderStatus] : undefined;
+  const safeColor = config?.color ?? 'text-gray-600';
+  const safeBg = config?.bgColor ?? 'bg-gray-50 border-gray-200';
+  return `px-3 py-1.5 text-xs font-medium rounded-full border ${safeColor} ${safeBg}`;
 };
 
 /**
  * Get status label
  */
-export const getStatusLabel = (status: StoreOrderStatus): string => {
-  return STORE_ORDER_STATUS_CONFIG[status]?.label || status;
+export const getStatusLabel = (status: StoreOrderStatus | string | undefined | null): string => {
+  if (!status) return 'Không xác định';
+  return STORE_ORDER_STATUS_CONFIG[status as StoreOrderStatus]?.label || status;
 };
 
 /**

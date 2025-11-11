@@ -53,16 +53,16 @@ export class RefreshTokenService {
   /**
    * Check if refresh token exists for a specific user type
    */
-  static hasRefreshToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): boolean {
-    const key = userType === 'admin' ? 'admin_refresh_token' : `${userType}_refresh_token`;
+  static hasRefreshToken(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): boolean {
+    const key = userType === 'ADMIN' ? 'admin_refresh_token' : `${userType}_refresh_token`;
     return !!localStorage.getItem(key);
   }
 
   /**
    * Get refresh token for a specific user type
    */
-  static getRefreshToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): string | null {
-    const key = userType === 'admin' ? 'admin_refresh_token' : `${userType}_refresh_token`;
+  static getRefreshToken(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): string | null {
+    const key = userType === 'ADMIN' ? 'admin_refresh_token' : `${userType}_refresh_token`;
     return localStorage.getItem(key);
   }
 
@@ -70,12 +70,12 @@ export class RefreshTokenService {
    * Store tokens for a specific user type
    */
   static storeTokens(
-    userType: 'customer' | 'seller' | 'staff' | 'admin',
+    userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN',
     accessToken: string,
     refreshToken: string,
     tokenType: string = 'Bearer'
   ): void {
-    if (userType === 'admin') {
+    if (userType === 'ADMIN') {
       localStorage.setItem('admin_access_token', accessToken);
       localStorage.setItem('admin_refresh_token', refreshToken);
       localStorage.setItem('admin_token_type', tokenType);
@@ -89,25 +89,95 @@ export class RefreshTokenService {
 
   /**
    * Clear tokens for a specific user type
+   * NOTE: This does NOT clear user info - only auth tokens
+   * This is used when token refresh fails but we want to keep user logged in state
    */
-  static clearTokens(userType: 'customer' | 'seller' | 'staff' | 'admin'): void {
-    if (userType === 'admin') {
+      static clearTokens(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): void {
+    if (userType === 'ADMIN') {
       localStorage.removeItem('admin_access_token');
       localStorage.removeItem('admin_refresh_token');
       localStorage.removeItem('admin_token_type');
-      localStorage.removeItem('admin_user');
+      // NOTE: Keep admin_user for better UX
     } else {
       localStorage.removeItem(`${userType}_token`);
       localStorage.removeItem(`${userType}_refresh_token`);
       localStorage.removeItem(`${userType}_token_type`);
+      // NOTE: Keep user info and store_id for better UX
     }
-    console.log(`🗑️ Tokens cleared for ${userType}`);
+    console.log(`🗑️ Tokens cleared for ${userType} (user info preserved)`);
+  }
+
+  /**
+   * Clear all data for a user type (including user info and cache)
+   * Use this for logout
+   */
+  static clearAllData(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): void {
+    if (userType === 'ADMIN') {
+      localStorage.removeItem('admin_access_token');
+      localStorage.removeItem('admin_refresh_token');
+      localStorage.removeItem('admin_token_type');
+      localStorage.removeItem('admin_user');
+    } else if (userType === 'CUSTOMER') {
+      // Clear uppercase keys (new format)
+      localStorage.removeItem('CUSTOMER_token');
+      localStorage.removeItem('CUSTOMER_refresh_token');
+      localStorage.removeItem('CUSTOMER_token_type');
+      localStorage.removeItem('CUSTOMER_user');
+      
+      // Clear lowercase keys (backward compatibility)
+      localStorage.removeItem('customer_token');
+      localStorage.removeItem('customer_refresh_token');
+      localStorage.removeItem('customer_token_type');
+      localStorage.removeItem('customer_user');
+      
+      // Clear additional customer-specific keys
+      localStorage.removeItem('token_type');
+      localStorage.removeItem('account_id');
+      localStorage.removeItem('customer_id');
+      localStorage.removeItem('token');
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('accountId');
+      localStorage.removeItem('customerId');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('authStateChanged');
+    } else if (userType === 'STOREOWNER') {
+      // Clear uppercase keys (new format)
+      localStorage.removeItem('STOREOWNER_token');
+      localStorage.removeItem('STOREOWNER_refresh_token');
+      localStorage.removeItem('STOREOWNER_token_type');
+      localStorage.removeItem('STOREOWNER_user');
+      
+      // Clear lowercase keys (backward compatibility)
+      localStorage.removeItem('seller_token');
+      localStorage.removeItem('seller_refresh_token');
+      localStorage.removeItem('seller_token_type');
+      localStorage.removeItem('seller_user');
+      
+      // Clear seller-specific data
+      localStorage.removeItem('seller_store_id');
+      localStorage.removeItem('seller_store_info');
+    } else if (userType === 'STAFF') {
+      // Clear uppercase keys (new format)
+      localStorage.removeItem('STAFF_token');
+      localStorage.removeItem('STAFF_refresh_token');
+      localStorage.removeItem('STAFF_token_type');
+      localStorage.removeItem('STAFF_user');
+      
+      // Clear lowercase keys (backward compatibility)
+      localStorage.removeItem('staff_token');
+      localStorage.removeItem('staff_refresh_token');
+      localStorage.removeItem('staff_token_type');
+      localStorage.removeItem('staff_user');
+    }
+    console.log(`🗑️ All data cleared for ${userType}`);
   }
 
   /**
    * Refresh token for a specific user type
    */
-  static async refreshUserToken(userType: 'customer' | 'seller' | 'staff' | 'admin'): Promise<{ accessToken: string; refreshToken: string } | null> {
+      static async refreshUserToken(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): Promise<{ accessToken: string; refreshToken: string } | null> {
     try {
       const currentRefreshToken = this.getRefreshToken(userType);
       
@@ -125,6 +195,19 @@ export class RefreshTokenService {
         response.data.refreshToken,
         response.data.tokenType
       );
+
+      // Update backward compatibility tokens
+      if (userType === 'STOREOWNER') {
+        localStorage.setItem('seller_token', response.data.accessToken);
+      } else if (userType === 'CUSTOMER') {
+        localStorage.setItem('customer_token', response.data.accessToken);
+      } else if (userType === 'STAFF') {
+        localStorage.setItem('staff_token', response.data.accessToken);
+        localStorage.setItem('staff_refresh_token', response.data.refreshToken);
+      } else if (userType === 'ADMIN') {
+        localStorage.setItem('admin_access_token', response.data.accessToken);
+        localStorage.setItem('admin_refresh_token', response.data.refreshToken);
+      }
 
       return {
         accessToken: response.data.accessToken,

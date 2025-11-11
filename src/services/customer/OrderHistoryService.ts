@@ -8,7 +8,6 @@ import type {
   OrderHistoryResponse,
   OrderHistoryRequest,
   CustomerOrder,
-  OrderStatus
 } from '../../types/api';
 
 export class OrderHistoryService {
@@ -119,6 +118,28 @@ export class OrderHistoryService {
     } catch (error: any) {
       console.error('❌ Error finding order by external code:', error);
       return null;
+    }
+  }
+
+  /**
+   * Cancel a customer order while status is PENDING
+   * POST /api/v1/customers/{customerId}/orders/{orderId}/cancel?reason=...&note=...
+   */
+  static async cancel(orderId: string, reason: string, note?: string): Promise<void> {
+    try {
+      const customerId = this.getCustomerId();
+      const query = new URLSearchParams();
+      query.append('reason', reason);
+      if (note) {
+        query.append('note', note);
+      }
+
+      const endpoint = `/api/v1/customers/${customerId}/orders/${orderId}/cancel?${query.toString()}`;
+
+      await HttpInterceptor.post<void>(endpoint, undefined, { userType: 'customer' });
+    } catch (error: any) {
+      // Re-throw with message so UI can show server response
+      throw new Error(error?.message || 'Không thể hủy đơn hàng');
     }
   }
 }

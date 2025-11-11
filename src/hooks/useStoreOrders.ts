@@ -80,6 +80,10 @@ export const useStoreOrders = () => {
     // Page will be reset to 1 by useEffect
   };
 
+  const refresh = useCallback(() => {
+    load();
+  }, [load]);
+
   return {
     // filters
     status,
@@ -101,6 +105,7 @@ export const useStoreOrders = () => {
     setSelectedOrder,
     viewDetail,
     updateStatus,
+    refresh,
   };
 };
 

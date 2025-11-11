@@ -5,4 +5,5 @@ export { default as CartItemList } from './CartItemList';
 export { default as OrderSummaryCard } from './OrderSummaryCard';
 export { default as ShippingMethodDropdown } from './ShippingMethodDropdown';
 export { default as PaymentMethodDropdown } from './PaymentMethodDropdown';
+export { default as CheckoutOrderContainer } from './CheckoutOrderContainer';
 

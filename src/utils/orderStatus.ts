@@ -12,7 +12,8 @@ export interface StatusConfig {
   icon?: string;
 }
 
-export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
+// Use a string index to allow extended internal statuses beyond public API enum
+export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   UNPAID: {
     label: 'Chờ thanh toán',
     color: 'text-orange-600',
@@ -58,21 +59,54 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
     color: 'text-gray-600',
     bgColor: 'bg-gray-50 border-gray-200',
   },
+  // ==== Extended internal statuses ====
+  READY_FOR_PICKUP: {
+    label: 'Kho đang chuẩn bị',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50 border-cyan-200',
+  },
+  READY_FOR_DELIVERY: {
+    label: 'Chờ giao hàng',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50 border-cyan-200',
+  },
+  OUT_FOR_DELIVERY: {
+    label: 'Đang giao hàng',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50 border-purple-200',
+  },
+  DELIVERED_WAITING_CONFIRM: {
+    label: 'Chờ xác nhận giao hàng',
+    color: 'text-yellow-600',
+    bgColor: 'bg-yellow-50 border-yellow-200',
+  },
+  DELIVERY_SUCCESS: {
+    label: 'Giao hàng thành công',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50 border-green-200',
+  },
+  DELIVERY_DENIED: {
+    label: 'Giao hàng thất bại',
+    color: 'text-red-600',
+    bgColor: 'bg-red-50 border-red-200',
+  },
 };
 
 /**
  * Get status badge class names
  */
-export const getStatusBadgeClass = (status: OrderStatus): string => {
-  const config = ORDER_STATUS_CONFIG[status];
-  return `px-3 py-1.5 text-xs font-medium rounded-full border ${config.color} ${config.bgColor}`;
+export const getStatusBadgeClass = (status: OrderStatus | string | undefined | null): string => {
+  const config = status ? ORDER_STATUS_CONFIG[status as OrderStatus] : undefined;
+  const safeColor = config?.color ?? 'text-gray-600';
+  const safeBg = config?.bgColor ?? 'bg-gray-50 border-gray-200';
+  return `px-3 py-1.5 text-xs font-medium rounded-full border ${safeColor} ${safeBg}`;
 };
 
 /**
  * Get status label
  */
-export const getStatusLabel = (status: OrderStatus): string => {
-  return ORDER_STATUS_CONFIG[status]?.label || status;
+export const getStatusLabel = (status: OrderStatus | string): string => {
+  return ORDER_STATUS_CONFIG[status]?.label || (status as string);
 };
 
 /**

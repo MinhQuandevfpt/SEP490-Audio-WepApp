@@ -135,6 +135,9 @@ export interface AddCustomerAddressRequest {
   postalCode: string;
   note?: string;
   isDefault: boolean;
+  provinceCode: string;
+  districtId: number;
+  wardCode: string;
 }
 
 export interface CustomerAddress {
@@ -179,6 +182,9 @@ export interface CustomerAddressApiItem {
   postalCode: string;
   note?: string;
   default: boolean;
+  provinceCode: string | null;
+  districtId: number | null;
+  wardCode: string | null;
 }
 
 export type GetCustomerAddressesResponse = CustomerAddressApiItem[];
@@ -296,7 +302,7 @@ export interface UpdateCustomerStatusResponse {
 
 // ==================== ORDER HISTORY TYPES ====================
 
-// Order Status Enum (from backend)
+// Order Status Enum (from backend + extended internal statuses)
 export type OrderStatus = 
   | 'UNPAID'             // Chờ thanh toán (online)
   | 'CONFIRMED'          // Đã xác nhận (đã thanh toán / COD)
@@ -306,7 +312,14 @@ export type OrderStatus =
   | 'CANCELLED'          // Đã hủy
   | 'RETURN_REQUESTED'   // Yêu cầu trả hàng / hoàn tiền
   | 'RETURNED'           // Đã trả hàng / hoàn tiền xong
-  | 'PENDING';           // Chờ xử lý
+  | 'PENDING'            // Chờ xử lý
+  // Extended internal statuses
+  | 'READY_FOR_PICKUP'   // Kho đang chuẩn bị
+  | 'READY_FOR_DELIVERY' // Chờ giao hàng
+  | 'OUT_FOR_DELIVERY'   // Đang giao hàng
+  | 'DELIVERED_WAITING_CONFIRM' // Chờ xác nhận giao hàng
+  | 'DELIVERY_SUCCESS'   // Giao hàng thành công
+  | 'DELIVERY_DENIED';   // Giao hàng thất bại
 
 // Order Item (in store order)
 export interface OrderItem {
@@ -396,3 +409,73 @@ export interface CategoryListResponse {
 // ==================== CART TYPES ====================
 // Cart types have been moved to src/types/cart.ts
 // Please import from there: import { CartResponse, AddToCartRequest, etc } from './cart';
+
+// ==================== PAYOS CHECKOUT TYPES ====================
+
+export type PayOSItemType = 'PRODUCT' | 'COMBO';
+
+export interface PayOSCheckoutItem {
+  id: string; // product or combo id
+  type: PayOSItemType; // 'PRODUCT' | 'COMBO'
+  quantity: number;
+}
+
+export interface PayOSStoreVoucher {
+  storeId: string;
+  codes: string[];
+}
+
+export interface PayOSPlatformVoucher {
+  campaignProductId: string;
+  quantity: number;
+}
+
+export interface PayOSCheckoutRequestBody {
+  addressId: string;
+  message?: string | null;
+  description?: string | null;
+  items: PayOSCheckoutItem[];
+  storeVouchers?: PayOSStoreVoucher[] | null;
+  platformVouchers?: PayOSPlatformVoucher[] | null;
+  serviceTypeIds: Record<string, number>; // { [storeId]: serviceTypeId }
+  returnUrl: string;
+  cancelUrl: string;
+}
+
+export interface PayOSCheckoutData {
+  customerOrderId: string;
+  amount: number;
+  payOSOrderCode: number;
+  checkoutUrl: string;
+  qrCode: string;
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'FAILED' | string;
+}
+
+export interface PayOSCheckoutResponse extends ApiResponse<PayOSCheckoutData> {}
+
+// ==================== STAFF AUTH TYPES ====================
+
+export interface StaffLoginRequestBody {
+  email: string;
+  password: string;
+}
+
+export interface StaffLoginData {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  user: {
+    email: string;
+    fullName: string;
+    role: string;
+  };
+  staff: {
+    staffId: string;
+    storeId: string;
+    fullName: string;
+    email: string;
+    phone: string;
+  };
+}
+
+export interface StaffLoginResponse extends ApiResponse<StaffLoginData> {}

@@ -88,7 +88,8 @@ const AdminSidebar: React.FC = () => {
       icon: <Zap className="w-6 h-6" />,
       children: [
         { name: 'Tất cả chiến dịch', href: '/admin/campaigns', icon: null },
-        { name: 'Tạo chiến dịch mới', href: '/admin/campaigns/create', icon: null }
+        { name: 'Tạo chiến dịch mới', href: '/admin/campaigns/create', icon: null },
+        { name: 'Duyệt sản phẩm chiến dịch', href: '/admin/campaigns/products/approval', icon: null }
       ]
     },
     {

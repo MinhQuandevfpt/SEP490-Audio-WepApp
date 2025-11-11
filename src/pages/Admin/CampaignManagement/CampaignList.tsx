@@ -1,24 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Zap, TrendingUp, Edit, Trash2, Eye } from 'lucide-react';
+import { Table, Tag, Button, Tooltip, Modal, Typography, Space, Card, Row, Col, Statistic, Tabs, Empty } from 'antd';
+import { 
+  EyeOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  SendOutlined,
+  StopOutlined,
+  PlusOutlined 
+} from '@ant-design/icons';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignService } from '../../../services/admin/CampaignService';
-import type { Campaign } from '../../../types/admin';
+import type { Campaign, CampaignStatus, CampaignType } from '../../../types/admin';
 import { showTikiNotification } from '../../../utils/notification';
 
 const CampaignManagement: React.FC = () => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'MEGA_SALE' | 'FAST_SALE'>('ALL');
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<CampaignStatus | 'ALL'>('ALL');
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
+    current: 1,
+    pageSize: 15,
+    showSizeChanger: true,
+    pageSizeOptions: ['10', '15', '20', '50'],
+    showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} chiến dịch`,
+  });
+
+  // State cho Modal xác nhận thay đổi status
+  const [statusChangeModal, setStatusChangeModal] = useState<{
+    visible: boolean;
+    campaignId: string;
+    campaignName: string;
+    currentStatus: CampaignStatus;
+    newStatus: CampaignStatus;
+  } | null>(null);
 
   useEffect(() => {
-    loadCampaigns();
+    fetchCampaigns();
   }, []);
 
-  const loadCampaigns = async () => {
+  const fetchCampaigns = useCallback(async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       const data = await CampaignService.getAllCampaigns();
       setCampaigns(data);
     } catch (error: any) {
@@ -26,239 +50,370 @@ const CampaignManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa chiến dịch "${name}"?`)) return;
+  const handleDelete = useCallback(async (id: string, name: string) => {
+    Modal.confirm({
+      title: 'Xác nhận xóa',
+      content: `Bạn có chắc chắn muốn xóa chiến dịch "${name}"?`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await CampaignService.deleteCampaign(id);
+          showTikiNotification('Xóa chiến dịch thành công!', 'Thành công', 'success');
+          fetchCampaigns();
+        } catch (error: any) {
+          showTikiNotification(error.message || 'Không thể xóa chiến dịch', 'Lỗi', 'error');
+        }
+      }
+    });
+  }, [fetchCampaigns]);
 
-    try {
-      await CampaignService.deleteCampaign(id);
-      showTikiNotification('Xóa chiến dịch thành công!', 'Thành công', 'success');
-      loadCampaigns();
-    } catch (error: any) {
-      showTikiNotification(error.message || 'Không thể xóa chiến dịch', 'Lỗi', 'error');
+  const handleStatusChange = useCallback(async (
+    id: string, 
+    name: string, 
+    currentStatus: CampaignStatus, 
+    newStatus: CampaignStatus
+  ) => {
+    console.log('🔔 handleStatusChange called:', { id, name, currentStatus, newStatus });
+    
+    if (!CampaignService.canChangeStatus(currentStatus, newStatus)) {
+      console.warn('❌ Cannot change status:', currentStatus, '→', newStatus);
+      showTikiNotification(
+        `Không thể chuyển từ ${CampaignService.getStatusLabel(currentStatus)} sang ${CampaignService.getStatusLabel(newStatus)}`,
+        'Lỗi',
+        'error'
+      );
+      return;
     }
-  };
 
-  const filteredCampaigns = campaigns.filter(campaign => {
-    const matchesSearch = campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         campaign.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'ALL' || campaign.type === filterType;
-    return matchesSearch && matchesType;
-  });
+    console.log('✅ Status change allowed. Opening modal...');
+    
+    // Mở modal xác nhận
+    setStatusChangeModal({
+      visible: true,
+      campaignId: id,
+      campaignName: name,
+      currentStatus,
+      newStatus
+    });
+  }, []);
+
+  // Xử lý khi user confirm trong modal
+  const handleConfirmStatusChange = useCallback(async () => {
+    if (!statusChangeModal) return;
+
+    const { campaignId, newStatus } = statusChangeModal;
+    const statusLabel = CampaignService.getStatusTransitionLabel(newStatus);
+
+    console.log('🚀 User confirmed. Calling API...');
+    
+    try {
+      const result = await CampaignService.updateCampaignStatus(campaignId, newStatus);
+      console.log('✅ API Response:', result);
+      
+      showTikiNotification(
+        `${statusLabel} chiến dịch thành công!`,
+        'Thành công',
+        'success'
+      );
+      
+      // Đóng modal
+      setStatusChangeModal(null);
+      
+      // Refresh danh sách
+      fetchCampaigns();
+    } catch (error: any) {
+      console.error('❌ API Error:', error);
+      showTikiNotification(error.message || 'Không thể cập nhật trạng thái', 'Lỗi', 'error');
+      
+      // Đóng modal kể cả khi lỗi
+      setStatusChangeModal(null);
+    }
+  }, [statusChangeModal, fetchCampaigns]);
+
+  const getStatusTag = useMemo(() => (status: CampaignStatus) => {
+    const statusConfig: Record<CampaignStatus, { color: string; text: string }> = {
+      DRAFT: { color: 'default', text: 'Bản nháp' },
+      ONOPEN: { color: 'processing', text: 'Mở đăng ký' },
+      ACTIVE: { color: 'success', text: 'Đang diễn ra' },
+      APPROVE: { color: 'purple', text: 'Đã duyệt' },
+      DISABLED: { color: 'warning', text: 'Vô hiệu hóa' },
+      EXPIRED: { color: 'error', text: 'Hết hạn' }
+    };
+    
+    const config = statusConfig[status];
+    return <Tag color={config.color}>{config.text}</Tag>;
+  }, []);
+
+  const getTypeTag = useMemo(() => (type: CampaignType) => {
+    return type === 'MEGA_SALE' 
+      ? <Tag color="purple">Mega Sale</Tag>
+      : <Tag color="orange">Flash Sale</Tag>;
+  }, []);
+
+  const handleTableChange = useCallback((newPagination: TablePaginationConfig) => {
+    setPagination(newPagination);
+  }, []);
+
+  const columns: ColumnsType<Campaign> = useMemo(() => [
+    {
+      title: 'Chiến dịch',
+      dataIndex: 'name',
+      key: 'name',
+      width: 250,
+      render: (name: string, record: Campaign) => (
+        <div>
+          <div className="font-medium text-gray-900">{name}</div>
+          <div className="text-xs text-gray-500">{record.code}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Loại',
+      dataIndex: 'type',
+      key: 'type',
+      width: 120,
+      filters: [
+        { text: 'Mega Sale', value: 'MEGA_SALE' },
+        { text: 'Flash Sale', value: 'FAST_SALE' },
+      ],
+      onFilter: (value: any, record: Campaign) => record.type === value,
+      render: (type: CampaignType) => getTypeTag(type),
+    },
+    {
+      title: 'Thời gian',
+      key: 'time',
+      width: 200,
+      render: (_: any, record: Campaign) => (
+        <div className="text-sm">
+          <div className="text-gray-900">
+            {CampaignService.formatDate(record.startTime)}
+          </div>
+          <div className="text-xs text-gray-500">
+            đến {CampaignService.formatDate(record.endTime)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 130,
+      filters: [
+        { text: 'Bản nháp', value: 'DRAFT' },
+        { text: 'Mở đăng ký', value: 'ONOPEN' },
+        { text: 'Đang diễn ra', value: 'ACTIVE' },
+        { text: 'Vô hiệu hóa', value: 'DISABLED' },
+        { text: 'Hết hạn', value: 'EXPIRED' },
+      ],
+      onFilter: (value: any, record: Campaign) => record.status === value,
+      render: (status: CampaignStatus) => getStatusTag(status),
+    },
+    {
+      title: 'Flash Slots',
+      key: 'flashSlots',
+      width: 120,
+      render: (_: any, record: Campaign) => (
+        record.flashSlots && record.flashSlots.length > 0 ? (
+          <span className="text-blue-600 font-medium">{record.flashSlots.length} khung giờ</span>
+        ) : (
+          <span className="text-gray-400">Không có</span>
+        )
+      ),
+    },
+    {
+      title: 'Hành động',
+      key: 'actions',
+      width: 160,
+      align: 'center',
+      fixed: 'right',
+      render: (_: any, record: Campaign) => (
+        <div className="flex items-center justify-center gap-1">
+          {/* Nút Gửi & Mở đăng ký cho DRAFT */}
+          {record.status === 'DRAFT' && (
+            <Tooltip title="Gửi & Mở đăng ký">
+              <Button
+                type="primary"
+                size="small"
+                icon={<SendOutlined />}
+                onClick={() => handleStatusChange(record.id, record.name, record.status, 'ONOPEN')}
+              />
+            </Tooltip>
+          )}
+
+          {/* Nút Vô hiệu hóa cho ONOPEN/ACTIVE */}
+          {(record.status === 'ONOPEN' || record.status === 'ACTIVE') && (
+            <Tooltip title="Vô hiệu hóa">
+              <Button
+                danger
+                size="small"
+                icon={<StopOutlined />}
+                onClick={() => handleStatusChange(record.id, record.name, record.status, 'DISABLED')}
+              />
+            </Tooltip>
+          )}
+
+          <Tooltip title="Xem chi tiết">
+            <Button
+              type="primary"
+              ghost
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/admin/campaigns/${record.id}`)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Chỉnh sửa">
+            <Button
+              type="default"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/admin/campaigns/${record.id}/edit`)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Xóa">
+            <Button
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record.id, record.name)}
+            />
+          </Tooltip>
+        </div>
+      ),
+    },
+  ], [getStatusTag, getTypeTag, handleStatusChange, handleDelete, navigate]);
+
+  // Filter data based on selected status
+  const filteredData = useMemo(() => {
+    return campaigns.filter(campaign => {
+      const matchesStatus = selectedStatus === 'ALL' || campaign.status === selectedStatus;
+      return matchesStatus;
+    });
+  }, [campaigns, selectedStatus]);
+
+  // Stats
+  const stats = useMemo(() => ({
+    total: campaigns.length,
+    active: campaigns.filter(c => c.status === 'ACTIVE').length,
+    onopen: campaigns.filter(c => c.status === 'ONOPEN').length,
+    draft: campaigns.filter(c => c.status === 'DRAFT').length,
+    megaSale: campaigns.filter(c => c.type === 'MEGA_SALE').length,
+    flashSale: campaigns.filter(c => c.type === 'FAST_SALE').length,
+  }), [campaigns]);
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Quản lý chiến dịch khuyến mãi</h1>
-            <p className="text-gray-600 mt-1">Quản lý các chiến dịch Mega Sale và Flash Sale</p>
-          </div>
-          <button
-            onClick={() => navigate('/admin/campaigns/create')}
-            className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white px-6 py-3 rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl"
-          >
-            <Plus className="w-5 h-5" />
-            Tạo chiến dịch mới
-          </button>
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      {/* Page Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            Quản lý chiến dịch khuyến mãi
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            Quản lý các chiến dịch Mega Sale và Flash Sale
+          </Typography.Text>
         </div>
-
-        {/* Filters */}
-        <div className="flex gap-4 items-center">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm theo tên hoặc mã chiến dịch..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            />
-          </div>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          >
-            <option value="ALL">Tất cả loại</option>
-            <option value="MEGA_SALE">Mega Sale</option>
-            <option value="FAST_SALE">Flash Sale</option>
-          </select>
-        </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          onClick={() => navigate('/admin/campaigns/create')}
+        >
+          Tạo chiến dịch mới
+        </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <StatCard
-          title="Tổng chiến dịch"
-          value={campaigns.length}
-          icon={<Zap className="w-6 h-6" />}
-          color="blue"
-        />
-        <StatCard
-          title="Đang diễn ra"
-          value={campaigns.filter(c => c.status === 'ACTIVE').length}
-          icon={<TrendingUp className="w-6 h-6" />}
-          color="green"
-        />
-        <StatCard
-          title="Mega Sale"
-          value={campaigns.filter(c => c.type === 'MEGA_SALE').length}
-          icon={<Calendar className="w-6 h-6" />}
-          color="purple"
-        />
-        <StatCard
-          title="Flash Sale"
-          value={campaigns.filter(c => c.type === 'FAST_SALE').length}
-          icon={<Zap className="w-6 h-6" />}
-          color="orange"
-        />
-      </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Tổng chiến dịch" value={stats.total} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Đang diễn ra" value={stats.active} valueStyle={{ color: '#3f8600' }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Mega Sale" value={stats.megaSale} valueStyle={{ color: '#722ed1' }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Flash Sale" value={stats.flashSale} valueStyle={{ color: '#fa8c16' }} />
+          </Card>
+        </Col>
+      </Row>
 
-      {/* Campaign List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-orange-600"></div>
-            <p className="mt-4 text-gray-600">Đang tải danh sách chiến dịch...</p>
-          </div>
-        </div>
-      ) : filteredCampaigns.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <Zap className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Chưa có chiến dịch nào</p>
-          <button
-            onClick={() => navigate('/admin/campaigns/create')}
-            className="mt-4 text-orange-600 hover:text-orange-700 font-medium"
-          >
-            Tạo chiến dịch đầu tiên
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Chiến dịch
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Loại
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thời gian
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trạng thái
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Flash Slots
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thao tác
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredCampaigns.map((campaign) => (
-                <tr key={campaign.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{campaign.name}</div>
-                      <div className="text-sm text-gray-500">{campaign.code}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      campaign.type === 'MEGA_SALE' 
-                        ? 'bg-purple-100 text-purple-800' 
-                        : 'bg-orange-100 text-orange-800'
-                    }`}>
-                      {CampaignService.getCampaignTypeLabel(campaign.type)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    <div>{CampaignService.formatDate(campaign.startTime)}</div>
-                    <div className="text-xs">đến {CampaignService.formatDate(campaign.endTime)}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      CampaignService.getStatusColor(campaign.status)
-                    }`}>
-                      {CampaignService.getStatusLabel(campaign.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {campaign.flashSlots && campaign.flashSlots.length > 0 ? (
-                      <span className="text-blue-600 font-medium">{campaign.flashSlots.length} khung giờ</span>
-                    ) : (
-                      <span className="text-gray-400">Không có</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => navigate(`/admin/campaigns/${campaign.id}`)}
-                        className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded"
-                        title="Xem chi tiết"
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/campaigns/${campaign.id}/edit`)}
-                        className="text-green-600 hover:text-green-900 p-1 hover:bg-green-50 rounded"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(campaign.id, campaign.name)}
-                        className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-};
+      {/* Filter Tabs */}
+      <Tabs
+        activeKey={selectedStatus}
+        onChange={(key) => setSelectedStatus(key as any)}
+        items={(['ALL', 'DRAFT', 'ONOPEN', 'ACTIVE', 'DISABLED', 'EXPIRED'] as const).map((status) => ({
+          key: status,
+          label: (
+            <Space>
+              <span>{status === 'ALL' ? 'Tất cả' : CampaignService.getStatusLabel(status)}</span>
+              {status !== 'ALL' && (
+                <Tag>{campaigns.filter(c => c.status === status).length}</Tag>
+              )}
+            </Space>
+          ),
+        }))}
+      />
 
-interface StatCardProps {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  color: 'blue' | 'green' | 'purple' | 'orange';
-}
+      {/* Table */}
+      <Card>
+        <Table
+          columns={columns}
+          dataSource={filteredData}
+          loading={isLoading}
+          rowKey="id"
+          pagination={pagination}
+          onChange={handleTableChange}
+          scroll={{ x: 1200 }}
+          locale={{
+            emptyText: (
+              <Empty description={
+                <span>
+                  Chưa có chiến dịch nào. Tạo chiến dịch đầu tiên để bắt đầu.
+                </span>
+              } />
+            ),
+          }}
+        />
+      </Card>
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => {
-  const colorClasses = {
-    blue: 'bg-blue-100 text-blue-600',
-    green: 'bg-green-100 text-green-600',
-    purple: 'bg-purple-100 text-purple-600',
-    orange: 'bg-orange-100 text-orange-600'
-  };
-
-  return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
-        </div>
-        <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
-          {icon}
-        </div>
-      </div>
-    </div>
+      {/* Modal xác nhận thay đổi trạng thái */}
+      <Modal
+        title="Xác nhận thay đổi trạng thái"
+        open={statusChangeModal?.visible || false}
+        onOk={handleConfirmStatusChange}
+        onCancel={() => setStatusChangeModal(null)}
+        okText="Xác nhận"
+        cancelText="Hủy"
+        centered
+        zIndex={2000}
+      >
+        {statusChangeModal && (
+          <p>
+            Bạn có chắc chắn muốn{' '}
+            <strong>
+              {CampaignService.getStatusTransitionLabel(statusChangeModal.newStatus).toLowerCase()}
+            </strong>{' '}
+            chiến dịch <strong>"{statusChangeModal.campaignName}"</strong>?
+          </p>
+        )}
+      </Modal>
+    </Space>
   );
 };
 

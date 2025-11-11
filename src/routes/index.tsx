@@ -12,6 +12,7 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
+import { CampaignList as SellerCampaignList, JoinCampaign } from '../pages/Seller/Campaign';
 import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
@@ -26,6 +27,7 @@ import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
+import FlashSaleDetail from '../pages/Customer/FlashSaleDetail/FlashSaleDetail';
 import AdminLogin from '../pages/Admin/Login';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
@@ -35,19 +37,25 @@ import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
+import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
+import StaffList from '../pages/Seller/StaffList/StaffList';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
 import RegisterForStaff from '../pages/StoreStaff/RegisterForStaff';
+import StaffDashboardHome from '../pages/StoreStaff/Dashboard/StaffDashboardHome';
+import StaffDashboardLayout from '../components/StaffDashboardLayout';
+import OrderPageStaff from '../pages/StoreStaff/Order/OrderPageStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
 import { StoreService } from '../services/seller/StoreService';
+import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -69,6 +77,7 @@ function ProtectedSellerRoute({ element }: { element: ReactElement }) {
 function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
   const [isLoading, setIsLoading] = useState(true);
   const [storeStatus, setStoreStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const checkStoreStatus = async () => {
@@ -80,11 +89,25 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
       }
       
       try {
+        console.log('🔍 Checking store status...');
         const statusResponse = await StoreService.getStoreStatus();
+        console.log('✅ Store status:', statusResponse.status);
         setStoreStatus(statusResponse.status);
-      } catch (error) {
-        console.error('Error checking store status:', error);
+        setError(null);
+      } catch (error: any) {
+        console.error('❌ Error checking store status:', error);
+        
+        // Handle specific errors
+        if (error?.message?.includes('Phiên đăng nhập hết hạn')) {
+          // Token expired and refresh failed - redirect to login
+          SellerAuthService.logout();
+          window.location.href = '/seller/login';
+          return;
+        }
+        
+        // For other errors, assume INACTIVE (will redirect to KYC page)
         setStoreStatus('INACTIVE');
+        setError(error?.message || 'Không thể kiểm tra trạng thái cửa hàng');
       } finally {
         setIsLoading(false);
       }
@@ -98,7 +121,7 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang kiểm tra thông tin...</p>
+          <p className="mt-4 text-gray-600">Đang kiểm tra thông tin cửa hàng...</p>
         </div>
       </div>
     );
@@ -112,6 +135,9 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
   
   // Only ACTIVE stores can access dashboard
   if (storeStatus !== 'ACTIVE') {
+    if (error) {
+      console.warn('⚠️ Redirecting to KYC status due to error:', error);
+    }
     return <Navigate to="/seller/kyc-status" replace />;
   }
   
@@ -122,6 +148,14 @@ function ProtectedAdminRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = AdminAuthService.isAuthenticated();
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
+  }
+  return element;
+}
+
+function ProtectedStaffRoute({ element }: { element: ReactElement }) {
+  const isAuthenticated = StoreStaffAuthService.isAuthenticated();
+  if (!isAuthenticated) {
+    return <Navigate to="/store-staff/login" replace />;
   }
   return element;
 }
@@ -182,6 +216,10 @@ export const router = createBrowserRouter([
   {
     path: '/products/demo',
     element: <ProductListDemo />
+  },
+  {
+    path: '/flash-sale/:campaignId',
+    element: <FlashSaleDetail />
   },
   {
     path: '/auth',
@@ -274,7 +312,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'staff',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Danh sách nhân viên</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+        element: <StaffList />
       },
       {
         path: 'staff/create',
@@ -329,6 +367,18 @@ export const router = createBrowserRouter([
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Flash Sale</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
       },
       {
+        path: 'campaigns',
+        element: <SellerCampaignList />
+      },
+      {
+        path: 'campaigns/:campaignId',
+        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Chi tiết chiến dịch</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'campaigns/:campaignId/join',
+        element: <JoinCampaign />
+      },
+      {
         path: 'messages',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Tin nhắn</h2><p className="text-gray-600 mt-2">Trang tin nhắn đang được phát triển...</p></div>
       },
@@ -359,6 +409,14 @@ export const router = createBrowserRouter([
         path: 'register',
         element: <RegisterForStaff />
       }
+    ]
+  },
+  {
+    path: '/store-staff/dashboard',
+    element: <ProtectedStaffRoute element={<StaffDashboardLayout />} />,
+    children: [
+      { path: '', element: <StaffDashboardHome /> },
+      { path: 'orders', element: <OrderPageStaff /> }
     ]
   },
   // Admin routes
@@ -438,6 +496,10 @@ export const router = createBrowserRouter([
       {
         path: 'campaigns/:id/edit',
         element: <EditCampaign />
+      },
+      {
+        path: 'campaigns/products/approval',
+        element: <CampaignProductApproval />
       },
       {
         path: 'orders',

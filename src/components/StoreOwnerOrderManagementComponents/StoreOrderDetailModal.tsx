@@ -86,16 +86,34 @@ const StoreOrderDetailModal: React.FC<Props> = ({ order, onClose }) => {
               Địa chỉ giao hàng
             </h3>
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-900">{order.shipReceiverName}</p>
-              <p className="text-sm text-gray-700 flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-                {order.shipPhoneNumber}
-              </p>
-              <p className="text-sm text-gray-700">{order.shipAddressLine}</p>
-              <div className="text-xs text-gray-500 mt-2">
-                <p>{order.shipWard}, {order.shipDistrict}, {order.shipProvince}</p>
-                <p>{order.shipCountry} - {order.shipPostalCode}</p>
+              {/* Receiver Name & Phone */}
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-900">{order.shipReceiverName}</p>
+                <span className="text-gray-400">·</span>
+                <p className="text-sm text-gray-700 flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  {order.shipPhoneNumber}
+                </p>
               </div>
+              {/* Street + AddressLine */}
+              {([order.shipStreet, order.shipAddressLine].filter(Boolean) as string[]).length > 0 && (
+                <p className="text-sm text-gray-700">
+                  {([order.shipStreet, order.shipAddressLine].filter(Boolean) as string[]).join(', ')}
+                </p>
+              )}
+              {/* Ward, District, Province */}
+              {([order.shipWard, order.shipDistrict, order.shipProvince].filter(Boolean) as string[]).length > 0 && (
+                <p className="text-sm text-gray-700">
+                  {([order.shipWard, order.shipDistrict, order.shipProvince].filter(Boolean) as string[]).join(', ')}
+                </p>
+              )}
+              {/* Country + PostalCode */}
+              {(order.shipCountry || order.shipPostalCode) && (
+                <p className="text-xs text-gray-500">
+                  {[order.shipCountry, order.shipPostalCode].filter(Boolean).join(' - ')}
+                </p>
+              )}
+              {/* Note if exists */}
               {order.shipNote && (
                 <div className="mt-2 pt-2 border-t border-gray-200">
                   <p className="text-xs text-gray-500">Ghi chú:</p>

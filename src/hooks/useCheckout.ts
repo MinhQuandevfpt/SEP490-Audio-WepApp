@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CheckoutAddress, CheckoutCartItem, PaymentMethod, ShippingMethod } from '../data/checkout';
 import { calcCheckoutSummary } from '../data/checkout';
 import { CheckoutService } from '../services/customer/CheckoutService';
+import type { PayOSCheckoutRequestBody, PayOSCheckoutResponse } from '../types/api';
 
 export const useCheckout = () => {
   const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
@@ -85,6 +86,54 @@ export const useCheckout = () => {
     }
   };
 
+  /**
+   * Submit using PayOS flow. Parent must provide serviceTypeIds and optionally vouchers.
+   * Returns PayOS response including checkoutUrl and qrCode.
+   */
+  const submitPayOS = async (args: {
+    customerId: string;
+    message?: string | null;
+    description?: string | null;
+    storeVouchers?: PayOSCheckoutRequestBody['storeVouchers'];
+    platformVouchers?: PayOSCheckoutRequestBody['platformVouchers']; // currently can be null
+    serviceTypeIds: PayOSCheckoutRequestBody['serviceTypeIds'];
+    returnUrl: string;
+    cancelUrl: string;
+  }): Promise<PayOSCheckoutResponse | null> => {
+    const errs = validate();
+    // For PayOS, only address/payment/shipping/items validation is reused
+    if (errs.length) {
+      setError(errs.join(' '));
+      return null;
+    }
+    if (paymentMethod !== 'payos') {
+      setError('Vui lòng chọn phương thức thanh toán PayOS.');
+      return null;
+    }
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      const body: PayOSCheckoutRequestBody = {
+        addressId: selectedAddressId!,
+        message: args.message ?? null,
+        description: args.description ?? null,
+        items: items.map(it => ({ id: it.productId ?? it.id, type: 'PRODUCT', quantity: it.quantity })),
+        storeVouchers: args.storeVouchers ?? null,
+        platformVouchers: args.platformVouchers ?? null,
+        serviceTypeIds: args.serviceTypeIds,
+        returnUrl: args.returnUrl,
+        cancelUrl: args.cancelUrl,
+      };
+      const res = await CheckoutService.createPayOSCheckout(args.customerId, body);
+      return res;
+    } catch (e: any) {
+      setError(e?.message || 'Tạo phiên thanh toán PayOS thất bại.');
+      return null;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return {
     // data
     addresses,
@@ -106,6 +155,7 @@ export const useCheckout = () => {
     dec,
     removeItem,
     submit,
+    submitPayOS,
   };
 };
 

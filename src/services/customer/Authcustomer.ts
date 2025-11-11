@@ -206,7 +206,7 @@ export class CustomerAuthService {
         const tokenType = response.data.tokenType || 'Bearer';
         
         // Store tokens using RefreshTokenService
-        RefreshTokenService.storeTokens('customer', response.data.accessToken, refreshToken, tokenType);
+        RefreshTokenService.storeTokens('CUSTOMER', response.data.accessToken, refreshToken, tokenType);
         
         // Also store in old format for backward compatibility
         localStorage.setItem('customer_token', response.data.accessToken);
@@ -248,30 +248,34 @@ export class CustomerAuthService {
   }
 
   /**
-   * Logout customer
+   * Logout customer - Clear all tokens and user data
    */
   static logout(): void {
-    // Remove customer auth tokens using RefreshTokenService
-    RefreshTokenService.clearTokens('customer');
+    console.log('🚪 Logging out customer...');
     
-    // Remove customer auth tokens (backward compatibility)
-    localStorage.removeItem('customer_token');
-    localStorage.removeItem('customer_user');
-    localStorage.removeItem('token_type');
-    localStorage.removeItem('account_id');      // New from thongln branch
-    localStorage.removeItem('customer_id');     // New from thongln branch
+    // Get token before clearing (for storage event)
+    const oldToken = localStorage.getItem('customer_token');
     
-    // Remove OAuth2 related data
-    localStorage.removeItem('token');
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('accountId');
-    localStorage.removeItem('customerId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('authStateChanged');
+    // Clear ALL data using RefreshTokenService (includes all backward compatibility keys)
+    RefreshTokenService.clearAllData('CUSTOMER');
     
-    console.log('👋 Customer logged out');
+    // Trigger storage event to notify other tabs/components
+    try {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'customer_token',
+        oldValue: oldToken,
+        newValue: null,
+        storageArea: localStorage
+      }));
+    } catch (e) {
+      // StorageEvent might not be supported in all browsers, use custom event instead
+      window.dispatchEvent(new CustomEvent('authStateChanged', { detail: { loggedOut: true } }));
+    }
+    
+    // Set authStateChanged flag for Header component
+    localStorage.setItem('authStateChanged', 'true');
+    
+    console.log('✅ Customer logged out successfully');
   }
 
   /**
@@ -363,7 +367,7 @@ export class CustomerAuthService {
     try {
       console.log('🔄 Refreshing customer token...');
       
-      const result = await RefreshTokenService.refreshUserToken('customer');
+        const result = await RefreshTokenService.refreshUserToken('CUSTOMER');
       
       if (!result) {
         throw new Error('Failed to refresh token');
@@ -382,7 +386,7 @@ export class CustomerAuthService {
    * Get refresh token
    */
   static getRefreshToken(): string | null {
-    return RefreshTokenService.getRefreshToken('customer');
+    return RefreshTokenService.getRefreshToken('CUSTOMER');
   }
 
   /**
