@@ -1,7 +1,6 @@
 import { HttpInterceptor } from '../HttpInterceptor';
 import type {
   CampaignOverviewResponse,
-  ApproveProductsResponse,
   CampaignType,
   VoucherStatus,
   Campaign
@@ -49,28 +48,42 @@ export class CampaignProductService {
   }
 
   /**
-   * Approve products in a campaign (bulk approval)
+   * Approve campaign products
+   * @param campaignId - Campaign ID
+   * @param campaignProductIds - Array of campaign product IDs
    */
-  static async approveProducts(
-    campaignId: string,
-    campaignProductIds: string[]
-  ): Promise<ApproveProductsResponse> {
-    try {
-      const response = await HttpInterceptor.fetch<ApproveProductsResponse>(
-        `${API_BASE_URL}/${campaignId}/approve-products`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(campaignProductIds),
-          userType: 'admin'
-        }
-      );
+  static async approveProducts(campaignId: string, campaignProductIds: string[]): Promise<void> {
+    const response = await HttpInterceptor.post(
+      `/api/campaigns/${campaignId}/products/approve`,
+      { campaignProductIds },
+      { userType: 'admin' }
+    );
+    return response.data;
+  }
 
-      return response;
-    } catch (error: any) {
-      console.error('❌ Error approving products:', error);
-      throw new Error(error.message || 'Không thể duyệt sản phẩm');
-    }
+  /**
+   * Reject campaign products
+   * @param campaignId - Campaign ID
+   * @param campaignProductIds - Array of campaign product IDs
+   * @param reason - Rejection reason (optional, applies to all products if provided)
+   * @param reasonMap - Map of product ID to individual rejection reason (optional)
+   */
+  static async rejectProducts(
+    campaignId: string, 
+    campaignProductIds: string[], 
+    reason?: string,
+    reasonMap?: Record<string, string>
+  ): Promise<void> {
+    const response = await HttpInterceptor.post(
+      `/api/campaigns/${campaignId}/products/reject`,
+      { 
+        campaignProductIds,
+        ...(reason && { reason }),
+        ...(reasonMap && { reasonMap })
+      },
+      { userType: 'admin' }
+    );
+    return response.data;
   }
 
   /**
@@ -101,7 +114,8 @@ export class CampaignProductService {
       APPROVE: 'Đã duyệt',
       ACTIVE: 'Đang hoạt động',
       EXPIRED: 'Hết hạn',
-      DISABLED: 'Vô hiệu hóa'
+      DISABLED: 'Vô hiệu hóa',
+      REJECTED: 'Từ chối'
     };
     return labels[status] || status;
   }
@@ -115,7 +129,8 @@ export class CampaignProductService {
       APPROVE: 'green',
       ACTIVE: 'blue',
       EXPIRED: 'default',
-      DISABLED: 'red'
+      DISABLED: 'red',
+      REJECTED: 'red'
     };
     return colors[status] || 'default';
   }

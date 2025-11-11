@@ -122,7 +122,7 @@ export interface CampaignListResponse {
 
 // Campaign Product Approval Types
 export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
-export type VoucherStatus = 'DRAFT' | 'APPROVE' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+export type VoucherStatus = 'DRAFT' | 'APPROVE' | 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'REJECTED';
 
 export interface CampaignVoucher {
   type: VoucherType;

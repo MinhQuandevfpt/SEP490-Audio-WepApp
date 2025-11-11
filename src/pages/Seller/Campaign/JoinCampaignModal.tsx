@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Modal,
   Table,
-  Steps,
   Button,
   Select,
   InputNumber,
@@ -15,7 +14,6 @@ import {
 } from 'antd';
 import {
   ShoppingOutlined,
-  SettingOutlined,
   CheckCircleOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
@@ -25,18 +23,22 @@ import { ProductService } from '../../../services/seller/ProductService';
 import type {
   CampaignForSeller,
   VoucherType,
-  CampaignProductRequest,
   Product,
 } from '../../../types/seller';
 import { showTikiNotification } from '../../../utils/notification';
 
-const { Step } = Steps;
 const { Option } = Select;
 
-interface SelectedProduct extends CampaignProductRequest {
-  productName?: string;
-  productImage?: string;
-  originalPrice?: number;
+interface ProductWithConfig extends Product {
+  slotId?: string;
+  type: VoucherType;
+  discountPercent?: number;
+  discountValue?: number;
+  maxDiscountValue?: number;
+  minOrderValue?: number;
+  totalVoucherIssued: number;
+  totalUsageLimit: number;
+  usagePerUser: number;
 }
 
 interface JoinCampaignModalProps {
@@ -52,9 +54,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+  const [products, setProducts] = useState<ProductWithConfig[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,8 +64,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   useEffect(() => {
     if (visible && campaign) {
       fetchProducts();
-      setCurrentStep(0);
-      setSelectedProducts([]);
       setSelectedRowKeys([]);
     }
   }, [visible, campaign]);
@@ -73,22 +71,28 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   const fetchProducts = async () => {
     setIsLoadingProducts(true);
     try {
-      // 🔐 IMPORTANT: API tự động filter sản phẩm theo store của seller
-      // HttpInterceptor sẽ gửi seller_token trong Authorization header
-      // Backend decode token -> lấy storeId -> chỉ trả về products của store đó
-      // Không cần truyền storeId parameter vì backend tự extract từ token
       const response = await ProductService.getMyProducts({
-        status: 'ACTIVE', // chỉ lấy sản phẩm đang hoạt động
+        status: 'ACTIVE',
         page: 0,
-        size: 100, // tối đa 100 sản phẩm của cửa hàng hiện tại
+        size: 100,
       });
       
       const fetchedProducts = response.data?.content || [];
       console.log('📦 Fetched products for current store:', fetchedProducts.length);
       
-      setProducts(fetchedProducts);
+      // Map products with default config values
+      const productsWithConfig: ProductWithConfig[] = fetchedProducts.map(product => ({
+        ...product,
+        slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
+        type: 'PERCENT' as VoucherType,
+        discountPercent: 10,
+        totalVoucherIssued: 100,
+        totalUsageLimit: 100,
+        usagePerUser: 1,
+      }));
       
-      // Hiển thị thông báo nếu không có sản phẩm
+      setProducts(productsWithConfig);
+      
       if (fetchedProducts.length === 0) {
         showTikiNotification(
           'Bạn chưa có sản phẩm ACTIVE nào để đăng ký chiến dịch. Vui lòng tạo sản phẩm mới hoặc kích hoạt sản phẩm hiện có.',
@@ -107,49 +111,32 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     }
   };
 
-  const handleProductSelection = () => {
-    const newProducts: SelectedProduct[] = selectedRowKeys.map(key => {
-      const product = products.find(p => p.productId === key);
-      return {
-        productId: key as string,
-        productName: product?.name,
-        productImage: product?.images?.[0],
-        originalPrice: product?.price,
-        slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
-        type: 'PERCENT' as VoucherType,
-        discountPercent: 10,
-        totalVoucherIssued: 100,
-        totalUsageLimit: 100,
-        usagePerUser: 1,
-      };
-    });
-
-    setSelectedProducts(newProducts);
-    setCurrentStep(1);
-  };
-
   const handleProductUpdate = (productId: string, field: string, value: any) => {
-    setSelectedProducts(
-      selectedProducts.map(p =>
+    setProducts(
+      products.map(p =>
         p.productId === productId ? { ...p, [field]: value } : p
       )
     );
   };
 
-  const calculateDiscountedPrice = (product: SelectedProduct): number => {
-    if (!product.originalPrice) return 0;
+  const calculateDiscountedPrice = (product: ProductWithConfig): number => {
+    if (!product.price) return 0;
 
     if (product.type === 'FIXED') {
-      return Math.max(0, product.originalPrice - (product.discountValue || 0));
+      return Math.max(0, product.price - (product.discountValue || 0));
     } else if (product.type === 'PERCENT') {
-      const discount = (product.originalPrice * (product.discountPercent || 0)) / 100;
+      const discount = (product.price * (product.discountPercent || 0)) / 100;
       const maxDiscount = product.maxDiscountValue || discount;
-      return Math.max(0, product.originalPrice - Math.min(discount, maxDiscount));
+      return Math.max(0, product.price - Math.min(discount, maxDiscount));
     }
-    return product.originalPrice;
+    return product.price;
   };
 
   const handleSubmit = async () => {
+    const selectedProducts = products.filter(p => 
+      selectedRowKeys.includes(p.productId)
+    );
+
     if (selectedProducts.length === 0) {
       showTikiNotification('Vui lòng chọn ít nhất một sản phẩm', 'Thông báo', 'error');
       return;
@@ -171,9 +158,18 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     setIsSubmitting(true);
     try {
       const request = {
-        products: selectedProducts.map(
-          ({ productName, productImage, originalPrice, ...rest }) => rest
-        ),
+        products: selectedProducts.map(product => ({
+          productId: product.productId,
+          slotId: product.slotId,
+          type: product.type,
+          discountValue: product.discountValue,
+          discountPercent: product.discountPercent,
+          maxDiscountValue: product.maxDiscountValue,
+          minOrderValue: product.minOrderValue,
+          totalVoucherIssued: product.totalVoucherIssued,
+          totalUsageLimit: product.totalUsageLimit,
+          usagePerUser: product.usagePerUser,
+        })),
       };
 
       await SellerCampaignService.joinCampaign(campaign!.id, request);
@@ -196,17 +192,17 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   };
 
   const handleClose = () => {
-    setCurrentStep(0);
-    setSelectedProducts([]);
     setSelectedRowKeys([]);
     onClose();
   };
 
-  // Table columns for product selection
-  const productColumns: ColumnsType<Product> = [
+  // Combined table columns - showing all info and config in one table
+  const combinedColumns: ColumnsType<ProductWithConfig> = [
     {
       title: 'Sản phẩm',
       key: 'product',
+      width: 250,
+      fixed: 'left',
       render: (_, record) => (
         <div className="flex items-center gap-3">
           <Image
@@ -217,19 +213,20 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             className="rounded object-cover"
             fallback="https://via.placeholder.com/50"
           />
-          <div>
-            <div className="font-medium text-gray-900">{record.name}</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-gray-900 text-sm line-clamp-2">{record.name}</div>
             <div className="text-xs text-gray-500">#{record.productId.slice(0, 8)}</div>
           </div>
         </div>
       ),
     },
     {
-      title: 'Giá',
+      title: 'Giá gốc',
       dataIndex: 'price',
       key: 'price',
+      width: 120,
       render: (price: number) => (
-        <span className="font-medium text-orange-600">
+        <span className="font-medium text-orange-600 text-sm">
           {price?.toLocaleString('vi-VN')}đ
         </span>
       ),
@@ -238,52 +235,27 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       title: 'Kho',
       dataIndex: 'stockQuantity',
       key: 'stock',
+      width: 100,
       render: (stock: number) => (
-        <Tag color={stock > 0 ? 'success' : 'error'}>
-          {stock > 0 ? `Còn ${stock}` : 'Hết hàng'}
+        <Tag color={stock > 0 ? 'success' : 'error'} className="text-xs">
+          {stock > 0 ? `${stock}` : 'Hết'}
         </Tag>
-      ),
-    },
-  ];
-
-  // Table columns for selected products configuration
-  const selectedProductColumns: ColumnsType<SelectedProduct> = [
-    {
-      title: 'Sản phẩm',
-      key: 'product',
-      width: 200,
-      render: (_, record) => (
-        <div className="flex items-center gap-2">
-          <Image
-            src={record.productImage}
-            alt={record.productName}
-            width={40}
-            height={40}
-            className="rounded"
-            fallback="https://via.placeholder.com/40"
-          />
-          <div className="text-xs">
-            <div className="font-medium">{record.productName}</div>
-            <div className="text-gray-500">
-              {record.originalPrice?.toLocaleString('vi-VN')}đ
-            </div>
-          </div>
-        </div>
       ),
     },
     ...(isFlashSale
       ? [
           {
-            title: 'Khung giờ',
+            title: '⚡ Khung giờ',
             key: 'slot',
             width: 180,
-            render: (_: any, record: SelectedProduct) => (
+            render: (_: any, record: ProductWithConfig) => (
               <Select
                 value={record.slotId}
                 onChange={value => handleProductUpdate(record.productId, 'slotId', value)}
                 className="w-full"
                 size="small"
                 placeholder="Chọn khung giờ"
+                disabled={!selectedRowKeys.includes(record.productId)}
               >
                 {campaign?.flashSlots?.map(slot => (
                   <Option key={slot.slotId} value={slot.slotId}>
@@ -307,12 +279,13 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       title: 'Loại giảm',
       key: 'type',
       width: 120,
-      render: (_: any, record: SelectedProduct) => (
+      render: (_: any, record: ProductWithConfig) => (
         <Select
           value={record.type}
           onChange={value => handleProductUpdate(record.productId, 'type', value)}
           className="w-full"
           size="small"
+          disabled={!selectedRowKeys.includes(record.productId)}
         >
           <Option value="PERCENT">% Giảm</Option>
           <Option value="FIXED">Số tiền</Option>
@@ -321,23 +294,37 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       ),
     },
     {
-      title: 'Giá trị',
+      title: 'Giá trị giảm',
       key: 'discount',
-      width: 120,
-      render: (_: any, record: SelectedProduct) => (
-        <div>
+      width: 140,
+      render: (_: any, record: ProductWithConfig) => (
+        <div className="space-y-1">
           {record.type === 'PERCENT' && (
-            <InputNumber
-              value={record.discountPercent}
-              onChange={value =>
-                handleProductUpdate(record.productId, 'discountPercent', value)
-              }
-              min={1}
-              max={100}
-              addonAfter="%"
-              className="w-full"
-              size="small"
-            />
+            <>
+              <InputNumber
+                value={record.discountPercent}
+                onChange={value =>
+                  handleProductUpdate(record.productId, 'discountPercent', value)
+                }
+                min={1}
+                max={100}
+                addonAfter="%"
+                className="w-full"
+                size="small"
+                disabled={!selectedRowKeys.includes(record.productId)}
+              />
+              <InputNumber
+                value={record.maxDiscountValue}
+                onChange={value =>
+                  handleProductUpdate(record.productId, 'maxDiscountValue', value)
+                }
+                placeholder="Giảm tối đa"
+                addonAfter="đ"
+                className="w-full"
+                size="small"
+                disabled={!selectedRowKeys.includes(record.productId)}
+              />
+            </>
           )}
           {record.type === 'FIXED' && (
             <InputNumber
@@ -346,10 +333,11 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                 handleProductUpdate(record.productId, 'discountValue', value)
               }
               min={1000}
-              max={record.originalPrice}
+              max={record.price}
               addonAfter="đ"
               className="w-full"
               size="small"
+              disabled={!selectedRowKeys.includes(record.productId)}
             />
           )}
           {record.type === 'SHIPPING' && (
@@ -364,7 +352,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       title: 'Giá sau giảm',
       key: 'finalPrice',
       width: 120,
-      render: (_: any, record: SelectedProduct) => (
+      render: (_: any, record: ProductWithConfig) => (
         <div>
           <div className="text-sm font-bold text-orange-600">
             {calculateDiscountedPrice(record).toLocaleString('vi-VN')}đ
@@ -373,8 +361,8 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             <div className="text-xs text-gray-500">
               -{' '}
               {(
-                ((record.originalPrice! - calculateDiscountedPrice(record)) /
-                  record.originalPrice!) *
+                ((record.price - calculateDiscountedPrice(record)) /
+                  record.price) *
                 100
               ).toFixed(0)}
               %
@@ -386,8 +374,8 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     {
       title: 'SL Voucher',
       key: 'voucher',
-      width: 100,
-      render: (_: any, record: SelectedProduct) => (
+      width: 110,
+      render: (_: any, record: ProductWithConfig) => (
         <InputNumber
           value={record.totalVoucherIssued}
           onChange={value =>
@@ -396,112 +384,42 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
           min={1}
           className="w-full"
           size="small"
+          disabled={!selectedRowKeys.includes(record.productId)}
         />
       ),
     },
     {
-      title: '',
-      key: 'action',
-      width: 60,
-      render: (_: any, record: SelectedProduct) => (
-        <Button
-          type="link"
-          danger
-          size="small"
-          onClick={() =>
-            setSelectedProducts(selectedProducts.filter(p => p.productId !== record.productId))
-          }
-        >
-          Xóa
-        </Button>
+      title: 'Giới hạn sử dụng',
+      key: 'usage',
+      width: 130,
+      render: (_: any, record: ProductWithConfig) => (
+        <div className="space-y-1">
+          <InputNumber
+            value={record.totalUsageLimit}
+            onChange={value =>
+              handleProductUpdate(record.productId, 'totalUsageLimit', value)
+            }
+            min={1}
+            placeholder="Tổng"
+            className="w-full"
+            size="small"
+            disabled={!selectedRowKeys.includes(record.productId)}
+          />
+          <InputNumber
+            value={record.usagePerUser}
+            onChange={value =>
+              handleProductUpdate(record.productId, 'usagePerUser', value)
+            }
+            min={1}
+            placeholder="Mỗi người"
+            className="w-full"
+            size="small"
+            disabled={!selectedRowKeys.includes(record.productId)}
+          />
+        </div>
       ),
     },
   ];
-
-  const renderStepContent = () => {
-    if (currentStep === 0) {
-      // Step 1: Select Products
-      return (
-        <div>
-          <Alert
-            message="Chọn sản phẩm của cửa hàng bạn tham gia chiến dịch"
-            description={
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                <li>Danh sách dưới đây chỉ hiển thị <strong>sản phẩm thuộc cửa hàng của bạn</strong></li>
-                <li>Chỉ các sản phẩm có trạng thái <strong>ACTIVE</strong> mới được hiển thị</li>
-                <li>Sản phẩm phải được cập nhật ≥ 7 ngày trước khi đăng ký</li>
-                {isFlashSale && (
-                  <li className="text-orange-600 font-medium">
-                    ⚡ Flash Sale yêu cầu chọn khung giờ ở bước tiếp theo
-                  </li>
-                )}
-                <li className="text-blue-600">
-                  💡 Tìm thấy <strong>{products.length} sản phẩm</strong> phù hợp
-                </li>
-              </ul>
-            }
-            type="info"
-            showIcon
-            className="mb-4"
-          />
-          
-          {isLoadingProducts ? (
-            <div className="flex justify-center py-10">
-              <Spin tip="Đang tải sản phẩm của cửa hàng bạn..." />
-            </div>
-          ) : products.length === 0 ? (
-            <div className="text-center py-10">
-              <Empty
-                description={
-                  <div>
-                    <p className="text-gray-600 mb-2">
-                      Không tìm thấy sản phẩm ACTIVE nào trong cửa hàng của bạn
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Vui lòng tạo sản phẩm mới hoặc kích hoạt sản phẩm hiện có để tham gia chiến dịch
-                    </p>
-                  </div>
-                }
-              />
-            </div>
-          ) : (
-            <Table
-              columns={productColumns}
-              dataSource={products}
-              rowKey="productId"
-              rowSelection={{
-                selectedRowKeys,
-                onChange: setSelectedRowKeys,
-              }}
-              pagination={{ pageSize: 5 }}
-              scroll={{ y: 300 }}
-            />
-          )}
-        </div>
-      );
-    } else {
-      // Step 2: Configure Discounts
-      return (
-        <div>
-          <Alert
-            message="Cấu hình giảm giá cho sản phẩm"
-            description="Thiết lập loại giảm giá, giá trị và số lượng voucher cho từng sản phẩm"
-            type="success"
-            showIcon
-            className="mb-4"
-          />
-          
-          <Table
-            columns={selectedProductColumns}
-            dataSource={selectedProducts}
-            rowKey="productId"
-            pagination={false}
-            scroll={{ x: 1000, y: 400 }}
-          />
-        </div>
-      );
-    }
-  };
 
   return (
     <Modal
@@ -527,7 +445,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>Đăng ký tham gia chiến dịch</div>
-            <div style={{ color: '#666' }}>
+            <div style={{ fontSize: 13, color: '#666' }}>
               {campaign?.name} • {campaign?.code}
             </div>
           </div>
@@ -535,50 +453,110 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       }
       open={visible}
       onCancel={handleClose}
-      width={currentStep === 0 ? 800 : 1200}
+      width={1400}
       footer={null}
       destroyOnClose
+      style={{ top: 20 }}
     >
-      {/* Steps */}
-      <Steps current={currentStep} style={{ marginBottom: 24 }}>
-        <Step title="Chọn sản phẩm" icon={<ShoppingOutlined />} />
-        <Step title="Cấu hình giảm giá" icon={<SettingOutlined />} />
-      </Steps>
+      {/* Alert */}
+      <Alert
+        message="Chọn sản phẩm và cấu hình giảm giá"
+        description={
+          <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
+            <li>Chỉ hiển thị sản phẩm <strong>ACTIVE</strong> của cửa hàng bạn</li>
+            <li><strong>Tick chọn</strong> sản phẩm muốn tham gia, sau đó cấu hình giảm giá trực tiếp trên bảng</li>
+            {isFlashSale && (
+              <li className="text-orange-600 font-medium">
+                ⚡ Flash Sale bắt buộc phải chọn khung giờ
+              </li>
+            )}
+            <li className="text-blue-600">
+              💡 Tìm thấy <strong>{products.length} sản phẩm</strong> phù hợp
+            </li>
+          </ul>
+        }
+        type="info"
+        showIcon
+        className="mb-4"
+      />
 
       {/* Content */}
-      {renderStepContent()}
+      {isLoadingProducts ? (
+        <div className="flex justify-center py-20">
+          <Spin size="large" tip="Đang tải sản phẩm của cửa hàng bạn..." />
+        </div>
+      ) : products.length === 0 ? (
+        <div className="text-center py-20">
+          <Empty
+            description={
+              <div>
+                <p className="text-gray-600 mb-2">
+                  Không tìm thấy sản phẩm ACTIVE nào trong cửa hàng của bạn
+                </p>
+                <p className="text-sm text-gray-500">
+                  Vui lòng tạo sản phẩm mới hoặc kích hoạt sản phẩm hiện có để tham gia chiến dịch
+                </p>
+              </div>
+            }
+          />
+        </div>
+      ) : (
+        <Table
+          columns={combinedColumns}
+          dataSource={products}
+          rowKey="productId"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+            getCheckboxProps: (record) => ({
+              disabled: record.stockQuantity === 0, // Disable products out of stock
+            }),
+          }}
+          pagination={{ 
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} sản phẩm`,
+          }}
+          scroll={{ x: isFlashSale ? 1500 : 1300, y: 450 }}
+          size="small"
+        />
+      )}
 
       {/* Footer Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
-        <div>
-          {currentStep === 1 && (
-            <Button onClick={() => setCurrentStep(0)}>
-              ← Quay lại
-            </Button>
+      <div 
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginTop: 24, 
+          paddingTop: 16, 
+          borderTop: '1px solid #f0f0f0' 
+        }}
+      >
+        <div className="text-sm text-gray-600">
+          {selectedRowKeys.length > 0 ? (
+            <Space>
+              <CheckCircleOutlined className="text-green-500" />
+              <span>Đã chọn <strong className="text-blue-600">{selectedRowKeys.length}</strong> sản phẩm</span>
+            </Space>
+          ) : (
+            <span className="text-gray-400">Chưa chọn sản phẩm nào</span>
           )}
         </div>
         <Space>
-          <Button onClick={handleClose}>Hủy</Button>
-          {currentStep === 0 ? (
-            <Button
-              type="primary"
-              onClick={handleProductSelection}
-              disabled={selectedRowKeys.length === 0}
-              icon={<CheckCircleOutlined />}
-            >
-              Tiếp tục ({selectedRowKeys.length} sản phẩm)
-            </Button>
-          ) : (
-            <Button
-              type="primary"
-              onClick={handleSubmit}
-              loading={isSubmitting}
-              disabled={selectedProducts.length === 0}
-              icon={<CheckCircleOutlined />}
-            >
-              Xác nhận đăng ký ({selectedProducts.length} sản phẩm)
-            </Button>
-          )}
+          <Button onClick={handleClose} size="large">
+            Hủy
+          </Button>
+          <Button
+            type="primary"
+            size="large"
+            onClick={handleSubmit}
+            loading={isSubmitting}
+            disabled={selectedRowKeys.length === 0}
+            icon={<CheckCircleOutlined />}
+          >
+            Xác nhận đăng ký ({selectedRowKeys.length} sản phẩm)
+          </Button>
         </Space>
       </div>
     </Modal>
