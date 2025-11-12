@@ -9,14 +9,27 @@ interface TitlePriceProps {
   soldCount: number;
   price: number;
   salePrice?: number;
+  discountPercent?: number; // Override calculated discount
+  campaignBadge?: { label: string; color: string } | null;
   shortDescription?: string;
 }
 
 const toVnd = (n: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(n);
 
-const TitlePrice: React.FC<TitlePriceProps> = ({ name, brand, rating, reviewsCount, soldCount, price, salePrice, shortDescription }) => {
+const TitlePrice: React.FC<TitlePriceProps> = ({ 
+  name, 
+  brand, 
+  rating, 
+  reviewsCount, 
+  soldCount, 
+  price, 
+  salePrice, 
+  discountPercent: providedDiscount,
+  shortDescription 
+}) => {
   const finalPrice = salePrice ?? price;
-  const discount = salePrice ? Math.round((1 - salePrice / price) * 100) : 0;
+  const discount = providedDiscount || (salePrice ? Math.round((1 - salePrice / price) * 100) : 0);
+  
   return (
     <div>
       <h1 className="text-[24px] md:text-[28px] font-bold text-gray-900 leading-snug">
@@ -36,13 +49,31 @@ const TitlePrice: React.FC<TitlePriceProps> = ({ name, brand, rating, reviewsCou
       <div className="mt-3 text-sm text-gray-600 leading-relaxed">
         {shortDescription}
       </div>
-      <div className="mt-4 flex items-end gap-3">
-        <div className="text-[28px] font-extrabold text-orange-500">{toVnd(finalPrice)}</div>
-        {salePrice && (
+      
+      {/* Price Section - Horizontal aligned */}
+      <div className="mt-4 flex items-center gap-4">
+        {salePrice && salePrice < price ? (
           <>
-            <div className="text-[#888] line-through text-[16px]">{toVnd(price)}</div>
-            <div className="text-xs md:text-sm font-semibold text-white px-2 py-0.5 rounded" style={{ backgroundColor: '#FF5C00' }}>-{discount}%</div>
+            {/* Discounted Price - Red when has discount */}
+            <div className="text-[32px] font-extrabold text-red-600">
+              {toVnd(finalPrice)}
+            </div>
+            
+            {/* Original Price */}
+            <div className="text-[18px] text-gray-400 line-through">
+              {toVnd(price)}
+            </div>
+            
+            {/* Discount Percentage - Blue */}
+            <div className="text-base font-semibold bg-blue-100 text-blue-600 px-3 py-1 rounded">
+              -{discount}%
+            </div>
           </>
+        ) : (
+          /* Original Price - Orange when no discount */
+          <div className="text-[32px] font-extrabold text-orange-500">
+            {toVnd(price)}
+          </div>
         )}
       </div>
     </div>

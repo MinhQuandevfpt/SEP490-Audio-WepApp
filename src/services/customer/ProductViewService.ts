@@ -22,6 +22,68 @@ export interface ProductViewStoreInfo {
   wardCode: string | null;
 }
 
+// Platform Voucher (Flash Sale, etc.)
+export interface PlatformVoucherDetail {
+  platformVoucherId: string;
+  campaignId: string;
+  type: 'FIXED' | 'PERCENT';
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  totalVoucherIssued: number;
+  totalUsageLimit: number;
+  usagePerUser: number;
+  status: string;
+  startTime: string;
+  endTime: string;
+  flashSlotId?: string;
+  slotOpenTime?: string;
+  slotCloseTime?: string;
+  slotStatus?: string;
+}
+
+export interface PlatformCampaign {
+  campaignId: string;
+  code: string;
+  name: string;
+  description: string;
+  campaignType: 'FAST_SALE' | string;
+  badgeLabel: string;
+  badgeColor: string;
+  badgeIconUrl: string;
+  status: string;
+  allowRegistration: boolean;
+  approvalRule: string | null;
+  startTime: string;
+  endTime: string;
+  createdAt: string;
+  createdBy: string | null;
+  vouchers: PlatformVoucherDetail[];
+}
+
+// Shop Voucher
+export interface ShopVoucherDetail {
+  source: 'SHOP';
+  shopVoucherId: string;
+  shopVoucherProductId: string;
+  code: string;
+  title: string;
+  type: 'FIXED' | 'PERCENT';
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  startTime: string;
+  endTime: string;
+}
+
+// Product Vouchers container
+export interface ProductVouchers {
+  platformVouchers?: PlatformCampaign[];
+  shopVoucher?: ShopVoucherDetail;
+}
+
 export interface ProductViewItem {
   productId: string;
   name: string;
@@ -34,7 +96,7 @@ export interface ProductViewItem {
   ratingAverage: number | null;
   reviewCount: number | null;
   store: ProductViewStoreInfo | null;
-  vouchers?: any;
+  vouchers?: ProductVouchers;
 }
 
 export interface ProductViewPageInfo {
@@ -69,6 +131,42 @@ export interface ProductVoucherItem {
   endTime: string;
 }
 
+// Platform campaign for product detail vouchers
+export interface ProductDetailPlatformVoucher {
+  platformVoucherId: string;
+  campaignId: string;
+  type: 'FIXED' | 'PERCENT';
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  totalVoucherIssued: number;
+  totalUsageLimit: number;
+  usagePerUser: number;
+  status: string;
+  startTime: string;
+  endTime: string;
+  flashSlotId?: string;
+  slotOpenTime?: string;
+  slotCloseTime?: string;
+  slotStatus?: string;
+}
+
+export interface ProductDetailPlatformCampaign {
+  campaignId: string;
+  campaignType: 'FAST_SALE' | string;
+  code: string;
+  name: string;
+  description: string;
+  badgeLabel: string;
+  badgeColor: string;
+  badgeIconUrl: string;
+  status: string;
+  startTime: string;
+  endTime: string;
+  vouchers: ProductDetailPlatformVoucher[];
+}
+
 export interface ProductVoucherProductSummary {
   productId: string;
   name: string;
@@ -86,7 +184,8 @@ export interface ProductVouchersResponse {
   data: {
     product: ProductVoucherProductSummary;
     vouchers: {
-      shop: ProductVoucherItem[];
+      shop?: ProductVoucherItem[];
+      platform?: ProductDetailPlatformCampaign[];
     };
   };
 }

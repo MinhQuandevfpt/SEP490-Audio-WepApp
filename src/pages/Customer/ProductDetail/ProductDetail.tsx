@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import { ProductListService, type Product } from '../../../services/customer/ProductListService';
-import { ProductViewService, type ProductVoucherItem } from '../../../services/customer/ProductViewService';
+import { ProductViewService, type ProductVoucherItem, type ProductDetailPlatformCampaign } from '../../../services/customer/ProductViewService';
 import ImageGallery from '../../../components/ProductDetailComponents/ImageGallery';
 import StoreInfo from '../../../components/ProductDetailComponents/StoreInfo';
 import TitlePrice from '../../../components/ProductDetailComponents/TitlePrice';
@@ -17,6 +17,7 @@ const ProductDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vouchers, setVouchers] = useState<ProductVoucherItem[]>([]);
+  const [platformCampaigns, setPlatformCampaigns] = useState<ProductDetailPlatformCampaign[]>([]);
   const [vouchersLoading, setVouchersLoading] = useState(false);
 
   useEffect(() => {
@@ -24,8 +25,11 @@ const ProductDetail: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     if (id) {
-      fetchProductDetail(id);
-      fetchVouchers(id);
+      // Fetch both APIs in parallel and keep loading until both complete
+      Promise.all([
+        fetchProductDetail(id),
+        fetchVouchers(id)
+      ]);
     }
   }, [id]);
 
@@ -42,23 +46,26 @@ const ProductDetail: React.FC = () => {
     } catch (err) {
       console.error('Error loading product detail:', err);
       setError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
-    } finally {
-      setLoading(false);
+      setLoading(false); // Stop loading on error
     }
+    // Don't setLoading(false) here - wait for vouchers too
   };
 
   const fetchVouchers = async (productId: string) => {
     try {
       setVouchersLoading(true);
       const res = await ProductViewService.getProductVouchers(productId);
-      const list = res?.data?.vouchers?.shop || [];
-      setVouchers(list);
+      const shopVouchers = res?.data?.vouchers?.shop || [];
+      const platformVouchers = res?.data?.vouchers?.platform || [];
+      setVouchers(shopVouchers);
+      setPlatformCampaigns(platformVouchers);
     } catch (e) {
-      
       console.warn('Không thể tải voucher sản phẩm:', e);
       setVouchers([]);
+      setPlatformCampaigns([]);
     } finally {
       setVouchersLoading(false);
+      setLoading(false); // Stop loading after vouchers fetched
     }
   };
 
@@ -129,6 +136,46 @@ const ProductDetail: React.FC = () => {
     hex: '#cccccc' 
   }] : undefined;
 
+  // Calculate price with platform vouchers (Flash Sale priority)
+  const calculateFinalPrice = () => {
+    const originalPrice = product.price;
+    let finalPrice = product.discountPrice || originalPrice;
+    let discountPercent = 0;
+    let campaignBadge: { label: string; color: string } | null = null;
+
+    // Check platform vouchers first (Flash Sale, etc.)
+    if (platformCampaigns.length > 0) {
+      const campaign = platformCampaigns[0];
+      const voucher = campaign.vouchers?.[0];
+      
+      if (voucher && voucher.status === 'ACTIVE') {
+        const now = new Date();
+        const isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+        
+        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
+          discountPercent = voucher.discountPercent;
+          finalPrice = originalPrice * (1 - discountPercent / 100);
+          
+          // Add campaign badge
+          campaignBadge = {
+            label: campaign.badgeLabel || 'FLASH SALE',
+            color: campaign.badgeColor || '#FF6600'
+          };
+        }
+      }
+    }
+
+    return {
+      originalPrice,
+      finalPrice,
+      discountPercent,
+      campaignBadge,
+      hasDiscount: finalPrice < originalPrice
+    };
+  };
+
+  const priceInfo = calculateFinalPrice();
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -146,8 +193,9 @@ const ProductDetail: React.FC = () => {
               rating={product.ratingAverage || 0}
               reviewsCount={product.reviewCount || 0}
               soldCount={0} // API doesn't provide this
-              price={product.price}
-              salePrice={product.discountPrice || undefined}
+              price={priceInfo.originalPrice}
+              salePrice={priceInfo.hasDiscount ? priceInfo.finalPrice : undefined}
+              discountPercent={priceInfo.discountPercent}
               shortDescription={product.shortDescription}
             />
        
@@ -158,7 +206,7 @@ const ProductDetail: React.FC = () => {
               productId={product.productId}
               productName={product.name}
               productImage={images[0]}
-              productPrice={product.discountPrice || product.price}
+              productPrice={priceInfo.finalPrice}
               inStock={product.stockQuantity > 0} 
               colors={colors} 
             />

@@ -20,13 +20,57 @@ const ProductSuggestions: React.FC = () => {
   }, []);
 
   const mapToProduct = (item: ProductViewItem): Product => {
+    // Calculate discount from vouchers
+    let discountPercent = 0;
+    let discountedPrice = item.finalPrice ?? item.price ?? 0;
     const originalPrice = item.price ?? item.finalPrice ?? 0;
-    const finalPrice = item.finalPrice ?? item.price ?? 0;
-    const hasDiscount = finalPrice < originalPrice;
+    
+    // Check platform vouchers (Flash Sale, etc.)
+    if (item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0) {
+      const campaign = item.vouchers.platformVouchers[0];
+      if (campaign.vouchers && campaign.vouchers.length > 0) {
+        const voucher = campaign.vouchers[0];
+        
+        // Check if voucher is active (within time range)
+        const now = new Date();
+        const startTime = new Date(voucher.startTime);
+        const endTime = new Date(voucher.endTime);
+        const isActive = now >= startTime && now <= endTime && voucher.status === 'ACTIVE';
+        
+        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
+          discountPercent = voucher.discountPercent;
+          discountedPrice = originalPrice * (1 - discountPercent / 100);
+        } else if (isActive && voucher.type === 'FIXED' && voucher.discountValue) {
+          discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
+          if (originalPrice > 0) {
+            discountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+          }
+        }
+      }
+    }
+    
+    // Check shop voucher
+    if (!discountPercent && item.vouchers?.shopVoucher) {
+      const voucher = item.vouchers.shopVoucher;
+      
+      // Check if voucher is active
+      const now = new Date();
+      const startTime = new Date(voucher.startTime);
+      const endTime = new Date(voucher.endTime);
+      const isActive = now >= startTime && now <= endTime;
+      
+      if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
+        discountPercent = voucher.discountPercent;
+        discountedPrice = originalPrice * (1 - discountPercent / 100);
+      } else if (isActive && voucher.type === 'FIXED' && voucher.discountValue) {
+        discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
+        if (originalPrice > 0) {
+          discountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+        }
+      }
+    }
 
-    const promotionPercent = hasDiscount && originalPrice > 0
-      ? Math.round(((originalPrice - finalPrice) / originalPrice) * 100)
-      : null;
+    const hasDiscount = discountPercent > 0;
 
     return {
       productId: item.productId,
@@ -49,12 +93,12 @@ const ProductSuggestions: React.FC = () => {
       videoUrl: null,
       sku: '',
       price: originalPrice,
-      discountPrice: hasDiscount ? finalPrice : null,
-      promotionPercent,
-      priceAfterPromotion: finalPrice,
+      discountPrice: hasDiscount ? discountedPrice : null,
+      promotionPercent: hasDiscount ? discountPercent : null,
+      priceAfterPromotion: hasDiscount ? discountedPrice : originalPrice,
       priceBeforeVoucher: originalPrice,
       voucherAmount: null,
-      finalPrice: finalPrice,
+      finalPrice: hasDiscount ? discountedPrice : originalPrice,
       platformFeePercent: null,
       currency: 'VND',
       stockQuantity: 0,

@@ -25,14 +25,15 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
   return (
     <div 
       onClick={handleClick}
-      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 cursor-pointer group h-full flex flex-col"
+      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 cursor-pointer group flex flex-col"
+      style={{ height: '310px' }} // Giảm height để gọn hơn
     >
       {/* Product Image */}
-      <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden relative">
+      <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden relative flex-shrink-0">
         <img 
           src={primaryImage} 
           alt={product.name} 
-          className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = '/images/placeholder-product.png';
@@ -40,35 +41,46 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
         />
       </div>
 
-      {/* Product Info */}
-      <div className="flex-1 flex flex-col">
-        {/* Product Name */}
-        <h3 className="text-sm font-medium text-gray-900 mb-2 line-clamp-2 flex-1 group-hover:text-orange-500 transition-colors">
+      {/* Product Info - Fixed structure */}
+      <div className="flex flex-col flex-1">
+        {/* Product Name - Always 2 lines height */}
+        <h3 
+          className="text-sm font-medium text-gray-900 mb-2 overflow-hidden"
+          style={{ 
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            minHeight: '2.5rem', // 2 lines minimum
+            lineHeight: '1.25rem'
+          }}
+        >
           {product.name}
         </h3>
 
-        {/* Price */}
-        <div className="mt-auto">
+        {/* Price Section - Reduced spacing */}
+        <div className="mt-1">
           {product.discountPrice && product.discountPrice < product.price ? (
             <div className="space-y-1">
-              <div className="flex items-center space-x-2">
-                <span className="text-lg font-bold text-orange-500">
-                  {formatPrice(product.discountPrice)}
-                </span>
-                {product.promotionPercent && (
-                  <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
-                    -{product.promotionPercent}%
-                  </span>
-                )}
+              {/* Discounted Price - Red color when has discount */}
+              <div className="text-xl font-bold text-red-600">
+                {formatPrice(product.discountPrice)}
               </div>
-              <span className="text-xs text-gray-400 line-through">
-                {formatPrice(product.price)}
-              </span>
+              
+              {/* Original Price with discount % - On same line */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 line-through">
+                  {formatPrice(product.price)}
+                </span>
+                <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">
+                  -{product.promotionPercent}%
+                </span>
+              </div>
             </div>
           ) : (
-            <span className="text-lg font-bold text-orange-500">
+            // Giá gốc khi không giảm - màu cam
+            <div className="text-xl font-bold text-orange-500">
               {formatPrice(product.price)}
-            </span>
+            </div>
           )}
         </div>
       </div>
