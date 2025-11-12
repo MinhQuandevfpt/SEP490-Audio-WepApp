@@ -10,7 +10,8 @@ import {
   Settings,
   ChevronRight,
   LogOut,
-  Zap
+  Zap,
+  Image
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -91,6 +92,15 @@ const AdminSidebar: React.FC = () => {
         { name: 'Tất cả chiến dịch', href: '/admin/campaigns', icon: null },
         { name: 'Tạo chiến dịch mới', href: '/admin/campaigns/create', icon: null },
         { name: 'Duyệt sản phẩm chiến dịch', href: '/admin/campaigns/products/approval', icon: null }
+      ]
+    },
+    {
+      name: 'Quản lý Banner',
+      href: '/admin/banners',
+      icon: <Image className="w-6 h-6" />,
+      children: [
+        { name: 'Tất cả banner', href: '/admin/banners', icon: null },
+        { name: 'Tạo banner mới', href: '/admin/banners/create', icon: null }
       ]
     },
     {

@@ -39,6 +39,7 @@ import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
+import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
@@ -499,6 +500,22 @@ export const router = createBrowserRouter([
         element: <CampaignProductApproval />
       },
       {
+        path: 'banners',
+        element: <BannerManagement />
+      },
+      {
+        path: 'banners/create',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id/edit',
+        element: <BannerDetail />
+      },
+      {
         path: 'orders',
         element: <div>Order Management Page (Coming Soon)</div>
       },
@@ -549,6 +566,22 @@ export const router = createBrowserRouter([
       {
         path: 'categories/:id',
         element: <CategoryDetail />
+      },
+      {
+        path: 'banners',
+        element: <BannerManagement />
+      },
+      {
+        path: 'banners/create',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id/edit',
+        element: <BannerDetail />
       },
       {
         path: 'settings',

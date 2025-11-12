@@ -185,3 +185,57 @@ export interface ApproveProductsResponse {
   data?: any;
 }
 
+// Banner Management Types
+export interface BannerImage {
+  id?: string;
+  imageUrl: string;
+  redirectUrl: string;
+  altText: string;
+  sortOrder: number;
+}
+
+export interface Banner {
+  id: string;
+  title: string;
+  description: string;
+  bannerType: string;
+  active: boolean;
+  startTime: string;
+  endTime: string;
+  images: BannerImage[];
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreateBannerRequest {
+  title: string;
+  description: string;
+  bannerType: string;
+  active: boolean;
+  startTime: string;
+  endTime: string;
+  images: Omit<BannerImage, 'id'>[];
+}
+
+export interface UpdateBannerRequest {
+  title?: string;
+  description?: string;
+  bannerType?: string;
+  active?: boolean;
+  startTime?: string;
+  endTime?: string;
+  images?: Omit<BannerImage, 'id'>[];
+}
+
+export interface BannerResponse {
+  status: number;
+  message: string;
+  data: Banner;
+}
+
+export interface BannerListResponse {
+  status: number;
+  message: string;
+  data: Banner[];
+}
+
