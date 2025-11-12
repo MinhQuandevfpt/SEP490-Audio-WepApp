@@ -24,6 +24,7 @@ import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
+import WarrantyPage from '../pages/Customer/Warranty/WarrantyPage';
 import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
@@ -43,6 +44,7 @@ import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement'
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
+import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
@@ -188,6 +190,10 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<OrderHistoryPage />} />
   },
   {
+    path: '/warranty',
+    element: <ProtectedRoute element={<WarrantyPage />} />
+  },
+  {
     path: '/checkout',
     element: <ProtectedRoute element={<CheckoutOrderPage />} />
   },
@@ -311,6 +317,10 @@ export const router = createBrowserRouter([
       {
         path: 'orders/cancelled',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'warranty',
+        element: <StoreOwnerWarranty />
       },
       {
         path: 'staff',

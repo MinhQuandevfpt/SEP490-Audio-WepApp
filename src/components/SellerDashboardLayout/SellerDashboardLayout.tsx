@@ -18,7 +18,8 @@ import {
   HelpCircle,
   FileText,
   Tag,
-  Users
+  Users,
+  ShieldCheck
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -98,6 +99,12 @@ const SellerDashboardLayout: React.FC = () => {
         { label: 'Đã giao', path: '/seller/dashboard/orders/delivered' },
         { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' }
       ]
+    },
+    {
+      icon: ShieldCheck,
+      label: 'Bảo hành sản phẩm',
+      path: '/seller/dashboard/warranty',
+      badge: null
     },
     {
       icon: Users,

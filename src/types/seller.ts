@@ -351,14 +351,20 @@ export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 
 
 // Store Order Status (matches backend enum)
 export type StoreOrderStatus = 
-  | 'PENDING'             // Chờ xử lý
-  | 'CONFIRMED'           // Đã xác nhận
-  | 'AWAITING_SHIPMENT'    // Chờ lấy hàng
-  | 'SHIPPING'            // Đang giao hàng
-  | 'COMPLETED'           // Đã giao hàng
-  | 'CANCELLED'           // Đã hủy
-  | 'RETURN_REQUESTED'     // Yêu cầu trả hàng
-  | 'RETURNED';           // Đã trả hàng
+  | 'PENDING'                  // Chờ xử lý
+  | 'CONFIRMED'                // Đã xác nhận
+  | 'AWAITING_SHIPMENT'        // Chờ lấy hàng
+  | 'SHIPPING'                 // Đang giao hàng
+  | 'READY_FOR_PICKUP'         // Kho đang chuẩn bị
+  | 'READY_FOR_DELIVERY'       // Chờ giao hàng
+  | 'OUT_FOR_DELIVERY'         // Đang giao hàng
+  | 'DELIVERED_WAITING_CONFIRM'// Chờ xác nhận giao hàng
+  | 'DELIVERY_SUCCESS'         // Giao hàng thành công
+  | 'DELIVERY_DENIED'          // Giao hàng thất bại
+  | 'COMPLETED'                // Đã giao hàng
+  | 'CANCELLED'                // Đã hủy
+  | 'RETURN_REQUESTED'         // Yêu cầu trả hàng
+  | 'RETURNED';                // Đã trả hàng
 
 // Store Order Item
 export interface StoreOrderItem {
