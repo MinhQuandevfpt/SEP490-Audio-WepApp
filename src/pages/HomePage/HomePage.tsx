@@ -3,8 +3,6 @@ import Layout from '../../components/Layout';
 import Sidebar from '../../components/Sidebar';
 import BannerSlider from '../../components/BannerSlider';
 import FlashSaleHome from '../../components/FlashSale/FlashSaleHome';
-import TopDeals from '../../components/TopDeals';
-import FeaturedBrands from '../../components/FeaturedBrands';
 import ProductSuggestions from '../../components/ProductSuggestions';
 import { showCenterSuccess } from '../../utils/notification';
 
@@ -50,12 +48,6 @@ const HomePage: React.FC = () => {
 
             {/* Flash Sale Section */}
             <FlashSaleHome />
-
-            {/* Top Deals Section */}
-            <TopDeals />
-
-            {/* Featured Brands Section */}
-            <FeaturedBrands />
 
             {/* Product Suggestions Section */}
             <ProductSuggestions />

@@ -298,11 +298,15 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                     {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
                       hour: '2-digit',
                       minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
                     })}{' '}
                     -{' '}
                     {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
                       hour: '2-digit',
                       minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
                     })}
                   </Option>
                 ))}
@@ -325,7 +329,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
         >
           <Option value="PERCENT">% Giảm</Option>
           <Option value="FIXED">Số tiền</Option>
-          <Option value="SHIPPING">Miễn ship</Option>
         </Select>
       ),
     },
@@ -376,11 +379,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               disabled={!selectedRowKeys.includes(record.productId)}
             />
           )}
-          {record.type === 'SHIPPING' && (
-            <Tag color="green" className="w-full text-center text-xs">
-              Miễn ship
-            </Tag>
-          )}
         </div>
       ),
     },
@@ -393,17 +391,15 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
           <div className="text-sm font-bold text-orange-600">
             {calculateDiscountedPrice(record).toLocaleString('vi-VN')}đ
           </div>
-          {record.type !== 'SHIPPING' && (
-            <div className="text-xs text-gray-500">
-              -{' '}
-              {(
-                ((record.price - calculateDiscountedPrice(record)) /
-                  record.price) *
-                100
-              ).toFixed(0)}
-              %
-            </div>
-          )}
+          <div className="text-xs text-gray-500">
+            -{' '}
+            {(
+              ((record.price - calculateDiscountedPrice(record)) /
+                record.price) *
+              100
+            ).toFixed(0)}
+            %
+          </div>
         </div>
       ),
     },

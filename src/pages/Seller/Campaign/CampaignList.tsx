@@ -231,7 +231,23 @@ const SellerCampaignList: React.FC = () => {
               <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 truncate">{campaign.name}</h3>
               <div className="text-sm text-gray-600 mb-1">Mã: <span className="font-medium text-gray-800">{campaign.code}</span></div>
               <div className="text-sm text-gray-800 font-medium space-y-0.5">
-                <div>Thời gian chương trình: {SellerCampaignService.formatDate(campaign.startTime)} - {SellerCampaignService.formatDate(campaign.endTime)}</div>
+                <div>Thời gian chương trình: {new Date(campaign.startTime).toLocaleString('vi-VN', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: false
+                })} - {new Date(campaign.endTime).toLocaleString('vi-VN', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: false
+                })}</div>
                 
               </div>
               <div className="text-sm mt-2">
@@ -272,6 +288,8 @@ const SellerCampaignList: React.FC = () => {
                         {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
                           minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
                         })}
                       </span>
                       <span className="text-gray-400">-</span>
@@ -279,6 +297,8 @@ const SellerCampaignList: React.FC = () => {
                         {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
                           minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
                         })}
                       </span>
                     </div>

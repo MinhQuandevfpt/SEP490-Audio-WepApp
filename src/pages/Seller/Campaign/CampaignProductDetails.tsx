@@ -192,9 +192,6 @@ const CampaignProductDetails: React.FC = () => {
     if (product.discountType === 'FIXED' && product.discountValue) {
       return `-${product.discountValue.toLocaleString('vi-VN')}₫`;
     }
-    if (product.discountType === 'SHIPPING') {
-      return 'Miễn phí ship';
-    }
     return 'N/A';
   };
 

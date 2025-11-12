@@ -176,7 +176,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {form.type === 'FIXED' ? (
             <div>
-              <label className="block text-sm font-medium text-gray-700 flex items-center">
+              <label className="flex items-center text-sm font-medium text-gray-700">
                 Giá trị giảm (VND)
                 <InfoTooltip fieldKey="discountValue" />
               </label>
@@ -194,7 +194,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-gray-700 flex items-center">
+              <label className="flex items-center text-sm font-medium text-gray-700">
                 Giảm (%)
                 <InfoTooltip fieldKey="discountPercent" />
               </label>
@@ -202,7 +202,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 flex items-center">
+            <label className="flex items-center text-sm font-medium text-gray-700">
               Giảm tối đa (VND)
               <InfoTooltip fieldKey="maxDiscountValue" />
             </label>
@@ -220,7 +220,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 flex items-center">
+            <label className="flex items-center text-sm font-medium text-gray-700">
               Đơn tối thiểu (VND)
               <InfoTooltip fieldKey="minOrderValue" />
             </label>
@@ -239,7 +239,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 flex items-center">
+            <label className="flex items-center text-sm font-medium text-gray-700">
               Tổng số phát hành
               <InfoTooltip fieldKey="totalVoucherIssued" />
             </label>
@@ -247,7 +247,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
           </div>
           {/* Removed: Tổng số lượt dùng (totalUsageLimit). Always send null per new API. */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 flex items-center">
+            <label className="flex items-center text-sm font-medium text-gray-700">
               Lượt dùng mỗi user
               <InfoTooltip fieldKey="usagePerUser" />
             </label>
@@ -324,7 +324,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                 </div>
                 {/* Removed per-product discount fields to match new API */}
                 <div>
-                  <label className="block text-xs text-gray-600 flex items-center">
+                  <label className="flex items-center text-xs text-gray-600">
                     Giới hạn sản phẩm áp dụng
                     <InfoTooltip fieldKey="promotionStockLimit" />
                   </label>
@@ -353,7 +353,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                   })()}
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 flex items-center">
+                  <label className="flex items-center text-xs text-gray-600">
                     Giới hạn mua/user
                     <InfoTooltip fieldKey="purchaseLimitPerCustomer" />
                   </label>

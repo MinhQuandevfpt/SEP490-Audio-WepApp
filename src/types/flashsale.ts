@@ -5,7 +5,7 @@
 
 export type FlashSaleStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'APPROVE';
 export type SlotStatus = 'UPCOMING' | 'ACTIVE' | 'CLOSED' | 'EXPIRED';
-export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
+export type VoucherType = 'FIXED' | 'PERCENT';
 export type TimeFilter = 'UPCOMING' | 'ONGOING' | 'EXPIRED';
 
 /**

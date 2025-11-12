@@ -700,7 +700,7 @@ export interface FlashSlot {
   status: string;
 }
 
-export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
+export type VoucherType = 'FIXED' | 'PERCENT';
 
 export interface CampaignProductRequest {
   productId: string;

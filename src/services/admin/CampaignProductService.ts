@@ -136,7 +136,7 @@ export class CampaignProductService {
   }
 
   /**
-   * Format discount display
+   * Format discount value
    */
   static formatDiscount(voucher: { type: string; discountValue: number | null; discountPercent: number | null }): string {
     if (voucher.type === 'PERCENT' && voucher.discountPercent) {
@@ -144,9 +144,6 @@ export class CampaignProductService {
     }
     if (voucher.type === 'FIXED' && voucher.discountValue) {
       return `-${voucher.discountValue.toLocaleString('vi-VN')}₫`;
-    }
-    if (voucher.type === 'SHIPPING') {
-      return 'Miễn phí ship';
     }
     return 'N/A';
   }
