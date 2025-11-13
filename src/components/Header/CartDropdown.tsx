@@ -7,32 +7,31 @@ import type { CartResponse } from '../../types/cart';
 const CartDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [cart, setCart] = useState<CartResponse | null>(null);
-  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load cart data
+  // Load cart data - Tối ưu: không hiển thị loading spinner
   const loadCart = async () => {
     try {
-      setLoading(true);
       const cartData = await CustomerCartService.getCart();
       setCart(cartData);
     } catch (error) {
       console.error('Error loading cart:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Load cart immediately on mount and when dropdown opens
+  // Load cart immediately on mount
   useEffect(() => {
-    loadCart(); // Load cart on component mount
+    loadCart();
   }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadCart(); // Reload when dropdown opens
+  // Preload cart when hovering (không cần reload khi đã mở)
+  const handleMouseEnter = () => {
+    setIsOpen(true);
+    // Chỉ reload nếu cart chưa có data
+    if (!cart) {
+      loadCart();
     }
-  }, [isOpen]);
+  };
 
   // Listen for cart updates
   useEffect(() => {
@@ -61,12 +60,26 @@ const CartDropdown: React.FC = () => {
 
   const cartItemCount = cart?.items?.length || 0;
   const formatPrice = (price: number) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
+  
+  // Chỉ hiển thị 5 sản phẩm mới nhất (sản phẩm mới thêm sẽ ở đầu)
+  const displayItems = cart?.items?.slice(0, 5) || [];
+  const remainingCount = Math.max(0, cartItemCount - 5);
+
+  // Tính giá sau giảm từ voucher/campaign (giống ProductDetail logic)
+  const calculateDiscountedPrice = (item: any) => {
+    // Nếu có discountedPrice từ API thì dùng
+    if (item.discountedPrice && item.discountedPrice < item.unitPrice) {
+      return item.discountedPrice;
+    }
+    // Fallback về unitPrice (giá gốc)
+    return item.unitPrice;
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Cart Icon */}
       <button
-        onMouseEnter={() => setIsOpen(true)}
+        onMouseEnter={handleMouseEnter}
         onClick={() => setIsOpen(!isOpen)}
         className="relative group"
       >
@@ -99,65 +112,72 @@ const CartDropdown: React.FC = () => {
             </button>
           </div>
 
-          {/* Cart Items */}
-          <div className="max-h-96 overflow-y-auto">
-            {loading ? (
-              <div className="p-8 text-center text-gray-500">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
-                <p className="mt-2">Đang tải...</p>
-              </div>
-            ) : cartItemCount === 0 ? (
+          {/* Cart Items - No scroll, fit 5 items */}
+          <div className="overflow-hidden">
+            {cartItemCount === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                 <p>Giỏ hàng trống</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {cart?.items.map((item) => (
-                  <div key={item.cartItemId} className="p-4 hover:bg-gray-50 flex gap-3">
-                    {/* Image */}
-                    <div className="flex-shrink-0">
-                      <img
-                        src={item.image || '/images/placeholder-product.png'}
-                        alt={item.name}
-                        className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/images/placeholder-product.png';
-                        }}
-                      />
-                    </div>
+                {displayItems.map((item) => {
+                  const discountedPrice = calculateDiscountedPrice(item);
+                  
+                  return (
+                    <div key={item.cartItemId} className="p-3 hover:bg-gray-50 flex gap-2">
+                      {/* Image - Smaller */}
+                      <div className="flex-shrink-0">
+                        <img
+                          src={item.image || '/images/placeholder-product.png'}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded border border-gray-200"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/images/placeholder-product.png';
+                          }}
+                        />
+                      </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">
-                        {item.name}
-                      </h4>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-500">
-                          x{item.quantity}
-                        </span>
-                        <span className="text-sm font-semibold text-orange-500">
-                          {formatPrice(item.lineTotal)}
+                      {/* Info - Compact */}
+                      <div className="flex-1 min-w-0 flex items-center justify-between">
+                        <h4 className="text-xs font-medium text-gray-900 line-clamp-1 leading-tight flex-1 mr-2" style={{ 
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {item.name}
+                        </h4>
+                        {/* Giá màu cam bên phải */}
+                        <span className="text-sm font-semibold text-orange-500 flex-shrink-0">
+                          {formatPrice(discountedPrice)}
                         </span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           {/* Footer */}
           {cartItemCount > 0 && (
-            <div className="p-4 border-t border-gray-200 bg-gray-50">
-              <Link
-                to="/cart"
-                onClick={() => setIsOpen(false)}
-                className="block w-full bg-orange-500 text-white text-center py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium"
-              >
-                Xem giỏ hàng
-              </Link>
+            <div className="p-3 border-t border-gray-200 bg-gray-50">
+              {/* Thông báo số sản phẩm còn lại + Button */}
+              <div className="flex items-center justify-between">
+                {remainingCount > 0 && (
+                  <span className="text-xs text-gray-600">
+                    {remainingCount} sản phẩm thêm vào giỏ
+                  </span>
+                )}
+                <Link
+                  to="/cart"
+                  onClick={() => setIsOpen(false)}
+                  className={`${remainingCount > 0 ? 'ml-auto' : 'w-full'} bg-orange-500 text-white text-center px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm`}
+                >
+                  Xem giỏ hàng
+                </Link>
+              </div>
             </div>
           )}
         </div>

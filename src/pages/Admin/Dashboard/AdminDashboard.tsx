@@ -1,8 +1,24 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import StatCard from '../../../components/AdminComponents/StatCard';
 import DataTable from '../../../components/AdminComponents/DataTable';
+import { showCenterSuccess } from '../../../utils/notification';
 
 const AdminDashboard: React.FC = () => {
+  // Check for login success message
+  useEffect(() => {
+    const loginSuccess = sessionStorage.getItem('adminLoginSuccess');
+    if (loginSuccess) {
+      try {
+        const { message } = JSON.parse(loginSuccess);
+        showCenterSuccess(message, 'Thành công');
+        sessionStorage.removeItem('adminLoginSuccess');
+      } catch (error) {
+        console.error('Error parsing admin login success message:', error);
+        sessionStorage.removeItem('adminLoginSuccess');
+      }
+    }
+  }, []);
+
   // Mock data for statistics
   const stats = [
     {

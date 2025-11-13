@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminAuthService } from '../../../services/admin/AdminAuthService';
-import { showCenterError, showCenterSuccess } from '../../../utils/notification';
+import { showCenterError } from '../../../utils/notification';
 import { 
   ShieldCheck, 
   TrendingUp, 
@@ -44,10 +44,14 @@ const AdminLogin: React.FC = () => {
     try {
       const response = await AdminAuthService.login(formData);
       if (response.success) {
-        showCenterSuccess('Đăng nhập thành công! Đang chuyển hướng...', 'Chào mừng');
-        setTimeout(() => {
-          navigate('/admin/dashboard');
-        }, 1500);
+        // Lưu thông báo vào sessionStorage thay vì hiện ngay
+        sessionStorage.setItem('adminLoginSuccess', JSON.stringify({
+          message: 'Đăng nhập thành công! Chào mừng bạn đến với Admin Dashboard.',
+          timestamp: Date.now()
+        }));
+        
+        // Navigate ngay lập tức, không setTimeout
+        navigate('/admin/dashboard');
       } else {
         showCenterError(response.message || 'Đăng nhập thất bại');
       }

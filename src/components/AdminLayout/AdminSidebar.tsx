@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -134,8 +133,6 @@ const AdminSidebar: React.FC = () => {
   const renderNavigationItem = (item: NavigationItem, level: number = 0) => {
     const isExpanded = expandedItems.includes(item.name);
     const hasChildren = item.children && item.children.length > 0;
-    const location = useLocation();
-    const childActive = hasChildren && item.children!.some(c => location.pathname === c.href || location.pathname.startsWith(c.href + '/'));
 
     return (
       <div key={item.name}>
@@ -177,7 +174,7 @@ const AdminSidebar: React.FC = () => {
           </NavLink>
         )}
         
-        {hasChildren && (isExpanded || childActive) && (
+        {hasChildren && isExpanded && (
           <div className="mt-1 space-y-1">
             {item.children!.map(child => renderNavigationItem(child, level + 1))}
           </div>

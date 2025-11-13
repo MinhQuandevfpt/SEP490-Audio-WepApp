@@ -531,17 +531,17 @@ const SellerCampaignList: React.FC = () => {
                 <div className="text-center">
                   <p className="text-gray-700 text-xl font-semibold mb-2">
                     {searchText
-                      ? '🔍 Không tìm thấy chiến dịch phù hợp'
+                      ? ' Không tìm thấy chiến dịch phù hợp'
                       : activeTab === 'joined'
-                      ? '📋 Chưa có chiến dịch nào đã đăng ký'
-                      : '🎉 Chưa có chiến dịch nào đang mở đăng ký'}
+                      ? ' Chưa có chiến dịch nào đã đăng ký'
+                      : ' Chưa có chiến dịch nào đang mở đăng ký'}
                   </p>
                   <p className="text-gray-500 text-base mb-4">
                     {searchText
                       ? 'Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc'
                       : activeTab === 'joined'
                       ? 'Tham gia các chiến dịch để chúng xuất hiện ở đây'
-                      : 'Các chiến dịch mới sẽ được admin mở và xuất hiện ở đây'}
+                      : 'Các chiến dịch mới sẽ được hệ thống mở đăng kí và xuất hiện ở đây'}
                   </p>
                   <p className="text-sm text-blue-600 bg-blue-50 inline-block px-4 py-2 rounded-lg">
                     💡 Tip: Theo dõi thường xuyên để không bỏ lỡ cơ hội!

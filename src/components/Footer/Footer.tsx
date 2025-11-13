@@ -120,7 +120,7 @@ const Footer: React.FC = () => {
         <div className="border-t border-gray-300 mt-8 pt-8">
           <div className="text-center">
             <p className="text-gray-500 text-sm">
-              © 2024 AudioShop. Tất cả quyền được bảo lưu.
+              © 2025 AudioShop. Tất cả quyền được bảo lưu.
             </p>
           </div>
         </div>

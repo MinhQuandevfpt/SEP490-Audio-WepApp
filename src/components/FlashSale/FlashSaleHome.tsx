@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Spin, Empty, Progress, Button } from 'antd';
+import { Empty, Button } from 'antd';
 import { FireOutlined, RightOutlined } from '@ant-design/icons';
 import { FlashSaleService } from '../../services/customer/FlashSaleService';
 import type { CurrentFlashSaleSlot } from '../../types/flashsale';
@@ -15,20 +15,16 @@ import type { CurrentFlashSaleSlot } from '../../types/flashsale';
 const FlashSaleHome: React.FC = () => {
   const navigate = useNavigate();
   const [flashSale, setFlashSale] = useState<CurrentFlashSaleSlot | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   // Fetch Flash Sale hiện tại
   useEffect(() => {
     const fetchFlashSale = async () => {
-      setIsLoading(true);
       try {
         const data = await FlashSaleService.getCurrentFlashSale();
         setFlashSale(data);
       } catch (error) {
         console.error('Error loading flash sale:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -74,14 +70,7 @@ const FlashSaleHome: React.FC = () => {
     navigate(`/product/${productId}`);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center py-20">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
+  // Không hiển thị loading spinner - render ngay
   if (!flashSale || flashSale.products.length === 0) {
     return null; // Không hiển thị gì nếu không có Flash Sale
   }
@@ -141,10 +130,6 @@ const FlashSaleHome: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {flashSale.products.map((product) => {
-                const soldPercentage = product.totalUsageLimit > 0
-                  ? ((product.totalUsageLimit - product.remainingUsage) / product.totalUsageLimit) * 100
-                  : 0;
-
                 return (
                   <div
                     key={product.campaignProductId}
@@ -186,34 +171,6 @@ const FlashSaleHome: React.FC = () => {
                           </div>
                         )}
                       </div>
-
-                      {/* Progress Bar */}
-                      {product.totalUsageLimit > 0 && (
-                        <div>
-                          <Progress
-                            percent={soldPercentage}
-                            showInfo={false}
-                            strokeColor={{
-                              '0%': '#ff4d4f',
-                              '100%': '#ff7875'
-                            }}
-                            trailColor="#f5f5f5"
-                            strokeWidth={8}
-                            className="mb-1"
-                          />
-                          <div className="text-xs text-gray-500 text-center">
-                            {soldPercentage >= 80 ? (
-                              <span className="text-red-500 font-semibold">
-                                {soldPercentage >= 100 ? 'Đã bán hết' : 'Sắp hết'}
-                              </span>
-                            ) : (
-                              <span>
-                                Đã bán {product.totalUsageLimit - product.remainingUsage}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -239,4 +196,4 @@ const TimeBox: React.FC<{ value: string }> = ({ value }) => {
   );
 };
 
-export default FlashSaleHome;
+export default React.memo(FlashSaleHome);

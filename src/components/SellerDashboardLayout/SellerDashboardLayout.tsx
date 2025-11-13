@@ -142,9 +142,7 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
-        { label: 'Khuyến mãi', path: '/seller/dashboard/marketing/promotions' },
-        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
-        { label: 'Flash Sale', path: '/seller/dashboard/marketing/flash-sale' }
+        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' }
       ]
     },
     {
@@ -294,11 +292,11 @@ const SellerDashboardLayout: React.FC = () => {
             {menuItems.map((item, index) => {
               const Icon = item.icon;
               const isCurrentActive = isActive(item.path);
-              const isExpanded = expandedItems.includes(item.path) || isCurrentActive;
+              const isExpanded = expandedItems.includes(item.path);
 
               return (
                 <div key={index}>
-                  <div className={`flex items-center justify-between mb-1 rounded-lg transition-all ${isCurrentActive ? 'bg-orange-50' : ''}`}>
+                  <div className="flex items-center justify-between mb-1 rounded-lg transition-all">
                     <Link
                       to={item.path}
                       className={`flex items-center px-4 py-3 rounded-lg flex-1 transition-all ${

@@ -8,7 +8,6 @@ import StoreInfo from '../../../components/ProductDetailComponents/StoreInfo';
 import TitlePrice from '../../../components/ProductDetailComponents/TitlePrice';
 import PurchaseActions from '../../../components/ProductDetailComponents/PurchaseActions';
 import ProductTabs from '../../../components/ProductDetailComponents/tabs/ProductTabs';
-import InfoCard from '../../../components/ProductDetailComponents/info/InfoCard';
 import ProductVouchers from '../../../components/ProductDetailComponents/ProductVouchers';
 
 const ProductDetail: React.FC = () => {
@@ -25,47 +24,53 @@ const ProductDetail: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     if (id) {
-      // Fetch both APIs in parallel and keep loading until both complete
-      Promise.all([
-        fetchProductDetail(id),
-        fetchVouchers(id)
-      ]);
+      // Reset states
+      setLoading(true);
+      setError(null);
+      setProduct(null);
+      
+      // Fetch both APIs in parallel and wait for both
+      fetchBothAPIs(id);
     }
   }, [id]);
 
-  const fetchProductDetail = async (productId: string) => {
+  const fetchBothAPIs = async (productId: string) => {
     try {
       setLoading(true);
-      setError(null);
       
-      const response = await ProductListService.getProductById(productId);
-      
-      if (response && response.data) {
-        setProduct(response.data);
+      // Fetch both in parallel
+      const [productResponse, voucherResponse] = await Promise.all([
+        ProductListService.getProductById(productId),
+        ProductViewService.getProductVouchers(productId).catch(e => {
+          console.warn('Không thể tải voucher sản phẩm:', e);
+          return null;
+        })
+      ]);
+
+      // Set product data
+      if (productResponse && productResponse.data) {
+        setProduct(productResponse.data);
+      } else {
+        setError('Không tìm thấy sản phẩm');
       }
+
+      // Set voucher data
+      if (voucherResponse) {
+        const shopVouchers = voucherResponse?.data?.vouchers?.shop || [];
+        const platformVouchers = voucherResponse?.data?.vouchers?.platform || [];
+        setVouchers(shopVouchers);
+        setPlatformCampaigns(platformVouchers);
+      } else {
+        setVouchers([]);
+        setPlatformCampaigns([]);
+      }
+      
     } catch (err) {
       console.error('Error loading product detail:', err);
       setError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
-      setLoading(false); // Stop loading on error
-    }
-    // Don't setLoading(false) here - wait for vouchers too
-  };
-
-  const fetchVouchers = async (productId: string) => {
-    try {
-      setVouchersLoading(true);
-      const res = await ProductViewService.getProductVouchers(productId);
-      const shopVouchers = res?.data?.vouchers?.shop || [];
-      const platformVouchers = res?.data?.vouchers?.platform || [];
-      setVouchers(shopVouchers);
-      setPlatformCampaigns(platformVouchers);
-    } catch (e) {
-      console.warn('Không thể tải voucher sản phẩm:', e);
-      setVouchers([]);
-      setPlatformCampaigns([]);
     } finally {
+      setLoading(false);
       setVouchersLoading(false);
-      setLoading(false); // Stop loading after vouchers fetched
     }
   };
 
@@ -225,25 +230,6 @@ const ProductDetail: React.FC = () => {
           description={product.description ? [product.description] : []} 
           specs={specs}
         />
-
-      
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <InfoCard 
-            icon={<span>🛠️</span>} 
-            title={`Bảo hành ${product.warrantyPeriod || '12 tháng'}`}
-            desc={product.warrantyType || 'Bảo hành chính hãng'} 
-          />
-          <InfoCard 
-            icon={<span>🚚</span>} 
-            title="Giao hàng toàn quốc" 
-            desc={product.shippingFee ? `Phí ship: ${product.shippingFee.toLocaleString('vi-VN')}đ` : 'Miễn phí đơn từ 500k'} 
-          />
-          <InfoCard 
-            icon={<span>💰</span>} 
-            title="Đổi trả 7 ngày" 
-            desc="Nếu sản phẩm lỗi kỹ thuật" 
-          />
-        </div>
       </div>
     </Layout>
   );
