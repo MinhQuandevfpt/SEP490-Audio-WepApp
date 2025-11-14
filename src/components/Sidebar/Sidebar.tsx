@@ -63,14 +63,7 @@ const Sidebar: React.FC = () => {
         )}
       </div>
 
-      {/* Promotion banner in sidebar */}
-      <div className="m-4 p-4 bg-gradient-to-r from-orange-400 to-red-400 rounded-lg text-white">
-        <h4 className="font-bold text-sm mb-1">Ưu đãi đặc biệt</h4>
-        <p className="text-xs mb-2">Giảm 20% cho đơn hàng đầu tiên</p>
-        <button className="bg-white text-orange-500 text-xs px-3 py-1 rounded-full font-medium">
-          Xem ngay
-        </button>
-      </div>
+     
     </div>
   );
 };

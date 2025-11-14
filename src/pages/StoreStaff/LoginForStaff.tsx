@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StaffLoginForm } from '../../components/Loginforstorestaffcomponents';
 import { StoreStaffAuthService } from '../../services/staff/AuthStaff';
-import { showCenterError, showCenterSuccess } from '../../utils/notification';
+import { showCenterError } from '../../utils/notification';
 
 interface LoginData {
   email: string;
@@ -28,12 +28,14 @@ const LoginForStaff: React.FC = () => {
       });
       
       if (response.status === 200) {
-        showCenterSuccess('Đăng nhập thành công! Đang chuyển đến dashboard...');
+        // Lưu thông báo vào sessionStorage thay vì hiện ngay
+        sessionStorage.setItem('staffLoginSuccess', JSON.stringify({
+          message: 'Đăng nhập thành công! Chào mừng bạn đến với Staff Dashboard.',
+          timestamp: Date.now()
+        }));
         
-        // Navigate to staff dashboard
-        setTimeout(() => {
-          navigate('/store-staff/dashboard');
-        }, 1500);
+        // Navigate ngay lập tức, không setTimeout
+        navigate('/store-staff/dashboard');
       } else {
         throw new Error(response.message || 'Đăng nhập thất bại');
       }

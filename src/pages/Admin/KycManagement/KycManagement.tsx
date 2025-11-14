@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Tag, Button, Modal, Input, Space, Tooltip } from 'antd';
+import { Table, Tag, Button, Modal, Input, Space, Tooltip, Typography, Card, Row, Col, Statistic, Tabs, Empty } from 'antd';
 import { EyeOutlined, CheckCircleOutlined, CloseCircleOutlined, FileImageOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { AdminKycService } from '../../../services/admin/AdminKycService';
 import type { KycData, KycStatus } from '../../../types/admin';
 import { showError } from '../../../utils/notification';
-import { KycStatsCards } from '../../../components/AdminComponents/KycStatsCards';
 
 const { TextArea } = Input;
 
@@ -270,49 +269,73 @@ const KycManagement: React.FC = () => {
     return filteredRequests.filter(req => req.status === selectedStatus);
   }, [selectedStatus, filteredRequests]);
 
+  // Stats
+  const stats = useMemo(() => ({
+    total: filteredRequests.length,
+    pending: filteredRequests.filter(r => r.status === 'PENDING').length,
+    approved: filteredRequests.filter(r => r.status === 'APPROVED').length,
+    rejected: filteredRequests.filter(r => r.status === 'REJECTED').length,
+  }), [filteredRequests]);
+
   return (
-    <div className="p-6">
+    <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
       {/* Page Header */}
-      <div className="md:flex md:items-center md:justify-between mb-6">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Typography.Title level={3} style={{ margin: 0 }}>
             Quản lý yêu cầu KYC
-          </h2>
-          <p className="mt-1 text-sm text-gray-500">
+          </Typography.Title>
+          <Typography.Text type="secondary">
             Xem và xử lý các yêu cầu xác thực cửa hàng
-          </p>
+          </Typography.Text>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="mb-6">
-        <KycStatsCards kycRequests={filteredRequests} isLoading={isLoading} />
-      </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Tổng yêu cầu" value={stats.total} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Chờ duyệt" value={stats.pending} valueStyle={{ color: '#faad14' }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Đã duyệt" value={stats.approved} valueStyle={{ color: '#3f8600' }} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic title="Đã từ chối" value={stats.rejected} valueStyle={{ color: '#cf1322' }} />
+          </Card>
+        </Col>
+      </Row>
 
       {/* Filter Tabs */}
-      <div className="mb-6 flex gap-2 border-b border-gray-200">
-        {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => (
-          <button
-            key={status}
-            onClick={() => setSelectedStatus(status)}
-            className={`px-4 py-2 font-medium text-sm transition-colors duration-200 border-b-2 ${
-              selectedStatus === status
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {status === 'ALL' ? 'Tất cả' : status === 'PENDING' ? 'Chờ duyệt' : status === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}
-            {status !== 'ALL' && (
-              <span className="ml-2 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
-                {filteredRequests.filter(r => r.status === status).length}
+      <Tabs
+        activeKey={selectedStatus}
+        onChange={(key) => setSelectedStatus(key as any)}
+        items={(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => ({
+          key: status,
+          label: (
+            <Space>
+              <span>
+                {status === 'ALL' ? 'Tất cả' : status === 'PENDING' ? 'Chờ duyệt' : status === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối'}
               </span>
-            )}
-          </button>
-        ))}
-      </div>
+              <Tag>
+                {status === 'ALL' ? stats.total : status === 'PENDING' ? stats.pending : status === 'APPROVED' ? stats.approved : stats.rejected}
+              </Tag>
+            </Space>
+          ),
+        }))}
+      />
 
       {/* Ant Design Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <Card>
         <Table
           columns={columns}
           dataSource={filteredData}
@@ -323,17 +346,18 @@ const KycManagement: React.FC = () => {
           scroll={{ x: 1200 }}
           locale={{
             emptyText: (
-              <div className="py-12">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">Không có yêu cầu KYC</h3>
-                <p className="mt-2 text-gray-500">Chưa có yêu cầu xác thực nào từ các cửa hàng.</p>
-              </div>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <span>
+                    Chưa có yêu cầu KYC nào từ các cửa hàng.
+                  </span>
+                }
+              />
             ),
           }}
         />
-      </div>
+      </Card>
 
       {/* Reject Modal */}
       <Modal
@@ -397,7 +421,7 @@ const KycManagement: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </Space>
   );
 };
 

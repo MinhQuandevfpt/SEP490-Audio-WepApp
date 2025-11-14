@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Spin, Empty } from 'antd';
+import { Empty, Button } from 'antd';
 import { FireOutlined, RightOutlined } from '@ant-design/icons';
 import { FlashSaleService } from '../../services/customer/FlashSaleService';
 import type { CurrentFlashSaleSlot } from '../../types/flashsale';
@@ -15,20 +15,16 @@ import type { CurrentFlashSaleSlot } from '../../types/flashsale';
 const FlashSaleHome: React.FC = () => {
   const navigate = useNavigate();
   const [flashSale, setFlashSale] = useState<CurrentFlashSaleSlot | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [countdown, setCountdown] = useState('00:00:00');
+  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
   // Fetch Flash Sale hiện tại
   useEffect(() => {
     const fetchFlashSale = async () => {
-      setIsLoading(true);
       try {
         const data = await FlashSaleService.getCurrentFlashSale();
         setFlashSale(data);
       } catch (error) {
         console.error('Error loading flash sale:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -40,14 +36,18 @@ const FlashSaleHome: React.FC = () => {
     if (!flashSale?.slot.closeTime) return;
 
     const updateCountdown = () => {
-      const timeStr = FlashSaleService.formatTimeRemaining(flashSale.slot.closeTime);
-      setCountdown(timeStr);
-
-      // Kiểm tra nếu hết thời gian → refresh lại
       const remaining = FlashSaleService.calculateTimeRemaining(flashSale.slot.closeTime);
+      
       if (!remaining || remaining.totalSeconds <= 0) {
         // Reload sau 1s để lấy slot tiếp theo
         setTimeout(() => window.location.reload(), 1000);
+        setCountdown({ hours: 0, minutes: 0, seconds: 0 });
+      } else {
+        setCountdown({
+          hours: remaining.hours,
+          minutes: remaining.minutes,
+          seconds: remaining.seconds
+        });
       }
     };
 
@@ -70,112 +70,100 @@ const FlashSaleHome: React.FC = () => {
     navigate(`/product/${productId}`);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center py-20">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
+  // Không hiển thị loading spinner - render ngay
   if (!flashSale || flashSale.products.length === 0) {
     return null; // Không hiển thị gì nếu không có Flash Sale
   }
 
   return (
-    <section className="my-8">
+    <section className="my-8 bg-white">
       <div className="container mx-auto px-4">
-        {/* Header */}
-        <Card
-          className="shadow-lg"
-          bodyStyle={{ padding: 0 }}
-        >
-          {/* Title Bar */}
-          <div className="bg-gradient-to-r from-red-500 to-orange-500 px-6 py-4 flex items-center justify-between">
+        {/* Header với countdown */}
+        <div className="bg-gradient-to-r from-pink-500 via-red-500 to-orange-500 rounded-t-lg px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Left: Title */}
             <div className="flex items-center gap-3">
               <FireOutlined className="text-white text-3xl animate-pulse" />
               <div>
-                <h2 className="text-white text-2xl font-bold m-0">
-                  Flash Sale 🔥
+                <h2 className="text-white text-2xl font-bold m-0 flex items-center gap-2">
+                  Flash Sale
+                  {flashSale.campaign.badgeIconUrl && (
+                    <img 
+                      src={flashSale.campaign.badgeIconUrl} 
+                      alt="badge" 
+                      className="w-8 h-8 object-contain"
+                    />
+                  )}
                 </h2>
-                <p className="text-white/90 text-sm m-0">
-                  {flashSale.campaign.name}
-                </p>
               </div>
             </div>
 
-            {/* Countdown */}
+            {/* Center: Countdown Timer */}
             <div className="flex items-center gap-3">
-              <span className="text-white text-sm">Kết thúc sau</span>
-              <div className="bg-white/20 backdrop-blur px-4 py-2 rounded-lg">
-                <span className="text-white text-2xl font-mono font-bold tracking-wider">
-                  {countdown}
-                </span>
+              <span className="text-white text-base font-medium">Kết thúc trong</span>
+              <div className="flex items-center gap-2">
+                <TimeBox value={String(countdown.hours).padStart(2, '0')} />
+                <span className="text-white text-xl font-bold">:</span>
+                <TimeBox value={String(countdown.minutes).padStart(2, '0')} />
+                <span className="text-white text-xl font-bold">:</span>
+                <TimeBox value={String(countdown.seconds).padStart(2, '0')} />
               </div>
-              <Button
-                type="primary"
-                size="large"
-                icon={<RightOutlined />}
-                onClick={handleViewAll}
-                className="bg-white text-red-500 hover:bg-gray-100 border-0 font-semibold"
-              >
-                Xem tất cả
-              </Button>
             </div>
-          </div>
 
-          {/* Products Grid */}
-          <div className="p-6">
-            {flashSale.products.length === 0 ? (
-              <Empty description="Chưa có sản phẩm trong khung giờ này" />
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {flashSale.products.map((product) => (
+            {/* Right: View All Button */}
+            <Button
+              type="text"
+              size="large"
+              onClick={handleViewAll}
+              className="text-white hover:text-white hover:bg-white/20 border-0 font-semibold flex items-center gap-2"
+            >
+              Xem tất cả
+              <RightOutlined />
+            </Button>
+          </div>
+        </div>
+
+        {/* Products Grid */}
+        <div className="bg-white border border-t-0 border-gray-200 rounded-b-lg p-4">
+          {flashSale.products.length === 0 ? (
+            <Empty description="Chưa có sản phẩm trong khung giờ này" />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {flashSale.products.map((product) => {
+                return (
                   <div
                     key={product.campaignProductId}
                     onClick={() => handleProductClick(product.productId)}
-                    className="cursor-pointer group"
+                    className="cursor-pointer group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-300 hover:border-red-300"
                   >
-                    <Card
-                      hoverable
-                      cover={
-                        <div className="relative aspect-square bg-gray-100 overflow-hidden">
-                          {product.imageUrl ? (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.productName}
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400">
-                              No Image
-                            </div>
-                          )}
-                          {/* Discount Badge */}
-                          {product.discountPercent > 0 && (
-                            <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold">
-                              -{product.discountPercent}%
-                            </div>
-                          )}
+                    {/* Product Image */}
+                    <div className="relative aspect-square bg-gray-50 overflow-hidden">
+                      {product.imageUrl ? (
+                        <img
+                          src={product.imageUrl}
+                          alt={product.productName}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">
+                          No Image
                         </div>
-                      }
-                      className="border-0"
-                      bodyStyle={{ padding: '12px' }}
-                    >
-                      {/* Product Name */}
-                      <h3 className="text-sm font-medium text-gray-800 line-clamp-2 mb-2 min-h-[40px]">
-                        {product.productName}
-                      </h3>
+                      )}
+                      
+                      {/* Discount Badge */}
+                      {product.discountPercent > 0 && (
+                        <div className="absolute top-0 left-0 bg-red-500 text-white px-2 py-1 text-xs font-bold rounded-br-lg">
+                          -{product.discountPercent}%
+                        </div>
+                      )}
+                    </div>
 
-                      {/* Brand */}
-                      <p className="text-xs text-gray-500 mb-2">{product.brandName}</p>
-
-                      {/* Prices */}
-                      <div className="space-y-1">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-red-600 font-bold text-lg">
-                            {product.discountedPrice.toLocaleString('vi-VN')}₫
-                          </span>
+                    {/* Product Info */}
+                    <div className="p-3">
+                      {/* Price */}
+                      <div className="mb-2">
+                        <div className="text-red-600 font-bold text-lg">
+                          {product.discountedPrice.toLocaleString('vi-VN')}₫
                         </div>
                         {product.discountedPrice < product.originalPrice && (
                           <div className="text-gray-400 text-xs line-through">
@@ -183,40 +171,29 @@ const FlashSaleHome: React.FC = () => {
                           </div>
                         )}
                       </div>
-
-                      {/* Progress Bar - Nếu có giới hạn số lượng */}
-                      {product.totalUsageLimit > 0 && (
-                        <div className="mt-3">
-                          <div className="flex justify-between text-xs text-gray-500 mb-1">
-                            <span>Đã bán</span>
-                            <span>
-                              {product.totalUsageLimit - product.remainingUsage}/{product.totalUsageLimit}
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className="bg-gradient-to-r from-red-500 to-orange-500 h-2 rounded-full transition-all"
-                              style={{
-                                width: `${
-                                  ((product.totalUsageLimit - product.remainingUsage) /
-                                    product.totalUsageLimit) *
-                                  100
-                                }%`
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </Card>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
 };
 
-export default FlashSaleHome;
+/**
+ * Time Box Component - Hiển thị từng số trong đồng hồ đếm ngược
+ */
+const TimeBox: React.FC<{ value: string }> = ({ value }) => {
+  return (
+    <div className="bg-white/20 backdrop-blur-sm rounded-md px-3 py-2 min-w-[50px] flex items-center justify-center">
+      <span className="text-white text-2xl font-bold font-mono">
+        {value}
+      </span>
+    </div>
+  );
+};
+
+export default React.memo(FlashSaleHome);

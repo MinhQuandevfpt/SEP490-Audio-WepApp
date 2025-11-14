@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, Package, Users, Shield, ArrowUpRight, TrendingUp, TrendingDown, ClipboardList, Headphones } from 'lucide-react';
+import { showCenterSuccess } from '../../../utils/notification';
 
 const StaffDashboardHome: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -13,6 +14,19 @@ const StaffDashboardHome: React.FC = () => {
   });
 
   useEffect(() => {
+    // Check for login success message
+    const loginSuccess = sessionStorage.getItem('staffLoginSuccess');
+    if (loginSuccess) {
+      try {
+        const { message } = JSON.parse(loginSuccess);
+        showCenterSuccess(message, 'Thành công');
+        sessionStorage.removeItem('staffLoginSuccess');
+      } catch (error) {
+        console.error('Error parsing staff login success message:', error);
+        sessionStorage.removeItem('staffLoginSuccess');
+      }
+    }
+
     const timer = setTimeout(() => setIsLoading(false), 400);
     return () => clearTimeout(timer);
   }, []);

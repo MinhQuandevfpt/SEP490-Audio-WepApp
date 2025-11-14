@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
-import { showSuccess, showError } from '../../utils/notification';
+import { showError } from '../../utils/notification';
 
 const OAuth2Success = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [isProcessing, setIsProcessing] = useState(true);
 
   // Helper function to try getting customer profile with different endpoints
   const tryGetCustomerProfile = async (token: string, customerId?: string) => {
@@ -280,13 +279,17 @@ const OAuth2Success = () => {
           localStorage.setItem('authStateChanged', Date.now().toString());
 
           console.log('OAuth2Success - Authentication completed, redirecting...');
-          showSuccess('Đăng nhập thành công!');
           
-          // Đợi một chút để đảm bảo localStorage được lưu
-          setTimeout(() => {
-            navigate('/');
-            setIsProcessing(false);
-          }, 500);
+          // Lưu thông báo success vào sessionStorage thay vì hiện ngay
+          // Lấy displayName từ localStorage (đã được set ở trên)
+          const savedUserName = localStorage.getItem('userName') || 'User';
+          sessionStorage.setItem('welcomeMessage', JSON.stringify({
+            userName: savedUserName,
+            showWelcome: true
+          }));
+          
+          // Navigate ngay lập tức, không setTimeout
+          navigate('/');
           
         } else {
           console.error('OAuth2Success - Missing required parameters');
@@ -323,19 +326,8 @@ const OAuth2Success = () => {
     processOAuth2Success();
   }, [navigate, searchParams]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-orange-50">
-      <div className="text-center bg-white p-8 rounded-lg shadow-lg">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mx-auto mb-4"></div>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">
-          {isProcessing ? 'Đang hoàn tất đăng nhập...' : 'Đăng nhập thành công!'}
-        </h2>
-        <p className="text-gray-600">
-          {isProcessing ? 'Vui lòng đợi một chút' : 'Đang chuyển hướng...'}
-        </p>
-      </div>
-    </div>
-  );
+  // Không hiện gì cả, chỉ xử lý logic và redirect
+  return null;
 };
 
 export default OAuth2Success;

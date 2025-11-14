@@ -52,8 +52,8 @@ const EditCampaign: React.FC = () => {
           badgeColor: data.badgeColor,
           badgeIconUrl: data.badgeIconUrl,
           allowRegistration: data.allowRegistration,
-          startTime: data.startTime ? new Date(data.startTime).toISOString().slice(0, 16) : '',
-          endTime: data.endTime ? new Date(data.endTime).toISOString().slice(0, 16) : '',
+          startTime: data.startTime ? new Date(data.startTime).toISOString().slice(0, 19) : '',
+          endTime: data.endTime ? new Date(data.endTime).toISOString().slice(0, 19) : '',
           status: data.status
         });
 
@@ -66,8 +66,8 @@ const EditCampaign: React.FC = () => {
         if (data.type === 'FAST_SALE' && data.flashSlots) {
           setFlashSlots(data.flashSlots.map(slot => ({
             id: slot.slotId,
-            openTime: slot.openTime ? new Date(slot.openTime).toISOString().slice(0, 16) : '',
-            closeTime: slot.closeTime ? new Date(slot.closeTime).toISOString().slice(0, 16) : '',
+            openTime: slot.openTime ? new Date(slot.openTime).toISOString().slice(0, 19) : '',
+            closeTime: slot.closeTime ? new Date(slot.closeTime).toISOString().slice(0, 19) : '',
             status: slot.status
           })));
         }
@@ -402,6 +402,7 @@ const EditCampaign: React.FC = () => {
               </label>
               <input
                 type="datetime-local"
+                step="1"
                 name="startTime"
                 value={formData.startTime}
                 onChange={handleInputChange}
@@ -416,6 +417,7 @@ const EditCampaign: React.FC = () => {
               </label>
               <input
                 type="datetime-local"
+                step="1"
                 name="endTime"
                 value={formData.endTime}
                 onChange={handleInputChange}
@@ -476,6 +478,7 @@ const EditCampaign: React.FC = () => {
                             </label>
                             <input
                               type="datetime-local"
+                              step="1"
                               value={slot.openTime}
                               onChange={(e) => updateFlashSlot(index, 'openTime', e.target.value)}
                               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white"
@@ -496,6 +499,7 @@ const EditCampaign: React.FC = () => {
                             </label>
                             <input
                               type="datetime-local"
+                              step="1"
                               value={slot.closeTime}
                               onChange={(e) => updateFlashSlot(index, 'closeTime', e.target.value)}
                               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white"

@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Table, Tag, Button, Modal, Space, Card, Row, Col, Statistic, 
-  Select, Image, Alert, Empty, Typography
+  Select, Image, Alert, Empty, Typography, Input
 } from 'antd';
 import {
   CheckCircleOutlined,
   ShopOutlined,
   TagOutlined,
   ClockCircleOutlined,
-  FilterOutlined
+  FilterOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignProductService } from '../../../services/admin/CampaignProductService';
@@ -24,6 +25,7 @@ import { showTikiNotification } from '../../../utils/notification';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 const CampaignProductApproval: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -31,6 +33,8 @@ const CampaignProductApproval: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState<string>('');
   
   // Filters
   const [filterType, setFilterType] = useState<CampaignType | undefined>();
@@ -193,6 +197,65 @@ const CampaignProductApproval: React.FC = () => {
       setLoading(false);
     }
   }, [selectedProducts, allProducts]);
+
+  const handleRejectSelected = useCallback(() => {
+    if (selectedProducts.length === 0) {
+      showTikiNotification('Vui lòng chọn ít nhất một sản phẩm', 'Thông báo', 'error');
+      return;
+    }
+
+    setShowRejectModal(true);
+    setRejectReason('');
+  }, [selectedProducts]);
+
+  const handleConfirmReject = useCallback(async () => {
+    if (!rejectReason.trim()) {
+      showTikiNotification('Vui lòng nhập lý do từ chối', 'Thông báo', 'error');
+      return;
+    }
+
+    // Group by campaignId
+    const productsByCampaign = selectedProducts.reduce<Record<string, string[]>>((acc, productId) => {
+      const product = allProducts.find(p => p.campaignProductId === productId);
+      if (product) {
+        if (!acc[product.campaignId]) {
+          acc[product.campaignId] = [];
+        }
+        acc[product.campaignId].push(productId);
+      }
+      return acc;
+    }, {});
+
+    try {
+      setShowRejectModal(false);
+      setLoading(true);
+      
+      // Reject products for each campaign with the same reason
+      const promises = Object.entries(productsByCampaign).map(([campaignId, productIds]) =>
+        CampaignProductService.rejectProducts(campaignId, productIds, rejectReason)
+      );
+
+      await Promise.all(promises);
+
+      showTikiNotification(
+        `Đã từ chối ${selectedProducts.length} sản phẩm!`,
+        'Thành công',
+        'success'
+      );
+
+      setSelectedProducts([]);
+      setRejectReason('');
+      fetchCampaignOverview();
+    } catch (error: any) {
+      showTikiNotification(
+        error.message || 'Không thể từ chối sản phẩm',
+        'Lỗi',
+        'error'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedProducts, allProducts, rejectReason]);
 
   const handleClearFilters = () => {
     setFilterType(undefined);
@@ -458,6 +521,7 @@ const CampaignProductApproval: React.FC = () => {
                 <Option value="ACTIVE">Đang hoạt động</Option>
                 <Option value="EXPIRED">Hết hạn</Option>
                 <Option value="DISABLED">Vô hiệu hóa</Option>
+                <Option value="REJECTED">Từ chối</Option>
               </Select>
             </Col>
             <Col xs={24} sm={12} lg={6}>
@@ -496,6 +560,13 @@ const CampaignProductApproval: React.FC = () => {
                 <Space>
                   <Button onClick={() => setSelectedProducts([])}>
                     Bỏ chọn
+                  </Button>
+                  <Button
+                    danger
+                    icon={<CloseCircleOutlined />}
+                    onClick={handleRejectSelected}
+                  >
+                    Từ chối đã chọn
                   </Button>
                   <Button
                     type="primary"
@@ -565,6 +636,54 @@ const CampaignProductApproval: React.FC = () => {
             showIcon
             className="mt-3"
           />
+        </div>
+      </Modal>
+
+      {/* Rejection Modal */}
+      <Modal
+        title="Từ chối sản phẩm"
+        open={showRejectModal}
+        onOk={handleConfirmReject}
+        onCancel={() => {
+          setShowRejectModal(false);
+          setRejectReason('');
+        }}
+        okText="Từ chối"
+        cancelText="Hủy"
+        okButtonProps={{ 
+          icon: <CloseCircleOutlined />,
+          loading: loading,
+          danger: true
+        }}
+        zIndex={2000}
+        centered
+        width={600}
+      >
+        <div>
+          <p className="mb-3">
+            Bạn có chắc chắn muốn từ chối <strong>{selectedProducts.length}</strong> sản phẩm đã chọn?
+          </p>
+          <Alert
+            message="Lưu ý"
+            description="Lý do từ chối sẽ được gửi đến cửa hàng. Vui lòng nhập rõ ràng để cửa hàng có thể hiểu và cải thiện."
+            type="warning"
+            showIcon
+            className="mb-3"
+          />
+          <div>
+            <Text type="secondary" className="block mb-2">
+              Lý do từ chối <span className="text-red-500">*</span>
+            </Text>
+            <TextArea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Nhập lý do từ chối sản phẩm (ví dụ: Giá sản phẩm không hợp lý, thông tin sản phẩm chưa đầy đủ, vi phạm quy định chương trình...)"
+              rows={4}
+              maxLength={500}
+              showCount
+              className="w-full"
+            />
+          </div>
         </div>
       </Modal>
     </div>

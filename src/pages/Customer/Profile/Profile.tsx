@@ -5,8 +5,9 @@ import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHis
 import { AddressBook } from '../../../components/ProfilePageComponents/AddressBook';
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
+import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
 import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned, Lock, CreditCard } from 'lucide-react';
+import { User, Package, MapPinned, Lock, CreditCard, Shield } from 'lucide-react';
 import { profileCache } from '../../../services/cache/ProfileCache';
 
 const Profile: React.FC = () => {
@@ -78,12 +79,13 @@ const Profile: React.FC = () => {
     setData(loadProfileData());
   };
 
-  const [active, setActive] = useState<'info' | 'orders' | 'addresses' | 'password' | 'bank'>('info');
+  const [active, setActive] = useState<'info' | 'orders' | 'addresses' | 'password' | 'bank' | 'warranty'>('info');
 
   const navItems = useMemo(() => ([
     { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
     { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
     { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
+    { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
     { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
     { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
   ]), []);
@@ -133,6 +135,10 @@ const Profile: React.FC = () => {
                   preloadedData={preloadedData}
                   customerId={customerId}
                 />
+              </div>
+
+              <div className={active === 'warranty' ? 'block' : 'hidden'}>
+                <WarrantyComponent />
               </div>
 
               <div className={active === 'password' ? 'block' : 'hidden'}>

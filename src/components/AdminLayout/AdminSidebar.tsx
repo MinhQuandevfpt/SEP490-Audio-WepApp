@@ -9,7 +9,8 @@ import {
   Settings,
   ChevronRight,
   LogOut,
-  Zap
+  Zap,
+  Image
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -93,6 +94,15 @@ const AdminSidebar: React.FC = () => {
       ]
     },
     {
+      name: 'Quản lý Banner',
+      href: '/admin/banners',
+      icon: <Image className="w-6 h-6" />,
+      children: [
+        { name: 'Tất cả banner', href: '/admin/banners', icon: null },
+        { name: 'Tạo banner mới', href: '/admin/banners/create', icon: null }
+      ]
+    },
+    {
       name: 'Báo cáo & Thống kê',
       href: '/admin/reports',
       icon: <BarChart3 className="w-6 h-6" />,
@@ -146,6 +156,7 @@ const AdminSidebar: React.FC = () => {
         ) : (
           <NavLink
             to={item.href}
+            end
             className={({ isActive }) => `
               group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200
               ${level === 0 

@@ -12,7 +12,8 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
-import { CampaignList as SellerCampaignList, JoinCampaign } from '../pages/Seller/Campaign';
+import { CampaignList as SellerCampaignList } from '../pages/Seller/Campaign';
+import CampaignProductDetails from '../pages/Seller/Campaign/CampaignProductDetails';
 import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
@@ -23,6 +24,7 @@ import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
+import WarrantyPage from '../pages/Customer/Warranty/WarrantyPage';
 import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
@@ -38,9 +40,11 @@ import CategoriesList from '../pages/Admin/Categories';
 import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
+import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
+import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
@@ -186,6 +190,10 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<OrderHistoryPage />} />
   },
   {
+    path: '/warranty',
+    element: <ProtectedRoute element={<WarrantyPage />} />
+  },
+  {
     path: '/checkout',
     element: <ProtectedRoute element={<CheckoutOrderPage />} />
   },
@@ -311,6 +319,10 @@ export const router = createBrowserRouter([
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
       },
       {
+        path: 'warranty',
+        element: <StoreOwnerWarranty />
+      },
+      {
         path: 'staff',
         element: <StaffList />
       },
@@ -371,12 +383,8 @@ export const router = createBrowserRouter([
         element: <SellerCampaignList />
       },
       {
-        path: 'campaigns/:campaignId',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Chi tiết chiến dịch</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
-      },
-      {
-        path: 'campaigns/:campaignId/join',
-        element: <JoinCampaign />
+        path: 'campaigns/:campaignId/products',
+        element: <CampaignProductDetails />
       },
       {
         path: 'messages',
@@ -502,6 +510,22 @@ export const router = createBrowserRouter([
         element: <CampaignProductApproval />
       },
       {
+        path: 'banners',
+        element: <BannerManagement />
+      },
+      {
+        path: 'banners/create',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id/edit',
+        element: <BannerDetail />
+      },
+      {
         path: 'orders',
         element: <div>Order Management Page (Coming Soon)</div>
       },
@@ -552,6 +576,22 @@ export const router = createBrowserRouter([
       {
         path: 'categories/:id',
         element: <CategoryDetail />
+      },
+      {
+        path: 'banners',
+        element: <BannerManagement />
+      },
+      {
+        path: 'banners/create',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id/edit',
+        element: <BannerDetail />
       },
       {
         path: 'settings',

@@ -6,7 +6,6 @@ import {
   Search,
   Plus,
   Edit,
-  Trash2,
   Eye,
   Package,
   RefreshCw
@@ -263,15 +262,6 @@ const ProductManagement: React.FC = () => {
               type="text"
               size="small"
               icon={<Edit className="w-4 h-4" />}
-              onClick={() => message.info('Đang phát triển')}
-            />
-          </Tooltip>
-          <Tooltip title="Xóa">
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<Trash2 className="w-4 h-4" />}
               onClick={() => message.info('Đang phát triển')}
             />
           </Tooltip>

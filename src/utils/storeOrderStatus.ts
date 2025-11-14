@@ -32,6 +32,36 @@ export const STORE_ORDER_STATUS_CONFIG: Record<StoreOrderStatus, StatusConfig> =
     color: 'text-purple-600',
     bgColor: 'bg-purple-50 border-purple-200',
   },
+  READY_FOR_PICKUP: {
+    label: 'Kho đang chuẩn bị',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-50 border-amber-200',
+  },
+  READY_FOR_DELIVERY: {
+    label: 'Chờ giao hàng',
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-50 border-indigo-200',
+  },
+  OUT_FOR_DELIVERY: {
+    label: 'Đang giao hàng',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50 border-purple-200',
+  },
+  DELIVERED_WAITING_CONFIRM: {
+    label: 'Chờ xác nhận giao hàng',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50 border-cyan-200',
+  },
+  DELIVERY_SUCCESS: {
+    label: 'Giao hàng thành công',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50 border-green-200',
+  },
+  DELIVERY_DENIED: {
+    label: 'Giao hàng thất bại',
+    color: 'text-red-600',
+    bgColor: 'bg-red-50 border-red-200',
+  },
   COMPLETED: {
     label: 'Đã giao hàng',
     color: 'text-green-600',

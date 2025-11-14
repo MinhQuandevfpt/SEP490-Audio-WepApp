@@ -7,7 +7,10 @@ import {
   DeleteOutlined, 
   SendOutlined,
   StopOutlined,
-  PlusOutlined 
+  PlusOutlined,
+  ClockCircleOutlined,
+  ThunderboltOutlined,
+  CheckCircleOutlined
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignService } from '../../../services/admin/CampaignService';
@@ -186,14 +189,30 @@ const CampaignManagement: React.FC = () => {
     {
       title: 'Thời gian',
       key: 'time',
-      width: 200,
+      width: 240,
       render: (_: any, record: Campaign) => (
         <div className="text-sm">
           <div className="text-gray-900">
-            {CampaignService.formatDate(record.startTime)}
+            {new Date(record.startTime).toLocaleString('vi-VN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false
+            })}
           </div>
           <div className="text-xs text-gray-500">
-            đến {CampaignService.formatDate(record.endTime)}
+            đến {new Date(record.endTime).toLocaleString('vi-VN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false
+            })}
           </div>
         </div>
       ),
@@ -217,13 +236,223 @@ const CampaignManagement: React.FC = () => {
       title: 'Flash Slots',
       key: 'flashSlots',
       width: 120,
-      render: (_: any, record: Campaign) => (
-        record.flashSlots && record.flashSlots.length > 0 ? (
-          <span className="text-blue-600 font-medium">{record.flashSlots.length} khung giờ</span>
-        ) : (
-          <span className="text-gray-400">Không có</span>
-        )
-      ),
+      render: (_: any, record: Campaign) => {
+        if (!record.flashSlots || record.flashSlots.length === 0) {
+          return <span className="text-gray-400">Không có</span>;
+        }
+        
+        const getStatusColor = (status?: string) => {
+          switch (status) {
+            case 'ACTIVE': return '#52c41a';
+            case 'PENDING': return '#faad14';
+            case 'ENDED': return '#8c8c8c';
+            default: return '#1890ff';
+          }
+        };
+
+        const getStatusText = (status?: string) => {
+          switch (status) {
+            case 'ACTIVE': return 'Đang diễn ra';
+            case 'PENDING': return 'Chờ bắt đầu';
+            case 'ENDED': return 'Đã kết thúc';
+            default: return status || 'Không rõ';
+          }
+        };
+        
+        const tooltipContent = (
+          <div style={{ 
+            background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+            borderRadius: '12px',
+            padding: '16px',
+            minWidth: '320px',
+            maxWidth: '400px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+          }}>
+            {/* Header */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              marginBottom: '16px',
+              paddingBottom: '12px',
+              borderBottom: '2px solid rgba(251, 146, 60, 0.3)'
+            }}>
+              <ThunderboltOutlined style={{ fontSize: '20px', color: '#fb923c' }} />
+              <span style={{ 
+                fontSize: '16px', 
+                fontWeight: 'bold',
+                color: '#fff',
+                letterSpacing: '0.5px'
+              }}>
+                {record.flashSlots.length} Khung giờ Flash Sale
+              </span>
+            </div>
+
+            {/* Slots List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {record.flashSlots.map((slot, index) => (
+                <div 
+                  key={slot.slotId || index} 
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    border: '1px solid rgba(251, 146, 60, 0.2)',
+                    transition: 'all 0.3s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)';
+                    e.currentTarget.style.borderColor = 'rgba(251, 146, 60, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.borderColor = 'rgba(251, 146, 60, 0.2)';
+                  }}
+                >
+                  {/* Slot Number & Status */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: '8px'
+                  }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px'
+                    }}>
+                      <div style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #fb923c, #f97316)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        color: '#fff',
+                        boxShadow: '0 2px 8px rgba(251, 146, 60, 0.4)'
+                      }}>
+                        {index + 1}
+                      </div>
+                      <span style={{ 
+                        fontSize: '13px', 
+                        fontWeight: '600',
+                        color: '#fb923c'
+                      }}>
+                        Khung {index + 1}
+                      </span>
+                    </div>
+                    {slot.status && (
+                      <Tag 
+                        color={getStatusColor(slot.status)}
+                        style={{ 
+                          margin: 0,
+                          fontSize: '11px',
+                          fontWeight: '500',
+                          borderRadius: '4px',
+                          padding: '2px 8px'
+                        }}
+                      >
+                        {getStatusText(slot.status)}
+                      </Tag>
+                    )}
+                  </div>
+
+                  {/* Time Info */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      fontSize: '12px',
+                      color: '#e2e8f0'
+                    }}>
+                      <ClockCircleOutlined style={{ color: '#60a5fa', fontSize: '14px' }} />
+                      <span style={{ color: '#94a3b8', minWidth: '50px' }}>Bắt đầu:</span>
+                      <span style={{ 
+                        color: '#fff',
+                        fontWeight: '500',
+                        fontFamily: 'monospace'
+                      }}>
+                        {new Date(slot.openTime).toLocaleString('vi-VN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
+                        })}
+                      </span>
+                    </div>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      fontSize: '12px',
+                      color: '#e2e8f0'
+                    }}>
+                      <CheckCircleOutlined style={{ color: '#34d399', fontSize: '14px' }} />
+                      <span style={{ color: '#94a3b8', minWidth: '50px' }}>Kết thúc:</span>
+                      <span style={{ 
+                        color: '#fff',
+                        fontWeight: '500',
+                        fontFamily: 'monospace'
+                      }}>
+                        {new Date(slot.closeTime).toLocaleString('vi-VN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+        
+        return (
+          <Tooltip 
+            title={tooltipContent} 
+            placement="left" 
+            overlayStyle={{ maxWidth: 'none' }}
+            overlayInnerStyle={{ 
+              padding: 0,
+              background: 'transparent',
+              boxShadow: 'none'
+            }}
+            color="transparent"
+          >
+            <span style={{
+              color: '#1890ff',
+              fontWeight: 500,
+              cursor: 'pointer',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#e6f4ff';
+              e.currentTarget.style.color = '#0958d9';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#1890ff';
+            }}
+            >
+              {record.flashSlots.length} khung giờ
+            </span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Hành động',

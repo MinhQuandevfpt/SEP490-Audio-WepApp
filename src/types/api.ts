@@ -479,3 +479,28 @@ export interface StaffLoginData {
 }
 
 export interface StaffLoginResponse extends ApiResponse<StaffLoginData> {}
+
+// ==================== WARRANTY TYPES ====================
+
+export type WarrantyStatus = 'ACTIVE' | 'EXPIRED' | 'VOID' | 'TRANSFERRED' | 'PENDING_ACTIVATION';
+
+export interface Warranty {
+  id: string | null;
+  productId: string;
+  productName: string;
+  storeId: string;
+  storeName: string;
+  customerId: string;
+  customerName: string;
+  serialNumber: string | null;
+  policyCode: string | null;
+  durationMonths: number;
+  purchaseDate: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: WarrantyStatus;
+  covered: boolean;
+  stillValid: boolean;
+}
+
+export interface WarrantyListResponse extends ApiResponse<Warranty[]> {}

@@ -351,14 +351,20 @@ export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 
 
 // Store Order Status (matches backend enum)
 export type StoreOrderStatus = 
-  | 'PENDING'             // Chờ xử lý
-  | 'CONFIRMED'           // Đã xác nhận
-  | 'AWAITING_SHIPMENT'    // Chờ lấy hàng
-  | 'SHIPPING'            // Đang giao hàng
-  | 'COMPLETED'           // Đã giao hàng
-  | 'CANCELLED'           // Đã hủy
-  | 'RETURN_REQUESTED'     // Yêu cầu trả hàng
-  | 'RETURNED';           // Đã trả hàng
+  | 'PENDING'                  // Chờ xử lý
+  | 'CONFIRMED'                // Đã xác nhận
+  | 'AWAITING_SHIPMENT'        // Chờ lấy hàng
+  | 'SHIPPING'                 // Đang giao hàng
+  | 'READY_FOR_PICKUP'         // Kho đang chuẩn bị
+  | 'READY_FOR_DELIVERY'       // Chờ giao hàng
+  | 'OUT_FOR_DELIVERY'         // Đang giao hàng
+  | 'DELIVERED_WAITING_CONFIRM'// Chờ xác nhận giao hàng
+  | 'DELIVERY_SUCCESS'         // Giao hàng thành công
+  | 'DELIVERY_DENIED'          // Giao hàng thất bại
+  | 'COMPLETED'                // Đã giao hàng
+  | 'CANCELLED'                // Đã hủy
+  | 'RETURN_REQUESTED'         // Yêu cầu trả hàng
+  | 'RETURNED';                // Đã trả hàng
 
 // Store Order Item
 export interface StoreOrderItem {
@@ -700,7 +706,7 @@ export interface FlashSlot {
   status: string;
 }
 
-export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
+export type VoucherType = 'FIXED' | 'PERCENT';
 
 export interface CampaignProductRequest {
   productId: string;
@@ -723,4 +729,54 @@ export interface JoinCampaignResponse {
   status: number;
   message: string;
   data: any;
+}
+
+// Campaign Product Detail Types
+export type CampaignProductStatus = 'DRAFT' | 'ACTIVE' | 'APPROVE' | 'EXPIRED' | 'REJECTED' | 'DISABLED';
+
+export interface CampaignProductSlot {
+  slotId: string;
+  openTime: string;
+  closeTime: string;
+  slotStatus: string;
+}
+
+export interface CampaignProductDetail {
+  campaignProductId: string;
+  campaignId: string;
+  campaignName: string;
+  campaignType: 'MEGA_SALE' | 'FAST_SALE';
+  storeId: string;
+  storeName: string;
+  productId: string;
+  productName: string;
+  brandName: string;
+  category: string;
+  originalPrice: number;
+  discountedPrice: number;
+  discountType: VoucherType;
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  totalVoucherIssued: number;
+  totalUsageLimit: number;
+  usagePerUser: number;
+  remainingUsage: number;
+  approved: boolean;
+  approvedAt: string | null;
+  registeredAt: string;
+  status: CampaignProductStatus;
+  reason: string | null;
+  startTime: string;
+  endTime: string;
+  slot: CampaignProductSlot | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CampaignProductDetailsResponse {
+  status: number;
+  message: string;
+  data: CampaignProductDetail[];
 }

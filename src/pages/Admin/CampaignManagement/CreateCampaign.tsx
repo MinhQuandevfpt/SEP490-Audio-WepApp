@@ -359,6 +359,7 @@ const CreateCampaign: React.FC = () => {
               </label>
               <input
                 type="datetime-local"
+                step="1"
                 name="startTime"
                 value={formData.startTime}
                 onChange={handleInputChange}
@@ -373,6 +374,7 @@ const CreateCampaign: React.FC = () => {
               </label>
               <input
                 type="datetime-local"
+                step="1"
                 name="endTime"
                 value={formData.endTime}
                 onChange={handleInputChange}
@@ -424,6 +426,7 @@ const CreateCampaign: React.FC = () => {
                           </label>
                           <input
                             type="datetime-local"
+                            step="1"
                             value={slot.openTime}
                             onChange={(e) => updateFlashSlot(index, 'openTime', e.target.value)}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white"
@@ -435,6 +438,7 @@ const CreateCampaign: React.FC = () => {
                           </label>
                           <input
                             type="datetime-local"
+                            step="1"
                             value={slot.closeTime}
                             onChange={(e) => updateFlashSlot(index, 'closeTime', e.target.value)}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white"

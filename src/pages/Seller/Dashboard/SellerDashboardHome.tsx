@@ -12,12 +12,26 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { DashboardStats } from '../../../types/seller';
+import { showCenterSuccess } from '../../../utils/notification';
 
 const SellerDashboardHome: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Check for login success message
+    const loginSuccess = sessionStorage.getItem('sellerLoginSuccess');
+    if (loginSuccess) {
+      try {
+        const { message } = JSON.parse(loginSuccess);
+        showCenterSuccess(message, 'Thành công');
+        sessionStorage.removeItem('sellerLoginSuccess');
+      } catch (error) {
+        console.error('Error parsing login success message:', error);
+        sessionStorage.removeItem('sellerLoginSuccess');
+      }
+    }
+
     loadDashboardStats();
   }, []);
 

@@ -2,6 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { X, Package, Tag, DollarSign, Warehouse, User, Award, Info } from 'lucide-react';
 import { ProductService } from '../../../services/seller/ProductService';
 import type { Product } from '../../../types/seller';
+import { useProvinces } from '../../../hooks/useProvinces';
+import { useDistricts } from '../../../hooks/useDistricts';
+import { useWards } from '../../../hooks/useWards';
 
 interface ProductDetailDrawerProps {
   productId: string | null;
@@ -13,6 +16,11 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load location data
+  const { getProvinceById } = useProvinces();
+  const { getDistrictById } = useDistricts(product?.provinceCode ? parseInt(product.provinceCode) : 0);
+  const { getWardByCode } = useWards(product?.districtCode ? parseInt(product.districtCode) : 0);
 
   const loadProductDetail = useCallback(async () => {
     if (!productId) return;
@@ -136,6 +144,7 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   Thông tin cơ bản
                 </h3>
                 <div className="space-y-3">
+                  <InfoRow label="ID sản phẩm" value={product.productId} valueClassName="font-mono text-orange-600" />
                   <InfoRow label="Tên sản phẩm" value={product.name} />
                   <InfoRow label="Thương hiệu" value={product.brandName} />
                   <InfoRow label="Danh mục" value={product.categoryName} />
@@ -225,9 +234,24 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                     }
                   />
                   <InfoRow label="Vị trí kho" value={product.warehouseLocation} />
-                  {product.provinceCode && <InfoRow label="Mã tỉnh/thành" value={product.provinceCode} />}
-                  {product.districtCode && <InfoRow label="Mã quận/huyện" value={product.districtCode} />}
-                  {product.wardCode && <InfoRow label="Mã phường/xã" value={product.wardCode} />}
+                  {product.provinceCode && (
+                    <InfoRow 
+                      label="Tỉnh/Thành phố" 
+                      value={getProvinceById(parseInt(product.provinceCode))?.ProvinceName || product.provinceCode} 
+                    />
+                  )}
+                  {product.districtCode && (
+                    <InfoRow 
+                      label="Quận/Huyện" 
+                      value={getDistrictById(parseInt(product.districtCode))?.DistrictName || product.districtCode} 
+                    />
+                  )}
+                  {product.wardCode && (
+                    <InfoRow 
+                      label="Phường/Xã" 
+                      value={getWardByCode(product.wardCode)?.WardName || product.wardCode} 
+                    />
+                  )}
                   <InfoRow label="Địa chỉ giao hàng" value={product.shippingAddress} />
                   <InfoRow label="Phí vận chuyển" value={product.shippingFee ? ProductService.formatCurrency(product.shippingFee) : 'Miễn phí'} />
                 </div>
@@ -326,7 +350,7 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                 </h3>
                 <div className="space-y-3">
                   <InfoRow label="Cửa hàng" value={product.storeName} />
-                  <InfoRow label="Store ID" value={product.storeId} valueClassName="font-mono text-xs" />
+                  <InfoRow label="ID cửa hàng" value={product.storeId} valueClassName="font-mono text-xs" />
                   <InfoRow label="Sản phẩm nổi bật" value={product.isFeatured ? 'Có' : 'Không'} />
                   {product.ratingAverage && <InfoRow label="Đánh giá TB" value={`${product.ratingAverage} ⭐`} />}
                   {product.reviewCount && <InfoRow label="Số đánh giá" value={product.reviewCount} />}

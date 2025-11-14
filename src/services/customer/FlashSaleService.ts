@@ -127,11 +127,14 @@ export class FlashSaleService {
       }
 
       // Bước 3: Lấy sản phẩm của slot (limit 15 sản phẩm cho home)
-      const products = await this.getSlotProducts(
+      let products = await this.getSlotProducts(
         currentSlot.campaign.id,
         currentSlot.slot.id,
         'ONGOING'
       );
+
+      // Bước 4: Enrich products với hình ảnh từ product detail
+      products = await this.enrichProductsWithImages(products);
 
       return {
         campaign: currentSlot.campaign,
@@ -141,6 +144,57 @@ export class FlashSaleService {
     } catch (error: any) {
       console.error('Error getting current flash sale:', error);
       return null;
+    }
+  }
+
+  /**
+   * Helper: Lấy thêm thông tin hình ảnh cho products
+   */
+  static async enrichProductsWithImages(
+    products: FlashSaleProduct[]
+  ): Promise<FlashSaleProduct[]> {
+    try {
+      console.log(`🖼️ Enriching ${products.length} products with images...`);
+      
+      const enrichedProducts = await Promise.all(
+        products.map(async (product) => {
+          try {
+            // Fetch product detail để lấy hình ảnh
+            const response = await HttpInterceptor.fetch<{
+              status: number;
+              message: string;
+              data: {
+                productId: string;
+                images?: string[]; // Array of image URLs
+              };
+            }>(`/api/products/${product.productId}`, {
+              userType: 'customer'
+            });
+
+            // Get first image from array
+            const firstImage = response.data?.images?.[0];
+
+            console.log(`✅ Loaded image for ${product.productName}:`, firstImage || 'No image');
+
+            return {
+              ...product,
+              imageUrl: firstImage || ''
+            };
+          } catch (error) {
+            console.error(`❌ Error fetching image for product ${product.productId}:`, error);
+            return {
+              ...product,
+              imageUrl: ''
+            };
+          }
+        })
+      );
+
+      console.log(`✅ Successfully enriched ${enrichedProducts.length} products`);
+      return enrichedProducts;
+    } catch (error) {
+      console.error('❌ Error enriching products:', error);
+      return products;
     }
   }
 

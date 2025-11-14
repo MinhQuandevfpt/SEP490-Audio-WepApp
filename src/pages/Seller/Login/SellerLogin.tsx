@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
-import { showCenterError, showCenterSuccess } from '../../../utils/notification';
+import { showCenterError } from '../../../utils/notification';
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
 import type { SellerLoginRequest } from '../../../types/seller';
 
@@ -49,38 +49,44 @@ const SellerLogin: React.FC = () => {
       const response = await SellerAuthService.login(loginData);
       
       if (response.status === 200) {
-        showCenterSuccess(
-          'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.', 
-          'Thành công'
-        );
+        // Không hiển thị popup ở đây, lưu vào sessionStorage
         
         // Check store status and redirect accordingly
-        setTimeout(async () => {
+        try {
+          // Dynamically import StoreService to avoid circular dependencies
+          const { StoreService } = await import('../../../services/seller/StoreService');
+          
+          // First, ensure we have the store ID
           try {
-            // Dynamically import StoreService to avoid circular dependencies
-            const { StoreService } = await import('../../../services/seller/StoreService');
-            
-            // First, ensure we have the store ID
-            try {
-              await StoreService.getStoreId();
-              console.log('✅ Store ID cached after login');
-            } catch (storeIdError) {
-              console.warn('Could not get store ID after login:', storeIdError);
-            }
-            
-            const statusResponse = await StoreService.getStoreStatus();
-            
-            if (statusResponse.status === 'ACTIVE') {
-              navigate('/seller/dashboard');
-            } else {
-              navigate('/seller/kyc-status');
-            }
-          } catch (error) {
-            console.error('Error checking store status:', error);
-            // Default to kyc-status if error
+            await StoreService.getStoreId();
+            console.log('✅ Store ID cached after login');
+          } catch (storeIdError) {
+            console.warn('Could not get store ID after login:', storeIdError);
+          }
+          
+          const statusResponse = await StoreService.getStoreStatus();
+          
+          // Lưu message vào sessionStorage để hiển thị khi vào dashboard
+          sessionStorage.setItem('sellerLoginSuccess', JSON.stringify({
+            message: 'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.',
+            timestamp: Date.now()
+          }));
+          
+          // Navigate ngay không cần delay
+          if (statusResponse.status === 'ACTIVE') {
+            navigate('/seller/dashboard');
+          } else {
             navigate('/seller/kyc-status');
           }
-        }, 1500);
+          
+        } catch (error) {
+          console.error('Error checking store status:', error);
+          sessionStorage.setItem('sellerLoginSuccess', JSON.stringify({
+            message: 'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.',
+            timestamp: Date.now()
+          }));
+          navigate('/seller/kyc-status');
+        }
       } else {
         throw new Error(response.message || 'Đăng nhập thất bại');
       }

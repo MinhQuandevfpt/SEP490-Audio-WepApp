@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Layout from '../../../components/Layout';
 import { ProductListService, type Product } from '../../../services/customer/ProductListService';
-import { ProductViewService, type ProductVoucherItem } from '../../../services/customer/ProductViewService';
+import { ProductViewService, type ProductVoucherItem, type ProductDetailPlatformCampaign } from '../../../services/customer/ProductViewService';
 import ImageGallery from '../../../components/ProductDetailComponents/ImageGallery';
 import StoreInfo from '../../../components/ProductDetailComponents/StoreInfo';
 import TitlePrice from '../../../components/ProductDetailComponents/TitlePrice';
 import PurchaseActions from '../../../components/ProductDetailComponents/PurchaseActions';
 import ProductTabs from '../../../components/ProductDetailComponents/tabs/ProductTabs';
-import InfoCard from '../../../components/ProductDetailComponents/info/InfoCard';
 import ProductVouchers from '../../../components/ProductDetailComponents/ProductVouchers';
 
 const ProductDetail: React.FC = () => {
@@ -17,6 +16,7 @@ const ProductDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vouchers, setVouchers] = useState<ProductVoucherItem[]>([]);
+  const [platformCampaigns, setPlatformCampaigns] = useState<ProductDetailPlatformCampaign[]>([]);
   const [vouchersLoading, setVouchersLoading] = useState(false);
 
   useEffect(() => {
@@ -24,40 +24,52 @@ const ProductDetail: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
     if (id) {
-      fetchProductDetail(id);
-      fetchVouchers(id);
+      // Reset states
+      setLoading(true);
+      setError(null);
+      setProduct(null);
+      
+      // Fetch both APIs in parallel and wait for both
+      fetchBothAPIs(id);
     }
   }, [id]);
 
-  const fetchProductDetail = async (productId: string) => {
+  const fetchBothAPIs = async (productId: string) => {
     try {
       setLoading(true);
-      setError(null);
       
-      const response = await ProductListService.getProductById(productId);
-      
-      if (response && response.data) {
-        setProduct(response.data);
+      // Fetch both in parallel
+      const [productResponse, voucherResponse] = await Promise.all([
+        ProductListService.getProductById(productId),
+        ProductViewService.getProductVouchers(productId).catch(e => {
+          console.warn('Không thể tải voucher sản phẩm:', e);
+          return null;
+        })
+      ]);
+
+      // Set product data
+      if (productResponse && productResponse.data) {
+        setProduct(productResponse.data);
+      } else {
+        setError('Không tìm thấy sản phẩm');
       }
+
+      // Set voucher data
+      if (voucherResponse) {
+        const shopVouchers = voucherResponse?.data?.vouchers?.shop || [];
+        const platformVouchers = voucherResponse?.data?.vouchers?.platform || [];
+        setVouchers(shopVouchers);
+        setPlatformCampaigns(platformVouchers);
+      } else {
+        setVouchers([]);
+        setPlatformCampaigns([]);
+      }
+      
     } catch (err) {
       console.error('Error loading product detail:', err);
       setError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchVouchers = async (productId: string) => {
-    try {
-      setVouchersLoading(true);
-      const res = await ProductViewService.getProductVouchers(productId);
-      const list = res?.data?.vouchers?.shop || [];
-      setVouchers(list);
-    } catch (e) {
-      
-      console.warn('Không thể tải voucher sản phẩm:', e);
-      setVouchers([]);
-    } finally {
       setVouchersLoading(false);
     }
   };
@@ -129,6 +141,46 @@ const ProductDetail: React.FC = () => {
     hex: '#cccccc' 
   }] : undefined;
 
+  // Calculate price with platform vouchers (Flash Sale priority)
+  const calculateFinalPrice = () => {
+    const originalPrice = product.price;
+    let finalPrice = product.discountPrice || originalPrice;
+    let discountPercent = 0;
+    let campaignBadge: { label: string; color: string } | null = null;
+
+    // Check platform vouchers first (Flash Sale, etc.)
+    if (platformCampaigns.length > 0) {
+      const campaign = platformCampaigns[0];
+      const voucher = campaign.vouchers?.[0];
+      
+      if (voucher && voucher.status === 'ACTIVE') {
+        const now = new Date();
+        const isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+        
+        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
+          discountPercent = voucher.discountPercent;
+          finalPrice = originalPrice * (1 - discountPercent / 100);
+          
+          // Add campaign badge
+          campaignBadge = {
+            label: campaign.badgeLabel || 'FLASH SALE',
+            color: campaign.badgeColor || '#FF6600'
+          };
+        }
+      }
+    }
+
+    return {
+      originalPrice,
+      finalPrice,
+      discountPercent,
+      campaignBadge,
+      hasDiscount: finalPrice < originalPrice
+    };
+  };
+
+  const priceInfo = calculateFinalPrice();
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -146,8 +198,9 @@ const ProductDetail: React.FC = () => {
               rating={product.ratingAverage || 0}
               reviewsCount={product.reviewCount || 0}
               soldCount={0} // API doesn't provide this
-              price={product.price}
-              salePrice={product.discountPrice || undefined}
+              price={priceInfo.originalPrice}
+              salePrice={priceInfo.hasDiscount ? priceInfo.finalPrice : undefined}
+              discountPercent={priceInfo.discountPercent}
               shortDescription={product.shortDescription}
             />
        
@@ -158,7 +211,7 @@ const ProductDetail: React.FC = () => {
               productId={product.productId}
               productName={product.name}
               productImage={images[0]}
-              productPrice={product.discountPrice || product.price}
+              productPrice={priceInfo.finalPrice}
               inStock={product.stockQuantity > 0} 
               colors={colors} 
             />
@@ -177,25 +230,6 @@ const ProductDetail: React.FC = () => {
           description={product.description ? [product.description] : []} 
           specs={specs}
         />
-
-      
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <InfoCard 
-            icon={<span>🛠️</span>} 
-            title={`Bảo hành ${product.warrantyPeriod || '12 tháng'}`}
-            desc={product.warrantyType || 'Bảo hành chính hãng'} 
-          />
-          <InfoCard 
-            icon={<span>🚚</span>} 
-            title="Giao hàng toàn quốc" 
-            desc={product.shippingFee ? `Phí ship: ${product.shippingFee.toLocaleString('vi-VN')}đ` : 'Miễn phí đơn từ 500k'} 
-          />
-          <InfoCard 
-            icon={<span>💰</span>} 
-            title="Đổi trả 7 ngày" 
-            desc="Nếu sản phẩm lỗi kỹ thuật" 
-          />
-        </div>
       </div>
     </Layout>
   );

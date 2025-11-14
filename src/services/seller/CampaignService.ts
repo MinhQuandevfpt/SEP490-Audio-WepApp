@@ -2,7 +2,10 @@ import { HttpInterceptor } from '../HttpInterceptor';
 import type { 
   CampaignForSeller, 
   JoinCampaignRequest, 
-  JoinCampaignResponse 
+  JoinCampaignResponse,
+  CampaignProductDetail,
+  CampaignProductDetailsResponse,
+  CampaignProductStatus
 } from '../../types/seller';
 
 const API_BASE_URL = '/api/campaigns';
@@ -140,6 +143,45 @@ export class SellerCampaignService {
   }
 
   /**
+   * Get campaign product details for store
+   * @param storeId - Store ID
+   * @param campaignId - Campaign ID
+   * @param status - Filter by product status (DRAFT | ACTIVE | APPROVE | EXPIRED | REJECTED | DISABLED)
+   */
+  static async getCampaignProductDetails(
+    storeId: string,
+    campaignId: string,
+    status?: CampaignProductStatus
+  ): Promise<CampaignProductDetail[]> {
+    try {
+      const params = new URLSearchParams();
+      params.append('storeId', storeId);
+      params.append('campaignId', campaignId);
+      
+      if (status) {
+        params.append('status', status);
+      }
+
+      console.log('🚀 Fetching campaign product details:', `${API_BASE_URL}/products/details?${params.toString()}`);
+      
+      const response = await HttpInterceptor.fetch<CampaignProductDetailsResponse>(
+        `${API_BASE_URL}/products/details?${params.toString()}`,
+        { 
+          method: 'GET',
+          userType: 'seller' 
+        }
+      );
+      
+      console.log('📦 Campaign product details response:', response);
+      
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching campaign product details:', error);
+      throw new Error(error.message || 'Không thể tải chi tiết sản phẩm chiến dịch');
+    }
+  }
+
+  /**
    * Format date for display
    */
   static formatDate(dateString: string): string {
@@ -150,6 +192,8 @@ export class SellerCampaignService {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
+      hour12: false
     });
   }
 

@@ -121,8 +121,8 @@ export interface CampaignListResponse {
 }
 
 // Campaign Product Approval Types
-export type VoucherType = 'FIXED' | 'PERCENT' | 'SHIPPING';
-export type VoucherStatus = 'DRAFT' | 'APPROVE' | 'ACTIVE' | 'EXPIRED' | 'DISABLED';
+export type VoucherType = 'FIXED' | 'PERCENT';
+export type VoucherStatus = 'DRAFT' | 'APPROVE' | 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'REJECTED';
 
 export interface CampaignVoucher {
   type: VoucherType;
@@ -183,5 +183,59 @@ export interface ApproveProductsResponse {
   status: number;
   message: string;
   data?: any;
+}
+
+// Banner Management Types
+export interface BannerImage {
+  id?: string;
+  imageUrl: string;
+  redirectUrl: string;
+  altText: string;
+  sortOrder: number;
+}
+
+export interface Banner {
+  id: string;
+  title: string;
+  description: string;
+  bannerType: string;
+  active: boolean;
+  startTime: string;
+  endTime: string;
+  images: BannerImage[];
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreateBannerRequest {
+  title: string;
+  description: string;
+  bannerType: string;
+  active: boolean;
+  startTime: string;
+  endTime: string;
+  images: Omit<BannerImage, 'id'>[];
+}
+
+export interface UpdateBannerRequest {
+  title?: string;
+  description?: string;
+  bannerType?: string;
+  active?: boolean;
+  startTime?: string;
+  endTime?: string;
+  images?: Omit<BannerImage, 'id'>[];
+}
+
+export interface BannerResponse {
+  status: number;
+  message: string;
+  data: Banner;
+}
+
+export interface BannerListResponse {
+  status: number;
+  message: string;
+  data: Banner[];
 }
 
