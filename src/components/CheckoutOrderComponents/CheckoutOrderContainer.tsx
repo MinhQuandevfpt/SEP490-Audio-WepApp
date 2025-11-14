@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import { AddressForm, PaymentMethodDropdown, CartItemList, OrderSummaryCard } from '.';
@@ -12,7 +12,7 @@ import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import type { CustomerAddressApiItem } from '../../types/api';
 import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher, ServiceTypeIds } from '../../types/cart';
 import type { CartItem } from '../../data/shoppingcart';
-import type { CheckoutAddress, CheckoutCartItem, PaymentMethod } from '../../data/checkout';
+import type { CheckoutCartItem, PaymentMethod } from '../../data/checkout';
 import type { ShopVoucher } from '../ShoppingCartComponents/VoucherSection';
 import type { AppliedStoreVoucher } from '../ShoppingCartComponents/StoreVoucherPicker';
 import { Home, ChevronRight } from 'lucide-react';
@@ -34,16 +34,6 @@ const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem => ({
   price: apiItem.unitPrice,
   quantity: apiItem.quantity,
   isSelected: true,
-});
-
-const mapAddressToCheckoutAddress = (addr: CustomerAddressApiItem): CheckoutAddress => ({
-  id: addr.id,
-  fullName: addr.receiverName,
-  phone: addr.phoneNumber,
-  street: addr.addressLine || addr.street,
-  district: addr.district,
-  city: addr.province,
-  isDefault: addr.default,
 });
 
 const calculateStoreTotal = (
@@ -145,10 +135,6 @@ const CheckoutOrderContainer: React.FC = () => {
     autoCalculate: shippingItems.length > 0 && !!selectedAddressId,
   });
 
-  const checkoutAddresses = useMemo<CheckoutAddress[]>(() => {
-    return addresses.map(mapAddressToCheckoutAddress);
-  }, [addresses]);
-
   const checkoutCartItems = useMemo<CheckoutCartItem[]>(() => {
     return cartItems.map(item => ({
       id: item.id,
@@ -173,6 +159,22 @@ const CheckoutOrderContainer: React.FC = () => {
   const total = useMemo(() => {
     return Math.max(0, subtotal + shippingFee - voucherDiscount);
   }, [subtotal, shippingFee, voucherDiscount]);
+
+  const loadAddresses = useCallback(async (): Promise<CustomerAddressApiItem[]> => {
+    try {
+      const list = await AddressService.getAddresses();
+      setAddresses(list);
+      return list;
+    } catch (error: any) {
+      setError(error?.message || 'Không thể tải danh sách địa chỉ.');
+      setAddresses([]);
+      return [];
+    }
+  }, []);
+
+  const handleAddressesChange = useCallback(async () => {
+    await loadAddresses();
+  }, [loadAddresses]);
 
   useEffect(() => {
     const init = async () => {
@@ -206,11 +208,9 @@ const CheckoutOrderContainer: React.FC = () => {
         setError(null);
 
         const [addressList, cartResponse] = await Promise.all([
-          AddressService.getAddresses(),
+          loadAddresses(),
           CustomerCartService.getCart(),
         ]);
-
-        setAddresses(addressList);
 
         const defaultAddress =
           payload.selectedAddressId ||
@@ -238,7 +238,18 @@ const CheckoutOrderContainer: React.FC = () => {
     };
 
     init();
-  }, []);
+  }, [loadAddresses]);
+
+  useEffect(() => {
+    if (addresses.length === 0) {
+      setSelectedAddressId(null);
+      return;
+    }
+    if (selectedAddressId && !addresses.some(addr => addr.id === selectedAddressId)) {
+      const fallback = addresses.find(addr => addr.default) || addresses[0] || null;
+      setSelectedAddressId(fallback ? fallback.id : null);
+    }
+  }, [addresses, selectedAddressId]);
 
   useEffect(() => {
     const loadVouchers = async () => {
@@ -536,9 +547,10 @@ const CheckoutOrderContainer: React.FC = () => {
                   </div>
                   <div className="px-6 py-4">
                     <AddressForm
-                      addresses={checkoutAddresses}
+                      addresses={addresses}
                       selectedAddressId={selectedAddressId}
                       onSelect={setSelectedAddressId}
+                      onAddressesChange={handleAddressesChange}
                     />
                   </div>
                 </section>
