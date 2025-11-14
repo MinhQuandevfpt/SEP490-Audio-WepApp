@@ -82,6 +82,7 @@ const ShoppingCart: React.FC = () => {
 
   // Load vouchers for all products in the cart (unique by refId)
   const [availableVouchers, setAvailableVouchers] = useState<ShopVoucher[]>([]);
+  const [productVoucherAvailability, setProductVoucherAvailability] = useState<Record<string, boolean>>({});
   const [, setVouchersLoading] = useState(false);
 
   useEffect(() => {
@@ -91,6 +92,7 @@ const ShoppingCart: React.FC = () => {
         const productIds = Array.from(new Set((cart?.items || []).map(i => i.refId)));
         if (productIds.length === 0) {
           setAvailableVouchers([]);
+          setProductVoucherAvailability({});
           return;
         }
 
@@ -111,10 +113,12 @@ const ShoppingCart: React.FC = () => {
 
         // Extract shop vouchers with storeId
         const shopVouchers: ShopVoucher[] = [];
-        responses.forEach(({ voucherRes, productRes }) => {
+        const availabilityMap: Record<string, boolean> = {};
+        responses.forEach(({ productId, voucherRes, productRes }) => {
+          const vouchers = voucherRes?.data?.vouchers?.shop || [];
+          availabilityMap[productId] = vouchers.length > 0;
           if (voucherRes && productRes) {
             const storeId = productRes.data?.storeId;
-            const vouchers = voucherRes.data?.vouchers?.shop || [];
             vouchers.forEach((v: any) => {
               shopVouchers.push({
                 ...v,
@@ -123,6 +127,7 @@ const ShoppingCart: React.FC = () => {
             });
           }
         });
+        setProductVoucherAvailability(availabilityMap);
 
         // Dedupe by code (keep first occurrence)
         const deduped = Array.from(
@@ -451,6 +456,7 @@ const ShoppingCart: React.FC = () => {
             <CartItemsList
               storeGroups={storeGroups}
               totalItemCount={items.length}
+              productVoucherAvailability={productVoucherAvailability}
               showAddress={false}
               addresses={addresses}
               selectedAddressId={selectedAddressId}

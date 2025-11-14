@@ -140,15 +140,6 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
 
       {isOpen && vouchers.length > 0 && (
         <div className="mt-3 border border-gray-200 rounded-lg bg-white shadow-sm">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-800">
-              Voucher của {storeName}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Tổng đơn đã chọn: {selectedTotal.toLocaleString('vi-VN')}đ
-            </p>
-          </div>
-
           <div className="max-h-60 overflow-y-auto divide-y divide-gray-100">
             {usableVouchers.map(voucher => {
               const discountAmount = calculateDiscountAmount(voucher, selectedTotal);

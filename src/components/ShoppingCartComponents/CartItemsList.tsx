@@ -6,7 +6,6 @@ import type { AppliedStoreVoucher } from './StoreVoucherPicker';
 import AddressSelectorCompact from './AddressSelectorCompact';
 import SelectAllBar from './SelectAllBar';
 import CartItemRow from './CartItemRow';
-import StoreVoucherPicker from './StoreVoucherPicker';
 
 interface StoreGroup {
   storeId: string;
@@ -20,6 +19,7 @@ interface StoreGroup {
 interface CartItemsListProps {
   storeGroups: StoreGroup[];
   totalItemCount: number;
+  productVoucherAvailability: Record<string, boolean>;
   showAddress?: boolean;
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
@@ -41,6 +41,7 @@ interface CartItemsListProps {
 const CartItemsList: React.FC<CartItemsListProps> = ({
   storeGroups,
   totalItemCount,
+  productVoucherAvailability,
   addresses,
   selectedAddressId,
   addressesLoading,
@@ -94,29 +95,28 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
             </div>
           </div>
 
-          <div className="divide-y divide-gray-100">
-            {group.items.map(it => (
-              <CartItemRow
-                key={it.id}
-                item={it}
-                onToggle={onToggleItem}
-                onInc={onInc}
-                onDec={onDec}
-                onRemove={onRemove}
-                onSetQuantity={onSetQuantity}
-              />
-            ))}
-          </div>
-
-          <div className="px-4 pb-4">
-            <StoreVoucherPicker
-              storeName={group.storeName}
-              vouchers={group.vouchers}
-              selectedTotal={group.selectedTotal}
-              appliedVoucher={group.appliedVoucher}
-              onApply={(voucher, discountValue) => onApplyVoucher(group.storeId, voucher, discountValue)}
-              onRemove={() => onRemoveVoucher(group.storeId)}
-            />
+          <div className="p-4 space-y-4">
+            {group.items.map(it => {
+              const hasVoucher = productVoucherAvailability[it.productId] ?? false;
+              return (
+                <CartItemRow
+                  key={it.id}
+                  item={it}
+                  onToggle={onToggleItem}
+                  onInc={onInc}
+                  onDec={onDec}
+                  onRemove={onRemove}
+                  onSetQuantity={onSetQuantity}
+                  storeId={group.storeId}
+                  storeName={group.storeName}
+                  vouchers={hasVoucher ? group.vouchers : []}
+                  appliedVoucher={group.appliedVoucher}
+                  selectedTotal={group.selectedTotal}
+                  onApplyVoucher={onApplyVoucher}
+                  onRemoveVoucher={onRemoveVoucher}
+                />
+              );
+            })}
           </div>
         </div>
       ))}
