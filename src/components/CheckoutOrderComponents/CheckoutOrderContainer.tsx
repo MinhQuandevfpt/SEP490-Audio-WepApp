@@ -355,7 +355,7 @@ const CheckoutOrderContainer: React.FC = () => {
           if (voucherRes?.data) {
             const platformCampaigns = voucherRes.data.vouchers?.platform || [];
             let platformDiscount = 0;
-            let campaignProductId = productId; // Default to productId, can be updated if needed
+            let campaignProductId: string | null = null; // Will be set from platformVoucherId
             
             if (voucherRes.data.product) {
               // Use product price from API response
@@ -365,9 +365,8 @@ const CheckoutOrderContainer: React.FC = () => {
                 if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
                   const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
                   if (activeVoucher) {
-                    // campaignProductId is the productId in the context of the campaign
-                    // For now, we use productId as campaignProductId
-                    campaignProductId = productId;
+                    // campaignProductId should be platformVoucherId from the active voucher
+                    campaignProductId = activeVoucher.platformVoucherId;
                     
                     if (activeVoucher.type === 'FIXED') {
                       platformDiscount = activeVoucher.discountValue || 0;
@@ -385,7 +384,8 @@ const CheckoutOrderContainer: React.FC = () => {
               }
             }
             
-            if (platformDiscount > 0) {
+            // Only store if we have both discount and platformVoucherId
+            if (platformDiscount > 0 && campaignProductId) {
               platformDiscountsMap[productId] = {
                 discount: platformDiscount,
                 campaignProductId: campaignProductId,
