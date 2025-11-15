@@ -30,10 +30,12 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
         <span>Tạm tính</span>
         <span>{formatCurrency(subtotal)}</span>
       </div>
-      <div className="flex justify-between text-gray-600 hidden">
-        <span>Giảm giá</span>
-        <span className="text-green-600">-{formatCurrency(discount)}</span>
-      </div>
+      {discount > 0 && (
+        <div className="flex justify-between text-gray-600">
+          <span>Giảm giá nền tảng</span>
+          <span className="text-green-600">-{formatCurrency(discount)}</span>
+        </div>
+      )}
       <div className="flex justify-between text-gray-600 hidden">
         <span>Phí vận chuyển</span>
         <span>{formatCurrency(shippingFee)}</span>

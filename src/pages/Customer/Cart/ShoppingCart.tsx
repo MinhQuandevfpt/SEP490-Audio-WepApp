@@ -111,12 +111,47 @@ const ShoppingCart: React.FC = () => {
           })
         );
 
-        // Extract shop vouchers with storeId
+        // Extract shop vouchers with storeId and calculate platform voucher discounts
         const shopVouchers: ShopVoucher[] = [];
         const availabilityMap: Record<string, boolean> = {};
+        const platformDiscountsMap: Record<string, number> = {};
+        
         responses.forEach(({ productId, voucherRes, productRes }) => {
           const vouchers = voucherRes?.data?.vouchers?.shop || [];
           availabilityMap[productId] = vouchers.length > 0;
+          
+          // Calculate platform voucher discount
+          const platformCampaigns = voucherRes?.data?.vouchers?.platform || [];
+          let platformDiscount = 0;
+          
+          if (voucherRes?.data?.product) {
+            // Use product price from API response
+            const originalPrice = voucherRes.data.product.price;
+            
+            for (const campaign of platformCampaigns) {
+              if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+                const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+                if (activeVoucher) {
+                  if (activeVoucher.type === 'FIXED') {
+                    platformDiscount = activeVoucher.discountValue || 0;
+                  } else if (activeVoucher.type === 'PERCENT') {
+                    const percentDiscount = (originalPrice * (activeVoucher.discountPercent || 0)) / 100;
+                    if (activeVoucher.maxDiscountValue !== null && activeVoucher.maxDiscountValue !== undefined) {
+                      platformDiscount = Math.min(percentDiscount, activeVoucher.maxDiscountValue);
+                    } else {
+                      platformDiscount = percentDiscount;
+                    }
+                  }
+                  break; // Use first active voucher found
+                }
+              }
+            }
+          }
+          
+          if (platformDiscount > 0) {
+            platformDiscountsMap[productId] = platformDiscount;
+          }
+          
           if (voucherRes && productRes) {
             const storeId = productRes.data?.storeId;
             vouchers.forEach((v: any) => {
@@ -127,7 +162,9 @@ const ShoppingCart: React.FC = () => {
             });
           }
         });
+        
         setProductVoucherAvailability(availabilityMap);
+        setPlatformVoucherDiscounts(platformDiscountsMap);
 
         // Dedupe by code (keep first occurrence)
         const deduped = Array.from(
@@ -146,6 +183,9 @@ const ShoppingCart: React.FC = () => {
 
   // Store vouchers
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
+
+  // Platform voucher discounts: Record<productId, discountAmount>
+  const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, number>>({});
 
   // Shipping fee estimation state
   const [shippingFee, setShippingFee] = useState<number>(0);
@@ -274,14 +314,36 @@ const ShoppingCart: React.FC = () => {
     messages.forEach(msg => showCenterError(msg, 'Voucher'));
   }, [items, productCache, storeVoucherMap]);
 
+  // Calculate subtotal after platform voucher discounts
+  const subtotalAfterPlatformDiscount = useMemo(() => {
+    return items.reduce((sum, item) => {
+      if (!item.isSelected) return sum;
+      const platformDiscount = platformVoucherDiscounts[item.productId] || 0;
+      const itemPriceAfterDiscount = item.price - platformDiscount;
+      const finalPrice = Math.max(0, itemPriceAfterDiscount);
+      return sum + finalPrice * item.quantity;
+    }, 0);
+  }, [items, platformVoucherDiscounts]);
+
+  // Calculate total platform voucher discount amount
+  const totalPlatformDiscount = useMemo(() => {
+    return items.reduce((sum, item) => {
+      if (!item.isSelected) return sum;
+      const platformDiscount = platformVoucherDiscounts[item.productId] || 0;
+      return sum + platformDiscount * item.quantity;
+    }, 0);
+  }, [items, platformVoucherDiscounts]);
+
+  // Store voucher discount
   const voucherDiscount = useMemo(() => {
     return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
   }, [appliedStoreVouchers]);
 
+  // Grand total = subtotal (after platform discount) - store voucher discount + shipping fee
   const grandTotal = useMemo(() => {
-    const total = summary.total + shippingFee - voucherDiscount;
+    const total = subtotalAfterPlatformDiscount + shippingFee - voucherDiscount;
     return Math.max(0, total);
-  }, [summary.total, shippingFee, voucherDiscount]);
+  }, [subtotalAfterPlatformDiscount, shippingFee, voucherDiscount]);
 
   // Calculate discount amount for a voucher
   const handleApplyStoreVoucher = (storeId: string, voucher: ShopVoucher, discountValue: number) => {
@@ -488,8 +550,8 @@ const ShoppingCart: React.FC = () => {
               onPackageWeightChange={setPackageWeight}
               shippingFee={shippingFee}
               onShippingFeeChange={setShippingFee}
-              subtotal={summary.subtotal}
-              discount={summary.discount}
+              subtotal={subtotalAfterPlatformDiscount}
+              discount={totalPlatformDiscount}
               voucherDiscount={voucherDiscount}
               selectedCount={summary.selectedCount}
               grandTotal={grandTotal}

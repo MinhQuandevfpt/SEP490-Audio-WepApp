@@ -5,6 +5,7 @@ import { formatCurrency } from '../../data/shoppingcart';
 import StoreVoucherPicker from './StoreVoucherPicker';
 import type { ShopVoucher } from './VoucherSection';
 import type { AppliedStoreVoucher } from './StoreVoucherPicker';
+import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
 
 interface CartItemRowProps {
   item: CartItem;
@@ -39,9 +40,70 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
   onRemoveVoucher,
 }) => {
   const [qty, setQty] = useState<number>(it.quantity);
+  const [discountedPrice, setDiscountedPrice] = useState<number | null>(null);
+
   useEffect(() => {
     setQty(it.quantity);
   }, [it.quantity]);
+
+  // Fetch platform vouchers and calculate discounted price
+  useEffect(() => {
+    const fetchPlatformVoucher = async () => {
+      if (!it.productId) return;
+
+      try {
+        const response = await ProductVoucherService.getProductVouchers(it.productId, 'ALL', null);
+        
+        // Find first active platform campaign with active vouchers
+        const platformCampaigns = response.data?.vouchers?.platform || [];
+        let activePlatformVoucher = null;
+
+        for (const campaign of platformCampaigns) {
+          if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+            // Find first active voucher in the campaign
+            const activeVoucher = campaign.vouchers.find(
+              (v) => v.status === 'ACTIVE'
+            );
+            if (activeVoucher) {
+              activePlatformVoucher = activeVoucher;
+              break;
+            }
+          }
+        }
+
+        // Calculate discounted price if platform voucher exists
+        if (activePlatformVoucher) {
+          const originalPrice = it.price;
+          let calculatedDiscount = 0;
+
+          if (activePlatformVoucher.type === 'FIXED') {
+            // FIXED: subtract discountValue
+            calculatedDiscount = activePlatformVoucher.discountValue || 0;
+          } else if (activePlatformVoucher.type === 'PERCENT') {
+            // PERCENT: calculate percentage discount
+            const percentDiscount = (originalPrice * (activePlatformVoucher.discountPercent || 0)) / 100;
+            
+            // Check if maxDiscountValue exists and apply limit
+            if (activePlatformVoucher.maxDiscountValue !== null && activePlatformVoucher.maxDiscountValue !== undefined) {
+              calculatedDiscount = Math.min(percentDiscount, activePlatformVoucher.maxDiscountValue);
+            } else {
+              calculatedDiscount = percentDiscount;
+            }
+          }
+
+          const finalPrice = Math.max(0, originalPrice - calculatedDiscount);
+          setDiscountedPrice(finalPrice);
+        } else {
+          setDiscountedPrice(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch platform vouchers:', error);
+        setDiscountedPrice(null);
+      }
+    };
+
+    fetchPlatformVoucher();
+  }, [it.productId, it.price]);
 
   const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, '');
@@ -84,10 +146,18 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
 
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {it.originalPrice && (
+              {/* Show original price with strikethrough if platform voucher discount exists */}
+              {discountedPrice !== null && discountedPrice < it.price && (
+                <span className="text-sm text-gray-400 line-through">{formatCurrency(it.price)}</span>
+              )}
+              {/* Show original price with strikethrough if originalPrice prop exists (for other discounts) */}
+              {discountedPrice === null && it.originalPrice && (
                 <span className="text-sm text-gray-400 line-through">{formatCurrency(it.originalPrice)}</span>
               )}
-              <span className="text-lg font-semibold text-orange-600">{formatCurrency(it.price)}</span>
+              {/* Show discounted price if platform voucher exists, otherwise show regular price */}
+              <span className="text-lg font-semibold text-orange-600">
+                {formatCurrency(discountedPrice !== null && discountedPrice < it.price ? discountedPrice : it.price)}
+              </span>
             </div>
 
             <div className="flex items-center gap-2">

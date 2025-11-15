@@ -29,6 +29,34 @@ export interface ProductVoucherResponse {
         startTime: string;
         endTime: string;
       }>;
+      platform: Array<{
+        campaignId: string;
+        campaignType: string;
+        code: string;
+        name: string;
+        description: string;
+        badgeLabel: string;
+        badgeColor: string;
+        badgeIconUrl: string;
+        status: string;
+        startTime: string;
+        endTime: string;
+        vouchers: Array<{
+          platformVoucherId: string;
+          campaignId: string;
+          type: 'FIXED' | 'PERCENT';
+          discountValue: number | null;
+          discountPercent: number | null;
+          maxDiscountValue: number | null;
+          minOrderValue: number | null;
+          totalVoucherIssued: number;
+          totalUsageLimit: number;
+          usagePerUser: number;
+          status: string;
+          startTime: string;
+          endTime: string;
+        }>;
+      }>;
     };
   };
 }
