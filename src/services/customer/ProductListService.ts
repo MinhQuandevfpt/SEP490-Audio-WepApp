@@ -14,7 +14,7 @@ class SimpleHttpClient {
     const startTime = performance.now();
     
     // Get token from localStorage for authenticated requests
-    const token = localStorage.getItem('customer_token');
+    const token = localStorage.getItem('CUSTOMER_token');
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': '*/*',

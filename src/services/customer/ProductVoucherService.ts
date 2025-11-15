@@ -64,7 +64,7 @@ export interface ProductVoucherResponse {
 export class ProductVoucherService {
   static isAuthenticated(): boolean {
     // Reuse customer token presence check via HttpInterceptor through RefreshTokenService
-    return !!localStorage.getItem('customer_token');
+    return !!localStorage.getItem('CUSTOMER_token');
   }
 
   static async getProductVouchers(productId: string, type?: string | null, campaignType?: string | null): Promise<ProductVoucherResponse> {

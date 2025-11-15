@@ -9,12 +9,13 @@ export type UserType = 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN';
 
 /**
  * Check if a user is authenticated
+ * OPTIMIZED: Use uppercase token keys only
  */
 export function isAuthenticated(userType: UserType): boolean {
   const tokenKeys: Record<UserType, string> = {
-    CUSTOMER: 'customer_token',
-    STOREOWNER: 'seller_token',
-    STAFF: 'staff_token',
+    CUSTOMER: 'CUSTOMER_token',
+    STOREOWNER: 'STOREOWNER_token',
+    STAFF: 'STAFF_token',
     ADMIN: 'admin_access_token',
   };
   
@@ -92,10 +93,11 @@ export function getSellerStoreId(): string | null {
 
 /**
  * Get customer ID (with fallback to user info)
+ * OPTIMIZED: Use camelCase key only
  */
 export function getCustomerId(): string | null {
-  // Try direct cache first
-  let customerId = localStorage.getItem('customer_id');
+  // Try direct cache first (camelCase key only)
+  let customerId = localStorage.getItem('customerId');
   
   // Fallback to customer_user object
   if (!customerId) {
@@ -103,7 +105,7 @@ export function getCustomerId(): string | null {
     if (customerUser?.customerId) {
       customerId = String(customerUser.customerId);
       // Update cache
-      localStorage.setItem('customer_id', customerId);
+      localStorage.setItem('customerId', customerId);
     }
   }
   
@@ -112,10 +114,11 @@ export function getCustomerId(): string | null {
 
 /**
  * Get account ID for customer (with fallback to user info)
+ * OPTIMIZED: Use camelCase key only
  */
 export function getAccountId(): string | null {
-  // Try direct cache first
-  let accountId = localStorage.getItem('account_id');
+  // Try direct cache first (camelCase key only)
+  let accountId = localStorage.getItem('accountId');
   
   // Fallback to customer_user object
   if (!accountId) {
@@ -123,7 +126,7 @@ export function getAccountId(): string | null {
     if (customerUser?.accountId) {
       accountId = String(customerUser.accountId);
       // Update cache
-      localStorage.setItem('account_id', accountId);
+      localStorage.setItem('accountId', accountId);
     }
   }
   

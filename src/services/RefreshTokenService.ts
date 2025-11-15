@@ -68,6 +68,8 @@ export class RefreshTokenService {
 
   /**
    * Store tokens for a specific user type
+   * OPTIMIZED: Only store UPPERCASE keys + isAuthenticated flag
+   * Removed: lowercase duplicates (customer_token, token, token_type)
    */
   static storeTokens(
     userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN',
@@ -80,11 +82,53 @@ export class RefreshTokenService {
       localStorage.setItem('admin_refresh_token', refreshToken);
       localStorage.setItem('admin_token_type', tokenType);
     } else {
+      // Store ONLY uppercase keys (modern format)
       localStorage.setItem(`${userType}_token`, accessToken);
       localStorage.setItem(`${userType}_refresh_token`, refreshToken);
       localStorage.setItem(`${userType}_token_type`, tokenType);
+      
+      // Only add isAuthenticated flag for CUSTOMER (many components check this)
+      if (userType === 'CUSTOMER') {
+        localStorage.setItem('isAuthenticated', 'true');
+      }
     }
-    console.log(`💾 Tokens stored for ${userType}`);
+    console.log(`💾 Tokens stored for ${userType} (minimal keys)`);
+  }
+
+  /**
+   * Store user data for CUSTOMER in MINIMAL format
+   * OPTIMIZED: Only store customer_user JSON + camelCase IDs
+   * Removed: individual fields (userEmail, userName, userRole), snake_case duplicates
+   */
+  static storeCustomerData(userData: {
+    email: string;
+    full_name: string;
+    role: string;
+    accountId: string;
+    customerId: string;
+  }): void {
+    // Standardized user object (minimal, consistent format)
+    const standardUserData = {
+      email: userData.email,
+      full_name: userData.full_name,
+      role: userData.role,
+      accountId: userData.accountId,
+      customerId: userData.customerId
+    };
+    
+    // Store user object (primary storage - single source of truth)
+    localStorage.setItem('customer_user', JSON.stringify(standardUserData));
+    
+    // Store ONLY camelCase IDs (no snake_case duplicates)
+    localStorage.setItem('accountId', userData.accountId);
+    localStorage.setItem('customerId', userData.customerId);
+    
+    console.log('💾 Customer data stored (minimal keys):', {
+      email: userData.email,
+      name: userData.full_name,
+      accountId: userData.accountId,
+      customerId: userData.customerId
+    });
   }
 
   /**
@@ -110,6 +154,7 @@ export class RefreshTokenService {
   /**
    * Clear all data for a user type (including user info and cache)
    * Use this for logout
+   * OPTIMIZED: Clear current minimal keys + old duplicate keys (cleanup)
    */
   static clearAllData(userType: 'CUSTOMER' | 'STOREOWNER' | 'STAFF' | 'ADMIN'): void {
     if (userType === 'ADMIN') {
@@ -118,30 +163,31 @@ export class RefreshTokenService {
       localStorage.removeItem('admin_token_type');
       localStorage.removeItem('admin_user');
     } else if (userType === 'CUSTOMER') {
-      // Clear uppercase keys (new format)
+      // Clear current minimal keys (uppercase)
       localStorage.removeItem('CUSTOMER_token');
       localStorage.removeItem('CUSTOMER_refresh_token');
       localStorage.removeItem('CUSTOMER_token_type');
-      localStorage.removeItem('CUSTOMER_user');
+      localStorage.removeItem('customer_user');
+      localStorage.removeItem('accountId');
+      localStorage.removeItem('customerId');
+      localStorage.removeItem('isAuthenticated');
       
-      // Clear lowercase keys (backward compatibility)
+      // Clear old duplicate keys (cleanup from previous versions)
       localStorage.removeItem('customer_token');
       localStorage.removeItem('customer_refresh_token');
       localStorage.removeItem('customer_token_type');
-      localStorage.removeItem('customer_user');
-      
-      // Clear additional customer-specific keys
+      localStorage.removeItem('token');
       localStorage.removeItem('token_type');
       localStorage.removeItem('account_id');
       localStorage.removeItem('customer_id');
-      localStorage.removeItem('token');
-      localStorage.removeItem('isAuthenticated');
-      localStorage.removeItem('accountId');
-      localStorage.removeItem('customerId');
       localStorage.removeItem('userEmail');
       localStorage.removeItem('userName');
       localStorage.removeItem('userRole');
+      localStorage.removeItem('refresh_token'); // OAuth old key
       localStorage.removeItem('authStateChanged');
+      
+      // Clear sessionStorage (welcome messages, etc.)
+      sessionStorage.removeItem('welcomeMessage');
     } else if (userType === 'STOREOWNER') {
       // Clear uppercase keys (new format)
       localStorage.removeItem('STOREOWNER_token');

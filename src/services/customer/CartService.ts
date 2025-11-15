@@ -14,13 +14,14 @@ import type {
   CheckoutPayOSRequest,
   CheckoutPayOSResponse
 } from '../../types/cart';
+import { getCustomerId } from '../../utils/authHelper';
 
 export class CustomerCartService {
   /**
-   * Get customer ID from localStorage
+   * Get customer ID from localStorage (using authHelper)
    */
   private static getCustomerId(): string {
-    const customerId = localStorage.getItem('customer_id');
+    const customerId = getCustomerId();
     if (!customerId) {
       throw new Error('Customer ID not found. Please login again.');
     }

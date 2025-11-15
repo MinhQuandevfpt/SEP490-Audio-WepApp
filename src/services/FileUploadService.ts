@@ -14,12 +14,12 @@ export class FileUploadService {
    * Checks all possible token locations
    */
   private static getAccessToken(): string | null {
-    // Check all possible token keys in order of priority
+    // Check all possible token keys in order of priority (UPPERCASE keys)
     return localStorage.getItem('admin_access_token') ||  // Admin
-           localStorage.getItem('seller_token') ||         // Seller
-           localStorage.getItem('staff_token') ||          // Staff
-           localStorage.getItem('customer_token') ||       // Customer
-           localStorage.getItem('accessToken');            // Legacy/fallback
+           localStorage.getItem('STOREOWNER_token') ||    // Seller
+           localStorage.getItem('STAFF_token') ||         // Staff
+           localStorage.getItem('CUSTOMER_token') ||      // Customer
+           localStorage.getItem('accessToken');           // Legacy/fallback
   }
 
   /**

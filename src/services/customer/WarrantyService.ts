@@ -8,22 +8,18 @@ import type { Warranty, WarrantyListResponse } from '../../types/api';
 
 export class WarrantyService {
   /**
-   * Get customer email from localStorage
+   * Get customer email from localStorage (from customer_user JSON only)
    */
   private static getCustomerEmail(): string {
     const user = localStorage.getItem('customer_user');
     if (user) {
       try {
         const userData = JSON.parse(user);
-        return userData.email || '';
+        if (userData.email) return userData.email;
       } catch {
         // fallback
       }
     }
-    
-    // Fallback: try to get from userEmail key
-    const email = localStorage.getItem('userEmail');
-    if (email) return email;
     
     throw new Error('Customer email not found. Please login again.');
   }

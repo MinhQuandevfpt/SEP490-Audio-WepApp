@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { RefreshTokenService } from '../../services/RefreshTokenService';
 
 const OAuth2Callback = () => {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ const OAuth2Callback = () => {
   useEffect(() => {
     // Route này chỉ dùng cho fallback hoặc trường hợp backend redirect sai
     const token = searchParams.get('token');
+    const refreshToken = searchParams.get('refreshToken');
     const error = searchParams.get('error');
 
     if (error) {
@@ -18,9 +20,8 @@ const OAuth2Callback = () => {
     }
 
     if (token) {
-      // Lưu token vào localStorage
-      localStorage.setItem('token', token);
-      localStorage.setItem('isAuthenticated', 'true');
+      // Store tokens using RefreshTokenService (handles all formats automatically)
+      RefreshTokenService.storeTokens('CUSTOMER', token, refreshToken || '', 'Bearer');
       
       toast.success('Đăng nhập Google thành công!');
       navigate('/');

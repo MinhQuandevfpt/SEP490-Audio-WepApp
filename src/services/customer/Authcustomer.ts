@@ -77,8 +77,8 @@ class HttpClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      // Get token from localStorage for authenticated requests
-      const token = localStorage.getItem('customer_token');
+      // Get token from localStorage for authenticated requests (UPPERCASE key)
+      const token = localStorage.getItem('CUSTOMER_token');
       const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         'Accept': '*/*',
@@ -205,39 +205,26 @@ export class CustomerAuthService {
         const refreshToken = response.data.refreshToken || '';
         const tokenType = response.data.tokenType || 'Bearer';
         
-        // Store tokens using RefreshTokenService
+        // Store tokens using RefreshTokenService (handles all formats automatically)
         RefreshTokenService.storeTokens('CUSTOMER', response.data.accessToken, refreshToken, tokenType);
-        
-        // Also store in old format for backward compatibility
-        localStorage.setItem('customer_token', response.data.accessToken);
-        localStorage.setItem('token_type', tokenType);
 
-        // Decode accountId from token and store/log it
+        // Decode accountId from token
         const accountId = extractAccountIdFromToken(response.data.accessToken);
-        if (accountId) {
-          localStorage.setItem('account_id', accountId);
-          console.log('👤 Account ID:', accountId);
-        }
-
-        // Also decode and log userId if present in token payload
+        
+        // Decode customerId from token payload
         const payload = decodeJwtPayload(response.data.accessToken);
         const customerId = payload?.customerId ?? payload?.uid ?? null;
-        if (customerId) {
-          localStorage.setItem('customer_id', String(customerId));
-          console.log('🆔 Customer ID:', String(customerId));
-        }
         
-        // Convert API response to match database schema (fullName -> full_name)
-        const userDataForStorage = {
+        // Store customer data using standardized helper
+        RefreshTokenService.storeCustomerData({
           email: response.data.user.email,
-          full_name: response.data.user.fullName, // Convert to snake_case to match database
+          full_name: response.data.user.fullName,
           role: response.data.user.role,
-          accountId: accountId,
-          customerId: customerId
-        };
+          accountId: accountId || '',
+          customerId: customerId || ''
+        });
         
-        console.log('📝 Storing user info with full_name only:', userDataForStorage);
-        localStorage.setItem('customer_user', JSON.stringify(userDataForStorage));
+        console.log('✅ Login completed - All data stored (standardized format)');
       }
       
       return response;
@@ -253,8 +240,11 @@ export class CustomerAuthService {
   static logout(): void {
     console.log('🚪 Logging out customer...');
     
+    // Set flag to prevent welcome popup after logout redirect
+    sessionStorage.setItem('isLoggingOut', 'true');
+    
     // Get token before clearing (for storage event)
-    const oldToken = localStorage.getItem('customer_token');
+    const oldToken = localStorage.getItem('CUSTOMER_token');
     
     // Clear ALL data using RefreshTokenService (includes all backward compatibility keys)
     RefreshTokenService.clearAllData('CUSTOMER');
@@ -329,22 +319,22 @@ export class CustomerAuthService {
   }
 
   /**
-   * Get authentication token
+   * Get authentication token (UPPERCASE key)
    */
   static getToken(): string | null {
-    return localStorage.getItem('customer_token');
+    return localStorage.getItem('CUSTOMER_token');
   }
 
   /**
-   * Get decoded account id (from token or cache)
+   * Get decoded account id (from token or cache - camelCase key)
    */
   static getAccountId(): string | null {
-    const cached = localStorage.getItem('account_id');
+    const cached = localStorage.getItem('accountId');
     if (cached) return cached;
     const token = this.getToken();
     if (!token) return null;
     const accountId = extractAccountIdFromToken(token);
-    if (accountId) localStorage.setItem('account_id', accountId);
+    if (accountId) localStorage.setItem('accountId', accountId);
     return accountId;
   }
 

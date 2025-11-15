@@ -81,7 +81,7 @@ const Header: React.FC = () => {
 
   const getEncodedCustomerParam = () => {
     try {
-      const id = localStorage.getItem('customer_id');
+      const id = localStorage.getItem('customerId');
       if (!id) return '';
       const encoded = btoa(id).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
       return `?u=${encoded}`;

@@ -7,14 +7,12 @@ const AuthDebugger: React.FC = () => {
   useEffect(() => {
     const updateAuthData = () => {
       const data = {
-        customer_token: localStorage.getItem('customer_token'),
+        CUSTOMER_token: localStorage.getItem('CUSTOMER_token'),
+        CUSTOMER_refresh_token: localStorage.getItem('CUSTOMER_refresh_token'),
         customer_user: localStorage.getItem('customer_user'),
         isAuthenticated: localStorage.getItem('isAuthenticated'),
         accountId: localStorage.getItem('accountId'),
         customerId: localStorage.getItem('customerId'),
-        userEmail: localStorage.getItem('userEmail'),
-        userName: localStorage.getItem('userName'),
-        userRole: localStorage.getItem('userRole'),
       };
       setAuthData(data);
     };

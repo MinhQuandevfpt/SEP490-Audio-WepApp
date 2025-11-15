@@ -412,7 +412,7 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }
     // Fallback: decode ?u from query and fetch if no preloaded data
     const params = new URLSearchParams(location.search);
     const encoded = params.get('u');
-    let customerIdFromStorage = localStorage.getItem('customer_id');
+    let customerIdFromStorage = localStorage.getItem('customerId');
     if (encoded) {
       try {
         const padded = encoded.replace(/-/g, '+').replace(/_/g, '/');

@@ -19,7 +19,7 @@ const HomePage: React.FC = () => {
             'Đăng nhập thành công!',
             3000
           );
-          // Clear the welcome message after showing
+          // Clear the welcome message immediately after showing
           sessionStorage.removeItem('welcomeMessage');
         }
       } catch (error) {
@@ -27,6 +27,11 @@ const HomePage: React.FC = () => {
         sessionStorage.removeItem('welcomeMessage');
       }
     }
+    
+    // Cleanup: Ensure welcome message is cleared when component unmounts
+    return () => {
+      sessionStorage.removeItem('welcomeMessage');
+    };
   }, []);
 
   return (

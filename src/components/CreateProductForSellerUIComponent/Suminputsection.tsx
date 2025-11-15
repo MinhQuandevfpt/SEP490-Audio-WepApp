@@ -128,7 +128,13 @@ const Suminputsection: React.FC = () => {
   const [form, setForm] = useState<FormState>(defaultForm);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [extraSpecs, setExtraSpecs] = useState<Record<string, string>>({});
-  const [variants, setVariants] = useState<Array<{ optionName: string; optionValue: string }>>([]);
+  const [variants, setVariants] = useState<Array<{ 
+    optionName: string; 
+    optionValue: string; 
+    variantPrice: string;
+    variantStock: string;
+    variantSku: string;
+  }>>([]);
   const [bulkDiscounts, setBulkDiscounts] = useState<Array<{ fromQuantity: string; toQuantity: string; unitPrice: string }>>([]);
   
   // UI state
@@ -654,10 +660,18 @@ const Suminputsection: React.FC = () => {
       wardCode: digitsOnly(form.wardCode) || undefined,
       shippingAddress: null,
       shippingFee: null,
-      supportedShippingMethodIds: form.selectedShippingMethodIds,
+      supportedShippingMethodIds: Array.isArray(form.selectedShippingMethodIds) 
+        ? form.selectedShippingMethodIds.filter((id: string) => id && id.trim() && id.length > 0)
+        : [],
       variants: variants
-        .map(v => ({ optionName: v.optionName?.trim(), optionValue: v.optionValue?.trim() }))
-        .filter(v => v.optionName && v.optionValue),
+        .map(v => ({ 
+          optionName: v.optionName?.trim(), 
+          optionValue: v.optionValue?.trim(),
+          variantPrice: Number(v.variantPrice) || 0,
+          variantStock: Number(v.variantStock) || 0,
+          variantSku: v.variantSku?.trim() || ''
+        }))
+        .filter(v => v.optionName && v.optionValue && v.variantPrice > 0 && v.variantStock >= 0 && v.variantSku),
       bulkDiscounts: bulkDiscounts
         .map(b => ({
           fromQuantity: Number(b.fromQuantity),
@@ -929,22 +943,100 @@ const Suminputsection: React.FC = () => {
       )}
 
       {currentStep === 2 && (
-      <SectionCard title="Biến thể (Variants)" description="Tùy chọn như màu sắc, dung lượng... (tuỳ chọn)">
-        <div className="space-y-3">
-          {variants.length === 0 && <p className="text-sm text-gray-500">Chưa có biến thể nào.</p>}
+      <SectionCard title="Biến thể sản phẩm (Product Variants)" description="Thêm các biến thể như màu sắc, kích cỡ với giá và số lượng riêng">
+        <div className="space-y-4">
+          {variants.length === 0 && (
+            <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <p className="text-sm text-gray-500 mb-2">Chưa có biến thể nào</p>
+              <p className="text-xs text-gray-400">Thêm các biến thể như màu sắc, kích cỡ để khách hàng có nhiều lựa chọn</p>
+            </div>
+          )}
           {variants.map((v, idx) => (
-            <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
-              <input value={v.optionName} onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionName: e.target.value } : x))} placeholder="Tên tuỳ chọn (VD: Màu sắc)" className="md:col-span-2 w-full px-3 py-2 border border-gray-300 rounded-lg" />
-              <input value={v.optionValue} onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionValue: e.target.value } : x))} placeholder="Giá trị (VD: Đen, Trắng)" className="md:col-span-2 w-full px-3 py-2 border border-gray-300 rounded-lg" />
-              <button type="button" onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm rounded bg-red-50 text-red-700">Xoá</button>
+            <div key={idx} className="p-4 bg-white border border-gray-200 rounded-lg space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-gray-700">Biến thể #{idx + 1}</h4>
+                <button 
+                  type="button" 
+                  onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))} 
+                  className="px-3 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100"
+                >
+                  Xóa
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Tên tùy chọn</label>
+                  <input 
+                    value={v.optionName} 
+                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionName: e.target.value } : x))} 
+                    placeholder="VD: Color, Size, Capacity" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Giá trị</label>
+                  <input 
+                    value={v.optionValue} 
+                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionValue: e.target.value } : x))} 
+                    placeholder="VD: Black, XL, 128GB" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Giá (VND) <span className="text-red-500">*</span></label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={v.variantPrice} 
+                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, variantPrice: e.target.value } : x))} 
+                    placeholder="1000000" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Số lượng <span className="text-red-500">*</span></label>
+                  <input 
+                    type="number"
+                    min="0"
+                    value={v.variantStock} 
+                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, variantStock: e.target.value } : x))} 
+                    placeholder="50" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">SKU biến thể <span className="text-red-500">*</span></label>
+                  <input 
+                    value={v.variantSku} 
+                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, variantSku: e.target.value } : x))} 
+                    placeholder="SKU-50-SN001" 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
             </div>
           ))}
-          <button type="button" onClick={() => setVariants(prev => [...prev, { optionName: '', optionValue: '' }])} className="px-4 py-2 rounded bg-orange-600 text-white hover:bg-orange-700">+ Thêm biến thể</button>
+          <button 
+            type="button" 
+            onClick={() => setVariants(prev => [...prev, { 
+              optionName: '', 
+              optionValue: '', 
+              variantPrice: '',
+              variantStock: '',
+              variantSku: ''
+            }])} 
+            className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 font-medium flex items-center justify-center gap-2"
+          >
+            <span className="text-lg">+</span> Thêm biến thể mới
+          </button>
         </div>
       </SectionCard>
       )}
 
-      {currentStep === 2 && (
+      {/* BulkDiscounts - Hidden but kept in code */}
+      {false && currentStep === 2 && (
       <SectionCard title="Giá mua nhiều (Bulk Discounts)" description="Thêm khoảng số lượng và đơn giá (tuỳ chọn)">
         <div className="space-y-3">
           {bulkDiscounts.length === 0 && <p className="text-sm text-gray-500">Chưa có mức mua sỉ nào.</p>}

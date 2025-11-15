@@ -28,7 +28,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
 
   // Check if user is logged in
   const isLoggedIn = () => {
-    const customerId = localStorage.getItem('customerId') || localStorage.getItem('customer_id');
+    const customerId = localStorage.getItem('customerId');
     return !!customerId;
   };
 

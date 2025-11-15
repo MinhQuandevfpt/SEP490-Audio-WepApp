@@ -6,13 +6,14 @@
 import { HttpInterceptor } from '../HttpInterceptor';
 import type { CustomerAddressApiItem, AddCustomerAddressRequest, UpdateCustomerAddressRequest } from '../../types/api';
 import { CustomerAuthService } from './Authcustomer';
+import { getCustomerId } from '../../utils/authHelper';
 
 export class AddressService {
   /**
-   * Get customer ID from localStorage
+   * Get customer ID from localStorage (using authHelper)
    */
   private static getCustomerId(): string {
-    const customerId = localStorage.getItem('customer_id');
+    const customerId = getCustomerId();
     if (!customerId) {
       throw new Error('Customer ID not found. Please login again.');
     }

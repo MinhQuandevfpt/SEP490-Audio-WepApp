@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
+import { RefreshTokenService } from '../../services/RefreshTokenService';
 import { showError } from '../../utils/notification';
 
 const OAuth2Success = () => {
@@ -145,24 +146,8 @@ const OAuth2Success = () => {
         if (token && accountId) {
           console.log('OAuth2Success - Processing authentication...');
           
-          // Lưu access token và refresh token
-          localStorage.setItem('customer_token', token);
-          localStorage.setItem('token_type', 'Bearer');
-          localStorage.setItem('token', token); // Keep for compatibility
-          localStorage.setItem('isAuthenticated', 'true');
-          localStorage.setItem('accountId', accountId);
-          
-          // Lưu refresh token nếu có
-          if (refreshToken) {
-            localStorage.setItem('refresh_token', refreshToken);
-            console.log('OAuth2Success - Refresh token saved');
-          }
-          
-          // Lưu customerId với cả 2 keys để tương thích
-          if (customerId) {
-            localStorage.setItem('customerId', customerId);
-            localStorage.setItem('customer_id', customerId); // For backward compatibility
-          }
+          // Store tokens using RefreshTokenService (handles all formats automatically)
+          RefreshTokenService.storeTokens('CUSTOMER', token, refreshToken || '', 'Bearer');
 
           // Đợi một chút để đảm bảo localStorage được set
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -170,52 +155,23 @@ const OAuth2Success = () => {
           try {
             // Lấy thông tin customer profile thực tế từ database
             console.log('OAuth2Success - Fetching customer profile...');
-            console.log('OAuth2Success - Token being used:', token);
-            console.log('OAuth2Success - CustomerAuthService available:', !!CustomerAuthService);
-            console.log('OAuth2Success - Token from localStorage:', localStorage.getItem('customer_token'));
             
             const customerProfile = await tryGetCustomerProfile(token, customerId || undefined);
             console.log('OAuth2Success - Customer profile loaded successfully:', customerProfile);
-            console.log('OAuth2Success - Profile fullName:', customerProfile.fullName);
-            console.log('OAuth2Success - Profile userName:', customerProfile.userName);
-            console.log('OAuth2Success - Profile email:', customerProfile.email);
             
-            // Chuyển đổi để phù hợp với format nhất quán 
-            // API trả về fullName (camelCase) - đây là tên thật từ database
-            const userDataForStorage = {
-              id: customerId || customerProfile.id, // Customer ID
+            // Store customer data using standardized helper
+            RefreshTokenService.storeCustomerData({
               email: customerProfile.email,
-              full_name: customerProfile.fullName, // Use only full_name (database standard)
-              fullName: customerProfile.fullName, // Keep for compatibility
-              role: 'CUSTOMER', // Default role
+              full_name: customerProfile.fullName,
+              role: 'CUSTOMER',
               accountId: accountId,
-              customerId: customerId || customerProfile.id
-            };
+              customerId: customerId || customerProfile.id || ''
+            });
             
-            console.log('OAuth2Success - Final user data for storage:', userDataForStorage);
-            
-            localStorage.setItem('customer_user', JSON.stringify(userDataForStorage));
-            localStorage.setItem('customerId', customerId || customerProfile.id || ''); // ← Lưu customerId riêng
-            localStorage.setItem('customer_id', customerId || customerProfile.id || ''); // ← Backward compatibility
-            localStorage.setItem('userEmail', userDataForStorage.email);
-            localStorage.setItem('userName', userDataForStorage.full_name || 'User'); // Use full_name (real name)
-            localStorage.setItem('userRole', userDataForStorage.role);
-            
-            console.log('OAuth2Success - Saved user profile with real fullName:', userDataForStorage);
-            console.log('OAuth2Success - CustomerId saved:', customerId || customerProfile.id);
+            console.log('✅ OAuth2Success - All data stored (standardized format)');
             
           } catch (profileError) {
             console.error('OAuth2Success - Failed to load customer profile:', profileError);
-            console.error('OAuth2Success - Error details:', JSON.stringify(profileError, null, 2));
-            
-            // Log more details about the error
-            if (profileError && typeof profileError === 'object') {
-              console.error('OAuth2Success - Error status:', (profileError as any).status);
-              console.error('OAuth2Success - Error message:', (profileError as any).message);
-            }
-            
-            // Try alternative approach: decode token to get customer info
-            console.log('OAuth2Success - Trying alternative approach with token decode...');
             
             // Fallback: Lấy thông tin từ JWT token
             try {
@@ -226,52 +182,32 @@ const OAuth2Success = () => {
                 
                 // Lấy email từ token
                 const emailFromToken = payload.sub?.split(':')[0] || payload.email || '';
-                
-                // Try to get full name from database by making a direct call
-                // For now, let's use a temporary solution
-                console.log('OAuth2Success - Using email from token:', emailFromToken);
-                
-                // Tạo user profile - for now use email name, but we should get it from backend
                 const nameFromEmail = emailFromToken.split('@')[0] || `User_${accountId.slice(-6)}`;
                 
-                const customerProfile = {
-                  id: customerId || payload.customerId || '',
+                // Store fallback data using standardized helper
+                RefreshTokenService.storeCustomerData({
                   email: emailFromToken,
-                  full_name: nameFromEmail, // TODO: Should get actual full_name from backend
-                  fullName: nameFromEmail,  // Keep for compatibility
-                  name: nameFromEmail, 
+                  full_name: nameFromEmail,
                   role: payload.role || 'CUSTOMER',
                   accountId: accountId,
                   customerId: customerId || payload.customerId || ''
-                };
+                });
                 
-                localStorage.setItem('customer_user', JSON.stringify(customerProfile));
-                localStorage.setItem('customerId', customerId || payload.customerId || ''); // ← Lưu customerId
-                localStorage.setItem('customer_id', customerId || payload.customerId || ''); // ← Backward compatibility
-                localStorage.setItem('userEmail', customerProfile.email);
-                localStorage.setItem('userName', customerProfile.full_name || 'User');
-                localStorage.setItem('userRole', customerProfile.role);
-                
-                console.log('OAuth2Success - Saved fallback user profile:', customerProfile);
+                console.log('OAuth2Success - Saved fallback user profile (from token)');
               }
             } catch (tokenError) {
               console.error('OAuth2Success - Failed to decode token:', tokenError);
               
               // Last fallback: sử dụng accountId một phần làm tên
-              const basicProfile = {
-                id: customerId || '',
+              RefreshTokenService.storeCustomerData({
                 email: '',
                 full_name: `User_${accountId.slice(-6)}`,
-                fullName: `User_${accountId.slice(-6)}`,
-                name: `User_${accountId.slice(-6)}`,
                 role: 'CUSTOMER',
                 accountId: accountId,
                 customerId: customerId || ''
-              };
-              localStorage.setItem('customer_user', JSON.stringify(basicProfile));
-              localStorage.setItem('customerId', customerId || ''); // ← Lưu customerId
-              localStorage.setItem('customer_id', customerId || ''); // ← Backward compatibility
-              localStorage.setItem('userName', basicProfile.full_name || 'User');
+              });
+              
+              console.log('OAuth2Success - Saved basic profile (last fallback)');
             }
           }
 
@@ -280,13 +216,22 @@ const OAuth2Success = () => {
 
           console.log('OAuth2Success - Authentication completed, redirecting...');
           
-          // Lưu thông báo success vào sessionStorage thay vì hiện ngay
-          // Lấy displayName từ localStorage (đã được set ở trên)
-          const savedUserName = localStorage.getItem('userName') || 'User';
-          sessionStorage.setItem('welcomeMessage', JSON.stringify({
-            userName: savedUserName,
-            showWelcome: true
-          }));
+          // Chỉ lưu welcome message nếu đây là lần đăng nhập thực sự
+          // Tránh show popup khi user vừa logout và bị redirect về OAuth2Success
+          const isFromLogout = sessionStorage.getItem('isLoggingOut') === 'true';
+          
+          if (!isFromLogout) {
+            // Lưu thông báo success vào sessionStorage
+            const savedUserName = localStorage.getItem('userName') || 'User';
+            sessionStorage.setItem('welcomeMessage', JSON.stringify({
+              userName: savedUserName,
+              showWelcome: true
+            }));
+          } else {
+            // Clear logout flag
+            sessionStorage.removeItem('isLoggingOut');
+            console.log('OAuth2Success - Skipped welcome message (from logout)');
+          }
           
           // Navigate ngay lập tức, không setTimeout
           navigate('/');
