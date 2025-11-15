@@ -30,6 +30,9 @@ export { default as Header } from './Header';
 // Audio Components
 export { default as AudioPlayer } from './AudioPlayer';
 
+// Test Components
+export { default as TestObject3D } from './TestObject3D';
+
 // Types
 export interface Dimensions {
   length: number;

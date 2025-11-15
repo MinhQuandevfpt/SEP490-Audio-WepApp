@@ -5,6 +5,7 @@ import Room3D from './Room3D';
 import Furniture3D from './Furniture3D';
 import ListenerAvatar3D from './ListenerAvatar3D';
 import Speaker3D from './Speaker3D';
+import TestObject3D from './TestObject3D';
 import type { Dimensions, RoomColors, Furniture, Listener, Speaker } from './index';
 
 interface Canvas3DProps {
@@ -13,9 +14,17 @@ interface Canvas3DProps {
   furniture?: Furniture[];
   listeners?: Listener[];
   speakers?: Speaker[];
+  testObjectPosition?: [number, number, number] | null;
 }
 
-const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [], listeners = [], speakers = [] }) => {
+const Canvas3D: React.FC<Canvas3DProps> = ({ 
+  dimensions, 
+  colors, 
+  furniture = [], 
+  listeners = [], 
+  speakers = [],
+  testObjectPosition = null
+}) => {
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -61,6 +70,11 @@ const Canvas3D: React.FC<Canvas3DProps> = ({ dimensions, colors, furniture = [],
         {speakers.map((speaker) => (
           <Speaker3D key={speaker.id} speaker={speaker} />
         ))}
+
+        {/* Test Object - Movable object */}
+        {testObjectPosition && (
+          <TestObject3D position={testObjectPosition} />
+        )}
 
         {/* Controls */}
         <OrbitControls 

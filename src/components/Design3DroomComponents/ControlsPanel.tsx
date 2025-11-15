@@ -13,7 +13,8 @@ import type {
   ControlSection, 
   Furniture,
   Speaker,
-  Listener
+  Listener,
+  CustomSpeakerSpecs
 } from './index';
 
 interface ControlsPanelProps {
@@ -37,6 +38,10 @@ interface ControlsPanelProps {
   onAddSpeaker: (speaker: Omit<Speaker, 'id'>) => void;
   onRemoveSpeaker: (id: string) => void;
   onUpdateSpeaker: (id: string, updates: Partial<Speaker>) => void;
+  // test mode
+  onTestSpeaker?: (specs: CustomSpeakerSpecs | null) => void;
+  onTestObjectPositionChange?: (position: [number, number, number] | null) => void;
+  onTestingIn3DChange?: (isTesting: boolean) => void;
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({
@@ -57,7 +62,10 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   speakers,
   onAddSpeaker,
   onRemoveSpeaker,
-  onUpdateSpeaker
+  onUpdateSpeaker,
+  onTestSpeaker,
+  onTestObjectPositionChange,
+  onTestingIn3DChange
 }) => {
   const [activeSection, setActiveSection] = useState<ControlSection>('room');
 
@@ -90,6 +98,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onAddSpeaker={onAddSpeaker}
             onRemoveSpeaker={onRemoveSpeaker}
             onUpdateSpeaker={onUpdateSpeaker}
+            onTestSpeaker={onTestSpeaker}
+            onTestObjectPositionChange={onTestObjectPositionChange}
+            onTestingIn3DChange={onTestingIn3DChange}
           />
         );
       case 'listeners':

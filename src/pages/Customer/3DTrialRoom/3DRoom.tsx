@@ -5,7 +5,7 @@ import {
   ControlsPanel, 
   Canvas3D
 } from '../../../components/Design3DroomComponents';
-import type { Dimensions, RoomColors, RoomPreset, Furniture, Listener, Speaker } from '../../../components/Design3DroomComponents';
+import type { Dimensions, RoomColors, RoomPreset, Furniture, Listener, Speaker, CustomSpeakerSpecs } from '../../../components/Design3DroomComponents';
 
 // Default colors
 const DEFAULT_COLORS: RoomColors = {
@@ -27,6 +27,10 @@ const ThreeDRoom: React.FC = () => {
   const [furniture, setFurniture] = useState<Furniture[]>([]);
   const [listeners, setListeners] = useState<Listener[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  // Test mode states - được sử dụng qua callbacks trong SpeakerDesignSection
+  const [_testSpeaker, setTestSpeaker] = useState<CustomSpeakerSpecs | null>(null);
+  const [testObjectPosition, setTestObjectPosition] = useState<[number, number, number] | null>(null);
+  const [_isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
 
   const handleDimensionChange = useCallback((key: keyof Dimensions, value: number) => {
     setDimensions(prev => ({
@@ -135,6 +139,9 @@ const ThreeDRoom: React.FC = () => {
               onAddSpeaker={handleAddSpeaker}
               onRemoveSpeaker={handleRemoveSpeaker}
               onUpdateSpeaker={handleUpdateSpeaker}
+              onTestSpeaker={setTestSpeaker}
+              onTestObjectPositionChange={setTestObjectPosition}
+              onTestingIn3DChange={setIsTestingIn3D}
             />
 
             <Canvas3D 
@@ -143,6 +150,7 @@ const ThreeDRoom: React.FC = () => {
               furniture={furniture}
               listeners={listeners}
               speakers={speakers}
+              testObjectPosition={testObjectPosition}
             />
           </div>
         </div>

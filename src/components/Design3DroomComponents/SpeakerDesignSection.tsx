@@ -1,36 +1,21 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Move, Play, Pause, Volume2, Headphones, Settings } from 'lucide-react';
+import { Move, Headphones } from 'lucide-react';
 import type { Speaker, CustomSpeakerSpecs } from './index';
 import AudioPlayer from './AudioPlayer';
 import type { EQPreset } from '../../services/audio/AudioService';
 
 interface SpeakerDesignSectionProps {
+  // Props không còn được sử dụng nhưng vẫn cần để giữ interface tương thích
   speakers: Speaker[];
   onAddSpeaker: (speaker: Omit<Speaker, 'id'>) => void;
   onRemoveSpeaker: (id: string) => void;
   onUpdateSpeaker: (id: string, updates: Partial<Speaker>) => void;
+  // Test mode props
+  onTestSpeaker?: (specs: CustomSpeakerSpecs | null) => void;
+  onTestObjectPositionChange?: (position: [number, number, number] | null) => void;
+  onTestingIn3DChange?: (isTesting: boolean) => void;
 }
 
-const SPEAKER_TYPES = [
-  { type: 'floor_single', name: 'Loa đơn đứng', icon: '🔊' },
-  { type: 'floor_pair', name: 'Loa đôi đứng', icon: '🔊🔊' },
-  { type: 'desk_single', name: 'Loa đơn để bàn', icon: '🔊' },
-  { type: 'desk_pair', name: 'Loa đôi để bàn', icon: '🔊🔊' },
-  { type: 'wall_single', name: 'Loa đơn treo tường', icon: '🔊' },
-  { type: 'wall_pair', name: 'Loa đôi treo tường', icon: '🔊🔊' },
-  { type: 'amplifier', name: 'Amply', icon: '🎛️' }
-] as const;
-
-const SPEAKER_COLORS = [
-  '#000000', '#FFFFFF', '#8B4513', '#D2B48C', '#FFD700',
-  '#C0C0C0', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'
-];
-
-const QUALITY_LEVELS = [
-  { value: 'basic', label: 'Cơ bản', description: 'Chất lượng âm thanh cơ bản' },
-  { value: 'premium', label: 'Cao cấp', description: 'Chất lượng âm thanh cao cấp' },
-  { value: 'professional', label: 'Chuyên nghiệp', description: 'Chất lượng âm thanh chuyên nghiệp' }
-] as const;
 
 // Default custom specs
 const DEFAULT_CUSTOM_SPECS: CustomSpeakerSpecs = {
@@ -76,36 +61,18 @@ const createSpeakerModelFromSpecs = (specs: CustomSpeakerSpecs, name: string) =>
 };
 
 const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
-  speakers,
-  onAddSpeaker,
-  onRemoveSpeaker,
-  onUpdateSpeaker
+  speakers: _speakers,
+  onAddSpeaker: _onAddSpeaker,
+  onRemoveSpeaker: _onRemoveSpeaker,
+  onUpdateSpeaker: _onUpdateSpeaker,
+  onTestSpeaker,
+  onTestObjectPositionChange,
+  onTestingIn3DChange
 }) => {
-  const [selectedType, setSelectedType] = useState<string>('floor_single');
-  const [selectedColor, setSelectedColor] = useState<string>('#000000');
-  const [selectedQuality, setSelectedQuality] = useState<string>('premium');
   const [customSpecs, setCustomSpecs] = useState<CustomSpeakerSpecs>(DEFAULT_CUSTOM_SPECS);
   const [isTestingAudio, setIsTestingAudio] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'add' | 'customize'>('customize'); // 'add' hoặc 'customize'
-
-  const handleAddSpeaker = () => {
-    const newSpeaker: Omit<Speaker, 'id'> = {
-      name: `${SPEAKER_TYPES.find(t => t.type === selectedType)?.name} ${speakers.length + 1}`,
-      type: selectedType as any,
-      position: [0, 0, 0],
-      rotation: [0, 0, 0],
-      color: selectedColor,
-      power: customSpecs.power,
-      quality: selectedQuality as any,
-      isPlaying: false,
-      customSpecs: { ...customSpecs }
-    };
-    onAddSpeaker(newSpeaker);
-  };
-
-  const togglePlayback = (speakerId: string, isPlaying: boolean) => {
-    onUpdateSpeaker(speakerId, { isPlaying: !isPlaying });
-  };
+  const [isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
+  const [testObjectPosition, setTestObjectPosition] = useState<[number, number, number]>([0, 0.5, 0]);
 
   const handleSpecChange = (key: keyof CustomSpeakerSpecs, value: number) => {
     setCustomSpecs(prev => ({
@@ -116,6 +83,42 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
 
   const handleTestAudio = () => {
     setIsTestingAudio(true);
+  };
+
+  const handleTestIn3D = () => {
+    setIsTestingIn3D(true);
+    if (onTestSpeaker) {
+      onTestSpeaker(customSpecs);
+    }
+    if (onTestObjectPositionChange) {
+      onTestObjectPositionChange(testObjectPosition);
+    }
+    if (onTestingIn3DChange) {
+      onTestingIn3DChange(true);
+    }
+  };
+
+  const handleStopTest = () => {
+    setIsTestingIn3D(false);
+    if (onTestSpeaker) {
+      onTestSpeaker(null);
+    }
+    if (onTestObjectPositionChange) {
+      onTestObjectPositionChange(null);
+    }
+    if (onTestingIn3DChange) {
+      onTestingIn3DChange(false);
+    }
+  };
+
+  const handleMoveTestObject = (axis: 'x' | 'y' | 'z', direction: 1 | -1) => {
+    const newPosition: [number, number, number] = [...testObjectPosition];
+    const axisIndex = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+    newPosition[axisIndex] += direction * 0.5; // Move 0.5m per step
+    setTestObjectPosition(newPosition);
+    if (onTestObjectPositionChange) {
+      onTestObjectPositionChange(newPosition);
+    }
   };
 
   // Audio URL - sử dụng SoundCloud embed hoặc direct URL
@@ -129,35 +132,11 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
           <span className="text-2xl">🔊</span>
           <h3 className="text-lg font-semibold text-gray-800">Thiết kế loa</h3>
         </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setViewMode('customize')}
-            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-              viewMode === 'customize'
-                ? 'bg-orange-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Settings className="w-3 h-3 inline mr-1" />
-            Tùy chỉnh
-          </button>
-          <button
-            onClick={() => setViewMode('add')}
-            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-              viewMode === 'add'
-                ? 'bg-orange-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Thêm loa
-          </button>
-        </div>
       </div>
 
-      {/* Customize Speaker Specs - View Mode */}
-      {viewMode === 'customize' && (
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          <h4 className="text-sm font-medium text-gray-700">Tùy chỉnh thông số kỹ thuật loa</h4>
+      {/* Customize Speaker Specs */}
+      <div className="space-y-4 max-h-96 overflow-y-auto">
+        <h4 className="text-sm font-medium text-gray-700">Tùy chỉnh thông số kỹ thuật loa</h4>
           
           {/* Frequency Response */}
           <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -323,170 +302,102 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
             <p className="text-xs text-gray-500">THD thấp = âm thanh trung thực hơn, ít méo tiếng</p>
           </div>
 
-          {/* Test Audio Button */}
-          <button
-            onClick={handleTestAudio}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
-          >
-            <Headphones className="w-4 h-4" />
-            <span>Nghe thử với thông số này</span>
-          </button>
-        </div>
-      )}
-
-      {/* Add Speaker - View Mode */}
-      {viewMode === 'add' && (
-        <div className="space-y-4">
-          <h4 className="text-sm font-medium text-gray-700">Thêm loa</h4>
-        
-        {/* Speaker Type */}
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600">Loại loa</label>
-          <div className="grid grid-cols-2 gap-2">
-            {SPEAKER_TYPES.map((type) => (
+          {/* Test Buttons */}
+          <div className="space-y-2">
+            {!isTestingIn3D ? (
               <button
-                key={type.type}
-                onClick={() => setSelectedType(type.type)}
-                className={`p-2 border-2 rounded-lg transition-all text-left ${
-                  selectedType === type.type
-                    ? 'border-orange-500 bg-orange-50 text-orange-700'
-                    : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                }`}
+                onClick={handleTestIn3D}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
               >
-                <div className="flex items-center space-x-2">
-                  <span className="text-lg">{type.icon}</span>
-                  <span className="text-xs font-medium">{type.name}</span>
-                </div>
+                <Move className="w-4 h-4" />
+                <span>Xem 3D và di chuyển vật thể</span>
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Speaker Color */}
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600">Màu sắc</label>
-          <div className="grid grid-cols-5 gap-2">
-            {SPEAKER_COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => setSelectedColor(color)}
-                className={`w-8 h-8 rounded border-2 ${
-                  selectedColor === color ? 'border-orange-500' : 'border-gray-300'
-                }`}
-                style={{ backgroundColor: color }}
-                title={color}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Quality Level */}
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600">Chất lượng âm thanh</label>
-          <div className="space-y-1">
-            {QUALITY_LEVELS.map((quality) => (
-              <button
-                key={quality.value}
-                onClick={() => setSelectedQuality(quality.value)}
-                className={`w-full p-2 text-left border-2 rounded-lg transition-all ${
-                  selectedQuality === quality.value
-                    ? 'border-orange-500 bg-orange-50 text-orange-700'
-                    : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                }`}
-              >
-                <div className="text-xs font-medium">{quality.label}</div>
-                <div className="text-xs text-gray-500">{quality.description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          onClick={handleAddSpeaker}
-          className="w-full flex items-center justify-center space-x-2 p-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm loa</span>
-        </button>
-        </div>
-      )}
-
-      {/* Speaker List - Hiển thị cho cả 2 modes */}
-      <div className="space-y-3">
-        <h4 className="text-sm font-medium text-gray-700">Loa đã thêm</h4>
-        
-        {speakers.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <span className="text-4xl block mb-2">🔊</span>
-            <p className="text-sm">Chưa có loa nào</p>
-            <p className="text-xs">Thêm loa để bắt đầu thiết kế hệ thống âm thanh</p>
-          </div>
-        ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {speakers.map((speaker) => (
-              <div
-                key={speaker.id}
-                className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">
-                      {SPEAKER_TYPES.find(t => t.type === speaker.type)?.icon}
-                    </span>
-                    <span className="text-sm font-medium text-gray-800">
-                      {speaker.name}
-                    </span>
-                    <div
-                      className="w-3 h-3 rounded-full border"
-                      style={{ backgroundColor: speaker.color }}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => togglePlayback(speaker.id, speaker.isPlaying)}
-                      className={`p-1 transition-colors ${
-                        speaker.isPlaying 
-                          ? 'text-red-600 hover:text-red-700' 
-                          : 'text-green-600 hover:text-green-700'
-                      }`}
-                      title={speaker.isPlaying ? 'Dừng' : 'Phát'}
-                    >
-                      {speaker.isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                    </button>
-                    <button
-                      onClick={() => onUpdateSpeaker(speaker.id, { 
-                        position: [Math.random() * 4 - 2, 0, Math.random() * 3 - 1.5] 
-                      })}
-                      className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-                      title="Di chuyển"
-                    >
-                      <Move className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => onRemoveSpeaker(speaker.id)}
-                      className="p-1 text-gray-500 hover:text-red-600 transition-colors"
-                      title="Xóa"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
+            ) : (
+              <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700">Điều khiển vật thể test</span>
+                  <button
+                    onClick={handleStopTest}
+                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Dừng
+                  </button>
                 </div>
                 
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Vị trí: ({speaker.position[0].toFixed(1)}, {speaker.position[1].toFixed(1)}, {speaker.position[2].toFixed(1)})</span>
+                {/* Position Display */}
+                <div className="text-xs text-gray-600 bg-white p-2 rounded">
+                  <div className="font-medium mb-1">Vị trí:</div>
+                  <div>X: {testObjectPosition[0].toFixed(1)}m</div>
+                  <div>Y: {testObjectPosition[1].toFixed(1)}m</div>
+                  <div>Z: {testObjectPosition[2].toFixed(1)}m</div>
+                </div>
+
+                {/* Movement Controls */}
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-gray-700">Di chuyển:</div>
+                  
+                  {/* X-axis */}
                   <div className="flex items-center space-x-2">
-                    <span className="flex items-center space-x-1">
-                      <Volume2 className="w-3 h-3" />
-                      <span>{speaker.power}W</span>
-                    </span>
-                    <span className="capitalize">{speaker.quality}</span>
+                    <span className="text-xs text-gray-500 w-8">X:</span>
+                    <button
+                      onClick={() => handleMoveTestObject('x', -1)}
+                      className="flex-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs"
+                    >
+                      ← Trái
+                    </button>
+                    <button
+                      onClick={() => handleMoveTestObject('x', 1)}
+                      className="flex-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs"
+                    >
+                      Phải →
+                    </button>
+                  </div>
+
+                  {/* Y-axis */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-500 w-8">Y:</span>
+                    <button
+                      onClick={() => handleMoveTestObject('y', -1)}
+                      className="flex-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs"
+                    >
+                      ↓ Xuống
+                    </button>
+                    <button
+                      onClick={() => handleMoveTestObject('y', 1)}
+                      className="flex-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs"
+                    >
+                      ↑ Lên
+                    </button>
+                  </div>
+
+                  {/* Z-axis */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-500 w-8">Z:</span>
+                    <button
+                      onClick={() => handleMoveTestObject('z', -1)}
+                      className="flex-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs"
+                    >
+                      ← Sau
+                    </button>
+                    <button
+                      onClick={() => handleMoveTestObject('z', 1)}
+                      className="flex-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs"
+                    >
+                      Trước →
+                    </button>
                   </div>
                 </div>
               </div>
-            ))}
+            )}
+            
+            <button
+              onClick={handleTestAudio}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+            >
+              <Headphones className="w-4 h-4" />
+              <span>Nghe thử âm thanh</span>
+            </button>
           </div>
-        )}
       </div>
 
       {/* Audio Player - Hiển thị khi test audio với custom specs */}
