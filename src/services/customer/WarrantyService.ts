@@ -109,6 +109,34 @@ export class WarrantyService {
       throw new Error(error?.message || 'Không thể tải chi tiết bảo hành');
     }
   }
+
+  /**
+   * Request repair for a warranty
+   * POST /api/warranties/{warrantyId}/logs
+   */
+  static async requestRepair(
+    warrantyId: string,
+    data: {
+      problemDescription: string;
+      covered: boolean | null;
+      attachmentUrls: string[];
+    }
+  ): Promise<any> {
+    try {
+      const endpoint = `/api/warranties/${warrantyId}/logs`;
+      
+      const response = await HttpInterceptor.post<any>(
+        endpoint,
+        data,
+        { userType: 'customer' }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('❌ Error requesting repair:', error);
+      throw new Error(error?.message || 'Không thể gửi yêu cầu sửa chữa');
+    }
+  }
 }
 
 export default WarrantyService;
