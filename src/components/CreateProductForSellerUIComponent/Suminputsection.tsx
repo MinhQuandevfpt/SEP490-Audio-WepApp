@@ -128,13 +128,29 @@ const Suminputsection: React.FC = () => {
   const [form, setForm] = useState<FormState>(defaultForm);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [extraSpecs, setExtraSpecs] = useState<Record<string, string>>({});
+  // Phân loại hàng structure (like Shopee)
+  const [classifications, setClassifications] = useState<Array<{
+    name: string;
+    values: Array<{ value: string; }>;
+  }>>([]);
+  
+  // Generated variants from classifications
   const [variants, setVariants] = useState<Array<{ 
     optionName: string; 
     optionValue: string; 
     variantPrice: string;
     variantStock: string;
+    variantUrl: string;
     variantSku: string;
   }>>([]);
+  
+  // Bulk apply values
+  const [bulkPrice, setBulkPrice] = useState('');
+  const [bulkStock, setBulkStock] = useState('');
+  const [bulkSku, setBulkSku] = useState('');
+  
+  // Image upload for variant
+  const [uploadingVariantImage, setUploadingVariantImage] = useState<number | null>(null);
   const [bulkDiscounts, setBulkDiscounts] = useState<Array<{ fromQuantity: string; toQuantity: string; unitPrice: string }>>([]);
   
   // UI state
@@ -300,20 +316,36 @@ const Suminputsection: React.FC = () => {
   // ============================================================================
 
   const canSubmit = useMemo(() => {
-    return (
+    // Basic validation
+    const basicValid = (
       (form.name || '').trim().length >= 3 &&
       (form.brandName || '').trim().length >= 2 &&
       (form.category || '').trim().length > 0 &&
       (form.shortDescription || '').trim().length > 0 &&
-      !!form.price && !Number.isNaN(Number(form.price)) &&
-      Number(form.price) > 0 &&
-      (form.sku || '').trim().length > 0 &&
       images.length > 0 &&
       (form.provinceCode || '').trim().length > 0 &&
       (form.districtCode || '').trim().length > 0 &&
       (form.wardCode || '').trim().length > 0
     );
-  }, [form, images]);
+
+    // If has variants, validate variants instead of form price/sku
+    if (variants.length > 0) {
+      const variantsValid = variants.every(v => 
+        v.variantPrice && Number(v.variantPrice) > 0 &&
+        v.variantStock && Number(v.variantStock) >= 0 &&
+        v.variantSku && v.variantSku.trim().length > 0
+      );
+      return basicValid && variantsValid;
+    }
+
+    // If no variants, validate form price/sku
+    return (
+      basicValid &&
+      !!form.price && !Number.isNaN(Number(form.price)) &&
+      Number(form.price) > 0 &&
+      (form.sku || '').trim().length > 0
+    );
+  }, [form, images, variants]);
 
   // Draft flow removed per requirement
 
@@ -530,6 +562,162 @@ const Suminputsection: React.FC = () => {
   }, [wards, wardSearchQuery]);
 
   // ============================================================================
+  // CLASSIFICATION HANDLERS (Shopee-style)
+  // ============================================================================
+
+  // Add new classification
+  const addClassification = () => {
+    if (classifications.length >= 2) {
+      showCenterError('Tối đa 2 phân loại hàng');
+      return;
+    }
+    
+    // Clear form price/sku/stock when adding first classification
+    if (classifications.length === 0) {
+      setForm(prev => ({
+        ...prev,
+        price: '',
+        sku: '',
+        stockQuantity: '0'
+      }));
+    }
+    
+    setClassifications(prev => [...prev, { name: '', values: [{ value: '' }] }]);
+  };
+
+  // Remove classification
+  const removeClassification = (classIdx: number) => {
+    setClassifications(prev => {
+      const newClassifications = prev.filter((_, i) => i !== classIdx);
+      
+      // If removing last classification, clear variants
+      if (newClassifications.length === 0) {
+        setVariants([]);
+      }
+      
+      return newClassifications;
+    });
+  };
+
+  // Update classification name
+  const updateClassificationName = (classIdx: number, name: string) => {
+    setClassifications(prev => prev.map((c, i) => i === classIdx ? { ...c, name } : c));
+  };
+
+  // Add value to classification
+  const addClassificationValue = (classIdx: number) => {
+    setClassifications(prev => prev.map((c, i) => 
+      i === classIdx ? { ...c, values: [...c.values, { value: '' }] } : c
+    ));
+  };
+
+  // Remove value from classification
+  const removeClassificationValue = (classIdx: number, valueIdx: number) => {
+    setClassifications(prev => prev.map((c, i) => 
+      i === classIdx ? { ...c, values: c.values.filter((_, vi) => vi !== valueIdx) } : c
+    ));
+  };
+
+  // Update classification value
+  const updateClassificationValue = (classIdx: number, valueIdx: number, value: string) => {
+    setClassifications(prev => prev.map((c, i) => 
+      i === classIdx ? { 
+        ...c, 
+        values: c.values.map((v, vi) => vi === valueIdx ? { value } : v) 
+      } : c
+    ));
+  };
+
+  // Apply bulk values to all variants
+  const applyBulkValues = () => {
+    setVariants(prev => prev.map(v => ({
+      ...v,
+      variantPrice: bulkPrice || v.variantPrice,
+      variantStock: bulkStock || v.variantStock,
+      variantSku: bulkSku || v.variantSku
+    })));
+  };
+
+  // Update variant field
+  const updateVariantField = (index: number, field: keyof typeof variants[0], value: string) => {
+    setVariants(prev => prev.map((v, i) => i === index ? { ...v, [field]: value } : v));
+  };
+
+  // Upload image for variant
+  const handleVariantImageUpload = async (index: number, file: File) => {
+    try {
+      setUploadingVariantImage(index);
+      const uploaded = await FileUploadService.uploadMultipleImages([file]);
+      if (uploaded && uploaded.length > 0) {
+        updateVariantField(index, 'variantUrl', uploaded[0].url);
+      }
+    } catch (error) {
+      showCenterError('Upload ảnh thất bại');
+    } finally {
+      setUploadingVariantImage(null);
+    }
+  };
+
+  // Trigger regeneration when classifications change
+  useEffect(() => {
+    if (classifications.length === 0) {
+      setVariants([]);
+      return;
+    }
+
+    // Filter out empty classifications and values
+    const validClassifications = classifications
+      .filter(c => c.name.trim() && c.values.some(v => v.value.trim()))
+      .map(c => ({
+        name: c.name.trim(),
+        values: c.values.filter(v => v.value.trim()).map(v => v.value.trim())
+      }));
+
+    if (validClassifications.length === 0) {
+      setVariants([]);
+      return;
+    }
+
+    // Generate cartesian product of all classification values
+    const cartesianProduct = (arrays: string[][]): string[][] => {
+      if (arrays.length === 0) return [[]];
+      const [first, ...rest] = arrays;
+      const restProduct = cartesianProduct(rest);
+      return first.flatMap(value => restProduct.map(prod => [value, ...prod]));
+    };
+
+    const valueArrays = validClassifications.map(c => c.values);
+    const combinations = cartesianProduct(valueArrays);
+
+    const newVariants = combinations.map(combo => {
+      // Find existing variant to preserve user input
+      const existingVariant = variants.find(v => {
+        if (validClassifications.length === 1) {
+          return v.optionValue === combo[0];
+        } else if (validClassifications.length === 2) {
+          return v.optionValue === `${combo[0]}, ${combo[1]}`;
+        }
+        return false;
+      });
+
+      const optionName = validClassifications.map(c => c.name).join(', ');
+      const optionValue = combo.join(', ');
+
+      return {
+        optionName,
+        optionValue,
+        variantPrice: existingVariant?.variantPrice || '',
+        variantStock: existingVariant?.variantStock || '',
+        variantUrl: existingVariant?.variantUrl || '',
+        variantSku: existingVariant?.variantSku || ''
+      };
+    });
+
+    setVariants(newVariants);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classifications]);
+
+  // ============================================================================
   // IMAGE HANDLERS
   // ============================================================================
 
@@ -563,10 +751,31 @@ const Suminputsection: React.FC = () => {
       }
     }
     if (currentStep === 2) {
-      const priceValid = !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 && (form.sku || '').trim().length > 0 && (form.provinceCode || '').trim().length > 0 && (form.districtCode || '').trim().length > 0 && (form.wardCode || '').trim().length > 0;
-      if (!priceValid) {
-        showCenterError('Vui lòng nhập giá hợp lệ, SKU và chọn tỉnh/thành phố, quận/huyện, phường/xã');
+      // Check location first
+      const locationValid = (form.provinceCode || '').trim().length > 0 && (form.districtCode || '').trim().length > 0 && (form.wardCode || '').trim().length > 0;
+      if (!locationValid) {
+        showCenterError('Vui lòng chọn tỉnh/thành phố, quận/huyện, phường/xã');
         return;
+      }
+
+      // If has variants, validate variants
+      if (variants.length > 0) {
+        const variantsValid = variants.every(v => 
+          v.variantPrice && Number(v.variantPrice) > 0 &&
+          v.variantStock && Number(v.variantStock) >= 0 &&
+          v.variantSku && v.variantSku.trim().length > 0
+        );
+        if (!variantsValid) {
+          showCenterError('Vui lòng nhập đầy đủ Giá, Kho hàng và SKU cho tất cả phân loại');
+          return;
+        }
+      } else {
+        // If no variants, validate form price/sku
+        const priceValid = !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 && (form.sku || '').trim().length > 0;
+        if (!priceValid) {
+          showCenterError('Vui lòng nhập giá hợp lệ và SKU');
+          return;
+        }
       }
     }
     if (currentStep === 3) {
@@ -669,6 +878,7 @@ const Suminputsection: React.FC = () => {
           optionValue: v.optionValue?.trim(),
           variantPrice: Number(v.variantPrice) || 0,
           variantStock: Number(v.variantStock) || 0,
+          variantUrl: v.variantUrl?.trim() || '',
           variantSku: v.variantSku?.trim() || ''
         }))
         .filter(v => v.optionName && v.optionValue && v.variantPrice > 0 && v.variantStock >= 0 && v.variantSku),
@@ -834,33 +1044,12 @@ const Suminputsection: React.FC = () => {
               <input name="model" value={form.model} onChange={onChange} type="text" placeholder="VD: WH1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Màu sắc</label>
-              <input 
-                name="color" 
-                value={form.color} 
-                onChange={(e) => {
-                  // Không cho phép nhập dấu phẩy
-                  const value = e.target.value.replace(/,/g, '');
-                  onChange({ ...e, target: { ...e.target, name: 'color', value } } as any);
-                }}
-                onKeyDown={(e) => {
-                  // Ngăn chặn nhập dấu phẩy từ keyboard
-                  if (e.key === ',' || e.key === 'Comma') {
-                    e.preventDefault();
-                  }
-                }}
-                type="text" 
-                placeholder="VD: Đen" 
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
-              />
+              <label className="block text-sm font-medium text-gray-700">Chất liệu</label>
+              <input name="material" value={form.material} onChange={onChange} type="text" placeholder="VD: Nhựa ABS, Nhôm, Da" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Chất liệu</label>
-              <input name="material" value={form.material} onChange={onChange} type="text" placeholder="VD: Nhựa ABS, Nhôm, Da" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors" />
-            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Kích thước (mm)</label>
               <div className="mt-1 grid grid-cols-3 gap-2">
@@ -914,123 +1103,293 @@ const Suminputsection: React.FC = () => {
 
       {currentStep === 2 && (
       <SectionCard title="Chi tiết & Giá" description="Thiết lập giá, tồn kho, biến thể và vận chuyển">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Giá gốc (VND) *</label>
-              <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Số lượng tồn *</label>
-              <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">SKU *</label>
-              <input name="sku" value={form.sku} onChange={onChange} type="text" placeholder="VD: SONY-WH1000XM4-BLK" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Đơn vị tiền tệ</label>
-              <select name="currency" value={form.currency} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
-                <option value="VND">VND</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-      )}
-
-      {currentStep === 2 && (
-      <SectionCard title="Biến thể sản phẩm (Product Variants)" description="Thêm các biến thể như màu sắc, kích cỡ với giá và số lượng riêng">
-        <div className="space-y-4">
-          {variants.length === 0 && (
-            <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-              <p className="text-sm text-gray-500 mb-2">Chưa có biến thể nào</p>
-              <p className="text-xs text-gray-400">Thêm các biến thể như màu sắc, kích cỡ để khách hàng có nhiều lựa chọn</p>
-            </div>
+        <div className="space-y-6">
+          {/* Hiển thị form cơ bản khi chưa có classifications */}
+          {classifications.length === 0 && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Giá gốc (VND) *</label>
+                  <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Số lượng tồn *</label>
+                  <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Đơn vị tiền tệ</label>
+                  <select name="currency" value={form.currency} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
+                    <option value="VND">VND</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+              </div>
+            </>
           )}
-          {variants.map((v, idx) => (
-            <div key={idx} className="p-4 bg-white border border-gray-200 rounded-lg space-y-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-gray-700">Biến thể #{idx + 1}</h4>
-                <button 
-                  type="button" 
-                  onClick={() => setVariants(prev => prev.filter((_, i) => i !== idx))} 
-                  className="px-3 py-1 text-xs rounded bg-red-50 text-red-700 hover:bg-red-100"
-                >
-                  Xóa
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Tên tùy chọn</label>
-                  <input 
-                    value={v.optionName} 
-                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionName: e.target.value } : x))} 
-                    placeholder="VD: Color, Size, Capacity" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Giá trị</label>
-                  <input 
-                    value={v.optionValue} 
-                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, optionValue: e.target.value } : x))} 
-                    placeholder="VD: Black, XL, 128GB" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Giá (VND) <span className="text-red-500">*</span></label>
-                  <input 
-                    type="number"
-                    min="0"
-                    value={v.variantPrice} 
-                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, variantPrice: e.target.value } : x))} 
-                    placeholder="1000000" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Số lượng <span className="text-red-500">*</span></label>
-                  <input 
-                    type="number"
-                    min="0"
-                    value={v.variantStock} 
-                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, variantStock: e.target.value } : x))} 
-                    placeholder="50" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">SKU biến thể <span className="text-red-500">*</span></label>
-                  <input 
-                    value={v.variantSku} 
-                    onChange={(e) => setVariants(prev => prev.map((x, i) => i === idx ? { ...x, variantSku: e.target.value } : x))} 
-                    placeholder="SKU-50-SN001" 
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-              </div>
+
+          {/* Phân loại hàng - Shopee Style */}
+          <div className={classifications.length === 0 ? "border-t pt-6 mt-6" : ""}>
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-1">Phân loại hàng</h3>
+              <p className="text-sm text-gray-600">Thêm các phân loại như màu sắc, kích cỡ để khách hàng có nhiều lựa chọn</p>
             </div>
-          ))}
-          <button 
-            type="button" 
-            onClick={() => setVariants(prev => [...prev, { 
-              optionName: '', 
-              optionValue: '', 
-              variantPrice: '',
-              variantStock: '',
-              variantSku: ''
-            }])} 
-            className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 font-medium flex items-center justify-center gap-2"
-          >
-            <span className="text-lg">+</span> Thêm biến thể mới
-          </button>
+
+            {/* Classification inputs */}
+            {classifications.map((classification, classIdx) => (
+              <div key={classIdx} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Phân loại {classIdx + 1}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeClassification(classIdx)}
+                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                    title="Xóa phân loại"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Classification name */}
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Tên phân loại <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={classification.name}
+                    onChange={(e) => updateClassificationName(classIdx, e.target.value)}
+                    placeholder="VD: Màu sắc, Kích thước"
+                    maxLength={14}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                  <span className="text-xs text-gray-500">{classification.name.length}/14</span>
+                </div>
+
+                {/* Classification values */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-2">
+                    Tùy chọn <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-y-2">
+                    {classification.values.map((val, valueIdx) => (
+                      <div key={valueIdx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={val.value}
+                          onChange={(e) => updateClassificationValue(classIdx, valueIdx, e.target.value)}
+                          placeholder="Nhập"
+                          maxLength={20}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        />
+                        <span className="text-xs text-gray-500 min-w-[45px]">{val.value.length}/20</span>
+                        {classification.values.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeClassificationValue(classIdx, valueIdx)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Xóa"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                        {valueIdx === classification.values.length - 1 && classification.values.length < 50 && (
+                          <button
+                            type="button"
+                            onClick={() => addClassificationValue(classIdx)}
+                            className="p-2 text-orange-600 hover:bg-orange-50 rounded"
+                            title="Thêm"
+                          >
+                            ➕
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Add classification button */}
+            {classifications.length < 2 && (
+              <button
+                type="button"
+                onClick={addClassification}
+                className="px-4 py-2 text-sm text-orange-600 border-2 border-dashed border-orange-300 rounded-lg hover:bg-orange-50 flex items-center gap-2"
+              >
+                <span className="text-lg">+</span> Thêm nhóm phân loại {classifications.length + 1}
+              </button>
+            )}
+
+            {/* Danh sách phân loại hàng - Table */}
+            {variants.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-md font-semibold text-gray-800 mb-3">Danh sách phân loại hàng</h4>
+                
+                {/* Bulk apply inputs */}
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Giá</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={bulkPrice}
+                        onChange={(e) => setBulkPrice(e.target.value)}
+                        placeholder="Nhập vào"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Kho hàng</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={bulkStock}
+                        onChange={(e) => setBulkStock(e.target.value)}
+                        placeholder="Nhập vào"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">SKU phân loại</label>
+                      <input
+                        type="text"
+                        value={bulkSku}
+                        onChange={(e) => setBulkSku(e.target.value)}
+                        placeholder="Nhập vào"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={applyBulkValues}
+                      className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium whitespace-nowrap"
+                    >
+                      Áp dụng cho tất cả
+                    </button>
+                  </div>
+                </div>
+
+                {/* Variants table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse bg-white rounded-lg overflow-hidden shadow-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        {classifications.map((c, idx) => (
+                          <th key={idx} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
+                            <div className="flex items-center gap-1">
+                              <span className="text-red-500">●</span> {c.name || `Phân loại ${idx + 1}`}
+                            </div>
+                          </th>
+                        ))}
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
+                          <span className="text-red-500">*</span> Giá
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
+                          <span className="text-red-500">*</span> Kho hàng <span className="text-gray-400 ml-1">❓</span>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
+                          SKU phân loại
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b w-24">
+                          Hình ảnh
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variants.map((variant, idx) => {
+                        const values = variant.optionValue.split(', ');
+                        return (
+                          <tr key={idx} className="border-b hover:bg-gray-50">
+                            {values.map((value, vIdx) => (
+                              <td key={vIdx} className="px-4 py-3 text-sm text-gray-800">
+                                {value}
+                              </td>
+                            ))}
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                min="0"
+                                value={variant.variantPrice}
+                                onChange={(e) => updateVariantField(idx, 'variantPrice', e.target.value)}
+                                placeholder="Nhập vào"
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                min="0"
+                                value={variant.variantStock}
+                                onChange={(e) => updateVariantField(idx, 'variantStock', e.target.value)}
+                                placeholder="0"
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="text"
+                                value={variant.variantSku}
+                                onChange={(e) => updateVariantField(idx, 'variantSku', e.target.value)}
+                                placeholder="Nhập vào"
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {variant.variantUrl ? (
+                                  <div className="relative group">
+                                    <img 
+                                      src={variant.variantUrl} 
+                                      alt={`Variant ${idx + 1}`}
+                                      className="w-12 h-12 object-cover rounded border border-gray-200"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => updateVariantField(idx, 'variantUrl', '')}
+                                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="w-12 h-12 flex items-center justify-center border-2 border-dashed border-gray-300 rounded cursor-pointer hover:border-orange-500 hover:bg-orange-50 transition-colors relative">
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          handleVariantImageUpload(idx, file);
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                    {uploadingVariantImage === idx ? (
+                                      <div className="animate-spin">⏳</div>
+                                    ) : (
+                                      <span className="text-2xl text-orange-500">📷</span>
+                                    )}
+                                  </label>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </SectionCard>
       )}
@@ -1079,21 +1438,6 @@ const Suminputsection: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700">Địa chỉ nhà sản xuất</label>
               <input name="manufacturerAddress" value={form.manufacturerAddress} onChange={onChange} type="text" placeholder="VD: Tokyo, Japan" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tình trạng sản phẩm</label>
-              <select name="productCondition" value={form.productCondition} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
-                <option value="">Chọn tình trạng</option>
-                <option value="Mới 100%">Mới 100%</option>
-                <option value="Refurbished">Refurbished</option>
-                <option value="Used">Used</option>
-              </select>
-            </div>
-            <div className="flex items-center">
-              <input name="isCustomMade" type="checkbox" checked={form.isCustomMade === 'true'} onChange={(e) => onChange({ ...e, target: { ...e.target, name: 'isCustomMade', value: e.target.checked.toString() } } as any)} className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded" />
-              <label className="ml-2 block text-sm text-gray-700">Làm theo yêu cầu</label>
             </div>
           </div>
         </div>
@@ -1735,6 +2079,40 @@ const Suminputsection: React.FC = () => {
         ) : (
           <p className="text-sm text-gray-500">Hãy chọn danh mục để nhập thông số kỹ thuật phù hợp.</p>
         )}
+      </SectionCard>
+      )}
+
+      {currentStep === 2 && (
+      <SectionCard title="Thông tin khác" description="">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">SKU (Mã sản phẩm) </label>
+            <input 
+              name="sku" 
+              value={form.sku} 
+              onChange={onChange} 
+              type="text" 
+              placeholder="VD: SONY-WH1000XM4-BLK" 
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
+            />
+            <p className="mt-1 text-xs text-gray-500">Mã định danh duy nhất cho sản phẩm</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Tình trạng sản phẩm</label>
+            <select 
+              name="productCondition" 
+              value={form.productCondition} 
+              onChange={onChange} 
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+            >
+              <option value="">Chọn tình trạng</option>
+              <option value="Mới 100%">Mới 100%</option>
+              <option value="Refurbished">Refurbished</option>
+              <option value="Used">Used</option>
+            </select>
+          </div>
+          
+        </div>
       </SectionCard>
       )}
 

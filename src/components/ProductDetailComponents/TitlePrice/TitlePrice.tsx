@@ -8,6 +8,7 @@ interface TitlePriceProps {
   reviewsCount: number;
   soldCount: number;
   price: number;
+  priceRange?: string | null;
   salePrice?: number;
   discountPercent?: number; // Override calculated discount
   campaignBadge?: { label: string; color: string } | null;
@@ -22,7 +23,8 @@ const TitlePrice: React.FC<TitlePriceProps> = ({
   rating, 
   reviewsCount, 
   soldCount, 
-  price, 
+  price,
+  priceRange,
   salePrice, 
   discountPercent: providedDiscount,
   shortDescription 
@@ -52,7 +54,12 @@ const TitlePrice: React.FC<TitlePriceProps> = ({
       
       {/* Price Section - Horizontal aligned */}
       <div className="mt-4 flex items-center gap-4">
-        {salePrice && salePrice < price ? (
+        {priceRange ? (
+          // Show price range for products with variants (no variant selected)
+          <div className="text-[32px] font-extrabold text-orange-500">
+            {priceRange}
+          </div>
+        ) : salePrice && salePrice < price ? (
           <>
             {/* Discounted Price - Red when has discount */}
             <div className="text-[32px] font-extrabold text-red-600">

@@ -10,6 +10,7 @@ interface PurchaseActionsProps {
   productImage: string;
   productPrice: number;
   inStock: boolean;
+  selectedVariant?: any;
   colors?: Array<{ name: string; hex: string }>;
 }
 
@@ -18,13 +19,18 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
   productName,
   productImage,
   productPrice,
-  inStock, 
+  inStock,
+  selectedVariant,
   colors 
 }) => {
   const navigate = useNavigate();
   const [qty, setQty] = React.useState(1);
   const [color, setColor] = React.useState(colors?.[0]?.name ?? '');
   const [isAdding, setIsAdding] = React.useState(false);
+
+  // Check stock from selected variant or product
+  const actualStock = selectedVariant ? selectedVariant.variantStock : inStock;
+  const isInStock = selectedVariant ? selectedVariant.variantStock > 0 : inStock;
 
   // Check if user is logged in
   const isLoggedIn = () => {
@@ -93,10 +99,12 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
     <div className="bg-white rounded-xl border border-gray-200 p-4">
       <div className="mb-4">
         <span className="text-sm text-gray-500">Tình trạng</span>
-        <div className={`mt-1 font-medium ${inStock ? 'text-green-600' : 'text-red-600'}`}>{inStock ? 'Còn hàng' : 'Hết hàng'}</div>
+        <div className={`mt-1 font-medium ${isInStock ? 'text-green-600' : 'text-red-600'}`}>
+          {isInStock ? `Còn hàng (${actualStock})` : 'Hết hàng'}
+        </div>
       </div>
 
-      {colors && colors.length > 0 && (
+      {colors && colors.length > 0 && !selectedVariant && (
         <div className="mb-4">
           <span className="text-sm text-gray-500">Màu sắc</span>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -126,7 +134,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
       <div className="grid grid-cols-2 gap-3">
         <button 
           onClick={handleAddToCart}
-          disabled={!inStock || isAdding}
+          disabled={!isInStock || isAdding}
           className="flex items-center justify-center gap-2 border border-orange-500 text-orange-600 py-3 rounded-lg hover:bg-orange-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ShoppingCart className="w-5 h-5" /> 
@@ -134,7 +142,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
         </button>
         <button 
           onClick={handleBuyNow}
-          disabled={!inStock}
+          disabled={!isInStock}
           className="flex items-center justify-center gap-2 text-white py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
           style={{ backgroundColor: '#FF6F00' }}
         >

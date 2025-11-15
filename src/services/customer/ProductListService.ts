@@ -87,8 +87,13 @@ export interface ProductListParams {
 }
 
 export interface ProductVariant {
+  variantId?: string;
   optionName: string;
   optionValue: string;
+  variantPrice: number;
+  variantStock: number;
+  variantUrl: string;
+  variantSku: string;
 }
 
 export interface BulkDiscount {

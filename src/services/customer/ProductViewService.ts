@@ -84,6 +84,17 @@ export interface ProductVouchers {
   shopVoucher?: ShopVoucherDetail;
 }
 
+// Product Variant in view
+export interface ProductViewVariant {
+  variantId: string;
+  optionName: string;
+  optionValue: string;
+  variantSku: string;
+  price: number;
+  stock: number;
+  imageUrl: string | null;
+}
+
 export interface ProductViewItem {
   productId: string;
   name: string;
@@ -95,6 +106,7 @@ export interface ProductViewItem {
   thumbnailUrl: string | null;
   ratingAverage: number | null;
   reviewCount: number | null;
+  variants?: ProductViewVariant[];
   store: ProductViewStoreInfo | null;
   vouchers?: ProductVouchers;
 }

@@ -24,7 +24,18 @@ const ProductSuggestions: React.FC = () => {
     // Ignore shop vouchers for display
     let discountPercent = 0;
     let discountedPrice = item.price ?? 0;
-    const originalPrice = item.price ?? 0;
+    let originalPrice = item.price ?? 0;
+    
+    // Check if product has variants and calculate min price
+    let hasVariants = false;
+    if (item.variants && item.variants.length > 0) {
+      hasVariants = true;
+      // Get minimum price from variants
+      const variantPrices = item.variants.map(v => v.price);
+      const minVariantPrice = Math.min(...variantPrices);
+      originalPrice = minVariantPrice;
+      discountedPrice = minVariantPrice;
+    }
     
     // Check platform vouchers ONLY (Flash Sale, etc.)
     if (item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0) {

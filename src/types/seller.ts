@@ -122,8 +122,13 @@ export interface DashboardStats {
 
 // Product Types for Seller - Full Product Details from API
 export interface ProductVariant {
+  variantId?: string; // Từ API response
   optionName: string;
   optionValue: string;
+  variantPrice: number;
+  variantStock: number;
+  variantUrl: string;
+  variantSku: string;
 }
 
 export interface BulkDiscount {

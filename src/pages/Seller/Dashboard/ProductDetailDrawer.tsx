@@ -178,16 +178,112 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   <DollarSign className="w-5 h-5 mr-2 text-orange-600" />
                   Thông tin giá
                 </h3>
-                <div className="space-y-3">
-                  <InfoRow label="Giá gốc" value={ProductService.formatCurrency(product.price)} valueClassName="font-semibold" />
-                  {product.discountPrice && (
-                    <InfoRow label="Giá giảm" value={ProductService.formatCurrency(product.discountPrice)} valueClassName="text-red-600 font-semibold" />
-                  )}
-                  {product.promotionPercent && (
-                    <InfoRow label="% Khuyến mãi" value={`${product.promotionPercent}%`} valueClassName="text-green-600" />
-                  )}
-                  <InfoRow label="Giá sau khuyến mãi" value={ProductService.formatCurrency(product.priceAfterPromotion)} />
-                  <InfoRow label="Giá cuối cùng" value={ProductService.formatCurrency(product.finalPrice)} valueClassName="text-orange-600 font-bold text-lg" />
+                
+                {/* Check if product has variants */}
+                {product.variants && product.variants.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                      <p className="text-sm font-medium text-blue-900 mb-2">
+                        Sản phẩm có {product.variants.length} phân loại biến thể
+                      </p>
+                      <div className="text-sm text-blue-700">
+                        {(() => {
+                          const prices = product.variants.map(v => v.variantPrice);
+                          const minPrice = Math.min(...prices);
+                          const maxPrice = Math.max(...prices);
+                          const totalStock = product.variants.reduce((sum, v) => sum + v.variantStock, 0);
+                          
+                          return (
+                            <>
+                              <div className="flex justify-between items-center mb-1">
+                                <span>Khoảng giá:</span>
+                                <span className="font-semibold text-orange-600">
+                                  {minPrice === maxPrice 
+                                    ? ProductService.formatCurrency(minPrice)
+                                    : `${ProductService.formatCurrency(minPrice)} - ${ProductService.formatCurrency(maxPrice)}`
+                                  }
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span>Tổng kho:</span>
+                                <span className="font-semibold text-green-600">{totalStock} sản phẩm</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Variants Details */}
+                    <div className="space-y-3">
+                      <p className="font-semibold text-sm">Chi tiết phân loại:</p>
+                      {product.variants.map((variant, index) => (
+                        <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-start space-x-3">
+                            {variant.variantUrl && (
+                              <img
+                                src={variant.variantUrl}
+                                alt={variant.optionValue}
+                                className="w-16 h-16 rounded object-cover flex-shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {variant.optionName}: <span className="text-blue-600">{variant.optionValue}</span>
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div>
+                                  <p className="text-gray-500">SKU</p>
+                                  <p className="font-mono font-medium text-gray-900">{variant.variantSku}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Giá</p>
+                                  <p className="font-semibold text-orange-600">{ProductService.formatCurrency(variant.variantPrice)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Kho</p>
+                                  <p className={`font-semibold ${
+                                    variant.variantStock === 0 ? 'text-red-600' :
+                                    variant.variantStock < 10 ? 'text-yellow-600' :
+                                    'text-green-600'
+                                  }`}>
+                                    {variant.variantStock}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  // Product without variants - show regular pricing
+                  <div className="space-y-3">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                      <p className="text-sm text-green-800">
+                        Sản phẩm không có phân loại biến thể
+                      </p>
+                    </div>
+                    <InfoRow label="Giá gốc" value={ProductService.formatCurrency(product.price)} valueClassName="font-semibold" />
+                    {product.discountPrice && product.discountPrice > 0 && (
+                      <InfoRow label="Giá giảm" value={ProductService.formatCurrency(product.discountPrice)} valueClassName="text-red-600 font-semibold" />
+                    )}
+                    {product.promotionPercent && (
+                      <InfoRow label="% Khuyến mãi" value={`${product.promotionPercent}%`} valueClassName="text-green-600" />
+                    )}
+                    <InfoRow label="Giá sau khuyến mãi" value={ProductService.formatCurrency(product.priceAfterPromotion)} />
+                    <InfoRow label="Giá cuối cùng" value={ProductService.formatCurrency(product.finalPrice)} valueClassName="text-orange-600 font-bold text-lg" />
+                  </div>
+                )}
+
+                {/* Common pricing info */}
+                <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
                   <InfoRow label="Đơn vị tiền tệ" value={product.currency} />
                   {product.platformFeePercent && (
                     <InfoRow label="Phí nền tảng" value={`${product.platformFeePercent}%`} />
@@ -221,18 +317,36 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   Kho hàng & Vận chuyển
                 </h3>
                 <div className="space-y-3">
-                  <InfoRow 
-                    label="Tồn kho" 
-                    value={
-                      <span className={`font-semibold ${
-                        product.stockQuantity === 0 ? 'text-red-600' :
-                        product.stockQuantity < 10 ? 'text-yellow-600' :
-                        'text-green-600'
-                      }`}>
-                        {product.stockQuantity} sản phẩm
-                      </span>
-                    }
-                  />
+                  {product.variants && product.variants.length > 0 ? (
+                    <InfoRow 
+                      label="Tồn kho (tổng)" 
+                      value={
+                        <span className={`font-semibold ${
+                          (() => {
+                            const totalStock = product.variants.reduce((sum, v) => sum + v.variantStock, 0);
+                            return totalStock === 0 ? 'text-red-600' :
+                                   totalStock < 10 ? 'text-yellow-600' :
+                                   'text-green-600';
+                          })()
+                        }`}>
+                          {product.variants.reduce((sum, v) => sum + v.variantStock, 0)} sản phẩm
+                        </span>
+                      }
+                    />
+                  ) : (
+                    <InfoRow 
+                      label="Tồn kho" 
+                      value={
+                        <span className={`font-semibold ${
+                          product.stockQuantity === 0 ? 'text-red-600' :
+                          product.stockQuantity < 10 ? 'text-yellow-600' :
+                          'text-green-600'
+                        }`}>
+                          {product.stockQuantity} sản phẩm
+                        </span>
+                      }
+                    />
+                  )}
                   <InfoRow label="Vị trí kho" value={product.warehouseLocation} />
                   {product.provinceCode && (
                     <InfoRow 
@@ -271,21 +385,6 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   <InfoRow label="Tình trạng" value={product.productCondition} />
                   <InfoRow label="Sản phẩm tùy chỉnh" value={product.isCustomMade ? 'Có' : 'Không'} />
                 </div>
-
-                {/* Variants */}
-                {product.variants && product.variants.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="font-semibold text-sm mb-2">Biến thể sản phẩm:</p>
-                    <div className="space-y-2">
-                      {product.variants.map((variant, index) => (
-                        <div key={index} className="text-sm bg-blue-50 p-2 rounded">
-                          <span className="font-medium">{variant.optionName}:</span>
-                          <span className="ml-2">{variant.optionValue}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Technical Specifications */}

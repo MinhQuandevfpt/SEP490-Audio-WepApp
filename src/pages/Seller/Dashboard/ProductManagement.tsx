@@ -139,86 +139,166 @@ const ProductManagement: React.FC = () => {
     
     return {
       active: products.filter(p => p.status === 'ACTIVE').length,
-      outOfStock: products.filter(p => p.status === 'OUT_OF_STOCK' || p.stockQuantity === 0).length,
+      outOfStock: products.filter(p => {
+        if (p.status === 'OUT_OF_STOCK') return true;
+        
+        // Tính tổng kho (từ variants hoặc base stock)
+        const totalStock = p.variants && p.variants.length > 0
+          ? p.variants.reduce((sum, v) => sum + v.variantStock, 0)
+          : p.stockQuantity;
+        
+        return totalStock === 0;
+      }).length,
       pending: products.filter(p => p.status === 'PENDING').length,
     };
   }, [products]);
 
+  // Type definition for table data (parent + children)
+  interface TableDataItem {
+    key: string;
+    productId: string;
+    name: string;
+    sku: string;
+    image: string;
+    price: number | null;
+    priceRange?: string;
+    stockQuantity: number;
+    status: string;
+    isVariant?: boolean;
+    variantInfo?: string;
+    originalProduct?: Product;
+    children?: TableDataItem[];
+  }
+
+  // Transform products data to table format with expandable rows
+  const tableData: TableDataItem[] = useMemo(() => {
+    if (!Array.isArray(products)) return [];
+    
+    return products.map(product => {
+      const hasVariants = product.variants && product.variants.length > 0;
+      
+      // Parent row
+      const parentRow: TableDataItem = {
+        key: product.productId,
+        productId: product.productId,
+        name: product.name,
+        sku: product.sku,
+        image: product.images && product.images.length > 0 && product.images[0] !== 'string' 
+          ? product.images[0] 
+          : '',
+        price: hasVariants ? null : product.finalPrice,
+        stockQuantity: hasVariants 
+          ? product.variants!.reduce((sum, v) => sum + v.variantStock, 0)
+          : product.stockQuantity,
+        status: product.status,
+        originalProduct: product,
+      };
+
+      // If has variants, calculate price range and add children
+      if (hasVariants) {
+        const prices = product.variants!.map(v => v.variantPrice);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        
+        parentRow.priceRange = minPrice === maxPrice 
+          ? ProductService.formatCurrency(minPrice)
+          : `${ProductService.formatCurrency(minPrice)} - ${ProductService.formatCurrency(maxPrice)}`;
+        
+        // Create child rows for each variant
+        parentRow.children = product.variants!.map(variant => ({
+          key: `${product.productId}-${variant.variantId}`,
+          productId: variant.variantId || `${product.productId}-variant`,
+          name: variant.optionValue,
+          sku: variant.variantSku,
+          image: variant.variantUrl || '',
+          price: variant.variantPrice,
+          stockQuantity: variant.variantStock,
+          status: product.status,
+          isVariant: true,
+          variantInfo: `${variant.optionName}: ${variant.optionValue}`,
+          originalProduct: product,
+        }));
+      }
+      
+      return parentRow;
+    });
+  }, [products]);
+
   // Memoized table columns
-  const columns: ColumnsType<Product> = useMemo(() => [
+  const columns: ColumnsType<TableDataItem> = useMemo(() => [
     {
       title: 'Sản phẩm',
       dataIndex: 'name',
       key: 'name',
-      width: 250,
-      ellipsis: true,
-      render: (_, product) => (
-        <div className="flex items-center space-x-2">
+      width: 300,
+      render: (_, record) => (
+        <div className="flex items-start space-x-3">
           <Image
-            width={48}
-            height={48}
-            src={product.images && product.images.length > 0 && product.images[0] !== 'string' ? product.images[0] : ''}
-            alt={product.name}
+            width={record.isVariant ? 40 : 48}
+            height={record.isVariant ? 40 : 48}
+            src={record.image}
+            alt={record.name}
             fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect fill='%23f3f4f6' width='48' height='48'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-size='10'%3ENo Image%3C/text%3E%3C/svg%3E"
             className="rounded object-cover flex-shrink-0"
           />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
-            <p className="text-xs text-gray-500 truncate">{product.brandName}</p>
+            <p className={`${record.isVariant ? 'text-sm' : 'text-sm font-medium'} text-gray-900`}>
+              {record.name}
+            </p>
+            <p className="text-xs text-gray-500 font-mono mt-1">
+              {record.isVariant ? `SKU phân loại: ${record.sku}` : `SKU sản phẩm: ${record.sku}`}
+            </p>
+           
+            {!record.isVariant && record.originalProduct?.model && (
+              <p className="text-xs text-gray-400 mt-1">Model ID: {record.originalProduct.model}</p>
+            )}
           </div>
         </div>
       ),
     },
     {
-      title: 'Danh mục',
-      dataIndex: 'categoryName',
-      key: 'categoryName',
-      width: 100,
-      ellipsis: true,
-      render: (categoryName) => (
-        <Tag color="purple" className="text-xs">{categoryName}</Tag>
-      ),
-    },
-    {
-      title: 'SKU',
-      dataIndex: 'sku',
-      key: 'sku',
-      width: 110,
-      ellipsis: true,
-      render: (sku) => <span className="font-mono text-xs">{sku}</span>,
-    },
-    {
       title: 'Giá bán',
-      dataIndex: 'finalPrice',
-      key: 'finalPrice',
-      width: 120,
+      dataIndex: 'price',
+      key: 'price',
+      width: 140,
       align: 'right',
-      render: (_, product) => (
-        <div className="text-right">
-          <p className="text-sm font-semibold text-gray-900">
-            {ProductService.formatCurrency(product.finalPrice)}
-          </p>
-          {product.discountPrice && product.discountPrice > 0 && (
-            <p className="text-xs text-gray-400 line-through">
-              {ProductService.formatCurrency(product.price)}
-            </p>
-          )}
-        </div>
-      ),
+      render: (_, record) => {
+        if (record.priceRange) {
+          return (
+            <div className="text-right">
+              <p className="text-sm font-semibold text-orange-600">
+                {record.priceRange}
+              </p>
+            </div>
+          );
+        }
+        
+        if (record.price !== null) {
+          return (
+            <div className="text-right">
+              <p className="text-sm font-semibold text-gray-900">
+                {ProductService.formatCurrency(record.price)}
+              </p>
+            </div>
+          );
+        }
+        
+        return <span className="text-gray-400 text-xs">-</span>;
+      },
     },
     {
       title: 'Kho',
       dataIndex: 'stockQuantity',
       key: 'stockQuantity',
-      width: 70,
+      width: 80,
       align: 'center',
-      render: (stockQuantity) => (
+      render: (stock) => (
         <span className={`font-semibold text-sm ${
-          stockQuantity === 0 ? 'text-red-600' :
-          stockQuantity < 10 ? 'text-yellow-600' :
+          stock === 0 ? 'text-red-600' :
+          stock < 10 ? 'text-yellow-600' :
           'text-green-600'
         }`}>
-          {stockQuantity}
+          {stock}
         </span>
       ),
     },
@@ -226,8 +306,11 @@ const ProductManagement: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
-      render: (status) => {
+      width: 110,
+      render: (status, record) => {
+        // Don't show status for variant rows
+        if (record.isVariant) return null;
+        
         const statusColors: Record<string, string> = {
           'ACTIVE': 'green',
           'INACTIVE': 'gray',
@@ -247,26 +330,31 @@ const ProductManagement: React.FC = () => {
       key: 'actions',
       width: 120,
       align: 'center',
-      render: (_, product) => (
-        <Space size="small">
-          <Tooltip title="Xem">
-            <Button
-              type="text"
-              size="small"
-              icon={<Eye className="w-4 h-4" />}
-              onClick={() => handleViewDetail(product.productId)}
-            />
-          </Tooltip>
-          <Tooltip title="Sửa">
-            <Button
-              type="text"
-              size="small"
-              icon={<Edit className="w-4 h-4" />}
-              onClick={() => message.info('Đang phát triển')}
-            />
-          </Tooltip>
-        </Space>
-      ),
+      render: (_, record) => {
+        // Don't show actions for variant rows
+        if (record.isVariant) return null;
+        
+        return (
+          <Space size="small">
+            <Tooltip title="Xem">
+              <Button
+                type="text"
+                size="small"
+                icon={<Eye className="w-4 h-4" />}
+                onClick={() => handleViewDetail(record.productId)}
+              />
+            </Tooltip>
+            <Tooltip title="Sửa">
+              <Button
+                type="text"
+                size="small"
+                icon={<Edit className="w-4 h-4" />}
+                onClick={() => message.info('Đang phát triển')}
+              />
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ], [handleViewDetail]);
 
@@ -282,6 +370,22 @@ const ProductManagement: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-full overflow-hidden">
+      {/* Custom CSS for expand icon alignment */}
+      <style>{`
+        .ant-table-row-expand-icon {
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          vertical-align: middle !important;
+        }
+        .ant-table-row-expand-icon::before,
+        .ant-table-row-expand-icon::after {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+      `}</style>
+      
       {/* Header */}
       <div className="mb-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
@@ -436,9 +540,14 @@ const ProductManagement: React.FC = () => {
         <div className="overflow-x-auto">
           <Table
             columns={columns}
-            dataSource={products}
-            rowKey="productId"
+            dataSource={tableData}
+            rowKey="key"
             loading={isLoading}
+            expandable={{
+              defaultExpandAllRows: false,
+              indentSize: 25,
+              expandRowByClick: false,
+            }}
             pagination={{
               current: currentPage,
               pageSize: pageSize,
@@ -449,7 +558,7 @@ const ProductManagement: React.FC = () => {
               responsive: true,
             }}
             onChange={handleTableChange}
-            scroll={{ x: 970 }}
+            scroll={{ x: 900 }}
             size="small"
             locale={{
               emptyText: (

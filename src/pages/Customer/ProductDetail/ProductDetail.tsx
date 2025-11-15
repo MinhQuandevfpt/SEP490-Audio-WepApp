@@ -18,6 +18,10 @@ const ProductDetail: React.FC = () => {
   const [vouchers, setVouchers] = useState<ProductVoucherItem[]>([]);
   const [platformCampaigns, setPlatformCampaigns] = useState<ProductDetailPlatformCampaign[]>([]);
   const [vouchersLoading, setVouchersLoading] = useState(false);
+  
+  // Variant selection state
+  const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   useEffect(() => {
     
@@ -28,11 +32,20 @@ const ProductDetail: React.FC = () => {
       setLoading(true);
       setError(null);
       setProduct(null);
+      setSelectedVariant(null);
+      setSelectedImages([]);
       
       // Fetch both APIs in parallel and wait for both
       fetchBothAPIs(id);
     }
   }, [id]);
+
+  // Set initial images when product loads
+  useEffect(() => {
+    if (product && product.images && product.images.length > 0) {
+      setSelectedImages(product.images);
+    }
+  }, [product]);
 
   const fetchBothAPIs = async (productId: string) => {
     try {
@@ -135,16 +148,37 @@ const ProductDetail: React.FC = () => {
     ...(product.warrantyPeriod ? [{ key: 'Bảo hành', value: product.warrantyPeriod }] : []),
   ];
 
-
-  const colors = product.color ? [{
-    name: product.color,
-    hex: '#cccccc' 
-  }] : undefined;
-
-  // Calculate price with platform vouchers (Flash Sale priority)
+  // Calculate price with variants and platform vouchers
   const calculateFinalPrice = () => {
-    const originalPrice = product.price;
-    let finalPrice = product.discountPrice || originalPrice;
+    const hasVariants = product.variants && product.variants.length > 0;
+    let originalPrice = product.price;
+    let displayPrice = product.price;
+    let priceRangeText: string | null = null;
+    
+    // If product has variants
+    if (hasVariants) {
+      if (selectedVariant) {
+        // Show selected variant price
+        originalPrice = selectedVariant.variantPrice;
+        displayPrice = selectedVariant.variantPrice;
+      } else {
+        // Show price range
+        const prices = product.variants!.map(v => v.variantPrice);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        
+        if (minPrice === maxPrice) {
+          originalPrice = minPrice;
+          displayPrice = minPrice;
+        } else {
+          priceRangeText = `${minPrice.toLocaleString('vi-VN')}đ - ${maxPrice.toLocaleString('vi-VN')}đ`;
+          originalPrice = minPrice; // Use min for voucher calculation
+          displayPrice = minPrice;
+        }
+      }
+    }
+    
+    let finalPrice = displayPrice;
     let discountPercent = 0;
     let campaignBadge: { label: string; color: string } | null = null;
 
@@ -173,6 +207,8 @@ const ProductDetail: React.FC = () => {
     return {
       originalPrice,
       finalPrice,
+      displayPrice,
+      priceRangeText,
       discountPercent,
       campaignBadge,
       hasDiscount: finalPrice < originalPrice
@@ -181,13 +217,30 @@ const ProductDetail: React.FC = () => {
 
   const priceInfo = calculateFinalPrice();
 
+  // Handle variant selection
+  const handleVariantSelect = (variant: any) => {
+    if (selectedVariant?.variantId === variant.variantId) {
+      // Deselect - back to original images and price range
+      setSelectedVariant(null);
+      setSelectedImages(product!.images || []);
+    } else {
+      // Select new variant
+      setSelectedVariant(variant);
+      // Update images to show variant image first, then product images
+      const variantImages = variant.variantUrl ? [variant.variantUrl, ...(product!.images || [])] : (product!.images || []);
+      setSelectedImages(variantImages);
+    }
+  };
+
+  const hasVariants = product.variants && product.variants.length > 0;
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
      
           <div className="lg:col-span-5">
-            <ImageGallery images={images} />
+            <ImageGallery images={selectedImages.length > 0 ? selectedImages : images} />
           </div>
 
           
@@ -198,11 +251,63 @@ const ProductDetail: React.FC = () => {
               rating={product.ratingAverage || 0}
               reviewsCount={product.reviewCount || 0}
               soldCount={0} // API doesn't provide this
-              price={priceInfo.originalPrice}
+              price={priceInfo.displayPrice}
+              priceRange={priceInfo.priceRangeText}
               salePrice={priceInfo.hasDiscount ? priceInfo.finalPrice : undefined}
               discountPercent={priceInfo.discountPercent}
               shortDescription={product.shortDescription}
             />
+
+            {/* Variant Selector - Shopee style */}
+            {hasVariants && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Phân loại</h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.variants!.map((variant) => {
+                    const isSelected = selectedVariant?.variantId === variant.variantId;
+                    return (
+                      <button
+                        key={variant.variantId}
+                        onClick={() => handleVariantSelect(variant)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-50'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                        {variant.variantUrl && (
+                          <img
+                            src={variant.variantUrl}
+                            alt={variant.optionValue}
+                            className="w-8 h-8 rounded object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span className={`text-sm ${isSelected ? 'text-orange-600 font-medium' : 'text-gray-700'}`}>
+                          {variant.optionValue}
+                        </span>
+                        {isSelected && (
+                          <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedVariant && (
+                  <div className="mt-3 text-sm text-gray-600">
+                    <span className="font-medium">Đã chọn:</span> {selectedVariant.optionName} - {selectedVariant.optionValue}
+                    {' '}• <span className="font-semibold text-orange-600">{priceInfo.displayPrice.toLocaleString('vi-VN')}đ</span>
+                    {' '}• Kho: <span className={selectedVariant.variantStock > 0 ? 'text-green-600' : 'text-red-600'}>
+                      {selectedVariant.variantStock}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
        
             {!vouchersLoading && vouchers.length > 0 && (
               <ProductVouchers vouchers={vouchers} />
@@ -210,10 +315,10 @@ const ProductDetail: React.FC = () => {
             <PurchaseActions 
               productId={product.productId}
               productName={product.name}
-              productImage={images[0]}
+              productImage={selectedImages[0] || images[0]}
               productPrice={priceInfo.finalPrice}
               inStock={product.stockQuantity > 0} 
-              colors={colors} 
+              selectedVariant={selectedVariant}
             />
           </div>
         </div>
