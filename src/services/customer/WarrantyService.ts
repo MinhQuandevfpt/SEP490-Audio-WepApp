@@ -4,7 +4,8 @@
  */
 
 import { HttpInterceptor } from '../HttpInterceptor';
-import type { Warranty, WarrantyListResponse } from '../../types/api';
+import { getCustomerId } from '../../utils/authHelper';
+import type { Warranty, WarrantyListResponse, WarrantyLog, WarrantyLogListResponse, WarrantyLogStatus } from '../../types/api';
 
 export class WarrantyService {
   /**
@@ -131,6 +132,45 @@ export class WarrantyService {
     } catch (error: any) {
       console.error('❌ Error requesting repair:', error);
       throw new Error(error?.message || 'Không thể gửi yêu cầu sửa chữa');
+    }
+  }
+
+  /**
+   * Get warranty logs
+   * GET /api/warranties/logs?warrantyId={warrantyId}&customerId={customerId}&status={status}
+   */
+  static async getWarrantyLogs(
+    warrantyId: string,
+    status?: WarrantyLogStatus
+  ): Promise<WarrantyLog[]> {
+    try {
+      const customerId = getCustomerId();
+      if (!customerId) {
+        throw new Error('Customer ID not found. Please login again.');
+      }
+
+      const queryParams = new URLSearchParams();
+      queryParams.append('warrantyId', warrantyId);
+      queryParams.append('customerId', customerId);
+      if (status) {
+        queryParams.append('status', status);
+      }
+
+      const endpoint = `/api/warranties/logs?${queryParams.toString()}`;
+      
+      console.log('📡 Calling warranty logs API:', endpoint);
+      const response = await HttpInterceptor.get<WarrantyLogListResponse>(
+        endpoint,
+        { userType: 'customer' }
+      );
+
+      console.log('📥 Warranty logs API response:', response);
+      console.log('📦 Response data:', response.data);
+      
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching warranty logs:', error);
+      throw new Error(error?.message || 'Không thể tải lịch sử sửa chữa');
     }
   }
 }

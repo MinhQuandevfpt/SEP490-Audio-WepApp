@@ -1,9 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { Button, Card, Divider, List, Tag, Typography, Collapse, Space, Row, Col, Badge, Modal, Input, Form } from 'antd';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Button, Card, Divider, List, Tag, Typography, Collapse, Space, Row, Col, Badge, Modal, Input, Form, Empty, Spin, Descriptions, Image } from 'antd';
 import type { CollapseProps } from 'antd';
-import { Calendar, MapPin, Package, Phone, ShieldCheck, ChevronDown, Plus } from 'lucide-react';
+import { Calendar, MapPin, Package, Phone, ShieldCheck, ChevronDown, Plus, FileText } from 'lucide-react';
 import type { StoreOrder } from '../../types/seller';
-import type { Warranty } from '../../types/api';
+import type { Warranty, WarrantyLog, WarrantyLogStatus } from '../../types/api';
 import { formatCurrency, getStatusLabel, formatDate } from '../../utils/orderStatus';
 import { SellerWarrantyService } from '../../services/seller/WarrantyService';
 import { showCenterSuccess, showCenterError } from '../../utils/notification';
@@ -19,6 +19,12 @@ interface WarrantyOrderCardProps {
   onSerialAdded?: () => void; // Callback to refresh data after adding serial
 }
 
+interface WarrantyWithLogs extends Warranty {
+  logs?: WarrantyLog[];
+  logsLoading?: boolean;
+  logsLoaded?: boolean;
+}
+
 const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({ 
   order, 
   warranties = [],
@@ -31,6 +37,102 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
   const [isSerialModalOpen, setIsSerialModalOpen] = useState(false);
   const [selectedWarranty, setSelectedWarranty] = useState<Warranty | null>(null);
   const [isSubmittingSerial, setIsSubmittingSerial] = useState(false);
+  const [warrantiesWithLogs, setWarrantiesWithLogs] = useState<WarrantyWithLogs[]>(
+    warranties.map(w => ({ ...w, logs: [], logsLoading: false, logsLoaded: false }))
+  );
+  const [expandedLogKeys, setExpandedLogKeys] = useState<string[]>([]);
+
+  // Update warrantiesWithLogs when warranties prop changes
+  React.useEffect(() => {
+    setWarrantiesWithLogs(prev => {
+      return warranties.map(w => {
+        const existing = prev.find(wl => wl.id === w.id);
+        return existing ? { ...w, logs: existing.logs, logsLoading: existing.logsLoading, logsLoaded: existing.logsLoaded } : { ...w, logs: [], logsLoading: false, logsLoaded: false };
+      });
+    });
+  }, [warranties]);
+
+  // Load logs for a warranty
+  const loadWarrantyLogs = useCallback(async (warrantyId: string) => {
+    if (!warrantyId) {
+      console.warn('⚠️ No warranty ID provided for loading logs');
+      return;
+    }
+
+    console.log('🔍 Loading warranty logs for:', warrantyId);
+    setWarrantiesWithLogs(prev =>
+      prev.map(w => (w.id === warrantyId ? { ...w, logsLoading: true } : w))
+    );
+
+    try {
+      const logs = await SellerWarrantyService.getWarrantyLogs(warrantyId);
+      console.log('✅ Warranty logs loaded:', logs);
+      console.log('📊 Logs array length:', logs.length);
+      setWarrantiesWithLogs(prev =>
+        prev.map(w => (w.id === warrantyId ? { ...w, logs, logsLoading: false, logsLoaded: true } : w))
+      );
+    } catch (err: any) {
+      console.error('❌ Error loading warranty logs:', err);
+      setWarrantiesWithLogs(prev =>
+        prev.map(w => (w.id === warrantyId ? { ...w, logs: [], logsLoading: false, logsLoaded: true } : w))
+      );
+    }
+  }, []);
+
+  // Handle logs collapse change
+  const handleLogsCollapseChange = useCallback((keys: string | string[]) => {
+    const keyArray = Array.isArray(keys) ? keys : [keys];
+    const prevKeys = expandedLogKeys;
+    
+    console.log('🔄 Handle logs collapse change:', { 
+      keys: keyArray, 
+      prevKeys, 
+      warrantiesWithLogs: warrantiesWithLogs.map(w => ({ id: w.id, logsLoaded: w.logsLoaded, logsLoading: w.logsLoading }))
+    });
+    
+    // Find newly expanded warranties
+    const newlyExpanded = keyArray.filter(key => !prevKeys.includes(key));
+    
+    setExpandedLogKeys(keyArray);
+    
+    // Load logs for newly expanded warranties
+    newlyExpanded.forEach(key => {
+      const warranty = warrantiesWithLogs.find(w => w.id === key);
+      console.log('🔍 Checking warranty for logs:', { key, warranty: warranty ? { id: warranty.id, logsLoaded: warranty.logsLoaded, logsLoading: warranty.logsLoading } : null });
+      if (warranty && !warranty.logsLoaded && !warranty.logsLoading) {
+        console.log('📥 Loading logs for warranty:', key);
+        loadWarrantyLogs(key);
+      }
+    });
+  }, [expandedLogKeys, warrantiesWithLogs, loadWarrantyLogs]);
+
+  const getLogStatusColor = (status: WarrantyLogStatus): string => {
+    const colorMap: Record<WarrantyLogStatus, string> = {
+      OPEN: 'orange',
+      DIAGNOSING: 'blue',
+      WAITING_PARTS: 'gold',
+      REPAIRING: 'purple',
+      READY_FOR_PICKUP: 'cyan',
+      SHIP_BACK: 'geekblue',
+      COMPLETED: 'green',
+      CLOSED: 'default',
+    };
+    return colorMap[status] || 'default';
+  };
+
+  const getLogStatusText = (status: WarrantyLogStatus): string => {
+    const textMap: Record<WarrantyLogStatus, string> = {
+      OPEN: 'Chờ xử lý',
+      DIAGNOSING: 'Đang chẩn đoán',
+      WAITING_PARTS: 'Chờ linh kiện',
+      REPAIRING: 'Đang sửa chữa',
+      READY_FOR_PICKUP: 'Sẵn sàng lấy hàng',
+      SHIP_BACK: 'Đang trả hàng',
+      COMPLETED: 'Đã hoàn tất',
+      CLOSED: 'Đã đóng',
+    };
+    return textMap[status] || status;
+  };
 
   const isThisOrderActivating = isActivating && activatingOrderId === order.id;
   // Only render if order status is DELIVERY_SUCCESS
@@ -50,7 +152,7 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
 
   // Create collapse items from warranties
   const collapseItems: CollapseProps['items'] = useMemo(() => {
-    return warranties.map((warranty, index) => {
+    return warrantiesWithLogs.map((warranty, index) => {
       const isActivated = warranty.id !== null && warranty.status === 'ACTIVE';
       const isPending = warranty.id === null || warranty.status === 'PENDING_ACTIVATION';
       
@@ -186,6 +288,175 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
                   >
                     Thêm số serial
                   </Button>
+                </div>
+              </Col>
+            )}
+
+            {/* Warranty Logs Section */}
+            {warranty.id && (
+              <Col xs={24}>
+                <div className="pt-3 border-t border-gray-200">
+                  {(() => {
+                    console.log('🔍 Rendering logs section for warranty:', warranty.id);
+                    console.log('📋 Warranty logs state:', { 
+                      logs: warranty.logs, 
+                      logsLoading: warranty.logsLoading, 
+                      logsLoaded: warranty.logsLoaded 
+                    });
+                    
+                    const logItems: CollapseProps['items'] = [{
+                      key: warranty.id,
+                      label: (
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-orange-500" />
+                          <span className="font-medium">Lịch sử sửa chữa</span>
+                          {warranty.logs && warranty.logs.length > 0 && (
+                            <Tag color="blue">{warranty.logs.length} yêu cầu</Tag>
+                          )}
+                        </div>
+                      ),
+                      children: warranty.logsLoading ? (
+                        <div className="py-8 text-center">
+                          <Spin size="small" />
+                          <p className="mt-2 text-sm text-gray-500">Đang tải lịch sử sửa chữa...</p>
+                        </div>
+                      ) : warranty.logs && warranty.logs.length > 0 ? (
+                        <div className="space-y-4">
+                          {warranty.logs.map((log) => {
+                            console.log('📊 Rendering log:', log.id);
+                            return (
+                              <Card
+                                key={log.id}
+                                className="border-gray-200"
+                                size="small"
+                                styles={{ body: { padding: '16px' } }}
+                              >
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                  {/* Thông tin cơ bản */}
+                                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                    <Descriptions title="Thông tin yêu cầu" size="small" column={1} bordered>
+                                      <Descriptions.Item label="Trạng thái">
+                                        <Tag color={getLogStatusColor(log.status)}>
+                                          {getLogStatusText(log.status)}
+                                        </Tag>
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Mô tả vấn đề">
+                                        {log.problemDescription || '-'}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Bảo hành">
+                                        {log.covered === true ? (
+                                          <Tag color="green">Có</Tag>
+                                        ) : log.covered === false ? (
+                                          <Tag color="red">Không</Tag>
+                                        ) : (
+                                          <Tag>Không chắc</Tag>
+                                        )}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Ngày tạo">
+                                        {formatDate(log.createdAt)}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Cập nhật">
+                                        {formatDate(log.updatedAt)}
+                                      </Descriptions.Item>
+                                    </Descriptions>
+                                  </div>
+
+                                  {/* Chẩn đoán & Giải pháp */}
+                                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                    <Descriptions title="Chẩn đoán & Giải pháp" size="small" column={1} bordered>
+                                      <Descriptions.Item label="Chẩn đoán">
+                                        {log.diagnosis || <Typography.Text type="secondary">Chưa có</Typography.Text>}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Giải pháp">
+                                        {log.resolution || <Typography.Text type="secondary">Chưa có</Typography.Text>}
+                                      </Descriptions.Item>
+                                      {log.shipBackTracking && (
+                                        <Descriptions.Item label="Mã vận đơn">
+                                          <Typography.Text code>{log.shipBackTracking}</Typography.Text>
+                                        </Descriptions.Item>
+                                      )}
+                                    </Descriptions>
+                                  </div>
+
+                                  {/* Chi phí */}
+                                  <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                    <Descriptions title="Chi phí" size="small" column={1} bordered>
+                                      <Descriptions.Item label="Nhân công">
+                                        {log.costLabor ? formatCurrency(log.costLabor) : '-'}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Linh kiện">
+                                        {log.costParts ? formatCurrency(log.costParts) : '-'}
+                                      </Descriptions.Item>
+                                      <Descriptions.Item label="Tổng cộng">
+                                        {log.costTotal ? (
+                                          <Typography.Text strong className="text-orange-600">
+                                            {formatCurrency(log.costTotal)}
+                                          </Typography.Text>
+                                        ) : (
+                                          '-'
+                                        )}
+                                      </Descriptions.Item>
+                                    </Descriptions>
+                                  </div>
+                                </div>
+
+                                {/* Hình ảnh đính kèm */}
+                                {log.attachmentUrls && log.attachmentUrls.length > 0 && (
+                                  <>
+                                    <Divider className="my-3" />
+                                    <div>
+                                      <Typography.Text strong className="text-sm mb-2 block">Hình ảnh đính kèm ({log.attachmentUrls.length})</Typography.Text>
+                                      <div className="grid grid-cols-5 gap-2">
+                                        {log.attachmentUrls.map((url, index) => (
+                                          <Image
+                                            key={index}
+                                            src={url}
+                                            alt={`Attachment ${index + 1}`}
+                                            className="rounded-lg border border-gray-200"
+                                            width={80}
+                                            height={80}
+                                            preview={{
+                                              mask: 'Xem ảnh',
+                                            }}
+                                          />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center">
+                          <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description={
+                              <div>
+                                <p className="text-gray-600 font-medium mb-1">Chưa có lịch sử sửa chữa</p>
+                                <p className="text-sm text-gray-400">Chưa có yêu cầu sửa chữa nào cho sản phẩm này</p>
+                              </div>
+                            }
+                          />
+                        </div>
+                      ),
+                    }];
+
+                    return (
+                      <Collapse
+                        activeKey={expandedLogKeys.includes(warranty.id) ? [warranty.id] : []}
+                        onChange={handleLogsCollapseChange}
+                        ghost
+                        items={logItems}
+                        expandIcon={({ isActive }) => (
+                          <ChevronDown 
+                            className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'rotate-180' : ''}`} 
+                          />
+                        )}
+                      />
+                    );
+                  })()}
                 </div>
               </Col>
             )}

@@ -4,7 +4,8 @@
  */
 
 import { HttpInterceptor } from '../HttpInterceptor';
-import type { ApiResponse, Warranty } from '../../types/api';
+import { StoreService } from './StoreService';
+import type { ApiResponse, Warranty, WarrantyLog, WarrantyLogListResponse, WarrantyLogStatus } from '../../types/api';
 
 export class SellerWarrantyService {
   /**
@@ -109,6 +110,41 @@ export class SellerWarrantyService {
     } catch (error: any) {
       console.error('❌ Error activating serial number:', error);
       throw new Error(error?.message || 'Không thể thêm số serial');
+    }
+  }
+
+  /**
+   * Get warranty logs for a warranty
+   * GET /api/warranties/logs?warrantyId={warrantyId}&storeId={storeId}
+   */
+  static async getWarrantyLogs(
+    warrantyId: string,
+    status?: WarrantyLogStatus
+  ): Promise<WarrantyLog[]> {
+    try {
+      const storeId = await StoreService.getStoreId();
+      if (!storeId) {
+        throw new Error('Store ID not found. Please login again.');
+      }
+
+      const queryParams = new URLSearchParams();
+      queryParams.append('warrantyId', warrantyId);
+      queryParams.append('storeId', storeId);
+      if (status) {
+        queryParams.append('status', status);
+      }
+
+      const endpoint = `/api/warranties/logs?${queryParams.toString()}`;
+      
+      const response = await HttpInterceptor.get<WarrantyLogListResponse>(
+        endpoint,
+        { userType: 'seller' }
+      );
+
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching warranty logs:', error);
+      throw new Error(error?.message || 'Không thể tải lịch sử sửa chữa');
     }
   }
 }

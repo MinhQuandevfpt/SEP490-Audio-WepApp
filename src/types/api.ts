@@ -504,3 +504,26 @@ export interface Warranty {
 }
 
 export interface WarrantyListResponse extends ApiResponse<Warranty[]> {}
+
+// ==================== WARRANTY LOG TYPES ====================
+
+export type WarrantyLogStatus = 'OPEN' | 'DIAGNOSING' | 'WAITING_PARTS' | 'REPAIRING' | 'READY_FOR_PICKUP' | 'SHIP_BACK' | 'COMPLETED' | 'CLOSED';
+
+export interface WarrantyLog {
+  id: string;
+  warrantyId: string;
+  status: WarrantyLogStatus;
+  problemDescription: string;
+  diagnosis: string | null;
+  resolution: string | null;
+  covered: boolean;
+  costLabor: number | null;
+  costParts: number | null;
+  costTotal: number | null;
+  attachmentUrls: string[];
+  shipBackTracking: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WarrantyLogListResponse extends ApiResponse<WarrantyLog[]> {}
