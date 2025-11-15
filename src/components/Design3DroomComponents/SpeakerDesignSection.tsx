@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Move, Play, Pause, Volume2, Headphones } from 'lucide-react';
-import type { Speaker } from './index';
-import { SPEAKER_MODELS } from '../../services/audio/AudioService';
-import type { SpeakerModel } from '../../services/audio/AudioService';
+import { Plus, Trash2, Move, Play, Pause, Volume2, Headphones, Settings } from 'lucide-react';
+import type { Speaker, CustomSpeakerSpecs } from './index';
 import AudioPlayer from './AudioPlayer';
+import type { EQPreset } from '../../services/audio/AudioService';
 
 interface SpeakerDesignSectionProps {
   speakers: Speaker[];
@@ -33,6 +32,49 @@ const QUALITY_LEVELS = [
   { value: 'professional', label: 'Chuyên nghiệp', description: 'Chất lượng âm thanh chuyên nghiệp' }
 ] as const;
 
+// Default custom specs
+const DEFAULT_CUSTOM_SPECS: CustomSpeakerSpecs = {
+  frequencyLow: 50,
+  frequencyHigh: 20000,
+  power: 100,
+  impedance: 8,
+  sensitivity: 90,
+  bassBoost: 0,
+  midBoost: 0,
+  trebleBoost: 0,
+  thd: 0.5,
+  crossoverFrequency: 2000
+};
+
+// Convert custom specs to EQ Preset for AudioService
+const convertSpecsToEQPreset = (specs: CustomSpeakerSpecs): EQPreset => {
+  return {
+    name: 'Custom',
+    bass: specs.bassBoost,
+    mid: specs.midBoost,
+    treble: specs.trebleBoost,
+    gain: (specs.sensitivity - 90) / 10 // Normalize sensitivity to gain
+  };
+};
+
+// Create a mock SpeakerModel from custom specs for AudioPlayer
+const createSpeakerModelFromSpecs = (specs: CustomSpeakerSpecs, name: string) => {
+  return {
+    id: `custom_${Date.now()}`,
+    name: name,
+    brand: 'Custom',
+    type: 'desk_pair' as const,
+    description: `Custom speaker: ${specs.frequencyLow}Hz-${specs.frequencyHigh}Hz, ${specs.power}W, ${specs.impedance}Ω`,
+    eqPreset: convertSpecsToEQPreset(specs),
+    specs: {
+      frequencyResponse: `${specs.frequencyLow}Hz - ${specs.frequencyHigh}Hz`,
+      power: `${specs.power}W`,
+      impedance: `${specs.impedance}Ω`,
+      sensitivity: `${specs.sensitivity}dB`
+    }
+  };
+};
+
 const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   speakers,
   onAddSpeaker,
@@ -42,8 +84,9 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   const [selectedType, setSelectedType] = useState<string>('floor_single');
   const [selectedColor, setSelectedColor] = useState<string>('#000000');
   const [selectedQuality, setSelectedQuality] = useState<string>('premium');
-  const [selectedModelForTrial, setSelectedModelForTrial] = useState<SpeakerModel | null>(null);
-  const [viewMode, setViewMode] = useState<'add' | 'models'>('models'); // 'add' hoặc 'models'
+  const [customSpecs, setCustomSpecs] = useState<CustomSpeakerSpecs>(DEFAULT_CUSTOM_SPECS);
+  const [isTestingAudio, setIsTestingAudio] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'add' | 'customize'>('customize'); // 'add' hoặc 'customize'
 
   const handleAddSpeaker = () => {
     const newSpeaker: Omit<Speaker, 'id'> = {
@@ -52,9 +95,10 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
       position: [0, 0, 0],
       rotation: [0, 0, 0],
       color: selectedColor,
-      power: 100,
+      power: customSpecs.power,
       quality: selectedQuality as any,
-      isPlaying: false
+      isPlaying: false,
+      customSpecs: { ...customSpecs }
     };
     onAddSpeaker(newSpeaker);
   };
@@ -63,11 +107,16 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
     onUpdateSpeaker(speakerId, { isPlaying: !isPlaying });
   };
 
-  // Lọc model loa theo loại đã chọn
-  const filteredModels = SPEAKER_MODELS.filter(model => {
-    if (viewMode === 'models') return true; // Hiển thị tất cả khi xem models
-    return model.type === selectedType;
-  });
+  const handleSpecChange = (key: keyof CustomSpeakerSpecs, value: number) => {
+    setCustomSpecs(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleTestAudio = () => {
+    setIsTestingAudio(true);
+  };
 
   // Audio URL - sử dụng SoundCloud embed hoặc direct URL
   // Note: SoundCloud không cho phép direct download, cần dùng proxy hoặc upload file lên CDN
@@ -82,14 +131,15 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={() => setViewMode('models')}
+            onClick={() => setViewMode('customize')}
             className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-              viewMode === 'models'
+              viewMode === 'customize'
                 ? 'bg-orange-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            Model loa
+            <Settings className="w-3 h-3 inline mr-1" />
+            Tùy chỉnh
           </button>
           <button
             onClick={() => setViewMode('add')}
@@ -104,87 +154,183 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
         </div>
       </div>
 
-      {/* Speaker Models List - View Mode */}
-      {viewMode === 'models' && (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          <h4 className="text-sm font-medium text-gray-700">Chọn model loa để nghe thử</h4>
+      {/* Customize Speaker Specs - View Mode */}
+      {viewMode === 'customize' && (
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          <h4 className="text-sm font-medium text-gray-700">Tùy chỉnh thông số kỹ thuật loa</h4>
           
-          {filteredModels.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <span className="text-4xl block mb-2">🔊</span>
-              <p className="text-sm">Không có model loa nào</p>
-            </div>
-          ) : (
-            filteredModels.map((model) => (
-              <div
-                key={model.id}
-                className="p-3 bg-white rounded-lg border border-gray-200 hover:border-orange-300 transition-all cursor-pointer"
-                onClick={() => {
-                  // Khi click vào model, có thể thêm vào phòng hoặc chỉ nghe thử
-                }}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <h5 className="text-sm font-semibold text-gray-800">{model.name}</h5>
-                      <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">
-                        {model.brand}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 mb-2">{model.description}</p>
-                    
-                    {model.specs && (
-                      <div className="grid grid-cols-2 gap-1 text-xs text-gray-500 mb-2">
-                        <div>🎵 {model.specs.frequencyResponse}</div>
-                        <div>⚡ {model.specs.power}</div>
-                      </div>
-                    )}
-
-                    {model.price && (
-                      <div className="text-sm font-semibold text-orange-600">
-                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(model.price)}
-                      </div>
-                    )}
-                  </div>
+          {/* Frequency Response */}
+          <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <label className="text-xs font-medium text-gray-700">Dải tần số (Frequency Response)</label>
+            <div className="space-y-2">
+              <div>
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Tần số thấp (Bass): {customSpecs.frequencyLow} Hz</span>
+                  <span className="text-gray-400">20-200 Hz</span>
                 </div>
-
-                <div className="flex items-center space-x-2 mt-3">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedModelForTrial(model);
-                    }}
-                    className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
-                  >
-                    <Headphones className="w-4 h-4" />
-                    <span>Nghe thử</span>
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      // Thêm loa này vào phòng với thông tin từ model
-                      const newSpeaker: Omit<Speaker, 'id'> = {
-                        name: model.name,
-                        type: model.type,
-                        position: [0, 0, 0],
-                        rotation: [0, 0, 0],
-                        color: '#000000',
-                        power: parseInt(model.specs?.power || '100'),
-                        quality: model.eqPreset.name.toLowerCase().includes('professional') ? 'professional' :
-                                model.eqPreset.name.toLowerCase().includes('premium') ? 'premium' : 'basic',
-                        isPlaying: false
-                      };
-                      onAddSpeaker(newSpeaker);
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-                    title="Thêm vào phòng"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="200"
+                  step="5"
+                  value={customSpecs.frequencyLow}
+                  onChange={(e) => handleSpecChange('frequencyLow', parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
               </div>
-            ))
-          )}
+              <div>
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Tần số cao (Treble): {customSpecs.frequencyHigh} Hz</span>
+                  <span className="text-gray-400">2000-50000 Hz</span>
+                </div>
+                <input
+                  type="range"
+                  min="2000"
+                  max="50000"
+                  step="1000"
+                  value={customSpecs.frequencyHigh}
+                  onChange={(e) => handleSpecChange('frequencyHigh', parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Power */}
+          <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-medium text-gray-700">Công suất (Power)</label>
+              <span className="text-xs font-semibold text-green-700">{customSpecs.power}W</span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="500"
+              step="10"
+              value={customSpecs.power}
+              onChange={(e) => handleSpecChange('power', parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+            />
+            <p className="text-xs text-gray-500">Công suất cao hơn = âm thanh lớn hơn, nhưng cần ampli mạnh hơn</p>
+          </div>
+
+          {/* Impedance */}
+          <div className="space-y-2 p-3 bg-purple-50 rounded-lg border border-purple-200">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-medium text-gray-700">Trở kháng (Impedance)</label>
+              <span className="text-xs font-semibold text-purple-700">{customSpecs.impedance}Ω</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {[4, 6, 8, 16].map(ohm => (
+                <button
+                  key={ohm}
+                  onClick={() => handleSpecChange('impedance', ohm)}
+                  className={`px-2 py-1 text-xs rounded border-2 transition-all ${
+                    customSpecs.impedance === ohm
+                      ? 'border-purple-600 bg-purple-100 text-purple-700 font-semibold'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-purple-300'
+                  }`}
+                >
+                  {ohm}Ω
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500">Trở kháng thấp = cần ampli mạnh hơn, nhưng hiệu suất tốt hơn</p>
+          </div>
+
+          {/* Sensitivity */}
+          <div className="space-y-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-medium text-gray-700">Độ nhạy (Sensitivity)</label>
+              <span className="text-xs font-semibold text-yellow-700">{customSpecs.sensitivity} dB/W/m</span>
+            </div>
+            <input
+              type="range"
+              min="80"
+              max="120"
+              step="1"
+              value={customSpecs.sensitivity}
+              onChange={(e) => handleSpecChange('sensitivity', parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-yellow-600"
+            />
+            <p className="text-xs text-gray-500">Độ nhạy cao = âm thanh lớn hơn với cùng công suất</p>
+          </div>
+
+          {/* EQ Adjustments */}
+          <div className="space-y-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+            <label className="text-xs font-medium text-gray-700">Điều chỉnh EQ (dB)</label>
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Bass: {customSpecs.bassBoost > 0 ? '+' : ''}{customSpecs.bassBoost} dB</span>
+                </div>
+                <input
+                  type="range"
+                  min="-12"
+                  max="12"
+                  step="1"
+                  value={customSpecs.bassBoost}
+                  onChange={(e) => handleSpecChange('bassBoost', parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Mid: {customSpecs.midBoost > 0 ? '+' : ''}{customSpecs.midBoost} dB</span>
+                </div>
+                <input
+                  type="range"
+                  min="-12"
+                  max="12"
+                  step="1"
+                  value={customSpecs.midBoost}
+                  onChange={(e) => handleSpecChange('midBoost', parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>Treble: {customSpecs.trebleBoost > 0 ? '+' : ''}{customSpecs.trebleBoost} dB</span>
+                </div>
+                <input
+                  type="range"
+                  min="-12"
+                  max="12"
+                  step="1"
+                  value={customSpecs.trebleBoost}
+                  onChange={(e) => handleSpecChange('trebleBoost', parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* THD */}
+          <div className="space-y-2 p-3 bg-red-50 rounded-lg border border-red-200">
+            <div className="flex justify-between items-center">
+              <label className="text-xs font-medium text-gray-700">Độ méo tiếng (THD)</label>
+              <span className="text-xs font-semibold text-red-700">{customSpecs.thd}%</span>
+            </div>
+            <input
+              type="range"
+              min="0.1"
+              max="5"
+              step="0.1"
+              value={customSpecs.thd}
+              onChange={(e) => handleSpecChange('thd', parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-600"
+            />
+            <p className="text-xs text-gray-500">THD thấp = âm thanh trung thực hơn, ít méo tiếng</p>
+          </div>
+
+          {/* Test Audio Button */}
+          <button
+            onClick={handleTestAudio}
+            className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+          >
+            <Headphones className="w-4 h-4" />
+            <span>Nghe thử với thông số này</span>
+          </button>
         </div>
       )}
 
@@ -343,12 +489,12 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
         )}
       </div>
 
-      {/* Audio Player - Hiển thị khi chọn model để nghe thử */}
-      {selectedModelForTrial && (
+      {/* Audio Player - Hiển thị khi test audio với custom specs */}
+      {isTestingAudio && (
         <AudioPlayer
-          speakerModel={selectedModelForTrial}
+          speakerModel={createSpeakerModelFromSpecs(customSpecs, 'Loa tùy chỉnh')}
           audioUrl={AUDIO_URL}
-          onClose={() => setSelectedModelForTrial(null)}
+          onClose={() => setIsTestingAudio(false)}
         />
       )}
     </div>

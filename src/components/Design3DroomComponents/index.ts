@@ -153,6 +153,33 @@ export interface Furniture {
   color: string;
 }
 
+// Custom Speaker Specifications
+export interface CustomSpeakerSpecs {
+  // Frequency Response (Hz)
+  frequencyLow: number;      // 20-200 Hz (Bass range)
+  frequencyHigh: number;     // 2000-50000 Hz (Treble range)
+  
+  // Power (Watts)
+  power: number;             // 10-500W
+  
+  // Impedance (Ohms)
+  impedance: number;          // 4, 6, 8, 16 ohms
+  
+  // Sensitivity (dB/W/m)
+  sensitivity: number;        // 80-120 dB
+  
+  // EQ Adjustments (dB)
+  bassBoost: number;          // -12 to +12 dB
+  midBoost: number;           // -12 to +12 dB
+  trebleBoost: number;       // -12 to +12 dB
+  
+  // Total Harmonic Distortion (%)
+  thd: number;                // 0.1-5%
+  
+  // Crossover Frequency (Hz) - for multi-driver speakers
+  crossoverFrequency?: number; // 200-5000 Hz
+}
+
 // Speaker Types
 export interface Speaker {
   id: string;
@@ -164,6 +191,7 @@ export interface Speaker {
   power: number;
   quality: 'basic' | 'premium' | 'professional';
   isPlaying: boolean;
+  customSpecs?: CustomSpeakerSpecs; // Custom specifications for audio processing
 }
 
 // Listener Types
