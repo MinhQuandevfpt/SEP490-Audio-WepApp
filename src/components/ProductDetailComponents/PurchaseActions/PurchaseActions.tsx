@@ -10,7 +10,11 @@ interface PurchaseActionsProps {
   productImage: string;
   productPrice: number;
   inStock: boolean;
+  totalStock: number;
   selectedVariant?: any;
+  variants?: any[];
+  onVariantSelect?: (variant: any) => void;
+  onVariantHover?: (variant: any | null) => void;
   colors?: Array<{ name: string; hex: string }>;
 }
 
@@ -19,8 +23,11 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
   productName,
   productImage,
   productPrice,
-  inStock,
+  totalStock,
   selectedVariant,
+  variants,
+  onVariantSelect,
+  onVariantHover,
   colors 
 }) => {
   const navigate = useNavigate();
@@ -28,9 +35,12 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
   const [color, setColor] = React.useState(colors?.[0]?.name ?? '');
   const [isAdding, setIsAdding] = React.useState(false);
 
-  // Check stock from selected variant or product
-  const actualStock = selectedVariant ? selectedVariant.variantStock : inStock;
-  const isInStock = selectedVariant ? selectedVariant.variantStock > 0 : inStock;
+  // Calculate actual stock based on variant selection
+  const actualStock = selectedVariant ? selectedVariant.variantStock : totalStock;
+  const isInStock = actualStock > 0;
+  
+  // Get optionName from first variant if exists
+  const optionName = variants && variants.length > 0 ? variants[0].optionName : null;
 
   // Check if user is logged in
   const isLoggedIn = () => {
@@ -47,10 +57,29 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
       return;
     }
 
+    // Check if product has variants and user must select one
+    if (variants && variants.length > 0 && !selectedVariant) {
+      showCenterError('Vui lòng chọn phân loại sản phẩm trước khi thêm vào giỏ hàng.', '⚠️ Chưa chọn phân loại');
+      return;
+    }
+
     try {
       setIsAdding(true);
       
-      await CustomerCartService.addProductToCart(productId, qty);
+      console.log('🔍 Debug - Adding to cart:', {
+        productId,
+        qty,
+        hasVariants: variants && variants.length > 0,
+        selectedVariant,
+        variantId: selectedVariant?.variantId
+      });
+      
+      // Pass variantId if variant is selected
+      await CustomerCartService.addProductToCart(
+        productId, 
+        qty, 
+        selectedVariant?.variantId
+      );
 
       showCenterSuccess('Đã thêm sản phẩm vào giỏ hàng!', '🛒 Thành công');
       
@@ -96,11 +125,59 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="mb-4">
-        <span className="text-sm text-gray-500">Tình trạng</span>
-        <div className={`mt-1 font-medium ${isInStock ? 'text-green-600' : 'text-red-600'}`}>
-          {isInStock ? `Còn hàng (${actualStock})` : 'Hết hàng'}
+    <div className="space-y-4">
+      {/* Variant Selector - Horizontal layout, no border */}
+      {variants && variants.length > 0 && onVariantSelect && (
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-gray-700 font-medium min-w-[80px]">{optionName || 'Phân loại'}:</span>
+          <div className="flex flex-wrap gap-2 flex-1">
+            {variants.map((variant) => {
+              const isSelected = selectedVariant?.variantId === variant.variantId;
+              return (
+                <button
+                  key={variant.variantId}
+                  onClick={() => onVariantSelect(variant)}
+                  onMouseEnter={() => onVariantHover?.(variant)}
+                  onMouseLeave={() => onVariantHover?.(null)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                    isSelected
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-gray-200 bg-white hover:border-orange-300'
+                  }`}
+                >
+                  {variant.variantUrl && (
+                    <img
+                      src={variant.variantUrl}
+                      alt={variant.optionValue}
+                      className="w-8 h-8 rounded object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <span className={`text-sm ${isSelected ? 'text-orange-600 font-medium' : 'text-gray-700'}`}>
+                    {variant.optionValue}
+                  </span>
+                  {isSelected && (
+                    <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
+      {/* Stock Status - Horizontal layout */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-gray-700 font-medium min-w-[80px]">Tình trạng:</span>
+        <div className={`font-medium ${isInStock ? 'text-green-600' : 'text-red-600'}`}>
+          {isInStock 
+            ? (selectedVariant ? `Còn (${actualStock}) sản phẩm` : 'Còn hàng')
+            : 'Hết hàng'
+          }
         </div>
       </div>
 
@@ -122,8 +199,9 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
         </div>
       )}
 
-      <div className="mb-4">
-        <span className="text-sm text-gray-500 block mb-3">Số lượng</span>
+      {/* Quantity Selector - Horizontal layout */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-gray-700 font-medium min-w-[80px]">Số lượng:</span>
         <div className="inline-flex items-center border rounded-lg overflow-hidden">
           <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-3 py-2 hover:bg-gray-50">-</button>
           <input value={qty} inputMode="numeric" pattern="[0-9]*" onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} className="w-12 text-center outline-none" />
@@ -131,7 +209,8 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3 mt-6">
         <button 
           onClick={handleAddToCart}
           disabled={!isInStock || isAdding}

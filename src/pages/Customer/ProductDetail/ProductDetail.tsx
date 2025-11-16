@@ -21,7 +21,7 @@ const ProductDetail: React.FC = () => {
   
   // Variant selection state
   const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [hoveredVariantImage, setHoveredVariantImage] = useState<string | null>(null);
 
   useEffect(() => {
     
@@ -33,19 +33,19 @@ const ProductDetail: React.FC = () => {
       setError(null);
       setProduct(null);
       setSelectedVariant(null);
-      setSelectedImages([]);
+      setHoveredVariantImage(null);
       
       // Fetch both APIs in parallel and wait for both
       fetchBothAPIs(id);
     }
   }, [id]);
 
-  // Set initial images when product loads
-  useEffect(() => {
-    if (product && product.images && product.images.length > 0) {
-      setSelectedImages(product.images);
-    }
-  }, [product]);
+  // No longer needed - we don't update images array
+  // useEffect(() => {
+  //   if (product && product.images && product.images.length > 0) {
+  //     setSelectedImages(product.images);
+  //   }
+  // }, [product]);
 
   const fetchBothAPIs = async (productId: string) => {
     try {
@@ -222,17 +222,40 @@ const ProductDetail: React.FC = () => {
     if (selectedVariant?.variantId === variant.variantId) {
       // Deselect - back to original images and price range
       setSelectedVariant(null);
-      setSelectedImages(product!.images || []);
+      setHoveredVariantImage(null);
     } else {
-      // Select new variant
+      // Select new variant - set permanent image override
       setSelectedVariant(variant);
-      // Update images to show variant image first, then product images
-      const variantImages = variant.variantUrl ? [variant.variantUrl, ...(product!.images || [])] : (product!.images || []);
-      setSelectedImages(variantImages);
+      setHoveredVariantImage(variant.variantUrl || null);
+    }
+  };
+
+  // Handle variant hover
+  const handleVariantHover = (variant: any | null) => {
+    if (variant && variant.variantUrl) {
+      // Show variant image on hover (temporary)
+      setHoveredVariantImage(variant.variantUrl);
+    } else if (!selectedVariant) {
+      // If not hovering and no variant selected, clear override
+      setHoveredVariantImage(null);
+    } else if (selectedVariant) {
+      // If hovering ended but variant is selected, show selected variant image
+      setHoveredVariantImage(selectedVariant.variantUrl || null);
     }
   };
 
   const hasVariants = product.variants && product.variants.length > 0;
+  
+  // Calculate total stock for products with variants
+  const getTotalStock = () => {
+    if (hasVariants) {
+      return product.variants!.reduce((sum, v) => sum + v.variantStock, 0);
+    }
+    return product.stockQuantity;
+  };
+  
+  const totalStock = getTotalStock();
+  const isInStock = totalStock > 0;
 
   return (
     <Layout>
@@ -240,7 +263,10 @@ const ProductDetail: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
      
           <div className="lg:col-span-5">
-            <ImageGallery images={selectedImages.length > 0 ? selectedImages : images} />
+            <ImageGallery 
+              images={images} 
+              mainImageOverride={hoveredVariantImage || undefined}
+            />
           </div>
 
           
@@ -257,68 +283,22 @@ const ProductDetail: React.FC = () => {
               discountPercent={priceInfo.discountPercent}
               shortDescription={product.shortDescription}
             />
-
-            {/* Variant Selector - Shopee style */}
-            {hasVariants && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Phân loại</h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.variants!.map((variant) => {
-                    const isSelected = selectedVariant?.variantId === variant.variantId;
-                    return (
-                      <button
-                        key={variant.variantId}
-                        onClick={() => handleVariantSelect(variant)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
-                      >
-                        {variant.variantUrl && (
-                          <img
-                            src={variant.variantUrl}
-                            alt={variant.optionValue}
-                            className="w-8 h-8 rounded object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        )}
-                        <span className={`text-sm ${isSelected ? 'text-orange-600 font-medium' : 'text-gray-700'}`}>
-                          {variant.optionValue}
-                        </span>
-                        {isSelected && (
-                          <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedVariant && (
-                  <div className="mt-3 text-sm text-gray-600">
-                    <span className="font-medium">Đã chọn:</span> {selectedVariant.optionName} - {selectedVariant.optionValue}
-                    {' '}• <span className="font-semibold text-orange-600">{priceInfo.displayPrice.toLocaleString('vi-VN')}đ</span>
-                    {' '}• Kho: <span className={selectedVariant.variantStock > 0 ? 'text-green-600' : 'text-red-600'}>
-                      {selectedVariant.variantStock}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
        
             {!vouchersLoading && vouchers.length > 0 && (
               <ProductVouchers vouchers={vouchers} />
             )}
+            
             <PurchaseActions 
               productId={product.productId}
               productName={product.name}
-              productImage={selectedImages[0] || images[0]}
+              productImage={hoveredVariantImage || images[0]}
               productPrice={priceInfo.finalPrice}
-              inStock={product.stockQuantity > 0} 
+              inStock={isInStock}
+              totalStock={totalStock}
               selectedVariant={selectedVariant}
+              variants={hasVariants ? product.variants : undefined}
+              onVariantSelect={handleVariantSelect}
+              onVariantHover={handleVariantHover}
             />
           </div>
         </div>

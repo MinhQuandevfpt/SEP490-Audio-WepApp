@@ -15,7 +15,6 @@ const RequestRepairModal: React.FC<Props> = ({ warranty, onClose, onSuccess }) =
   const [problemDescription, setProblemDescription] = useState('');
   const [covered, setCovered] = useState<boolean | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
-  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,7 +47,6 @@ const RequestRepairModal: React.FC<Props> = ({ warranty, onClose, onSuccess }) =
 
   const removeFile = (index: number) => {
     setUploadingFiles(prev => prev.filter((_, i) => i !== index));
-    setUploadedUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const uploadFiles = async (): Promise<string[]> => {
@@ -62,7 +60,6 @@ const RequestRepairModal: React.FC<Props> = ({ warranty, onClose, onSuccess }) =
         const response = await FileUploadService.uploadImage(file);
         urls.push(response.url);
       }
-      setUploadedUrls(urls);
       return urls;
     } catch (error: any) {
       showCenterError(error?.message || 'Không thể tải ảnh lên', 'Lỗi');

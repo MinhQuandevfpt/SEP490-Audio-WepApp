@@ -27,9 +27,7 @@ const ProductSuggestions: React.FC = () => {
     let originalPrice = item.price ?? 0;
     
     // Check if product has variants and calculate min price
-    let hasVariants = false;
     if (item.variants && item.variants.length > 0) {
-      hasVariants = true;
       // Get minimum price from variants
       const variantPrices = item.variants.map(v => v.price);
       const minVariantPrice = Math.min(...variantPrices);

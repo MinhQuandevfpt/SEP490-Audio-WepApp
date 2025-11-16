@@ -3,6 +3,7 @@ import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ImageGalleryProps {
   images: string[];
+  mainImageOverride?: string; // Override main image display (for variant hover/click)
 }
 
 const fallbackSvg =
@@ -11,7 +12,7 @@ const fallbackSvg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="100%" height="100%" fill="#f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="16" fill="#9ca3af">No Image</text></svg>`
   );
 
-const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
+const ImageGallery: React.FC<ImageGalleryProps> = ({ images, mainImageOverride }) => {
   const validImages = images && images.length > 0 ? images : [fallbackSvg];
   const [active, setActive] = React.useState(0);
   const [showModal, setShowModal] = React.useState(false);
@@ -45,6 +46,9 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
   const canScrollLeft = thumbStartIndex > 0;
   const canScrollRight = thumbStartIndex + maxVisibleThumbs < validImages.length;
 
+  // Display image: Use override if provided, otherwise use selected from thumbnails
+  const displayImage = mainImageOverride || validImages[active];
+
   // Prevent body scroll when modal is open
   React.useEffect(() => {
     if (showModal) {
@@ -66,7 +70,7 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
         >
           <div className="w-full h-full group relative">
             <img
-              src={validImages[active]}
+              src={displayImage}
               alt={`Hình ${active + 1}`}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               onError={(ev) => {

@@ -99,6 +99,7 @@ export class CustomerCartService {
     try {
       const customerId = this.getCustomerId();
       console.log('🛒 Adding items to cart:', { customerId, items });
+      console.log('📦 Request payload:', JSON.stringify({ items }, null, 2));
 
       const response = await HttpInterceptor.post<AddToCartResponse>(
         `/api/v1/customers/${customerId}/cart/items`,
@@ -119,15 +120,28 @@ export class CustomerCartService {
    * 
    * @param productId - Product UUID
    * @param quantity - Quantity to add (default: 1)
+   * @param variantId - Optional variant ID for products with variants
    */
-  static async addProductToCart(productId: string, quantity: number = 1): Promise<AddToCartResponse> {
-    return this.addToCart([
-      {
-        type: 'PRODUCT',
-        id: productId,
-        quantity
-      }
-    ]);
+  static async addProductToCart(
+    productId: string, 
+    quantity: number = 1, 
+    variantId?: string
+  ): Promise<AddToCartResponse> {
+    const item: any = {
+      type: 'PRODUCT',
+      // If product has variant, use variantId as the main id
+      // Otherwise use productId
+      id: variantId || productId,
+      quantity
+    };
+    
+    if (variantId) {
+      console.log('🎯 Adding product variant to cart:', { productId, variantId, quantity, usingId: item.id });
+    } else {
+      console.log('📦 Adding product without variant:', { productId, quantity });
+    }
+    
+    return this.addToCart([item]);
   }
 
   /**

@@ -16,6 +16,7 @@ export interface AddToCartItem {
   type: CartItemType;
   id: string;  // Product ID or Combo ID (UUID)
   quantity: number;
+  variantId?: string;  // Optional variant ID for products with variants
 }
 
 export interface AddToCartRequest {
