@@ -11,7 +11,7 @@ import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
 import type { Category, ShippingMethod, Province, District, Ward } from '../../types/seller';
-import { CATEGORY_SPECS, type CategoryKey } from './CategorySpecsSchema';
+import { CATEGORY_SPECS, type CategoryKey, translatePlacementType } from './CategorySpecsSchema';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
 // ============================================================================
@@ -1981,12 +1981,25 @@ const Suminputsection: React.FC = () => {
                     {isMultiSelect && <span className="text-xs text-gray-500 ml-1">(có thể chọn nhiều)</span>}
                   </label>
                   {spec.type === 'select' ? (
-                    <select value={extraSpecs[spec.key] || ''} onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors">
-                      <option value="">Chọn {spec.label.toLowerCase()}</option>
-                      {(spec.options || []).map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select 
+                        value={extraSpecs[spec.key] || ''} 
+                        onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} 
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors"
+                      >
+                        <option value="">Chọn {spec.label.toLowerCase()}</option>
+                        {(spec.options || []).map(opt => (
+                          <option key={opt} value={opt}>
+                            {spec.key === 'placementType' ? translatePlacementType(opt) : opt}
+                          </option>
+                        ))}
+                      </select>
+                      {spec.key === 'placementType' && extraSpecs[spec.key] && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          Đã chọn: <span className="font-medium text-gray-700">{translatePlacementType(extraSpecs[spec.key])}</span>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="relative">
                       <input 

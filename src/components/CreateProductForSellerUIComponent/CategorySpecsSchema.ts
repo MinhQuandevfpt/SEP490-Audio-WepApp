@@ -10,6 +10,18 @@ export interface SpecField {
   required?: boolean;
 }
 
+// Helper function to translate placementType from English to Vietnamese
+export const translatePlacementType = (value: string | null | undefined): string => {
+  if (!value) return value || '';
+  const translationMap: Record<string, string> = {
+    'Bookshelf': 'Để kệ',
+    'Floorstanding': 'Để sàn',
+    'Wall-mounted': 'Treo tường',
+    'Portable': 'Di động',
+  };
+  return translationMap[value] || value;
+};
+
 export const CATEGORY_SPECS: Record<CategoryKey, SpecField[]> = {
   'Loa': [
     // Common audio specs

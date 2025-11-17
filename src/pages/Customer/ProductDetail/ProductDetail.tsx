@@ -9,6 +9,7 @@ import TitlePrice from '../../../components/ProductDetailComponents/TitlePrice';
 import PurchaseActions from '../../../components/ProductDetailComponents/PurchaseActions';
 import ProductTabs from '../../../components/ProductDetailComponents/tabs/ProductTabs';
 import ProductVouchers from '../../../components/ProductDetailComponents/ProductVouchers';
+import { translatePlacementType } from '../../../components/CreateProductForSellerUIComponent/CategorySpecsSchema';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -146,6 +147,7 @@ const ProductDetail: React.FC = () => {
     ...(product.impedance ? [{ key: 'Trở kháng', value: product.impedance }] : []),
     ...(product.connectionType ? [{ key: 'Kết nối', value: product.connectionType }] : []),
     ...(product.warrantyPeriod ? [{ key: 'Bảo hành', value: product.warrantyPeriod }] : []),
+    ...(product.placementType ? [{ key: 'Vị trí đặt', value: translatePlacementType(product.placementType) }] : []),
   ];
 
   // Calculate price with variants and platform vouchers

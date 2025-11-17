@@ -291,175 +291,6 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
                 </div>
               </Col>
             )}
-
-            {/* Warranty Logs Section */}
-            {warranty.id && (
-              <Col xs={24}>
-                <div className="pt-3 border-t border-gray-200">
-                  {(() => {
-                    console.log('🔍 Rendering logs section for warranty:', warranty.id);
-                    console.log('📋 Warranty logs state:', { 
-                      logs: warranty.logs, 
-                      logsLoading: warranty.logsLoading, 
-                      logsLoaded: warranty.logsLoaded 
-                    });
-                    
-                    const logItems: CollapseProps['items'] = [{
-                      key: warranty.id,
-                      label: (
-                        <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-orange-500" />
-                          <span className="font-medium">Lịch sử sửa chữa</span>
-                          {warranty.logs && warranty.logs.length > 0 && (
-                            <Tag color="blue">{warranty.logs.length} yêu cầu</Tag>
-                          )}
-                        </div>
-                      ),
-                      children: warranty.logsLoading ? (
-                        <div className="py-8 text-center">
-                          <Spin size="small" />
-                          <p className="mt-2 text-sm text-gray-500">Đang tải lịch sử sửa chữa...</p>
-                        </div>
-                      ) : warranty.logs && warranty.logs.length > 0 ? (
-                        <div className="space-y-4">
-                          {warranty.logs.map((log) => {
-                            console.log('📊 Rendering log:', log.id);
-                            return (
-                              <Card
-                                key={log.id}
-                                className="border-gray-200"
-                                size="small"
-                                styles={{ body: { padding: '16px' } }}
-                              >
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                  {/* Thông tin cơ bản */}
-                                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                    <Descriptions title="Thông tin yêu cầu" size="small" column={1} bordered>
-                                      <Descriptions.Item label="Trạng thái">
-                                        <Tag color={getLogStatusColor(log.status)}>
-                                          {getLogStatusText(log.status)}
-                                        </Tag>
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Mô tả vấn đề">
-                                        {log.problemDescription || '-'}
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Bảo hành">
-                                        {log.covered === true ? (
-                                          <Tag color="green">Có</Tag>
-                                        ) : log.covered === false ? (
-                                          <Tag color="red">Không</Tag>
-                                        ) : (
-                                          <Tag>Không chắc</Tag>
-                                        )}
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Ngày tạo">
-                                        {formatDate(log.createdAt)}
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Cập nhật">
-                                        {formatDate(log.updatedAt)}
-                                      </Descriptions.Item>
-                                    </Descriptions>
-                                  </div>
-
-                                  {/* Chẩn đoán & Giải pháp */}
-                                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                    <Descriptions title="Chẩn đoán & Giải pháp" size="small" column={1} bordered>
-                                      <Descriptions.Item label="Chẩn đoán">
-                                        {log.diagnosis || <Typography.Text type="secondary">Chưa có</Typography.Text>}
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Giải pháp">
-                                        {log.resolution || <Typography.Text type="secondary">Chưa có</Typography.Text>}
-                                      </Descriptions.Item>
-                                      {log.shipBackTracking && (
-                                        <Descriptions.Item label="Mã vận đơn">
-                                          <Typography.Text code>{log.shipBackTracking}</Typography.Text>
-                                        </Descriptions.Item>
-                                      )}
-                                    </Descriptions>
-                                  </div>
-
-                                  {/* Chi phí */}
-                                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                    <Descriptions title="Chi phí" size="small" column={1} bordered>
-                                      <Descriptions.Item label="Nhân công">
-                                        {log.costLabor ? formatCurrency(log.costLabor) : '-'}
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Linh kiện">
-                                        {log.costParts ? formatCurrency(log.costParts) : '-'}
-                                      </Descriptions.Item>
-                                      <Descriptions.Item label="Tổng cộng">
-                                        {log.costTotal ? (
-                                          <Typography.Text strong className="text-orange-600">
-                                            {formatCurrency(log.costTotal)}
-                                          </Typography.Text>
-                                        ) : (
-                                          '-'
-                                        )}
-                                      </Descriptions.Item>
-                                    </Descriptions>
-                                  </div>
-                                </div>
-
-                                {/* Hình ảnh đính kèm */}
-                                {log.attachmentUrls && log.attachmentUrls.length > 0 && (
-                                  <>
-                                    <Divider className="my-3" />
-                                    <div>
-                                      <Typography.Text strong className="text-sm mb-2 block">Hình ảnh đính kèm ({log.attachmentUrls.length})</Typography.Text>
-                                      <div className="grid grid-cols-5 gap-2">
-                                        {log.attachmentUrls.map((url, index) => (
-                                          <Image
-                                            key={index}
-                                            src={url}
-                                            alt={`Attachment ${index + 1}`}
-                                            className="rounded-lg border border-gray-200"
-                                            width={80}
-                                            height={80}
-                                            preview={{
-                                              mask: 'Xem ảnh',
-                                            }}
-                                          />
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </>
-                                )}
-                              </Card>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="py-8 text-center">
-                          <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
-                            description={
-                              <div>
-                                <p className="text-gray-600 font-medium mb-1">Chưa có lịch sử sửa chữa</p>
-                                <p className="text-sm text-gray-400">Chưa có yêu cầu sửa chữa nào cho sản phẩm này</p>
-                              </div>
-                            }
-                          />
-                        </div>
-                      ),
-                    }];
-
-                    return (
-                      <Collapse
-                        activeKey={expandedLogKeys.includes(warranty.id) ? [warranty.id] : []}
-                        onChange={handleLogsCollapseChange}
-                        ghost
-                        items={logItems}
-                        expandIcon={({ isActive }) => (
-                          <ChevronDown 
-                            className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'rotate-180' : ''}`} 
-                          />
-                        )}
-                      />
-                    );
-                  })()}
-                </div>
-              </Col>
-            )}
           </Row>
         ),
         className: `mb-2 ${
@@ -572,6 +403,172 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
                   background: 'transparent',
                 }}
               />
+            </div>
+          )}
+
+          {/* Warranty Logs Section - Separate from warranty info */}
+          {hasWarranties && warrantiesWithLogs.some(w => w.id) && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <Typography.Text strong className="text-sm text-gray-700 mb-3 block">
+                Lịch sử sửa chữa
+              </Typography.Text>
+              <div className="space-y-4">
+                {warrantiesWithLogs
+                  .filter(w => w.id) // Only show logs for activated warranties
+                  .map((warranty) => {
+                    const logItems: CollapseProps['items'] = [{
+                      key: warranty.id!,
+                      label: (
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-orange-500" />
+                          <span className="font-medium">{warranty.productName}</span>
+                          {warranty.logs && warranty.logs.length > 0 && (
+                            <Tag color="blue">{warranty.logs.length} yêu cầu</Tag>
+                          )}
+                        </div>
+                      ),
+                      children: warranty.logsLoading ? (
+                        <div className="py-8 text-center">
+                          <Spin size="small" />
+                          <p className="mt-2 text-sm text-gray-500">Đang tải lịch sử sửa chữa...</p>
+                        </div>
+                      ) : warranty.logs && warranty.logs.length > 0 ? (
+                        <div className="space-y-4">
+                          {warranty.logs.map((log) => (
+                            <Card
+                              key={log.id}
+                              className="border-gray-200"
+                              size="small"
+                              styles={{ body: { padding: '16px' } }}
+                            >
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                {/* Thông tin cơ bản */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                  <Descriptions title="Thông tin yêu cầu" size="small" column={1} bordered>
+                                    <Descriptions.Item label="Trạng thái">
+                                      <Tag color={getLogStatusColor(log.status)}>
+                                        {getLogStatusText(log.status)}
+                                      </Tag>
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Mô tả vấn đề">
+                                      {log.problemDescription || '-'}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Bảo hành">
+                                      {log.covered === true ? (
+                                        <Tag color="green">Có</Tag>
+                                      ) : log.covered === false ? (
+                                        <Tag color="red">Không</Tag>
+                                      ) : (
+                                        <Tag>Không chắc</Tag>
+                                      )}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Ngày tạo">
+                                      {formatDate(log.createdAt)}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Cập nhật">
+                                      {formatDate(log.updatedAt)}
+                                    </Descriptions.Item>
+                                  </Descriptions>
+                                </div>
+
+                                {/* Chẩn đoán & Giải pháp */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                  <Descriptions title="Chẩn đoán & Giải pháp" size="small" column={1} bordered>
+                                    <Descriptions.Item label="Chẩn đoán">
+                                      {log.diagnosis || <Typography.Text type="secondary">Chưa có</Typography.Text>}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Giải pháp">
+                                      {log.resolution || <Typography.Text type="secondary">Chưa có</Typography.Text>}
+                                    </Descriptions.Item>
+                                    {log.shipBackTracking && (
+                                      <Descriptions.Item label="Mã vận đơn">
+                                        <Typography.Text code>{log.shipBackTracking}</Typography.Text>
+                                      </Descriptions.Item>
+                                    )}
+                                  </Descriptions>
+                                </div>
+
+                                {/* Chi phí */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                                  <Descriptions title="Chi phí" size="small" column={1} bordered>
+                                    <Descriptions.Item label="Nhân công">
+                                      {log.costLabor ? formatCurrency(log.costLabor) : '-'}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Linh kiện">
+                                      {log.costParts ? formatCurrency(log.costParts) : '-'}
+                                    </Descriptions.Item>
+                                    <Descriptions.Item label="Tổng cộng">
+                                      {log.costTotal ? (
+                                        <Typography.Text strong className="text-orange-600">
+                                          {formatCurrency(log.costTotal)}
+                                        </Typography.Text>
+                                      ) : (
+                                        '-'
+                                      )}
+                                    </Descriptions.Item>
+                                  </Descriptions>
+                                </div>
+                              </div>
+
+                              {/* Hình ảnh đính kèm */}
+                              {log.attachmentUrls && log.attachmentUrls.length > 0 && (
+                                <>
+                                  <Divider className="my-3" />
+                                  <div>
+                                    <Typography.Text strong className="text-sm mb-2 block">Hình ảnh đính kèm ({log.attachmentUrls.length})</Typography.Text>
+                                    <div className="grid grid-cols-5 gap-2">
+                                      {log.attachmentUrls.map((url, index) => (
+                                        <Image
+                                          key={index}
+                                          src={url}
+                                          alt={`Attachment ${index + 1}`}
+                                          className="rounded-lg border border-gray-200"
+                                          width={80}
+                                          height={80}
+                                          preview={{
+                                            mask: 'Xem ảnh',
+                                          }}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center">
+                          <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description={
+                              <div>
+                                <p className="text-gray-600 font-medium mb-1">Chưa có lịch sử sửa chữa</p>
+                                <p className="text-sm text-gray-400">Chưa có yêu cầu sửa chữa nào cho sản phẩm này</p>
+                              </div>
+                            }
+                          />
+                        </div>
+                      ),
+                    }];
+
+                    return (
+                      <Collapse
+                        key={warranty.id}
+                        activeKey={expandedLogKeys.includes(warranty.id!) ? [warranty.id!] : []}
+                        onChange={handleLogsCollapseChange}
+                        ghost
+                        items={logItems}
+                        expandIcon={({ isActive }) => (
+                          <ChevronDown 
+                            className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'rotate-180' : ''}`} 
+                          />
+                        )}
+                        className="mb-2"
+                      />
+                    );
+                  })}
+              </div>
             </div>
           )}
 

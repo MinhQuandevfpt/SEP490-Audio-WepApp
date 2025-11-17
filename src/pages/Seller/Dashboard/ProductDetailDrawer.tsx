@@ -5,6 +5,7 @@ import type { Product } from '../../../types/seller';
 import { useProvinces } from '../../../hooks/useProvinces';
 import { useDistricts } from '../../../hooks/useDistricts';
 import { useWards } from '../../../hooks/useWards';
+import { translatePlacementType } from '../../../components/CreateProductForSellerUIComponent/CategorySpecsSchema';
 
 interface ProductDetailDrawerProps {
   productId: string | null;
@@ -406,6 +407,7 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   {product.driverSize && <SpecItem label="Kích thước driver" value={product.driverSize} />}
                   {product.enclosureType && <SpecItem label="Kiểu vỏ" value={product.enclosureType} />}
                   {product.crossoverFrequency && <SpecItem label="Tần số crossover" value={product.crossoverFrequency} />}
+                  {product.placementType && <SpecItem label="Vị trí đặt" value={translatePlacementType(product.placementType)} />}
                   
                   {/* Headphone specs */}
                   {product.headphoneType && <SpecItem label="Loại tai nghe" value={product.headphoneType} />}
