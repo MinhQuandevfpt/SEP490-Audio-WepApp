@@ -48,6 +48,7 @@ import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
+import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
 import StaffList from '../pages/Seller/StaffList/StaffList';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
@@ -346,6 +347,10 @@ export const router = createBrowserRouter([
       {
         path: 'finance',
         element: <FinancePage />
+      },
+      {
+        path: 'store-address',
+        element: <StoreAddressPage />
       },
       {
         path: 'finance/revenue',

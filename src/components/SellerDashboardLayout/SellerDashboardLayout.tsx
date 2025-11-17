@@ -19,7 +19,8 @@ import {
   FileText,
   Tag,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  MapPin
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -128,6 +129,12 @@ const SellerDashboardLayout: React.FC = () => {
       icon: Wallet,
       label: 'Tài chính',
       path: '/seller/dashboard/finance',
+      badge: null,
+    },
+    {
+      icon: MapPin,
+      label: 'Địa chỉ cửa hàng',
+      path: '/seller/dashboard/store-address',
       badge: null,
     },
     {

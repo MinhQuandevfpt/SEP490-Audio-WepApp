@@ -866,3 +866,27 @@ export interface WalletInfo {
 }
 
 export interface WalletInfoResponse extends ApiResponse<WalletInfo> {}
+
+// Store Address Types
+export interface StoreAddress {
+  id: string;
+  defaultAddress: boolean;
+  provinceCode: string;
+  districtCode: string;
+  wardCode: string;
+  address: string;
+  addressLocation: string; // Format: "latitude,longitude"
+}
+
+export interface StoreAddressListResponse extends ApiResponse<StoreAddress[]> {}
+
+export interface CreateStoreAddressRequest {
+  defaultAddress: boolean;
+  provinceCode: string;
+  districtCode: string;
+  wardCode: string;
+  address: string;
+  addressLocation?: string; // Format: "latitude,longitude" (optional)
+}
+
+export interface CreateStoreAddressResponse extends ApiResponse<StoreAddress[]> {}

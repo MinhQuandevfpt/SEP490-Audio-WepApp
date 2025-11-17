@@ -10,7 +10,8 @@ import { ProductService } from '../../services/seller/ProductService';
 import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
-import type { Category, ShippingMethod, Province, District, Ward } from '../../types/seller';
+import { StoreAddressService } from '../../services/seller/StoreAddressService';
+import type { Category, ShippingMethod, Province, District, Ward, StoreAddress } from '../../types/seller';
 import { CATEGORY_SPECS, type CategoryKey, translatePlacementType } from './CategorySpecsSchema';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
@@ -266,6 +267,98 @@ const Suminputsection: React.FC = () => {
     };
     loadData();
   }, []);
+
+  // State to track default address loading
+  const [defaultAddressLoaded, setDefaultAddressLoaded] = useState(false);
+  const [pendingDefaultAddress, setPendingDefaultAddress] = useState<StoreAddress | null>(null);
+
+  // Load default store address
+  useEffect(() => {
+    const loadDefaultStoreAddress = async () => {
+      try {
+        // Only load if provinces are available and form is empty and not already loaded
+        if (provinces.length === 0 || form.provinceCode || defaultAddressLoaded) {
+          return;
+        }
+
+        const addresses = await StoreAddressService.getStoreAddresses();
+        const defaultAddress = addresses?.find(addr => addr.defaultAddress === true);
+
+        if (!defaultAddress) {
+          setDefaultAddressLoaded(true);
+          return;
+        }
+
+        // Find province by Code
+        const province = provinces.find(p => p.Code === defaultAddress.provinceCode);
+        if (!province) {
+          setDefaultAddressLoaded(true);
+          return;
+        }
+
+        // Store pending address for later processing
+        setPendingDefaultAddress(defaultAddress);
+
+        // Set province first (this will trigger districts loading via hook)
+        setSelectedProvince(province);
+        setForm(prev => ({
+          ...prev,
+          provinceCode: province.ProvinceID.toString()
+        }));
+
+        // Parse address to get warehouse location (số nhà và tên đường)
+        // Address format: "số nhà tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
+        const addressParts = defaultAddress.address.split(',').map(s => s.trim());
+        const warehouseLocation = addressParts[0] || defaultAddress.address;
+        
+        setForm(prev => ({
+          ...prev,
+          warehouseLocation: warehouseLocation
+        }));
+      } catch (error: any) {
+        console.error('Error loading default store address:', error);
+        setDefaultAddressLoaded(true);
+        // Silently fail - user can still manually select
+      }
+    };
+
+    loadDefaultStoreAddress();
+  }, [provinces, form.provinceCode, defaultAddressLoaded]);
+
+  // When districts are loaded, find and set district from pending default address
+  useEffect(() => {
+    if (!pendingDefaultAddress || !selectedProvince || districtsLoading || districts.length === 0) {
+      return;
+    }
+
+    const district = districts.find(d => d.Code === pendingDefaultAddress.districtCode);
+    if (district) {
+      setSelectedDistrict(district);
+      setForm(prev => ({
+        ...prev,
+        districtCode: district.DistrictID.toString()
+      }));
+    }
+  }, [districts, districtsLoading, pendingDefaultAddress, selectedProvince]);
+
+  // When wards are loaded, find and set ward from pending default address
+  useEffect(() => {
+    if (!pendingDefaultAddress || !selectedDistrict || wardsLoading || wards.length === 0) {
+      return;
+    }
+
+    const ward = wards.find(w => w.WardCode === pendingDefaultAddress.wardCode);
+    if (ward) {
+      setSelectedWard(ward);
+      setForm(prev => ({
+        ...prev,
+        wardCode: ward.WardCode
+      }));
+      // Mark as loaded after setting ward
+      setDefaultAddressLoaded(true);
+      setPendingDefaultAddress(null);
+    }
+  }, [wards, wardsLoading, pendingDefaultAddress, selectedDistrict]);
 
   // Reload shipping methods without showing success popup
   const reloadShippingMethods = async () => {
@@ -1458,9 +1551,9 @@ const Suminputsection: React.FC = () => {
                 <button
                   type="button"
                   onClick={toggleProvinceDropdown}
-                  disabled={provincesLoading}
+                  disabled={provincesLoading || defaultAddressLoaded}
                   className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
-                    provincesLoading 
+                    provincesLoading || defaultAddressLoaded
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedProvince 
                         ? 'border-gray-300 bg-white' 
@@ -1477,7 +1570,7 @@ const Suminputsection: React.FC = () => {
                       }
                     </span>
                     <div className="flex items-center gap-2">
-                      {selectedProvince && (
+                      {selectedProvince && !defaultAddressLoaded && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1502,7 +1595,7 @@ const Suminputsection: React.FC = () => {
                 </button>
 
                 {/* Province Dropdown */}
-                {showProvinceDropdown && !provincesLoading && (
+                {showProvinceDropdown && !provincesLoading && !defaultAddressLoaded && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-200">
@@ -1571,9 +1664,9 @@ const Suminputsection: React.FC = () => {
                 <button
                   type="button"
                   onClick={toggleDistrictDropdown}
-                  disabled={districtsLoading || !selectedProvince}
+                  disabled={districtsLoading || !selectedProvince || defaultAddressLoaded}
                   className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors ${
-                    districtsLoading || !selectedProvince
+                    districtsLoading || !selectedProvince || defaultAddressLoaded
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedDistrict 
                         ? 'border-gray-300 bg-white' 
@@ -1592,7 +1685,7 @@ const Suminputsection: React.FC = () => {
                       }
                     </span>
                     <div className="flex items-center gap-2">
-                      {selectedDistrict && (
+                      {selectedDistrict && !defaultAddressLoaded && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1617,7 +1710,7 @@ const Suminputsection: React.FC = () => {
                 </button>
 
                 {/* District Dropdown */}
-                {showDistrictDropdown && !districtsLoading && selectedProvince && (
+                {showDistrictDropdown && !districtsLoading && selectedProvince && !defaultAddressLoaded && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-200">
@@ -1686,9 +1779,9 @@ const Suminputsection: React.FC = () => {
                 <button
                   type="button"
                   onClick={toggleWardDropdown}
-                  disabled={wardsLoading || !selectedDistrict}
+                  disabled={wardsLoading || !selectedDistrict || defaultAddressLoaded}
                   className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors ${
-                    wardsLoading || !selectedDistrict
+                    wardsLoading || !selectedDistrict || defaultAddressLoaded
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedWard 
                         ? 'border-gray-300 bg-white' 
@@ -1707,7 +1800,7 @@ const Suminputsection: React.FC = () => {
                       }
                     </span>
                     <div className="flex items-center gap-2">
-                      {selectedWard && (
+                      {selectedWard && !defaultAddressLoaded && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1732,7 +1825,7 @@ const Suminputsection: React.FC = () => {
                 </button>
 
                 {/* Ward Dropdown */}
-                {showWardDropdown && !wardsLoading && selectedDistrict && (
+                {showWardDropdown && !wardsLoading && selectedDistrict && !defaultAddressLoaded && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-200">
@@ -1804,7 +1897,10 @@ const Suminputsection: React.FC = () => {
                 onChange={onChange} 
                 type="text" 
                 placeholder="VD: 123/5F, đường Nguyễn Huệ"
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors"
+                disabled={defaultAddressLoaded}
+                className={`mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors ${
+                  defaultAddressLoaded ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
               />
               <p className="mt-1 text-xs text-gray-500">Nhập số nhà, tên đường để xác định địa điểm xuất kho.</p>
             </div>
