@@ -8,7 +8,6 @@ import {
   Empty,
   Spin,
   Button,
-  Descriptions,
   Space,
   Modal,
   Form,
@@ -190,125 +189,152 @@ const StoreAddressPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <MapPin className="w-8 h-8 text-orange-600" />
-            <Title level={2} className="!mb-0">
-              Địa chỉ cửa hàng
-            </Title>
+      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border border-orange-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
+              <MapPin className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <Title level={2} className="!mb-1 !text-gray-800">
+                Địa chỉ cửa hàng
+              </Title>
+              <Text type="secondary" className="text-sm">
+                Quản lý địa chỉ cửa hàng của bạn
+              </Text>
+            </div>
           </div>
-          <Space>
+          <Space size="middle" className="flex-wrap">
             <Button
               type="primary"
               icon={<Plus className="w-4 h-4" />}
               onClick={handleOpenModal}
+              size="large"
               style={{
                 backgroundColor: '#ea580c',
                 borderColor: '#ea580c',
+                height: '40px',
+                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)',
               }}
-              className="hover:!bg-orange-700 hover:!border-orange-700"
+              className="hover:!bg-orange-600 hover:!border-orange-600 hover:!shadow-lg transition-all"
             >
-              Thêm địa chỉ cửa hàng
+              Thêm địa chỉ
             </Button>
             <Button
               icon={<RefreshCw className="w-4 h-4" />}
               onClick={refresh}
               loading={isLoading}
+              size="large"
+              className="border-gray-300 hover:border-orange-500 hover:text-orange-500 transition-all"
             >
               Làm mới
             </Button>
           </Space>
         </div>
-        <Text type="secondary">Quản lý địa chỉ cửa hàng của bạn</Text>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 rounded-lg border border-red-200 bg-red-50">
-          <Text type="danger">{error}</Text>
+        <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+            <Text type="danger" className="font-medium">{error}</Text>
+          </div>
         </div>
       )}
 
       {/* Addresses List */}
       {isLoading && addresses.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="py-16 text-center bg-white rounded-2xl border border-gray-200">
           <Spin size="large" />
-          <div className="mt-4 text-gray-500">Đang tải địa chỉ...</div>
+          <div className="mt-4 text-gray-500 font-medium">Đang tải địa chỉ...</div>
         </div>
       ) : addresses.length === 0 ? (
-        <Card>
+        <Card className="rounded-2xl border-gray-200 shadow-sm">
           <Empty
-            description="Chưa có địa chỉ cửa hàng"
+            description={
+              <div>
+                <p className="text-gray-600 font-medium mb-1">Chưa có địa chỉ cửa hàng</p>
+                <p className="text-sm text-gray-400">Hãy thêm địa chỉ đầu tiên để bắt đầu</p>
+              </div>
+            }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </Card>
       ) : (
-        <Row gutter={[16, 16]}>
+        <Row gutter={[20, 20]}>
           {addresses.map((address) => {
             return (
               <Col xs={24} sm={24} lg={12} key={address.id}>
                 <Card
-                  className="h-full"
+                  className="h-full rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:border-orange-300"
                   styles={{
-                    body: { padding: '24px' },
+                    body: { padding: '28px' },
                   }}
                 >
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <Home className="w-5 h-5 text-orange-600" />
-                        <Text strong className="text-lg">
-                          Địa chỉ cửa hàng
-                        </Text>
-                        {address.defaultAddress && (
-                          <Tag color="green">Mặc định</Tag>
-                        )}
+                    <div className="flex items-start justify-between pb-4 border-b border-gray-100">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          address.defaultAddress 
+                            ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-md' 
+                            : 'bg-gradient-to-br from-gray-100 to-gray-200'
+                        }`}>
+                          <Home className={`w-5 h-5 ${
+                            address.defaultAddress ? 'text-white' : 'text-gray-600'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Text strong className="text-base text-gray-800 block mb-1">
+                            Địa chỉ cửa hàng
+                          </Text>
+                          {address.defaultAddress && (
+                            <Tag 
+                              color="success" 
+                              className="mt-1 rounded-full px-3 py-0.5 border-0"
+                              style={{ 
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                fontWeight: 500,
+                              }}
+                            >
+                              Mặc định
+                            </Tag>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     {/* Address Details */}
-                    <Descriptions
-                      column={1}
-                      size="small"
-                      bordered
-                      labelStyle={{
-                        backgroundColor: '#fafafa',
-                        fontWeight: 500,
-                        width: '120px',
-                      }}
-                    >
-                      <Descriptions.Item label="Địa chỉ">
-                        <Text>{address.address}</Text>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Mã tỉnh/thành">
-                        <Text code>{address.provinceCode}</Text>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Mã quận/huyện">
-                        <Text code>{address.districtCode}</Text>
-                      </Descriptions.Item>
-                      <Descriptions.Item label="Mã phường/xã">
-                        <Text code>{address.wardCode}</Text>
-                      </Descriptions.Item>
-                    </Descriptions>
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                        <Text className="text-gray-700 leading-relaxed text-[15px]">
+                          {address.address}
+                        </Text>
+                      </div>
+                    </div>
 
                     {/* Actions */}
-                    <div className="pt-2 border-t border-gray-200">
-                      <Space direction="vertical" className="w-full" size="small">
+                    <div className="pt-3 border-t border-gray-100">
+                      <Space direction="vertical" className="w-full" size="middle">
                         {!address.defaultAddress && (
                           <Button
                             type="default"
                             icon={<Star className="w-4 h-4" />}
                             onClick={() => handleSetDefaultAddress(address.id)}
                             block
+                            size="large"
                             style={{
                               borderColor: '#ea580c',
                               color: '#ea580c',
+                              height: '42px',
+                              fontWeight: 500,
                             }}
-                            className="hover:!border-orange-600 hover:!text-orange-600"
+                            className="hover:!border-orange-600 hover:!text-orange-600 hover:!bg-orange-50 transition-all"
                           >
-                            Đặt địa chỉ mặc định
+                            Đặt làm mặc định
                           </Button>
                         )}
                         <Button
@@ -317,6 +343,12 @@ const StoreAddressPage: React.FC = () => {
                           icon={<Trash2 className="w-4 h-4" />}
                           onClick={() => handleDeleteAddress(address.id)}
                           block
+                          size="large"
+                          style={{
+                            height: '42px',
+                            fontWeight: 500,
+                          }}
+                          className="hover:!bg-red-50 transition-all"
                         >
                           Xóa địa chỉ
                         </Button>
@@ -333,16 +365,34 @@ const StoreAddressPage: React.FC = () => {
       {/* Add Address Modal */}
       <Modal
         title={
-          <div className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-orange-600" />
-            <span>Thêm địa chỉ cửa hàng</span>
+          <div className="flex items-center gap-3 py-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+              <Plus className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="text-lg font-semibold text-gray-800">Thêm địa chỉ cửa hàng</div>
+              <div className="text-xs text-gray-500 font-normal">Nhập thông tin địa chỉ mới</div>
+            </div>
           </div>
         }
         open={isModalVisible}
         onCancel={handleCloseModal}
         footer={null}
-        width={600}
+        width={640}
         destroyOnClose
+        styles={{
+          content: {
+            borderRadius: '16px',
+          },
+          header: {
+            borderBottom: '1px solid #f0f0f0',
+            padding: '20px 24px',
+            marginBottom: 0,
+          },
+          body: {
+            padding: '24px',
+          },
+        }}
       >
         <Form
           form={form}
@@ -351,9 +401,10 @@ const StoreAddressPage: React.FC = () => {
           initialValues={{
             defaultAddress: false,
           }}
+          className="mt-2"
         >
           <Form.Item
-            label="Tỉnh/Thành phố"
+            label={<span className="font-medium text-gray-700">Tỉnh/Thành phố</span>}
             name="provinceId"
             rules={[{ required: true, message: 'Vui lòng chọn tỉnh/thành phố' }]}
           >
@@ -361,6 +412,8 @@ const StoreAddressPage: React.FC = () => {
               placeholder="Chọn tỉnh/thành phố"
               loading={provincesLoading}
               showSearch
+              size="large"
+              className="rounded-lg"
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
@@ -373,7 +426,7 @@ const StoreAddressPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            label="Quận/Huyện"
+            label={<span className="font-medium text-gray-700">Quận/Huyện</span>}
             name="districtId"
             rules={[{ required: true, message: 'Vui lòng chọn quận/huyện' }]}
           >
@@ -382,6 +435,8 @@ const StoreAddressPage: React.FC = () => {
               loading={districtsLoading}
               disabled={!selectedProvinceId}
               showSearch
+              size="large"
+              className="rounded-lg"
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
@@ -394,7 +449,7 @@ const StoreAddressPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            label="Phường/Xã"
+            label={<span className="font-medium text-gray-700">Phường/Xã</span>}
             name="wardCode"
             rules={[{ required: true, message: 'Vui lòng chọn phường/xã' }]}
           >
@@ -403,6 +458,8 @@ const StoreAddressPage: React.FC = () => {
               loading={wardsLoading}
               disabled={!selectedDistrictId}
               showSearch
+              size="large"
+              className="rounded-lg"
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
@@ -415,46 +472,61 @@ const StoreAddressPage: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            label="Số nhà và tên đường"
+            label={<span className="font-medium text-gray-700">Số nhà và tên đường</span>}
             name="address"
             rules={[
               { required: true, message: 'Vui lòng nhập số nhà và tên đường' },
               { min: 5, message: 'Địa chỉ phải có ít nhất 5 ký tự' },
             ]}
-            extra="Chỉ nhập số nhà và tên đường (ví dụ: 123 Nguyễn Trãi)"
+            extra={
+              <span className="text-xs text-gray-500">
+                Chỉ nhập số nhà và tên đường (ví dụ: 123 Nguyễn Trãi)
+              </span>
+            }
           >
             <Input
               placeholder="Ví dụ: 123 Nguyễn Trãi"
               showCount
               maxLength={100}
+              size="large"
+              className="rounded-lg"
             />
           </Form.Item>
 
           <Form.Item
             name="defaultAddress"
             valuePropName="checked"
+            className="mb-6"
           >
-            <Checkbox>Đặt làm địa chỉ mặc định</Checkbox>
+            <Checkbox className="text-gray-700">
+              <span className="font-medium">Đặt làm địa chỉ mặc định</span>
+            </Checkbox>
           </Form.Item>
 
           <Form.Item className="mb-0">
-            <Space className="w-full justify-end">
-              <Button onClick={handleCloseModal}>
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <Button 
+                onClick={handleCloseModal}
+                size="large"
+                className="px-6 rounded-lg"
+              >
                 Hủy
               </Button>
               <Button
                 type="primary"
                 htmlType="submit"
                 loading={isSubmitting}
+                size="large"
                 style={{
                   backgroundColor: '#ea580c',
                   borderColor: '#ea580c',
+                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)',
                 }}
-                className="hover:!bg-orange-700 hover:!border-orange-700"
+                className="hover:!bg-orange-600 hover:!border-orange-600 hover:!shadow-lg transition-all px-6 rounded-lg"
               >
                 Thêm địa chỉ
               </Button>
-            </Space>
+            </div>
           </Form.Item>
         </Form>
       </Modal>

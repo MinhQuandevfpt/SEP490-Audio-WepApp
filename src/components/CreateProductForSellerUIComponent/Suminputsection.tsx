@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import SectionCard from './SectionCard';
@@ -271,59 +271,78 @@ const Suminputsection: React.FC = () => {
   // State to track default address loading
   const [defaultAddressLoaded, setDefaultAddressLoaded] = useState(false);
   const [pendingDefaultAddress, setPendingDefaultAddress] = useState<StoreAddress | null>(null);
+  const [addressReloading, setAddressReloading] = useState(false);
 
-  // Load default store address
-  useEffect(() => {
-    const loadDefaultStoreAddress = async () => {
-      try {
-        // Only load if provinces are available and form is empty and not already loaded
-        if (provinces.length === 0 || form.provinceCode || defaultAddressLoaded) {
-          return;
-        }
-
-        const addresses = await StoreAddressService.getStoreAddresses();
-        const defaultAddress = addresses?.find(addr => addr.defaultAddress === true);
-
-        if (!defaultAddress) {
-          setDefaultAddressLoaded(true);
-          return;
-        }
-
-        // Find province by Code
-        const province = provinces.find(p => p.Code === defaultAddress.provinceCode);
-        if (!province) {
-          setDefaultAddressLoaded(true);
-          return;
-        }
-
-        // Store pending address for later processing
-        setPendingDefaultAddress(defaultAddress);
-
-        // Set province first (this will trigger districts loading via hook)
-        setSelectedProvince(province);
-        setForm(prev => ({
-          ...prev,
-          provinceCode: province.ProvinceID.toString()
-        }));
-
-        // Parse address to get warehouse location (số nhà và tên đường)
-        // Address format: "số nhà tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
-        const addressParts = defaultAddress.address.split(',').map(s => s.trim());
-        const warehouseLocation = addressParts[0] || defaultAddress.address;
-        
-        setForm(prev => ({
-          ...prev,
-          warehouseLocation: warehouseLocation
-        }));
-      } catch (error: any) {
-        console.error('Error loading default store address:', error);
-        setDefaultAddressLoaded(true);
-        // Silently fail - user can still manually select
+  // Function to load and set default store address
+  const loadAndSetDefaultAddress = useCallback(async (forceReload: boolean = false) => {
+    try {
+      // Only load if provinces are available
+      if (provinces.length === 0) {
+        return;
       }
-    };
 
-    loadDefaultStoreAddress();
+      // Skip if already loaded and not forcing reload
+      if (!forceReload && (form.provinceCode || defaultAddressLoaded)) {
+        return;
+      }
+
+      const addresses = await StoreAddressService.getStoreAddresses();
+      const defaultAddress = addresses?.find(addr => addr.defaultAddress === true);
+
+      if (!defaultAddress) {
+        if (forceReload) {
+          showCenterError('Không tìm thấy địa chỉ mặc định của cửa hàng', 'Thông báo');
+        }
+        setDefaultAddressLoaded(true);
+        return;
+      }
+
+      // Find province by Code
+      const province = provinces.find(p => p.Code === defaultAddress.provinceCode);
+      if (!province) {
+        if (forceReload) {
+          showCenterError('Không tìm thấy tỉnh/thành phố tương ứng', 'Lỗi');
+        }
+        setDefaultAddressLoaded(true);
+        return;
+      }
+
+      // Store pending address for later processing
+      setPendingDefaultAddress(defaultAddress);
+
+      // Set province first (this will trigger districts loading via hook)
+      setSelectedProvince(province);
+      setForm(prev => ({
+        ...prev,
+        provinceCode: province.ProvinceID.toString()
+      }));
+
+      // Parse address to get warehouse location (số nhà và tên đường)
+      // Address format: "số nhà tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
+      const addressParts = defaultAddress.address.split(',').map(s => s.trim());
+      const warehouseLocation = addressParts[0] || defaultAddress.address;
+      
+      setForm(prev => ({
+        ...prev,
+        warehouseLocation: warehouseLocation
+      }));
+
+      if (forceReload) {
+        showCenterSuccess('Đã tải lại địa chỉ kho mặc định', 'Thành công');
+      }
+    } catch (error: any) {
+      console.error('Error loading default store address:', error);
+      if (forceReload) {
+        showCenterError(error?.message || 'Không thể tải lại địa chỉ kho', 'Lỗi');
+      }
+      setDefaultAddressLoaded(true);
+    }
   }, [provinces, form.provinceCode, defaultAddressLoaded]);
+
+  // Load default store address on mount
+  useEffect(() => {
+    loadAndSetDefaultAddress(false);
+  }, [loadAndSetDefaultAddress]);
 
   // When districts are loaded, find and set district from pending default address
   useEffect(() => {
@@ -371,6 +390,35 @@ const Suminputsection: React.FC = () => {
       showCenterError('Không thể tải lại phương thức vận chuyển');
     } finally {
       setShippingLoading(false);
+    }
+  };
+
+  // Reload default store address and set to form
+  const reloadDefaultAddress = async () => {
+    try {
+      setAddressReloading(true);
+      
+      // Reset states
+      setDefaultAddressLoaded(false);
+      setPendingDefaultAddress(null);
+      setSelectedProvince(null);
+      setSelectedDistrict(null);
+      setSelectedWard(null);
+      setForm(prev => ({
+        ...prev,
+        provinceCode: '',
+        districtCode: '',
+        wardCode: '',
+        warehouseLocation: '',
+      }));
+
+      // Load and set default address (force reload)
+      await loadAndSetDefaultAddress(true);
+    } catch (error: any) {
+      console.error('Error reloading default store address:', error);
+      showCenterError(error?.message || 'Không thể tải lại địa chỉ kho', 'Lỗi');
+    } finally {
+      setAddressReloading(false);
     }
   };
 
@@ -1542,6 +1590,22 @@ const Suminputsection: React.FC = () => {
         <div className="space-y-5">
           {/* Warehouse & Location */}
           <div className=" border border-gray-200 rounded-xl p-4">
+            {/* Header with reload button */}
+            <div className="flex items-center justify-between mb-4">
+              <label className="block text-sm font-semibold text-gray-800">Địa chỉ kho <span className="text-red-500">*</span></label>
+              <button
+                type="button"
+                onClick={reloadDefaultAddress}
+                disabled={addressReloading || provincesLoading}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-300"
+                title="Tải lại địa chỉ kho mặc định"
+              >
+                <RefreshCw 
+                  className={`h-4 w-4 text-gray-600 ${addressReloading ? 'animate-spin' : ''}`} 
+                />
+                <span className="text-gray-700">Tải lại địa chỉ</span>
+              </button>
+            </div>
             {/* Thứ tự mới: Tỉnh/Thành phố -> Quận/Huyện -> Phường/Xã -> Địa chỉ kho */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
