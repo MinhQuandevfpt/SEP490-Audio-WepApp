@@ -5,7 +5,7 @@
 
 import { HttpInterceptor } from '../HttpInterceptor';
 import { StoreService } from './StoreService';
-import type { ApiResponse, Warranty, WarrantyLog, WarrantyLogListResponse, WarrantyLogStatus } from '../../types/api';
+import type { ApiResponse, Warranty, WarrantyLog, WarrantyLogListResponse, WarrantyLogStatus, UpdateWarrantyLogRequest } from '../../types/api';
 
 export class SellerWarrantyService {
   /**
@@ -145,6 +145,41 @@ export class SellerWarrantyService {
     } catch (error: any) {
       console.error('❌ Error fetching warranty logs:', error);
       throw new Error(error?.message || 'Không thể tải lịch sử sửa chữa');
+    }
+  }
+
+  /**
+   * Update a warranty log status and details
+   * PATCH /api/warranties/logs/{logId}?status={status}
+   */
+  static async updateWarrantyLog(
+    logId: string,
+    status: WarrantyLogStatus,
+    payload: UpdateWarrantyLogRequest = {}
+  ): Promise<WarrantyLog> {
+    try {
+      const endpoint = `/api/warranties/logs/${logId}?status=${status}`;
+
+      const response = await HttpInterceptor.patch<ApiResponse<WarrantyLog>>(
+        endpoint,
+        payload,
+        {
+          userType: 'seller',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (response.status !== 200) {
+        throw new Error(response.message || 'Cập nhật log bảo hành thất bại');
+      }
+
+      return response.data!;
+    } catch (error: any) {
+      console.error('❌ Error updating warranty log:', error);
+      throw new Error(error?.message || 'Không thể cập nhật log bảo hành');
     }
   }
 }

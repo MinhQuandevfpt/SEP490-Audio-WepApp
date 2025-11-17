@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Card, Empty, Spin, Typography, Button, Pagination, Tag, Space, Row, Col, Input, Modal, Form, Upload, Radio, Collapse, Descriptions, Divider, Image } from 'antd';
+import { Card, Empty, Spin, Typography, Button, Pagination, Tag, Space, Row, Col, Input, Modal, Form, Upload, Radio, Descriptions, Divider, Image } from 'antd';
 import { SearchOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
-import { Shield, Wrench, Calendar, Store, Package, FileText, ChevronDown } from 'lucide-react';
+import { Shield, Wrench, Calendar, Store, Package, FileText } from 'lucide-react';
 import { WarrantyService } from '../../../services/customer/WarrantyService';
 import { FileUploadService } from '../../../services/FileUploadService';
 import type { Warranty, WarrantyLog, WarrantyLogStatus } from '../../../types/api';
@@ -11,7 +11,6 @@ import { showCenterSuccess, showCenterError } from '../../../utils/notification'
 
 const { Text, Title } = Typography;
 const { Search, TextArea } = Input;
-const { Panel } = Collapse;
 
 interface WarrantyWithLogs extends Warranty {
   logs?: WarrantyLog[];
@@ -36,7 +35,8 @@ const WarrantyComponent: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   
   // Expanded warranty IDs for logs
-  const [expandedWarrantyIds, setExpandedWarrantyIds] = useState<string[]>([]);
+const [logsModalVisible, setLogsModalVisible] = useState(false);
+const [logsModalWarrantyId, setLogsModalWarrantyId] = useState<string | null>(null);
 
   // Load warranties
   const loadWarranties = async () => {
@@ -76,24 +76,24 @@ const WarrantyComponent: React.FC = () => {
     }
   }, []);
 
-  // Handle collapse change
-  const handleCollapseChange = useCallback((keys: string | string[]) => {
-    const keyArray = Array.isArray(keys) ? keys : [keys];
-    const prevKeys = expandedWarrantyIds;
-    
-    // Find newly expanded warranties
-    const newlyExpanded = keyArray.filter(key => !prevKeys.includes(key));
-    
-    setExpandedWarrantyIds(keyArray);
-    
-    // Load logs for newly expanded warranties
-    newlyExpanded.forEach(key => {
-      const warranty = warranties.find(w => w.id === key);
-      if (warranty && !warranty.logsLoaded && !warranty.logsLoading) {
-        loadWarrantyLogs(key);
-      }
-    });
-  }, [expandedWarrantyIds, warranties, loadWarrantyLogs]);
+const logsModalWarranty = useMemo(
+  () => (logsModalWarrantyId ? warranties.find((w) => w.id === logsModalWarrantyId) || null : null),
+  [logsModalWarrantyId, warranties]
+);
+
+const handleOpenLogsModal = (warranty: WarrantyWithLogs) => {
+  if (!warranty.id) return;
+  setLogsModalVisible(true);
+  setLogsModalWarrantyId(warranty.id);
+  if (!warranty.logsLoaded && !warranty.logsLoading) {
+    loadWarrantyLogs(warranty.id);
+  }
+};
+
+const handleCloseLogsModal = () => {
+  setLogsModalVisible(false);
+  setLogsModalWarrantyId(null);
+};
 
   // Check if warranty has active repair request
   const hasActiveRepair = (warranty: WarrantyWithLogs): boolean => {
@@ -209,13 +209,6 @@ const WarrantyComponent: React.FC = () => {
       // Reload logs for the warranty
       if (selectedWarranty.id) {
         await loadWarrantyLogs(selectedWarranty.id);
-        // Expand the warranty card to show logs
-        setExpandedWarrantyIds(prev => {
-          if (!prev.includes(selectedWarranty.id!)) {
-            return [...prev, selectedWarranty.id!];
-          }
-          return prev;
-        });
       }
 
       handleRepairModalCancel();
@@ -503,154 +496,30 @@ const WarrantyComponent: React.FC = () => {
 
                     {/* Warranty Logs Section */}
                     {warranty.id && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <Collapse
-                          activeKey={expandedWarrantyIds.includes(warranty.id) ? [warranty.id] : []}
-                          onChange={handleCollapseChange}
-                          ghost
-                          expandIcon={({ isActive }) => (
-                            <ChevronDown 
-                              className={`w-4 h-4 transition-transform duration-200 ${isActive ? 'rotate-180' : ''}`} 
-                            />
-                          )}
-                        >
-                          <Panel
-                            key={warranty.id}
-                            header={
-                              <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-orange-500" />
-                                <span className="font-medium">Lịch sử sửa chữa</span>
-                                {warranty.logs && warranty.logs.length > 0 && (
-                                  <Tag color="blue">{warranty.logs.length} yêu cầu</Tag>
-                                )}
-                              </div>
-                            }
-                          >
-                            {warranty.logsLoading ? (
-                              <div className="py-8 text-center">
-                                <Spin size="small" />
-                                <p className="mt-2 text-sm text-gray-500">Đang tải lịch sử sửa chữa...</p>
-                              </div>
-                            ) : warranty.logs && warranty.logs.length > 0 ? (
-                              <div className="space-y-4">
-                                {warranty.logs.map((log) => (
-                                  <Card
-                                    key={log.id}
-                                    className="border-gray-200"
-                                    size="small"
-                                    styles={{ body: { padding: '16px' } }}
-                                  >
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                                      {/* Thông tin cơ bản */}
-                                      <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                        <Descriptions title="Thông tin yêu cầu" size="small" column={1} bordered>
-                                          <Descriptions.Item label="Trạng thái">
-                                            <Tag color={getLogStatusColor(log.status)}>
-                                              {getLogStatusText(log.status)}
-                                            </Tag>
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Mô tả vấn đề">
-                                            {log.problemDescription || '-'}
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Bảo hành">
-                                            {log.covered === true ? (
-                                              <Tag color="green">Có</Tag>
-                                            ) : log.covered === false ? (
-                                              <Tag color="red">Không</Tag>
-                                            ) : (
-                                              <Tag>Không chắc</Tag>
-                                            )}
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Ngày tạo">
-                                            {formatDate(log.createdAt)}
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Cập nhật">
-                                            {formatDate(log.updatedAt)}
-                                          </Descriptions.Item>
-                                        </Descriptions>
-                                      </div>
-
-                                      {/* Chẩn đoán & Giải pháp */}
-                                      <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                        <Descriptions title="Chẩn đoán & Giải pháp" size="small" column={1} bordered>
-                                          <Descriptions.Item label="Chẩn đoán">
-                                            {log.diagnosis || <Text type="secondary">Chưa có</Text>}
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Giải pháp">
-                                            {log.resolution || <Text type="secondary">Chưa có</Text>}
-                                          </Descriptions.Item>
-                                          {log.shipBackTracking && (
-                                            <Descriptions.Item label="Mã vận đơn">
-                                              <Text code>{log.shipBackTracking}</Text>
-                                            </Descriptions.Item>
-                                          )}
-                                        </Descriptions>
-                                      </div>
-
-                                      {/* Chi phí */}
-                                      <div className="bg-white border border-gray-200 rounded-lg p-3">
-                                        <Descriptions title="Chi phí" size="small" column={1} bordered>
-                                          <Descriptions.Item label="Nhân công">
-                                            {log.costLabor ? formatCurrency(log.costLabor) : '-'}
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Linh kiện">
-                                            {log.costParts ? formatCurrency(log.costParts) : '-'}
-                                          </Descriptions.Item>
-                                          <Descriptions.Item label="Tổng cộng">
-                                            {log.costTotal ? (
-                                              <Text strong className="text-orange-600">
-                                                {formatCurrency(log.costTotal)}
-                                              </Text>
-                                            ) : (
-                                              '-'
-                                            )}
-                                          </Descriptions.Item>
-                                        </Descriptions>
-                                      </div>
-                                    </div>
-
-                                    {/* Hình ảnh đính kèm */}
-                                    {log.attachmentUrls && log.attachmentUrls.length > 0 && (
-                                      <>
-                                        <Divider className="my-3" />
-                                        <div>
-                                          <Text strong className="text-sm mb-2 block">Hình ảnh đính kèm ({log.attachmentUrls.length})</Text>
-                                          <div className="grid grid-cols-5 gap-2">
-                                            {log.attachmentUrls.map((url, index) => (
-                                              <Image
-                                                key={index}
-                                                src={url}
-                                                alt={`Attachment ${index + 1}`}
-                                                className="rounded-lg border border-gray-200"
-                                                width={80}
-                                                height={80}
-                                                preview={{
-                                                  mask: 'Xem ảnh',
-                                                }}
-                                              />
-                                            ))}
-                                          </div>
-                                        </div>
-                                      </>
-                                    )}
-                                  </Card>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="py-8 text-center">
-                                <Empty
-                                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                  description={
-                                    <div>
-                                      <p className="text-gray-600 font-medium mb-1">Chưa có lịch sử sửa chữa</p>
-                                      <p className="text-sm text-gray-400">Chưa có yêu cầu sửa chữa nào cho sản phẩm này</p>
-                                    </div>
-                                  }
-                                />
-                              </div>
+                      <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-orange-500" />
+                          <div>
+                            <span className="font-medium text-gray-800">Lịch sử sửa chữa</span>
+                            {warranty.logs && warranty.logs.length > 0 && (
+                              <Tag color="blue" className="ml-2">{warranty.logs.length} yêu cầu</Tag>
                             )}
-                          </Panel>
-                        </Collapse>
+                            {!warranty.logsLoaded && warranty.logsLoading && (
+                              <Tag color="orange" className="ml-2">Đang tải...</Tag>
+                            )}
+                          </div>
+                        </div>
+                        <Space>
+                          <Text type="secondary" className="text-sm hidden md:block">
+                            Xem chi tiết lịch sử sửa chữa ở cửa sổ riêng.
+                          </Text>
+                          <Button
+                            icon={<FileText className="w-4 h-4" />}
+                            onClick={() => handleOpenLogsModal(warranty)}
+                          >
+                            Xem lịch sử sửa chữa
+                          </Button>
+                        </Space>
                       </div>
                     )}
                   </Card>
@@ -680,6 +549,151 @@ const WarrantyComponent: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Warranty Logs Modal */}
+      <Modal
+        open={logsModalVisible}
+        onCancel={handleCloseLogsModal}
+        footer={null}
+        width={960}
+        centered
+        destroyOnClose
+        title={
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-orange-600" />
+            <span>Lịch sử sửa chữa</span>
+          </div>
+        }
+      >
+        {logsModalWarranty ? (
+          logsModalWarranty.logsLoading ? (
+            <div className="py-12 text-center">
+              <Spin />
+              <p className="mt-2 text-gray-500">Đang tải lịch sử sửa chữa...</p>
+            </div>
+          ) : logsModalWarranty.logs && logsModalWarranty.logs.length > 0 ? (
+            <div className="space-y-4">
+              {logsModalWarranty.logs.map((log) => (
+                <Card
+                  key={log.id}
+                  className="border border-gray-200"
+                  size="small"
+                  styles={{ body: { padding: '16px' } }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div>
+                      <Text strong className="text-base">{logsModalWarranty.productName}</Text>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Mã bảo hành: <Text code>{logsModalWarranty.id}</Text>
+                      </p>
+                    </div>
+                    <Tag color={getLogStatusColor(log.status)}>{getLogStatusText(log.status)}</Tag>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="bg-white border border-gray-200 rounded-lg p-3">
+                      <Descriptions title="Thông tin yêu cầu" size="small" column={1} bordered>
+                        <Descriptions.Item label="Mô tả vấn đề">
+                          {log.problemDescription || '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Bảo hành">
+                          {log.covered === true ? (
+                            <Tag color="green">Có</Tag>
+                          ) : log.covered === false ? (
+                            <Tag color="red">Không</Tag>
+                          ) : (
+                            <Tag>Không chắc</Tag>
+                          )}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Ngày tạo">
+                          {formatDate(log.createdAt)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Cập nhật">
+                          {formatDate(log.updatedAt)}
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-3">
+                      <Descriptions title="Chẩn đoán & Giải pháp" size="small" column={1} bordered>
+                        <Descriptions.Item label="Chẩn đoán">
+                          {log.diagnosis || <Text type="secondary">Chưa có</Text>}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Giải pháp">
+                          {log.resolution || <Text type="secondary">Chưa có</Text>}
+                        </Descriptions.Item>
+                        {log.shipBackTracking && (
+                          <Descriptions.Item label="Mã vận đơn">
+                            <Text code>{log.shipBackTracking}</Text>
+                          </Descriptions.Item>
+                        )}
+                      </Descriptions>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-3">
+                      <Descriptions title="Chi phí" size="small" column={1} bordered>
+                        <Descriptions.Item label="Nhân công">
+                          {log.costLabor ? formatCurrency(log.costLabor) : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Linh kiện">
+                          {log.costParts ? formatCurrency(log.costParts) : '-'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Tổng cộng">
+                          {log.costTotal ? (
+                            <Text strong className="text-orange-600">
+                              {formatCurrency(log.costTotal)}
+                            </Text>
+                          ) : (
+                            '-'
+                          )}
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </div>
+                  </div>
+                  {log.attachmentUrls && log.attachmentUrls.length > 0 && (
+                    <>
+                      <Divider className="my-3" />
+                      <div>
+                        <Text strong className="text-sm mb-2 block">
+                          Hình ảnh đính kèm ({log.attachmentUrls.length})
+                        </Text>
+                        <div className="grid grid-cols-5 gap-2">
+                          {log.attachmentUrls.map((url, index) => (
+                            <Image
+                              key={index}
+                              src={url}
+                              alt={`Attachment ${index + 1}`}
+                              className="rounded-lg border border-gray-200"
+                              width={80}
+                              height={80}
+                              preview={{
+                                mask: 'Xem ảnh',
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 text-center">
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <div>
+                    <p className="text-gray-600 font-medium mb-1">Chưa có lịch sử sửa chữa</p>
+                    <p className="text-sm text-gray-400">Chưa có yêu cầu sửa chữa nào cho sản phẩm này</p>
+                  </div>
+                }
+              />
+            </div>
+          )
+        ) : (
+          <div className="py-12 text-center text-gray-500">
+            Vui lòng chọn một bảo hành để xem lịch sử sửa chữa.
+          </div>
+        )}
+      </Modal>
 
       {/* Repair Request Modal */}
       <Modal

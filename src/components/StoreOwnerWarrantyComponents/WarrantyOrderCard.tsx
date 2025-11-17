@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Button, Card, Divider, List, Tag, Typography, Collapse, Space, Row, Col, Badge, Modal, Input, Form, Empty, Spin, Descriptions, Image } from 'antd';
+import { Button, Card, Divider, List, Tag, Typography, Collapse, Space, Row, Col, Badge, Modal, Input, Form, Empty, Spin, Descriptions, Image, Select, InputNumber } from 'antd';
 import type { CollapseProps } from 'antd';
-import { Calendar, MapPin, Package, Phone, ShieldCheck, ChevronDown, Plus, FileText } from 'lucide-react';
+import { Calendar, MapPin, Package, Phone, ShieldCheck, ChevronDown, Plus, FileText, Trash2 } from 'lucide-react';
 import type { StoreOrder } from '../../types/seller';
-import type { Warranty, WarrantyLog, WarrantyLogStatus } from '../../types/api';
+import type { Warranty, WarrantyLog, WarrantyLogStatus, UpdateWarrantyLogRequest } from '../../types/api';
 import { formatCurrency, getStatusLabel, formatDate } from '../../utils/orderStatus';
 import { SellerWarrantyService } from '../../services/seller/WarrantyService';
 import { showCenterSuccess, showCenterError } from '../../utils/notification';
@@ -25,6 +25,37 @@ interface WarrantyWithLogs extends Warranty {
   logsLoaded?: boolean;
 }
 
+const LOG_STATUS_LABELS: Record<WarrantyLogStatus, string> = {
+  OPEN: 'Chờ xử lý',
+  DIAGNOSING: 'Đang chẩn đoán',
+  WAITING_PARTS: 'Chờ linh kiện',
+  REPAIRING: 'Đang sửa chữa',
+  READY_FOR_PICKUP: 'Sẵn sàng lấy hàng',
+  SHIP_BACK: 'Đang trả hàng',
+  COMPLETED: 'Đã hoàn tất',
+  CLOSED: 'Đã đóng',
+};
+
+const LOG_STATUS_OPTIONS = (Object.keys(LOG_STATUS_LABELS) as WarrantyLogStatus[]).map(
+  (key) => ({
+    value: key,
+    label: LOG_STATUS_LABELS[key],
+  })
+);
+
+const formatThousands = (value?: string | number): string => {
+  if (value === undefined || value === null) return '';
+  const stringValue = typeof value === 'number' ? value.toString() : value.replace(/\s/g, '');
+  return stringValue.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+};
+
+const parseThousands = (value?: string): number => {
+  if (!value) return 0;
+  const cleaned = value.replace(/\s/g, '');
+  const numeric = Number(cleaned);
+  return Number.isNaN(numeric) ? 0 : numeric;
+};
+
 const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({ 
   order, 
   warranties = [],
@@ -34,6 +65,7 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
   onSerialAdded
 }) => {
   const [form] = Form.useForm();
+  const [editLogForm] = Form.useForm();
   const [isSerialModalOpen, setIsSerialModalOpen] = useState(false);
   const [selectedWarranty, setSelectedWarranty] = useState<Warranty | null>(null);
   const [isSubmittingSerial, setIsSubmittingSerial] = useState(false);
@@ -41,6 +73,9 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
     warranties.map(w => ({ ...w, logs: [], logsLoading: false, logsLoaded: false }))
   );
   const [expandedLogKeys, setExpandedLogKeys] = useState<string[]>([]);
+  const [isEditLogModalOpen, setIsEditLogModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<WarrantyLog | null>(null);
+  const [isUpdatingLog, setIsUpdatingLog] = useState(false);
 
   // Update warrantiesWithLogs when warranties prop changes
   React.useEffect(() => {
@@ -121,17 +156,90 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
   };
 
   const getLogStatusText = (status: WarrantyLogStatus): string => {
-    const textMap: Record<WarrantyLogStatus, string> = {
-      OPEN: 'Chờ xử lý',
-      DIAGNOSING: 'Đang chẩn đoán',
-      WAITING_PARTS: 'Chờ linh kiện',
-      REPAIRING: 'Đang sửa chữa',
-      READY_FOR_PICKUP: 'Sẵn sàng lấy hàng',
-      SHIP_BACK: 'Đang trả hàng',
-      COMPLETED: 'Đã hoàn tất',
-      CLOSED: 'Đã đóng',
-    };
-    return textMap[status] || status;
+    return LOG_STATUS_LABELS[status] || status;
+  };
+
+  const handleOpenEditLogModal = (log: WarrantyLog) => {
+    setEditingLog(log);
+    setIsEditLogModalOpen(true);
+    editLogForm.setFieldsValue({
+      status: log.status,
+      diagnosis: log.diagnosis || '',
+      resolution: log.resolution || '',
+      shipBackTracking: log.shipBackTracking || '',
+      attachmentUrls:
+        log.attachmentUrls && log.attachmentUrls.length > 0
+          ? [...log.attachmentUrls]
+          : [''],
+      costLabor: typeof log.costLabor === 'number' ? log.costLabor : null,
+      costParts: typeof log.costParts === 'number' ? log.costParts : null,
+    });
+  };
+
+  const handleCloseEditLogModal = () => {
+    setIsEditLogModalOpen(false);
+    setEditingLog(null);
+    setIsUpdatingLog(false);
+    editLogForm.resetFields();
+  };
+
+  const handleSubmitEditLog = async () => {
+    if (!editingLog) {
+      return;
+    }
+
+    try {
+      const values = await editLogForm.validateFields();
+      const attachmentInputs: string[] = values.attachmentUrls || [];
+      const attachmentUrls = attachmentInputs
+        .map((url) => (typeof url === 'string' ? url.trim() : ''))
+        .filter((url) => !!url);
+
+      const payload: UpdateWarrantyLogRequest = {};
+
+      if ('diagnosis' in values) {
+        payload.diagnosis = values.diagnosis?.trim() || null;
+      }
+      if ('resolution' in values) {
+        payload.resolution = values.resolution?.trim() || null;
+      }
+      if ('shipBackTracking' in values) {
+        payload.shipBackTracking = values.shipBackTracking?.trim() || null;
+      }
+      if ('attachmentUrls' in values) {
+        payload.attachmentUrls = attachmentUrls;
+      }
+      if ('costLabor' in values) {
+        payload.costLabor =
+          typeof values.costLabor === 'number' || values.costLabor === null
+            ? values.costLabor
+            : null;
+      }
+      if ('costParts' in values) {
+        payload.costParts =
+          typeof values.costParts === 'number' || values.costParts === null
+            ? values.costParts
+            : null;
+      }
+
+      setIsUpdatingLog(true);
+      const targetWarrantyId = editingLog.warrantyId;
+      await SellerWarrantyService.updateWarrantyLog(
+        editingLog.id,
+        values.status,
+        payload
+      );
+      showCenterSuccess('Cập nhật bảo hành thành công', 'Thông tin log đã được lưu');
+      handleCloseEditLogModal();
+      loadWarrantyLogs(targetWarrantyId);
+    } catch (error: any) {
+      if (error?.errorFields) {
+        return;
+      }
+      showCenterError(error?.message || 'Không thể cập nhật log bảo hành', 'Lỗi');
+    } finally {
+      setIsUpdatingLog(false);
+    }
   };
 
   const isThisOrderActivating = isActivating && activatingOrderId === order.id;
@@ -441,6 +549,24 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
                               size="small"
                               styles={{ body: { padding: '16px' } }}
                             >
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <div>
+                                  <Typography.Text strong className="text-sm">
+                                    Phiếu sửa chữa
+                                  </Typography.Text>
+                                  <Typography.Text type="secondary" className="block text-xs">
+                                    #{log.id.slice(0, 8).toUpperCase()}
+                                  </Typography.Text>
+                                </div>
+                                <Button
+                                  size="small"
+                                  type="primary"
+                                  ghost
+                                  onClick={() => handleOpenEditLogModal(log)}
+                                >
+                                  Chỉnh sửa bảo hành
+                                </Button>
+                              </div>
                               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                 {/* Thông tin cơ bản */}
                                 <div className="bg-white border border-gray-200 rounded-lg p-3">
@@ -669,6 +795,130 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Modal for editing warranty log */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-orange-500" />
+            <span>Chỉnh sửa bảo hành</span>
+          </div>
+        }
+        open={isEditLogModalOpen}
+        onCancel={handleCloseEditLogModal}
+        footer={null}
+        width={720}
+        destroyOnClose
+      >
+        <Form form={editLogForm} layout="vertical">
+          <Form.Item
+            label="Trạng thái xử lý"
+            name="status"
+            rules={[{ required: true, message: 'Vui lòng chọn trạng thái mới' }]}
+          >
+            <Select
+              placeholder="Chọn trạng thái"
+              options={LOG_STATUS_OPTIONS}
+              showSearch
+              optionFilterProp="label"
+            />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item label="Chi phí nhân công" name="costLabor">
+                <InputNumber
+                  min={0}
+                  style={{ width: '100%' }}
+                  placeholder="Nhập chi phí nhân công"
+                  formatter={formatThousands}
+                  parser={(value) => parseThousands(value)}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="Chi phí linh kiện" name="costParts">
+                <InputNumber
+                  min={0}
+                  style={{ width: '100%' }}
+                  placeholder="Nhập chi phí linh kiện"
+                  formatter={formatThousands}
+                  parser={(value) => parseThousands(value)}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item label="Chẩn đoán" name="diagnosis">
+            <TextArea rows={3} placeholder="Mô tả chẩn đoán chi tiết" />
+          </Form.Item>
+          <Form.Item label="Giải pháp" name="resolution">
+            <TextArea rows={3} placeholder="Mô tả giải pháp xử lý" />
+          </Form.Item>
+          <Form.Item label="Mã vận đơn trả hàng" name="shipBackTracking">
+            <Input placeholder="VD: GHN123456789" />
+          </Form.Item>
+
+          <Form.List name="attachmentUrls">
+            {(fields, { add, remove }) => (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Typography.Text className="text-sm font-medium text-gray-700">
+                    Link hình ảnh/biên bản
+                  </Typography.Text>
+                  <Button
+                    type="dashed"
+                    icon={<Plus className="w-4 h-4" />}
+                    onClick={() => add()}
+                  >
+                    Thêm đường dẫn
+                  </Button>
+                </div>
+                {fields.length === 0 && (
+                  <Typography.Text type="secondary" className="text-xs">
+                    Chưa có đường dẫn nào. Nhấn "Thêm đường dẫn" để bổ sung.
+                  </Typography.Text>
+                )}
+                {fields.map((field, index) => (
+                  <Space key={field.key} align="baseline" className="w-full">
+                    <Form.Item
+                      {...field}
+                      className="flex-1"
+                      rules={[
+                        {
+                          type: 'url',
+                          message: 'Đường dẫn không hợp lệ',
+                        },
+                      ]}
+                    >
+                      <Input placeholder={`Link #${index + 1}`} />
+                    </Form.Item>
+                    <Button
+                      type="text"
+                      icon={<Trash2 className="w-4 h-4 text-red-500" />}
+                      onClick={() => remove(field.name)}
+                    />
+                  </Space>
+                ))}
+              </div>
+            )}
+          </Form.List>
+
+          <Divider className="my-4" />
+          <Space className="w-full justify-end">
+            <Button onClick={handleCloseEditLogModal} disabled={isUpdatingLog}>
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleSubmitEditLog}
+              loading={isUpdatingLog}
+            >
+              Lưu thay đổi
+            </Button>
+          </Space>
+        </Form>
+      </Modal>
 
       {/* Modal for adding serial number */}
       <Modal

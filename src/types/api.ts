@@ -527,3 +527,12 @@ export interface WarrantyLog {
 }
 
 export interface WarrantyLogListResponse extends ApiResponse<WarrantyLog[]> {}
+
+export interface UpdateWarrantyLogRequest {
+  diagnosis?: string | null;
+  resolution?: string | null;
+  shipBackTracking?: string | null;
+  attachmentUrls?: string[];
+  costLabor?: number | null;
+  costParts?: number | null;
+}
