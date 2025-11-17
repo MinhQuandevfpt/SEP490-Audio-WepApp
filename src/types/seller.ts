@@ -785,3 +785,84 @@ export interface CampaignProductDetailsResponse {
   message: string;
   data: CampaignProductDetail[];
 }
+
+// ==================== FINANCE / WALLET TYPES ====================
+
+export type TransactionType = 
+  | 'DEPOSIT'           // Nạp tiền
+  | 'PENDING_HOLD'      // Giữ tiền chờ
+  | 'RELEASE_PENDING'   // Giải phóng tiền chờ
+  | 'WITHDRAW'          // Rút tiền
+  | 'REFUND'            // Hoàn tiền
+  | 'ADJUSTMENT';       // Điều chỉnh thủ công
+
+export interface WalletTransaction {
+  transactionId: string;
+  walletId: string;
+  orderId: string | null;
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  createdAt: string;
+  type: TransactionType;
+  displayType: string; // Vietnamese display name
+}
+
+export interface WalletTransactionFilterParams {
+  walletId?: string;
+  from?: string; // ISO format date
+  to?: string; // ISO format date
+  type?: TransactionType;
+  transactionId?: string;
+  page?: number;
+  size?: number;
+  sort?: string; // Format: "field:direction" (e.g., "createdAt:desc")
+}
+
+export interface WalletTransactionPageable {
+  pageNumber: number;
+  pageSize: number;
+  sort: {
+    empty: boolean;
+    sorted: boolean;
+    unsorted: boolean;
+  };
+  offset: number;
+  paged: boolean;
+  unpaged: boolean;
+}
+
+export interface WalletTransactionListData {
+  content: WalletTransaction[];
+  pageable: WalletTransactionPageable;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+  size: number;
+  number: number;
+  sort: {
+    empty: boolean;
+    sorted: boolean;
+    unsorted: boolean;
+  };
+  numberOfElements: number;
+  first: boolean;
+  empty: boolean;
+}
+
+export interface WalletTransactionListResponse extends ApiResponse<WalletTransactionListData> {}
+
+// Wallet Information Types
+export interface WalletInfo {
+  storeId: string;
+  storeName: string;
+  walletId: string;
+  depositBalance: number;
+  availableBalance: number;
+  pendingBalance: number;
+  totalRevenue: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletInfoResponse extends ApiResponse<WalletInfo> {}

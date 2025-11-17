@@ -47,6 +47,7 @@ import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import SellerDebugPage from '../pages/Seller/Debug';
+import FinancePage from '../pages/Seller/Finance/FinancePage';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
 import StaffList from '../pages/Seller/StaffList/StaffList';
 import LoginForStaff from '../pages/StoreStaff/LoginForStaff';
@@ -344,7 +345,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'finance',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Tài chính</h2><p className="text-gray-600 mt-2">Trang tài chính đang được phát triển...</p></div>
+        element: <FinancePage />
       },
       {
         path: 'finance/revenue',

@@ -129,11 +129,6 @@ const SellerDashboardLayout: React.FC = () => {
       label: 'Tài chính',
       path: '/seller/dashboard/finance',
       badge: null,
-      subItems: [
-        { label: 'Doanh thu', path: '/seller/dashboard/finance/revenue' },
-        { label: 'Lịch sử giao dịch', path: '/seller/dashboard/finance/transactions' },
-        { label: 'Rút tiền', path: '/seller/dashboard/finance/withdrawal' }
-      ]
     },
     {
       icon: Tag,
