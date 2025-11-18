@@ -192,7 +192,8 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                           const prices = product.variants.map(v => v.variantPrice);
                           const minPrice = Math.min(...prices);
                           const maxPrice = Math.max(...prices);
-                          const totalStock = product.variants.reduce((sum, v) => sum + v.variantStock, 0);
+                          // Backend already calculates total stock
+                          const totalStock = product.stockQuantity;
                           
                           return (
                             <>
@@ -323,14 +324,11 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                       label="Tồn kho (tổng)" 
                       value={
                         <span className={`font-semibold ${
-                          (() => {
-                            const totalStock = product.variants.reduce((sum, v) => sum + v.variantStock, 0);
-                            return totalStock === 0 ? 'text-red-600' :
-                                   totalStock < 10 ? 'text-yellow-600' :
-                                   'text-green-600';
-                          })()
+                          product.stockQuantity === 0 ? 'text-red-600' :
+                          product.stockQuantity < 10 ? 'text-yellow-600' :
+                          'text-green-600'
                         }`}>
-                          {product.variants.reduce((sum, v) => sum + v.variantStock, 0)} sản phẩm
+                          {product.stockQuantity} sản phẩm
                         </span>
                       }
                     />

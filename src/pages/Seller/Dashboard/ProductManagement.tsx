@@ -141,13 +141,8 @@ const ProductManagement: React.FC = () => {
       active: products.filter(p => p.status === 'ACTIVE').length,
       outOfStock: products.filter(p => {
         if (p.status === 'OUT_OF_STOCK') return true;
-        
-        // Tính tổng kho (từ variants hoặc base stock)
-        const totalStock = p.variants && p.variants.length > 0
-          ? p.variants.reduce((sum, v) => sum + v.variantStock, 0)
-          : p.stockQuantity;
-        
-        return totalStock === 0;
+        // Backend already calculates total stock (sum of variants or base stock)
+        return p.stockQuantity === 0;
       }).length,
       pending: products.filter(p => p.status === 'PENDING').length,
     };
@@ -187,9 +182,8 @@ const ProductManagement: React.FC = () => {
           ? product.images[0] 
           : '',
         price: hasVariants ? null : product.finalPrice,
-        stockQuantity: hasVariants 
-          ? product.variants!.reduce((sum, v) => sum + v.variantStock, 0)
-          : product.stockQuantity,
+        // Backend already calculates total stock (sum of variants if has variants)
+        stockQuantity: product.stockQuantity,
         status: product.status,
         originalProduct: product,
       };

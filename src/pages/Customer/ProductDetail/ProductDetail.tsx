@@ -137,7 +137,6 @@ const ProductDetail: React.FC = () => {
     { key: 'Danh mục', value: product.categoryName },
     { key: 'Thương hiệu', value: product.brandName },
     { key: 'Model', value: product.model || 'N/A' },
-    { key: 'Màu sắc', value: product.color || 'N/A' },
     { key: 'Chất liệu', value: product.material || 'N/A' },
     { key: 'Kích thước', value: product.dimensions || 'N/A' },
     { key: 'Trọng lượng', value: product.weight ? `${product.weight} kg` : 'N/A' },
@@ -248,15 +247,8 @@ const ProductDetail: React.FC = () => {
 
   const hasVariants = product.variants && product.variants.length > 0;
   
-  // Calculate total stock for products with variants
-  const getTotalStock = () => {
-    if (hasVariants) {
-      return product.variants!.reduce((sum, v) => sum + v.variantStock, 0);
-    }
-    return product.stockQuantity;
-  };
-  
-  const totalStock = getTotalStock();
+  // Backend already calculates total stock (sum of variants if has variants, or stockQuantity)
+  const totalStock = product.stockQuantity;
   const isInStock = totalStock > 0;
 
   return (
