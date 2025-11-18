@@ -272,6 +272,7 @@ const Suminputsection: React.FC = () => {
   const [defaultAddressLoaded, setDefaultAddressLoaded] = useState(false);
   const [pendingDefaultAddress, setPendingDefaultAddress] = useState<StoreAddress | null>(null);
   const [addressReloading, setAddressReloading] = useState(false);
+  const [hasDefaultStoreAddress, setHasDefaultStoreAddress] = useState(false);
 
   // Function to load and set default store address
   const loadAndSetDefaultAddress = useCallback(async (forceReload: boolean = false) => {
@@ -287,6 +288,8 @@ const Suminputsection: React.FC = () => {
       }
 
       const addresses = await StoreAddressService.getStoreAddresses();
+      const hasDefault = !!addresses?.some(addr => addr.defaultAddress === true);
+      setHasDefaultStoreAddress(hasDefault);
       const defaultAddress = addresses?.find(addr => addr.defaultAddress === true);
 
       if (!defaultAddress) {
@@ -332,6 +335,7 @@ const Suminputsection: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error loading default store address:', error);
+      setHasDefaultStoreAddress(false);
       if (forceReload) {
         showCenterError(error?.message || 'Không thể tải lại địa chỉ kho', 'Lỗi');
       }
@@ -400,6 +404,7 @@ const Suminputsection: React.FC = () => {
       
       // Reset states
       setDefaultAddressLoaded(false);
+      setHasDefaultStoreAddress(false);
       setPendingDefaultAddress(null);
       setSelectedProvince(null);
       setSelectedDistrict(null);
@@ -1062,6 +1067,14 @@ const Suminputsection: React.FC = () => {
 
     if (!canSubmit) {
       showCenterError('Vui lòng điền thông tin bắt buộc, thêm ít nhất 1 ảnh và chọn tỉnh/thành phố, quận/huyện, phường/xã');
+      return;
+    }
+
+    if (!hasDefaultStoreAddress) {
+      showCenterError('Hãy tạo địa chỉ cửa hàng trước', 'Thiếu địa chỉ', 3000);
+      setTimeout(() => {
+        navigate('/seller/dashboard/store-address');
+      }, 3000);
       return;
     }
     try {
