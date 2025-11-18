@@ -129,15 +129,17 @@ export class CustomerCartService {
   ): Promise<AddToCartResponse> {
     const item: any = {
       type: 'PRODUCT',
-      // If product has variant, use variantId as the main id
-      // Otherwise use productId
-      id: variantId || productId,
       quantity
     };
     
+    // Backend requires EITHER productId OR variantId, not both
     if (variantId) {
-      console.log('🎯 Adding product variant to cart:', { productId, variantId, quantity, usingId: item.id });
+      // Product has variant - send variantId only
+      item.variantId = variantId;
+      console.log('🎯 Adding product variant to cart:', { variantId, quantity });
     } else {
+      // Product has no variant - send productId only
+      item.productId = productId;
       console.log('📦 Adding product without variant:', { productId, quantity });
     }
     
@@ -154,7 +156,7 @@ export class CustomerCartService {
     return this.addToCart([
       {
         type: 'COMBO',
-        id: comboId,
+        comboId: comboId,
         quantity
       }
     ]);
