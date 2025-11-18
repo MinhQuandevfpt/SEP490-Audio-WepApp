@@ -14,9 +14,10 @@ export type CartStatus = 'ACTIVE' | 'INACTIVE' | 'COMPLETED';
 // Add to Cart Request
 export interface AddToCartItem {
   type: CartItemType;
-  id: string;  // Product ID or Combo ID (UUID)
+  productId?: string;  // Product ID (for products without variants)
+  variantId?: string;  // Variant ID (for products with variants)
+  comboId?: string;    // Combo ID (for combos)
   quantity: number;
-  variantId?: string;  // Optional variant ID for products with variants
 }
 
 export interface AddToCartRequest {
