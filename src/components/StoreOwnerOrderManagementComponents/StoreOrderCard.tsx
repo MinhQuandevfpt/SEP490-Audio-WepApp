@@ -1,19 +1,40 @@
 import React, { useState } from 'react';
 import type { StoreOrder } from '../../types/seller';
 import { getStatusBadgeClass, getStatusLabel, formatCurrency, formatDate } from '../../utils/storeOrderStatus';
-import { Package, Calendar, User, Phone, MapPin, ShoppingBag, Eye, EyeOff, Users } from 'lucide-react';
-import AssignDeliveryModal from './AssignDeliveryModal';
+import { Package, Calendar, User, Phone, MapPin, ShoppingBag, Eye, EyeOff, PackageCheck, Truck } from 'lucide-react';
+import { StoreOrderService } from '../../services/seller/OrderService';
+import { showCenterSuccess, showCenterError } from '../../utils/notification';
+import GhnTransferModal from './GhnTransferModal';
 
 interface Props {
   order: StoreOrder;
   onView: (orderId: string) => void;
-  onAssignSuccess?: () => void; // Callback khi assign thành công để refresh list
+  onStatusUpdate?: () => void; // Callback khi status update thành công để refresh list
 }
 
-const StoreOrderCard: React.FC<Props> = ({ order, onView, onAssignSuccess }) => {
+const StoreOrderCard: React.FC<Props> = ({ order, onView, onStatusUpdate }) => {
   const [showFullCode, setShowFullCode] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [showGhnModal, setShowGhnModal] = useState(false);
   const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+  const handlePrepareOrder = async () => {
+    if (order.status !== 'PENDING') {
+      showCenterError('Chỉ có thể chuẩn bị đơn hàng ở trạng thái "Chờ xử lý"', 'Lỗi');
+      return;
+    }
+
+    try {
+      setIsPreparing(true);
+      await StoreOrderService.updateOrderStatus(order.id, 'AWAITING_SHIPMENT');
+      showCenterSuccess('Đơn hàng đã được chuyển sang trạng thái "Chờ lấy hàng"', 'Thành công');
+      onStatusUpdate?.();
+    } catch (error: any) {
+      showCenterError(error?.message || 'Không thể chuẩn bị đơn hàng', 'Lỗi');
+    } finally {
+      setIsPreparing(false);
+    }
+  };
 
   return (
     <div className="border rounded-lg bg-white hover:shadow-md transition-shadow p-5">
@@ -141,14 +162,36 @@ const StoreOrderCard: React.FC<Props> = ({ order, onView, onAssignSuccess }) => 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAssignModal(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
-            title="Phân công nhân viên"
-          >
-            <Users className="w-4 h-4" />
-            <span>Phân công</span>
-          </button>
+          {order.status === 'PENDING' && (
+            <button
+              onClick={handlePrepareOrder}
+              disabled={isPreparing}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Xác nhận lên đơn hàng"
+            >
+              {isPreparing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Đang xử lý...</span>
+                </>
+              ) : (
+                <>
+                  <PackageCheck className="w-4 h-4" />
+                  <span>Xác nhận lên đơn hàng</span>
+                </>
+              )}
+            </button>
+          )}
+          {order.status === 'AWAITING_SHIPMENT' && (
+            <button
+              onClick={() => setShowGhnModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+              title="Chuyển nhượng GHN"
+            >
+              <Truck className="w-4 h-4" />
+              <span>Chuyển nhượng GHN</span>
+            </button>
+          )}
           <button
             onClick={() => onView(order.id)}
             className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors"
@@ -158,14 +201,15 @@ const StoreOrderCard: React.FC<Props> = ({ order, onView, onAssignSuccess }) => 
         </div>
       </div>
 
-      {/* Assign Delivery Modal */}
-      {showAssignModal && (
-        <AssignDeliveryModal
+      {/* GHN Transfer Modal */}
+      {showGhnModal && (
+        <GhnTransferModal
           orderId={order.id}
-          onClose={() => setShowAssignModal(false)}
-          onSuccess={() => {
-            onAssignSuccess?.();
-            setShowAssignModal(false);
+          onClose={() => setShowGhnModal(false)}
+          onSubmit={(data) => {
+            console.log('GHN Transfer Data:', data);
+            // TODO: Gọi API khi đã sẵn sàng
+            setShowGhnModal(false);
           }}
         />
       )}

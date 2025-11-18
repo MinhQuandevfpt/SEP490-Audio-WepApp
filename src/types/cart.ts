@@ -57,8 +57,8 @@ export type AddToCartResponse = CartResponse;
 
 // Checkout COD Request Item
 export interface CheckoutCodItem {
-  id: string;  // Product ID (productId)
-  type: 'PRODUCT' | 'COMBO';  // Default: PRODUCT
+  productId: string;  // Product ID
+  type: 'PRODUCT' | 'COMBO';  // PRODUCT or COMBO
   quantity: number;
 }
 
@@ -120,8 +120,8 @@ export interface CheckoutCodResponse {
 
 // Checkout PayOS Request Item (same structure as COD)
 export interface CheckoutPayOSItem {
-  id: string;  // Product ID (productId)
-  type: 'PRODUCT' | 'COMBO';  // Default: PRODUCT
+  productId: string;  // Product ID
+  type: 'PRODUCT' | 'COMBO';  // PRODUCT or COMBO
   quantity: number;
 }
 

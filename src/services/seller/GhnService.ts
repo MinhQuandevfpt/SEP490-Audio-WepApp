@@ -1,4 +1,5 @@
 import type { Province, ProvinceListResponse, District, DistrictListResponse, DistrictRequest, Ward, WardListResponse, WardRequest } from '../../types/seller';
+import { HttpInterceptor } from '../HttpInterceptor';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -258,6 +259,231 @@ export class GhnService {
       return [];
     }
   }
+
+  /**
+   * Lấy danh sách ca lấy hàng từ GHN API
+   */
+  static async getPickShifts(): Promise<PickShiftListResponse> {
+    try {
+      const response = await httpClient.get<PickShiftListResponse>('/ghn/pick-shifts');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch pick shifts:', error);
+      throw new Error('Không thể tải danh sách ca lấy hàng. Vui lòng thử lại.');
+    }
+  }
+
+  /**
+   * Create GHN order
+   * POST /api/ghn/create-order
+   */
+  static async createOrder(data: GhnCreateOrderRequest): Promise<GhnCreateOrderResponse> {
+    try {
+      const response = await HttpInterceptor.post<GhnCreateOrderResponse>(
+        '/api/ghn/create-order',
+        data,
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to create GHN order:', error);
+      throw new Error(error?.message || 'Không thể tạo đơn hàng GHN. Vui lòng thử lại.');
+    }
+  }
+
+  /**
+   * Cancel GHN order
+   * POST /api/ghn/cancel-order
+   */
+  static async cancelOrder(orderCodes: string[]): Promise<any> {
+    try {
+      const response = await HttpInterceptor.post<any>(
+        '/api/ghn/cancel-order',
+        { order_codes: orderCodes },
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to cancel GHN order:', error);
+      throw new Error(error?.message || 'Không thể hủy đơn hàng GHN. Vui lòng thử lại.');
+    }
+  }
+
+  /**
+   * Get print token for GHN orders
+   * POST /api/ghn/print-token
+   */
+  static async getPrintToken(orderCodes: string[]): Promise<any> {
+    try {
+      const response = await HttpInterceptor.post<any>(
+        '/api/ghn/print-token',
+        { order_codes: orderCodes },
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to get print token:', error);
+      throw new Error(error?.message || 'Không thể lấy print token. Vui lòng thử lại.');
+    }
+  }
+
+  /**
+   * Create GHN order record in database
+   * POST /api/v1/ghn-orders
+   */
+  static async createGhnOrderRecord(data: {
+    storeOrderId: string;
+    storeId: string;
+    orderGhn: string;
+    totalFee: number;
+    expectedDeliveryTime: string;
+    status: string;
+  }): Promise<any> {
+    try {
+      const response = await HttpInterceptor.post<any>(
+        '/api/v1/ghn-orders',
+        data,
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to create GHN order record:', error);
+      throw new Error(error?.message || 'Không thể tạo bản ghi đơn GHN. Vui lòng thử lại.');
+    }
+  }
+
+  /**
+   * Get GHN order by store order ID
+   * GET /api/v1/ghn-orders/by-store-order/{storeOrderId}
+   */
+  static async getGhnOrderByStoreOrderId(storeOrderId: string): Promise<any> {
+    try {
+      const response = await HttpInterceptor.get<any>(
+        `/api/v1/ghn-orders/by-store-order/${storeOrderId}`,
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to get GHN order:', error);
+      // Return null if 404 (no GHN order found for this store order)
+      if (error?.status === 404) {
+        return null;
+      }
+      throw new Error(error?.message || 'Không thể lấy thông tin đơn GHN. Vui lòng thử lại.');
+    }
+  }
+
+  /**
+   * Get print A5 invoice HTML
+   * GET /api/ghn/print-a5?token={token}
+   */
+  static async getPrintA5(token: string): Promise<string> {
+    try {
+      // Use fetch directly to get HTML response
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+      const url = `${API_BASE_URL}/api/ghn/print-a5?token=${encodeURIComponent(token)}`;
+      
+      // Get seller token
+      const sellerToken = localStorage.getItem('seller_token');
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*',
+          'Authorization': sellerToken ? `Bearer ${sellerToken}` : '',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const html = await response.text();
+      return html;
+    } catch (error: any) {
+      console.error('Failed to get print A5:', error);
+      throw new Error(error?.message || 'Không thể lấy hóa đơn in. Vui lòng thử lại.');
+    }
+  }
+}
+
+export interface PickShift {
+  id: number;
+  title: string;
+  from_time: number;
+  to_time: number;
+}
+
+export interface PickShiftListResponse {
+  code: number;
+  message: string;
+  data: PickShift[];
+}
+
+export interface GhnCreateOrderRequest {
+  payment_type_id: number;
+  note?: string;
+  required_note: string;
+  from_name: string;
+  from_phone: string;
+  from_address: string;
+  from_ward_name: string;
+  from_district_name: string;
+  from_province_name: string;
+  return_phone?: string;
+  return_address?: string;
+  return_district_id?: number;
+  return_ward_code?: string;
+  to_name: string;
+  to_phone: string;
+  to_address: string;
+  to_ward_code: string;
+  to_district_id: number;
+  cod_amount?: number;
+  content?: string;
+  weight: number;
+  length: number;
+  width: number;
+  height: number;
+  pick_station_id?: number;
+  insurance_value?: number;
+  service_id?: number;
+  service_type_id: number;
+  coupon?: string;
+  pick_shift?: number[];
+  items: Array<{
+    name: string;
+    code: string;
+    quantity: number;
+    price: number;
+    length: number;
+    width: number;
+    height: number;
+    weight: number;
+    category: {
+      level1: string;
+      level2: string;
+      level3: string;
+    };
+  }>;
+}
+
+export interface GhnCreateOrderFee {
+  main_service: number;
+  insurance: number;
+  station_do: number;
+  station_pu: number;
+}
+
+export interface GhnCreateOrderResponse {
+  code: number;
+  message: string;
+  data: {
+    order_code: string;
+    expected_delivery_time: string;
+    total_fee: number;
+    fee: GhnCreateOrderFee;
+  };
 }
 
 export default GhnService;

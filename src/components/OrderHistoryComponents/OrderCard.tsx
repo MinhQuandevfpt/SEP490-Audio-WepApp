@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
 import type { CustomerOrder } from '../../types/api';
 import { getStatusBadgeClass, getStatusLabel, formatCurrency, formatDate } from '../../utils/orderStatus';
-import { Package, Calendar, DollarSign, Store, Eye, ShoppingBag, Copy, Check } from 'lucide-react';
+import { Package, Calendar, DollarSign, Store, Eye, ShoppingBag, Copy, Check, Truck, ExternalLink, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Note: Eye icon is still used for viewing full order ID, not removed
 
 interface Props {
   order: CustomerOrder;
+  ghnOrderData?: Record<string, any>;
 }
 
-const OrderCard: React.FC<Props> = ({ order }) => {
+const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {} }) => {
   const [showFullId, setShowFullId] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showTrackingGuide, setShowTrackingGuide] = useState<Record<string, boolean>>({});
   const totalItems = order.storeOrders.reduce((sum, so) => sum + so.items.length, 0);
   const storeCount = order.storeOrders.length;
 
@@ -202,6 +204,96 @@ const OrderCard: React.FC<Props> = ({ order }) => {
                         <span>Tổng cửa hàng:</span>
                         <span className="text-orange-600">{formatCurrency(storeOrder.grandTotal)}</span>
                       </div>
+                    </div>
+                  )}
+
+                  {/* GHN Order Code */}
+                  {ghnOrderData[storeOrder.id]?.orderGhn && (
+                    <div className="pt-2 mt-2 border-t border-dashed space-y-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <Truck className="w-3 h-3 text-blue-500" />
+                        <span className="text-gray-600">Mã vận đơn GHN:</span>
+                        <span className="font-mono font-semibold text-blue-600">
+                          {ghnOrderData[storeOrder.id].orderGhn}
+                        </span>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await navigator.clipboard.writeText(ghnOrderData[storeOrder.id].orderGhn);
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            } catch (error) {
+                              console.error('Failed to copy:', error);
+                            }
+                          }}
+                          className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                          title="Sao chép mã vận đơn"
+                        >
+                          {copied ? (
+                            <Check className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowTrackingGuide(prev => ({
+                              ...prev,
+                              [storeOrder.id]: !prev[storeOrder.id]
+                            }));
+                          }}
+                          className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 transition-colors"
+                        >
+                          <span>Hướng dẫn theo dõi</span>
+                          {showTrackingGuide[storeOrder.id] ? (
+                            <ChevronUp className="w-3 h-3" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
+                      
+                      {/* Tracking Guide - Collapsible */}
+                      {showTrackingGuide[storeOrder.id] && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 animate-in slide-in-from-top-2 duration-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <HelpCircle className="w-4 h-4 text-blue-600" />
+                            <span className="text-xs font-semibold text-blue-900">Hướng dẫn theo dõi đơn hàng</span>
+                          </div>
+                          <ol className="space-y-1.5 text-xs text-blue-800 ml-5 list-decimal">
+                            <li>Sao chép mã vận đơn GHN ở trên</li>
+                            <li>
+                              Truy cập{' '}
+                              <a
+                                href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 underline font-medium inline-flex items-center gap-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                trang theo dõi GHN
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </li>
+                            <li>Dán mã vận đơn vào khung nhập mã vận đơn</li>
+                            <li>Bấm nút tìm kiếm</li>
+                            <li>Theo dõi tình trạng đơn hàng</li>
+                          </ol>
+                          <a
+                            href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Truck className="w-3 h-3" />
+                            <span>Theo dõi đơn hàng trên GHN</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

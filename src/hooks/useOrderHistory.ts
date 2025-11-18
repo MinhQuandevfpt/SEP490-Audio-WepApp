@@ -13,6 +13,7 @@ export const useOrderHistory = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+  const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
 
   const load = useCallback(async () => {
     try {
@@ -32,6 +33,36 @@ export const useOrderHistory = () => {
       setOrders(res.data);
       setTotal(res.total);
       setTotalPages(res.totalPages);
+
+      // Load GHN order data for each storeOrder
+      const ghnDataPromises: Promise<void>[] = [];
+      res.data.forEach((order) => {
+        order.storeOrders.forEach((storeOrder) => {
+          // Only load if not already loaded
+          if (!ghnOrderData[storeOrder.id]) {
+            ghnDataPromises.push(
+              OrderHistoryService.getGhnOrderByStoreOrderId(storeOrder.id)
+                .then((ghnOrder) => {
+                  if (ghnOrder && ghnOrder.data) {
+                    setGhnOrderData((prev) => ({
+                      ...prev,
+                      [storeOrder.id]: ghnOrder.data,
+                    }));
+                  }
+                })
+                .catch((err) => {
+                  console.error(`Error loading GHN order for ${storeOrder.id}:`, err);
+                  // Silently fail - don't block UI
+                })
+            );
+          }
+        });
+      });
+
+      // Load GHN data in parallel (don't await - load in background)
+      Promise.all(ghnDataPromises).catch((err) => {
+        console.error('Error loading GHN orders:', err);
+      });
     } catch (e: any) {
       setError(e?.message || 'Không thể tải danh sách đơn hàng');
       setOrders([]);
@@ -87,6 +118,8 @@ export const useOrderHistory = () => {
     viewDetail,
     // expose reload for external refresh
     reload: load,
+    // GHN order data
+    ghnOrderData,
   };
 };
 

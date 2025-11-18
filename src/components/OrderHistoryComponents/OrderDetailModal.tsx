@@ -7,16 +7,19 @@ import {
   formatDate,
   canCancelOrder
 } from '../../utils/orderStatus';
-import { X, Package, MapPin, Phone, Receipt, Store, Truck, Calendar, AlertCircle } from 'lucide-react';
+import { X, Package, MapPin, Phone, Receipt, Store, Truck, Calendar, AlertCircle, Copy, Check, ExternalLink, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   order: CustomerOrder | null;
   onClose: () => void;
+  ghnOrderData?: Record<string, any>;
 }
 
-const OrderDetailModal: React.FC<Props> = ({ order, onClose }) => {
+const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }) => {
   if (!order) return null;
 
+  const [copiedGhnCode, setCopiedGhnCode] = React.useState<string | null>(null);
+  const [showTrackingGuide, setShowTrackingGuide] = React.useState<Record<string, boolean>>({});
   const totalItemsCount = order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0);
 
   return (
@@ -164,6 +167,92 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose }) => {
                         <span>Tổng tiền:</span>
                         <span className="text-orange-600">{formatCurrency(storeOrder.grandTotal)}</span>
                       </div>
+                      
+                      {/* GHN Order Code */}
+                      {ghnOrderData[storeOrder.id]?.orderGhn && (
+                        <div className="pt-2 mt-2 border-t border-dashed space-y-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Truck className="w-4 h-4 text-blue-500" />
+                            <span className="text-gray-600">Mã vận đơn GHN:</span>
+                            <span className="font-mono font-semibold text-blue-600">
+                              {ghnOrderData[storeOrder.id].orderGhn}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(ghnOrderData[storeOrder.id].orderGhn);
+                                  setCopiedGhnCode(storeOrder.id);
+                                  setTimeout(() => setCopiedGhnCode(null), 2000);
+                                } catch (error) {
+                                  console.error('Failed to copy:', error);
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                              title="Sao chép mã vận đơn"
+                            >
+                              {copiedGhnCode === storeOrder.id ? (
+                                <Check className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowTrackingGuide(prev => ({
+                                  ...prev,
+                                  [storeOrder.id]: !prev[storeOrder.id]
+                                }));
+                              }}
+                              className="ml-auto flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                            >
+                              <span>Hướng dẫn theo dõi</span>
+                              {showTrackingGuide[storeOrder.id] ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                          
+                          {/* Tracking Guide - Collapsible */}
+                          {showTrackingGuide[storeOrder.id] && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 animate-in slide-in-from-top-2 duration-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <HelpCircle className="w-4 h-4 text-blue-600" />
+                                <span className="text-sm font-semibold text-blue-900">Hướng dẫn theo dõi đơn hàng</span>
+                              </div>
+                              <ol className="space-y-1.5 text-sm text-blue-800 ml-5 list-decimal">
+                                <li>Sao chép mã vận đơn GHN ở trên</li>
+                                <li>
+                                  Truy cập{' '}
+                                  <a
+                                    href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:text-blue-800 underline font-medium inline-flex items-center gap-1"
+                                  >
+                                    trang theo dõi GHN
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </li>
+                                <li>Dán mã vận đơn vào khung nhập mã vận đơn</li>
+                                <li>Bấm nút tìm kiếm</li>
+                                <li>Theo dõi tình trạng đơn hàng</li>
+                              </ol>
+                              <a
+                                href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-2 inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                              >
+                                <Truck className="w-4 h-4" />
+                                <span>Theo dõi đơn hàng trên GHN</span>
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

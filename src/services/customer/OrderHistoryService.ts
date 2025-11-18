@@ -143,6 +143,50 @@ export class OrderHistoryService {
       throw new Error(error?.message || 'Không thể hủy đơn hàng');
     }
   }
+
+  /**
+   * Request cancellation for a customer order while status is AWAITING_SHIPMENT
+   * POST /api/v1/customers/{customerId}/orders/{customerOrderId}/cancel-request?reason=...&note=...
+   * Creates a cancellation request for shop approval
+   */
+  static async requestCancel(orderId: string, reason: string, note?: string): Promise<void> {
+    try {
+      const customerId = this.getCustomerId();
+      const query = new URLSearchParams();
+      query.append('reason', reason);
+      if (note) {
+        query.append('note', note);
+      }
+
+      const endpoint = `/api/v1/customers/${customerId}/orders/${orderId}/cancel-request?${query.toString()}`;
+
+      await HttpInterceptor.post<void>(endpoint, undefined, { userType: 'customer' });
+    } catch (error: any) {
+      // Re-throw with message so UI can show server response
+      throw new Error(error?.message || 'Không thể gửi yêu cầu hủy đơn hàng');
+    }
+  }
+
+  /**
+   * Get GHN order by store order ID (for customer)
+   * GET /api/v1/ghn-orders/by-store-order/{storeOrderId}
+   */
+  static async getGhnOrderByStoreOrderId(storeOrderId: string): Promise<any> {
+    try {
+      const response = await HttpInterceptor.get<any>(
+        `/api/v1/ghn-orders/by-store-order/${storeOrderId}`,
+        { userType: 'customer' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to get GHN order:', error);
+      // Return null if 404 (no GHN order found for this store order)
+      if (error?.status === 404) {
+        return null;
+      }
+      throw new Error(error?.message || 'Không thể lấy thông tin đơn GHN. Vui lòng thử lại.');
+    }
+  }
 }
 
 export default OrderHistoryService;

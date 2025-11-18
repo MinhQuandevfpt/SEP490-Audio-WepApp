@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import { AddressForm, PaymentMethodDropdown, CartItemList, OrderSummaryCard } from '.';
+import type { StoreGroup } from './CartItemList';
 import { useServiceTypeCalculator } from '../../hooks/useServiceTypeCalculator';
 import { useAutoShippingFee } from '../../hooks/useAutoShippingFee';
 import { AddressService } from '../../services/customer/AddressService';
@@ -124,6 +125,7 @@ const CheckoutOrderContainer: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [storeMetadata, setStoreMetadata] = useState<Record<string, { storeName: string }>>({});
 
   const shippingItems = useMemo(
     () => cartItems.map(item => ({ ...item, isSelected: true })),
@@ -156,6 +158,33 @@ const CheckoutOrderContainer: React.FC = () => {
       quantity: item.quantity,
     }));
   }, [cartItems]);
+
+  const groupedCartItems = useMemo<StoreGroup[]>(() => {
+    if (checkoutCartItems.length === 0) return [];
+    const groups = new Map<string, StoreGroup>();
+
+    checkoutCartItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      const productStoreId = product?.storeId;
+      const storeId = productStoreId || `unknown-${item.productId}`;
+      const storeName =
+        product?.storeName ||
+        (productStoreId ? storeMetadata[productStoreId]?.storeName : undefined) ||
+        'Cửa hàng chưa xác định';
+
+      if (!groups.has(storeId)) {
+        groups.set(storeId, {
+          storeId,
+          storeName,
+          items: [],
+        });
+      }
+
+      groups.get(storeId)!.items.push(item);
+    });
+
+    return Array.from(groups.values());
+  }, [checkoutCartItems, productCache, storeMetadata]);
 
   // Calculate subtotal after platform voucher discounts
   const subtotalAfterPlatformDiscount = useMemo(() => {
@@ -337,11 +366,18 @@ const CheckoutOrderContainer: React.FC = () => {
         const shopVouchers: ShopVoucher[] = [];
         const platformDiscountsMap: Record<string, { discount: number; campaignProductId: string }> = {};
         
+        const newStoreMeta: Record<string, { storeName: string }> = {};
+
         responses.forEach(({ voucherRes, productRes }, index) => {
           const productId = productIds[index];
           
           if (voucherRes && productRes) {
             const storeId = productRes.data?.storeId;
+            if (storeId) {
+              newStoreMeta[storeId] = {
+                storeName: productRes.data?.storeName || `Cửa hàng ${storeId.substring(0, 6)}`,
+              };
+            }
             const vouchers = voucherRes.data?.vouchers?.shop || [];
             vouchers.forEach((v: any) => {
               shopVouchers.push({
@@ -393,6 +429,10 @@ const CheckoutOrderContainer: React.FC = () => {
             }
           }
         });
+
+        if (Object.keys(newStoreMeta).length > 0) {
+          setStoreMetadata(prev => ({ ...prev, ...newStoreMeta }));
+        }
 
         const deduped = Array.from(new Map(shopVouchers.map(v => [v.code, v])).values());
         setAvailableVouchers(deduped);
@@ -499,29 +539,6 @@ const CheckoutOrderContainer: React.FC = () => {
     setCartItems(nextItems);
   };
 
-  const updateQuantity = async (cartItemId: string, nextQty: number) => {
-    try {
-      const clamped = Math.max(1, Math.min(nextQty, 99));
-      const resp = await CustomerCartService.updateItemQuantity(cartItemId, clamped);
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
-    } catch (error: any) {
-      const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
-      setError(msg);
-    }
-  };
-
-  const inc = (id: string) => {
-    const current = cartItems.find(it => it.id === id);
-    if (!current) return;
-    updateQuantity(id, current.quantity + 1);
-  };
-
-  const dec = (id: string) => {
-    const current = cartItems.find(it => it.id === id);
-    if (!current) return;
-    updateQuantity(id, current.quantity - 1);
-  };
-
   const removeItem = async (id: string) => {
     try {
       const resp = await CustomerCartService.deleteItems([id]);
@@ -558,7 +575,7 @@ const CheckoutOrderContainer: React.FC = () => {
     const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
     const message = selectedAddress?.note || '';
     const checkoutItemsPayload = cartItems.map(item => ({
-      id: item.productId,
+      productId: item.productId,
       type: 'PRODUCT' as const,
       quantity: item.quantity,
     }));
@@ -692,7 +709,7 @@ const CheckoutOrderContainer: React.FC = () => {
                     <p className="text-base font-semibold text-gray-900">Sản phẩm</p>
                   </div>
                   <div className="px-6 py-4">
-                    <CartItemList items={checkoutCartItems} onInc={inc} onDec={dec} onRemove={removeItem} />
+                    <CartItemList groups={groupedCartItems} onRemove={removeItem} />
                   </div>
                 </section>
 

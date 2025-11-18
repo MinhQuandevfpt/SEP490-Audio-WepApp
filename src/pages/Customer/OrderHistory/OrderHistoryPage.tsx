@@ -49,10 +49,12 @@ const OrderHistoryPage: React.FC = () => {
     viewDetail,
     reload,
     total,
+    ghnOrderData,
   } = useOrderHistory();
 
   // Cancel modal state
   const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [cancelTargetStatus, setCancelTargetStatus] = useState<string | null>(null); // Track order status for cancel type
   const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
   const [cancelNote, setCancelNote] = useState<string>('');
   const [isCancelling, setIsCancelling] = useState(false);
@@ -168,8 +170,8 @@ const OrderHistoryPage: React.FC = () => {
               <Space direction="vertical" size="large" className="w-full">
                 {orders.map(order => (
                   <div key={order.id}>
-                    <OrderCard order={order} />
-                    {order.status === 'PENDING' && (
+                    <OrderCard order={order} ghnOrderData={ghnOrderData} />
+                    {(order.status === 'PENDING' || order.status === 'AWAITING_SHIPMENT') && (
                       <Card 
                         className="mt-3 border-orange-200 bg-orange-50"
                         styles={{ body: { padding: '12px 16px' } }}
@@ -180,12 +182,13 @@ const OrderHistoryPage: React.FC = () => {
                             size="large"
                             onClick={() => {
                               setCancelTargetId(order.id);
+                              setCancelTargetStatus(order.status);
                               setCancelReason('CHANGE_OF_MIND');
                               setCancelNote('');
                             }}
                             style={{ borderRadius: '8px' }}
                           >
-                            Hủy đơn hàng
+                            {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
                           </Button>
                         </div>
                       </Card>
@@ -289,22 +292,34 @@ const OrderHistoryPage: React.FC = () => {
         </div>
       </div>
 
-      <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+      <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} ghnOrderData={ghnOrderData} />
 
       {/* Cancel Order Modal */}
       <Modal
         title={
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-orange-500" />
-            <span className="text-lg font-semibold">Hủy đơn hàng</span>
+            <span className="text-lg font-semibold">
+              {cancelTargetStatus === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
+            </span>
           </div>
         }
         open={!!cancelTargetId}
-        onCancel={() => !isCancelling && setCancelTargetId(null)}
+        onCancel={() => {
+          if (!isCancelling) {
+            setCancelTargetId(null);
+            setCancelTargetStatus(null);
+          }
+        }}
         footer={[
           <Button 
             key="cancel" 
-            onClick={() => !isCancelling && setCancelTargetId(null)} 
+            onClick={() => {
+              if (!isCancelling) {
+                setCancelTargetId(null);
+                setCancelTargetStatus(null);
+              }
+            }} 
             disabled={isCancelling}
             size="large"
             style={{ borderRadius: '8px' }}
@@ -320,19 +335,28 @@ const OrderHistoryPage: React.FC = () => {
               if (!cancelTargetId) return;
               try {
                 setIsCancelling(true);
-                await OrderHistoryService.cancel(cancelTargetId, cancelReason, cancelNote);
-                message.success('Hủy đơn hàng thành công');
+                
+                // Use different API based on order status
+                if (cancelTargetStatus === 'AWAITING_SHIPMENT') {
+                  await OrderHistoryService.requestCancel(cancelTargetId, cancelReason, cancelNote);
+                  message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng. Vui lòng chờ cửa hàng xem xét.');
+                } else {
+                  await OrderHistoryService.cancel(cancelTargetId, cancelReason, cancelNote);
+                  message.success('Hủy đơn hàng thành công');
+                }
+                
                 setCancelTargetId(null);
+                setCancelTargetStatus(null);
                 await reload();
               } catch (err: any) {
-                message.error(err?.message || 'Hủy đơn hàng thất bại');
+                message.error(err?.message || (cancelTargetStatus === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy đơn hàng thất bại' : 'Hủy đơn hàng thất bại'));
               } finally {
                 setIsCancelling(false);
               }
             }}
             style={{ borderRadius: '8px' }}
           >
-            Xác nhận hủy
+            {cancelTargetStatus === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy' : 'Xác nhận hủy'}
           </Button>,
         ]}
         styles={{ 
@@ -343,7 +367,16 @@ const OrderHistoryPage: React.FC = () => {
         <Space direction="vertical" size="large" className="w-full">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <Text type="secondary" className="text-sm">
-              <strong>Lưu ý:</strong> Chỉ có thể hủy khi trạng thái đơn là <strong>PENDING</strong>.
+              {cancelTargetStatus === 'AWAITING_SHIPMENT' ? (
+                <>
+                  <strong>Lưu ý:</strong> Đơn hàng đang ở trạng thái <strong>Chờ lấy hàng</strong>. 
+                  Yêu cầu hủy đơn sẽ được gửi đến cửa hàng để xem xét. Cửa hàng sẽ quyết định có chấp nhận yêu cầu hủy hay không.
+                </>
+              ) : (
+                <>
+                  <strong>Lưu ý:</strong> Chỉ có thể hủy khi trạng thái đơn là <strong>PENDING</strong>.
+                </>
+              )}
             </Text>
           </div>
           

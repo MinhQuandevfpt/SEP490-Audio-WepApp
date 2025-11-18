@@ -1,48 +1,84 @@
 import React from 'react';
 import type { CheckoutCartItem } from '../../data/checkout';
-import { Minus, Plus, Trash2, Box } from 'lucide-react';
+import { Trash2, Store, Package } from 'lucide-react';
+
+export interface StoreGroup {
+  storeId: string;
+  storeName: string;
+  items: CheckoutCartItem[];
+}
 
 interface Props {
-  items: CheckoutCartItem[];
-  onInc: (id: string) => void;
-  onDec: (id: string) => void;
+  groups: StoreGroup[];
   onRemove: (id: string) => void;
 }
 
-const CartItemList: React.FC<Props> = ({ items, onInc, onDec, onRemove }) => {
+const CartItemList: React.FC<Props> = ({ groups, onRemove }) => {
+  if (groups.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+        Giỏ hàng trống.
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
-      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Box className="w-5 h-5 text-orange-600" /> Sản phẩm</h3>
-      <div className="space-y-3">
-        {items.map(it => (
-          <div key={it.id} className="flex gap-4 p-3 border rounded-lg">
-            <img src={it.image} alt={it.name} className="w-16 h-16 rounded object-cover border" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate" title={it.name}>{it.name}</p>
-              <div className="mt-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => onDec(it.id)} className="px-2 py-1 border rounded hover:bg-gray-50"><Minus className="w-4 h-4" /></button>
-                  <input readOnly value={it.quantity} className="w-12 text-center border rounded py-1" />
-                  <button onClick={() => onInc(it.id)} className="px-2 py-1 border rounded hover:bg-gray-50"><Plus className="w-4 h-4" /></button>
-                </div>
-                <div className="flex items-center gap-3">
-                  {it.originalPrice && <span className="text-xs text-gray-400 line-through">{new Intl.NumberFormat('vi-VN').format(it.originalPrice)}đ</span>}
-                  <span className="text-sm font-semibold text-orange-600">{new Intl.NumberFormat('vi-VN').format(it.price * it.quantity)}đ</span>
-                  <button onClick={() => onRemove(it.id)} className="text-red-600 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
-                </div>
-              </div>
+    <div className="space-y-5">
+      {groups.map(group => (
+        <div key={group.storeId} className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100">
+            <Store className="w-5 h-5 text-orange-600" />
+            <div>
+              <p className="text-sm font-semibold text-gray-900">{group.storeName}</p>
             </div>
           </div>
-        ))}
-        {items.length === 0 && (
-          <p className="text-sm text-gray-500">Giỏ hàng trống.</p>
-        )}
+          <div className="divide-y divide-gray-100">
+            {group.items.map(item => (
+              <div key={item.id} className="flex gap-4 px-6 py-4">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate" title={item.name}>
+                    {item.name}
+                  </p>
+                  <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 border border-gray-100 rounded-lg bg-gray-50 text-sm text-gray-700">
+                      <span className="font-medium text-gray-900">Số lượng:</span>
+                      <span>{item.quantity}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {item.originalPrice && (
+                        <span className="text-xs text-gray-400 line-through">
+                          {new Intl.NumberFormat('vi-VN').format(item.originalPrice)}đ
+                        </span>
+                      )}
+                      <span className="text-base font-semibold text-orange-600">
+                        {new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ
+                      </span>
+                      <button
+                        onClick={() => onRemove(item.id)}
+                        className="text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div className="flex items-center gap-2 text-xs text-gray-500 px-1">
+        <Package className="w-4 h-4" />
+        Bạn có thể chỉnh sửa số lượng hoặc xóa sản phẩm theo từng cửa hàng.
       </div>
-      <p className="text-xs text-gray-500">Bạn có thể chỉnh sửa số lượng hoặc xóa sản phẩm.</p>
     </div>
   );
 };
 
 export default CartItemList;
-
 

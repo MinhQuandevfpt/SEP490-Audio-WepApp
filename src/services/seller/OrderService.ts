@@ -113,7 +113,7 @@ export class StoreOrderService {
 
   /**
    * Update order status
-   * PUT /api/v1/stores/{storeId}/orders/{orderId}/status
+   * PATCH /api/v1/stores/{storeId}/orders/{orderId}/status
    */
   static async updateOrderStatus(
     orderId: string,
@@ -123,7 +123,7 @@ export class StoreOrderService {
       const storeId = await this.getStoreId();
       const endpoint = `/api/v1/stores/${storeId}/orders/${orderId}/status`;
       
-      const response = await HttpInterceptor.put<StoreOrder>(
+      const response = await HttpInterceptor.patch<StoreOrder>(
         endpoint,
         { status },
         { userType: 'seller' }
