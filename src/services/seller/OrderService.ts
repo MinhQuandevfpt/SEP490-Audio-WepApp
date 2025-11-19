@@ -171,6 +171,94 @@ export class StoreOrderService {
       throw new Error(error?.message || 'Không thể phân công nhân viên giao hàng');
     }
   }
+
+  /**
+   * Get cancellation requests for an order
+   * GET /api/v1/stores/{storeId}/orders/{storeOrderId}/cancel-requests
+   */
+  static async getCancelRequests(storeOrderId: string): Promise<any[]> {
+    try {
+      const storeId = await this.getStoreId();
+      const endpoint = `/api/v1/stores/${storeId}/orders/${storeOrderId}/cancel-requests`;
+      
+      const response = await HttpInterceptor.get<{
+        status: number;
+        message: string;
+        data: any[];
+      }>(
+        endpoint,
+        { userType: 'seller' }
+      );
+
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching cancel requests:', error);
+      // Return empty array if 404 (no cancel requests found)
+      if (error?.status === 404) {
+        return [];
+      }
+      throw new Error(error?.message || 'Không thể tải danh sách yêu cầu hủy đơn hàng');
+    }
+  }
+
+  /**
+   * Approve cancellation request
+   * POST /api/v1/stores/{storeId}/orders/{storeOrderId}/cancel/approve
+   */
+  static async approveCancelRequest(storeOrderId: string): Promise<void> {
+    try {
+      const storeId = await this.getStoreId();
+      const endpoint = `/api/v1/stores/${storeId}/orders/${storeOrderId}/cancel/approve`;
+      
+      const response = await HttpInterceptor.post<{
+        status: number;
+        message: string;
+        data: null;
+      }>(
+        endpoint,
+        undefined,
+        { userType: 'seller' }
+      );
+
+      console.log('✅ Cancel request approved:', response.message);
+    } catch (error: any) {
+      console.error('❌ Error approving cancel request:', error);
+      throw new Error(error?.message || 'Không thể chấp nhận yêu cầu hủy đơn hàng');
+    }
+  }
+
+  /**
+   * Reject cancellation request
+   * POST /api/v1/stores/{storeId}/orders/{storeOrderId}/cancel/reject?note=...
+   */
+  static async rejectCancelRequest(storeOrderId: string, note?: string): Promise<void> {
+    try {
+      const storeId = await this.getStoreId();
+      let endpoint = `/api/v1/stores/${storeId}/orders/${storeOrderId}/cancel/reject`;
+      
+      // Add note as query parameter if provided
+      if (note) {
+        const queryParams = new URLSearchParams();
+        queryParams.append('note', note);
+        endpoint += `?${queryParams.toString()}`;
+      }
+      
+      const response = await HttpInterceptor.post<{
+        status: number;
+        message: string;
+        data: null;
+      }>(
+        endpoint,
+        undefined,
+        { userType: 'seller' }
+      );
+
+      console.log('✅ Cancel request rejected:', response.message);
+    } catch (error: any) {
+      console.error('❌ Error rejecting cancel request:', error);
+      throw new Error(error?.message || 'Không thể từ chối yêu cầu hủy đơn hàng');
+    }
+  }
 }
 
 export default StoreOrderService;

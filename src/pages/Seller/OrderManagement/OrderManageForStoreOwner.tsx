@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign } from 'lucide-react';
+import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X } from 'lucide-react';
 import { StoreOrderFilter, GhnTransferModal } from '../../../components/StoreOwnerOrderManagementComponents';
 import useStoreOrders from '../../../hooks/useStoreOrders';
 import type { StoreOrder } from '../../../types/seller';
@@ -43,6 +43,11 @@ const OrderManageForStoreOwner: React.FC = () => {
   const [isLoadingInvoice, setIsLoadingInvoice] = useState(false);
   const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
   const [loadingGhnOrders, setLoadingGhnOrders] = useState<Record<string, boolean>>({});
+  const [cancelRequestsData, setCancelRequestsData] = useState<Record<string, any[]>>({});
+  const [loadingCancelRequests, setLoadingCancelRequests] = useState<Record<string, boolean>>({});
+  const [processingCancelRequest, setProcessingCancelRequest] = useState<Record<string, boolean>>({});
+  const [showRejectModal, setShowRejectModal] = useState<{ orderId: string; requestId: string } | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
 
   const handlePrepareOrder = async (orderId: string) => {
     try {
@@ -371,6 +376,19 @@ const OrderManageForStoreOwner: React.FC = () => {
                   setLoadingGhnOrders(prev => ({ ...prev, [record.id]: false }));
                 }
               }
+
+              // Load cancel requests when row is expanded
+              if (expanded && !cancelRequestsData[record.id] && !loadingCancelRequests[record.id]) {
+                try {
+                  setLoadingCancelRequests(prev => ({ ...prev, [record.id]: true }));
+                  const cancelRequests = await StoreOrderService.getCancelRequests(record.id);
+                  setCancelRequestsData(prev => ({ ...prev, [record.id]: cancelRequests }));
+                } catch (error: any) {
+                  console.error(`Error loading cancel requests for ${record.id}:`, error);
+                } finally {
+                  setLoadingCancelRequests(prev => ({ ...prev, [record.id]: false }));
+                }
+              }
             },
             expandedRowRender: (record) => {
               const addr = [record.shipStreet, record.shipWard, record.shipDistrict, record.shipProvince].filter(Boolean).join(', ');
@@ -483,6 +501,148 @@ const OrderManageForStoreOwner: React.FC = () => {
                     ) : (
                       <div className="text-center py-4 text-sm text-gray-500">
                         Chưa có thông tin vận chuyển GHN cho đơn hàng này
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cancellation Requests Section */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <XCircle className="w-5 h-5 text-red-500" />
+                      <div className="text-sm font-semibold">Yêu cầu hủy đơn hàng</div>
+                      {cancelRequestsData[record.id] && cancelRequestsData[record.id].length > 0 && (
+                        <Tag color="red" className="ml-2">
+                          {cancelRequestsData[record.id].length} yêu cầu
+                        </Tag>
+                      )}
+                    </div>
+                    {loadingCancelRequests[record.id] ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin mr-2" />
+                        <span className="text-sm text-gray-600">Đang tải yêu cầu hủy đơn hàng...</span>
+                      </div>
+                    ) : cancelRequestsData[record.id] && cancelRequestsData[record.id].length > 0 ? (
+                      <div className="space-y-3">
+                        {cancelRequestsData[record.id].map((request: any, index: number) => (
+                          <div
+                            key={request.id}
+                            className="border border-gray-200 rounded-lg p-4 bg-red-50 hover:bg-red-100 transition-colors"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                                <span className="text-xs font-semibold text-gray-700">
+                                  Yêu cầu #{index + 1}
+                                </span>
+                                <Tag
+                                  color={
+                                    request.status === 'REQUESTED' ? 'orange' :
+                                    request.status === 'APPROVED' ? 'green' :
+                                    request.status === 'REJECTED' ? 'red' :
+                                    'default'
+                                  }
+                                  className="ml-2"
+                                >
+                                  {request.status === 'REQUESTED' ? 'Đang chờ xử lý' :
+                                   request.status === 'APPROVED' ? 'Đã chấp nhận' :
+                                   request.status === 'REJECTED' ? 'Đã từ chối' :
+                                   request.status}
+                                </Tag>
+                              </div>
+                              <Text code className="text-xs text-gray-500">
+                                {request.id.slice(0, 8)}...
+                              </Text>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Lý do hủy:</div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {request.reason === 'FOUND_BETTER_PRICE' ? 'Tìm thấy giá tốt hơn' :
+                                   request.reason === 'CHANGE_OF_MIND' ? 'Thay đổi ý định' :
+                                   request.reason === 'WRONG_ITEM' ? 'Sai sản phẩm' :
+                                   request.reason === 'DELIVERY_ISSUE' ? 'Vấn đề giao hàng' :
+                                   request.reason}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-gray-500 mb-1">Ghi chú:</div>
+                                <div className="text-sm text-gray-700">
+                                  {request.note || <span className="text-gray-400 italic">Không có ghi chú</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-200">
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <Clock className="w-3 h-3" />
+                                <span>Yêu cầu lúc:</span>
+                                <span className="font-medium text-gray-700">
+                                  {new Date(request.requestedAt).toLocaleString('vi-VN')}
+                                </span>
+                              </div>
+                              {request.processedAt && (
+                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                  <span>Xử lý lúc:</span>
+                                  <span className="font-medium text-gray-700">
+                                    {new Date(request.processedAt).toLocaleString('vi-VN')}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Buttons - Only show for REQUESTED status */}
+                            {request.status === 'REQUESTED' && (
+                              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
+                                <Button
+                                  type="primary"
+                                  icon={<Check className="w-4 h-4" />}
+                                  onClick={async () => {
+                                    const key = `${record.id}-${request.id}`;
+                                    try {
+                                      setProcessingCancelRequest(prev => ({ ...prev, [key]: true }));
+                                      await StoreOrderService.approveCancelRequest(record.id);
+                                      showCenterSuccess('Đã chấp nhận yêu cầu hủy đơn hàng và hoàn tiền', 'Thành công');
+                                      
+                                      // Refresh cancel requests
+                                      const updatedRequests = await StoreOrderService.getCancelRequests(record.id);
+                                      setCancelRequestsData(prev => ({ ...prev, [record.id]: updatedRequests }));
+                                      
+                                      // Refresh order list
+                                      refresh();
+                                    } catch (error: any) {
+                                      showCenterError(error?.message || 'Không thể chấp nhận yêu cầu hủy đơn hàng', 'Lỗi');
+                                    } finally {
+                                      setProcessingCancelRequest(prev => ({ ...prev, [key]: false }));
+                                    }
+                                  }}
+                                  disabled={processingCancelRequest[`${record.id}-${request.id}`]}
+                                  loading={processingCancelRequest[`${record.id}-${request.id}`]}
+                                  size="small"
+                                  style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                                >
+                                  Chấp nhận hủy đơn
+                                </Button>
+                                <Button
+                                  danger
+                                  icon={<X className="w-4 h-4" />}
+                                  onClick={() => {
+                                    setShowRejectModal({ orderId: record.id, requestId: request.id });
+                                    setRejectNote('');
+                                  }}
+                                  disabled={processingCancelRequest[`${record.id}-${request.id}`]}
+                                  size="small"
+                                >
+                                  Không cho hủy đơn
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-sm text-gray-500">
+                        Chưa có yêu cầu hủy đơn hàng nào cho đơn hàng này
                       </div>
                     )}
                   </div>
@@ -758,6 +918,92 @@ const OrderManageForStoreOwner: React.FC = () => {
               <p className="text-gray-500">Không có dữ liệu hóa đơn</p>
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Reject Cancel Request Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <X className="w-5 h-5 text-red-500" />
+            <span>Từ chối yêu cầu hủy đơn hàng</span>
+          </div>
+        }
+        open={showRejectModal !== null}
+        onCancel={() => {
+          setShowRejectModal(null);
+          setRejectNote('');
+        }}
+        footer={null}
+        width={500}
+      >
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ghi chú từ chối (tùy chọn)
+            </label>
+            <Input.TextArea
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="Ví dụ: Đơn đã đóng gói, vui lòng liên hệ CSKH..."
+              disabled={showRejectModal ? processingCancelRequest[`${showRejectModal.orderId}-${showRejectModal.requestId}`] : false}
+              rows={4}
+              maxLength={500}
+              showCount
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Ghi chú này sẽ được gửi đến khách hàng để giải thích lý do từ chối
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => {
+                setShowRejectModal(null);
+                setRejectNote('');
+              }}
+              disabled={showRejectModal ? processingCancelRequest[`${showRejectModal.orderId}-${showRejectModal.requestId}`] : false}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              danger
+              icon={<X className="w-4 h-4" />}
+              onClick={async () => {
+                if (!showRejectModal) return;
+                
+                const key = `${showRejectModal.orderId}-${showRejectModal.requestId}`;
+                try {
+                  setProcessingCancelRequest(prev => ({ ...prev, [key]: true }));
+                  await StoreOrderService.rejectCancelRequest(
+                    showRejectModal.orderId,
+                    rejectNote.trim() || undefined
+                  );
+                  showCenterSuccess('Đã từ chối yêu cầu hủy đơn hàng', 'Thành công');
+                  
+                  // Refresh cancel requests
+                  const updatedRequests = await StoreOrderService.getCancelRequests(showRejectModal.orderId);
+                  setCancelRequestsData(prev => ({ ...prev, [showRejectModal.orderId]: updatedRequests }));
+                  
+                  // Refresh order list
+                  refresh();
+                  
+                  // Close modal
+                  setShowRejectModal(null);
+                  setRejectNote('');
+                } catch (error: any) {
+                  showCenterError(error?.message || 'Không thể từ chối yêu cầu hủy đơn hàng', 'Lỗi');
+                } finally {
+                  setProcessingCancelRequest(prev => ({ ...prev, [key]: false }));
+                }
+              }}
+              disabled={showRejectModal ? processingCancelRequest[`${showRejectModal.orderId}-${showRejectModal.requestId}`] : false}
+              loading={showRejectModal ? processingCancelRequest[`${showRejectModal.orderId}-${showRejectModal.requestId}`] : false}
+            >
+              Xác nhận từ chối
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

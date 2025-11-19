@@ -721,8 +721,8 @@ const StoreProfile: React.FC = () => {
             <div className="flex justify-center mb-3">
               <ReactCrop
                 crop={crop}
-                onChange={(c) => setCrop(c)}
-                onComplete={(c) => setCompletedCrop(c)}
+                onChange={(c: Crop) => setCrop(c)}
+                onComplete={(c: Crop) => setCompletedCrop(c)}
                 aspect={1}
                 circularCrop
               >
