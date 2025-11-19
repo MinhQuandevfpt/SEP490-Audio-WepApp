@@ -106,6 +106,54 @@ export interface StoreStatusResponse {
   canAccessDashboard: boolean;
 }
 
+// Store Detail Types (for Store Profile)
+export interface StoreDetail {
+  storeId: string;
+  storeName: string;
+  description: string | null;
+  logoUrl: string | null;
+  coverImageUrl: string | null;
+  address: string | null;
+  phoneNumber: string | null;
+  email: string | null;
+  rating: number | null;
+  status: StoreStatus;
+  accountId: string;
+  storeAddresses: Array<{
+    addressId: string;
+    defaultAddress: boolean;
+    provinceCode: string;
+    districtCode: string;
+    wardCode: string;
+    address: string;
+    addressLocation: string | null;
+  }>;
+}
+
+export interface StoreDetailResponse extends ApiResponse<StoreDetail> {}
+
+// Update Store Types
+export interface UpdateStoreRequest {
+  storeName?: string;
+  description?: string;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  address?: string;
+  phoneNumber?: string;
+  email?: string;
+  storeAddresses?: Array<{
+    addressId?: string;
+    defaultAddress: boolean;
+    provinceCode: string;
+    districtCode: string;
+    wardCode: string;
+    address: string;
+    addressLocation?: string;
+  }>;
+}
+
+export interface UpdateStoreResponse extends ApiResponse<StoreDetail> {}
+
 // Dashboard Statistics Types
 export interface DashboardStats {
   totalRevenue: number;

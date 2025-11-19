@@ -7,7 +7,6 @@ import {
   BarChart3,
   Settings,
   Store,
-  Bell,
   User,
   LogOut,
   Menu,
@@ -15,12 +14,11 @@ import {
   ChevronDown,
   Wallet,
   MessageSquare,
-  HelpCircle,
   FileText,
   Tag,
   Users,
   ShieldCheck,
-  MapPin
+  Building2
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -132,10 +130,15 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
     },
     {
-      icon: MapPin,
-      label: 'Địa chỉ cửa hàng',
-      path: '/seller/dashboard/store-address',
+      icon: Store,
+      label: 'Quản lý Shop',
+      path: '/seller/dashboard/shop',
       badge: null,
+      subItems: [
+        { label: 'Hồ sơ shop', path: '/seller/dashboard/profile' },
+        { label: 'Địa chỉ cửa hàng', path: '/seller/dashboard/store-address' },
+        { label: 'Cài đặt cửa hàng', path: '/seller/dashboard/settings' }
+      ]
     },
     {
       icon: Tag,
@@ -158,17 +161,12 @@ const SellerDashboardLayout: React.FC = () => {
       label: 'Đánh giá sản phẩm',
       path: '/seller/dashboard/reviews',
       badge: null
-    },
-    {
-      icon: Settings,
-      label: 'Cài đặt cửa hàng',
-      path: '/seller/dashboard/settings',
-      badge: null
     }
   ];
 
   const isActive = (path: string) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+    // Exact match only - don't highlight parent when child is active
+    return location.pathname === path;
   };
 
   const toggleExpand = (path: string) => {
@@ -200,27 +198,27 @@ const SellerDashboardLayout: React.FC = () => {
             </Link>
           </div>
 
-          {/* Right: Notifications & Profile */}
+          {/* Right: Profile */}
           <div className="flex items-center space-x-4">
-            {/* Help */}
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
-              <HelpCircle className="w-5 h-5 text-gray-600" />
-            </button>
-
-            {/* Notifications */}
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
-              <Bell className="w-5 h-5 text-gray-600" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-
             {/* Profile Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center">
-                  <User className="w-4 h-4 text-white" />
+                {/* Store Logo or Default Icon */}
+                <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden border-2 border-gray-200">
+                  {storeInfo?.logoUrl ? (
+                    <img 
+                      src={storeInfo.logoUrl} 
+                      alt={storeInfo.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-orange-400 to-red-400 flex items-center justify-center">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                  )}
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-gray-800">
@@ -253,19 +251,21 @@ const SellerDashboardLayout: React.FC = () => {
                   </div>
                   
                   <Link
-                    to="/seller/dashboard/settings"
+                    to="/seller/dashboard/profile"
                     className="flex items-center px-4 py-2 hover:bg-gray-50 transition-colors"
+                    onClick={() => setIsProfileMenuOpen(false)}
                   >
-                    <Settings className="w-4 h-4 mr-3 text-gray-600" />
-                    <span className="text-sm text-gray-700">Cài đặt cửa hàng</span>
+                    <Building2 className="w-4 h-4 mr-3 text-gray-600" />
+                    <span className="text-sm text-gray-700">Hồ sơ shop</span>
                   </Link>
                   
                   <Link
-                    to="/seller/dashboard/profile"
+                    to="/seller/dashboard/settings"
                     className="flex items-center px-4 py-2 hover:bg-gray-50 transition-colors"
+                    onClick={() => setIsProfileMenuOpen(false)}
                   >
-                    <User className="w-4 h-4 mr-3 text-gray-600" />
-                    <span className="text-sm text-gray-700">Thông tin tài khoản</span>
+                    <Settings className="w-4 h-4 mr-3 text-gray-600" />
+                    <span className="text-sm text-gray-700">Cài đặt cửa hàng</span>
                   </Link>
                   
                   <button
@@ -295,23 +295,38 @@ const SellerDashboardLayout: React.FC = () => {
               const Icon = item.icon;
               const isCurrentActive = isActive(item.path);
               const isExpanded = expandedItems.includes(item.path);
+              const hasSubItems = item.subItems && item.subItems.length > 0;
 
               return (
                 <div key={index}>
                   <div className="flex items-center justify-between mb-1 rounded-lg transition-all">
-                    <Link
-                      to={item.path}
-                      className={`flex items-center px-4 py-3 rounded-lg flex-1 transition-all ${
-                        isCurrentActive ? 'text-orange-600 font-medium' : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Icon className={`w-5 h-5 ${isCurrentActive ? 'text-orange-600' : 'text-gray-600'}`} />
-                      {isSidebarOpen && (
-                        <span className="ml-3 text-sm">{item.label}</span>
-                      )}
-                    </Link>
+                    {hasSubItems ? (
+                      // Parent menu item with submenu - just toggle, don't navigate, never highlight
+                      <button
+                        onClick={() => toggleExpand(item.path)}
+                        className="flex items-center px-4 py-3 rounded-lg flex-1 transition-all text-left text-gray-700 hover:bg-gray-50"
+                      >
+                        <Icon className="w-5 h-5 text-gray-600" />
+                        {isSidebarOpen && (
+                          <span className="ml-3 text-sm">{item.label}</span>
+                        )}
+                      </button>
+                    ) : (
+                      // Regular menu item - navigate normally
+                      <Link
+                        to={item.path}
+                        className={`flex items-center px-4 py-3 rounded-lg flex-1 transition-all ${
+                          isCurrentActive ? 'text-orange-600 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Icon className={`w-5 h-5 ${isCurrentActive ? 'text-orange-600' : 'text-gray-600'}`} />
+                        {isSidebarOpen && (
+                          <span className="ml-3 text-sm">{item.label}</span>
+                        )}
+                      </Link>
+                    )}
 
-                    {isSidebarOpen && item.subItems && (
+                    {isSidebarOpen && hasSubItems && (
                       <button
                         onClick={() => toggleExpand(item.path)}
                         className="p-2 mr-2 rounded hover:bg-gray-100"
@@ -328,9 +343,9 @@ const SellerDashboardLayout: React.FC = () => {
                   </div>
 
                   {/* Sub Items */}
-                  {isSidebarOpen && item.subItems && isExpanded && (
+                  {isSidebarOpen && hasSubItems && isExpanded && (
                     <div className="ml-8 mb-2">
-                      {item.subItems.map((subItem, subIndex) => (
+                      {item.subItems!.map((subItem, subIndex) => (
                         <Link
                           key={subIndex}
                           to={subItem.path}

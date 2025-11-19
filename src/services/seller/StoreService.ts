@@ -1,5 +1,5 @@
 // Store Service for managing store information and status
-import type { StoreInfo, StoreStatusResponse } from '../../types/seller';
+import type { StoreInfo, StoreStatusResponse, StoreDetailResponse, StoreDetail, UpdateStoreRequest, UpdateStoreResponse } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 import { getSellerStoreId, safeSetLocalStorage } from '../../utils/authHelper';
 
@@ -280,6 +280,59 @@ export class StoreService {
       return data.data;
     } catch (error) {
       console.error('Error updating store info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed store profile information
+   */
+  static async getStoreDetail(storeId: string): Promise<StoreDetail> {
+    try {
+      console.log('🔍 Getting store detail for ID:', storeId);
+
+      const response = await HttpInterceptor.get<StoreDetailResponse>(`${API_URL}/stores/${storeId}`, {
+        userType: 'seller',
+      });
+
+      console.log('✅ Store detail received:', response.data);
+      
+      if (!response.data) {
+        throw new Error('Store data not found');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error getting store detail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update store profile information
+   */
+  static async updateStore(storeId: string, updateData: UpdateStoreRequest): Promise<StoreDetail> {
+    try {
+      console.log('🔄 Updating store:', { storeId, updateData });
+
+      const response = await HttpInterceptor.put<UpdateStoreResponse>(
+        `${API_URL}/stores/${storeId}`,
+        updateData,
+        { userType: 'seller' }
+      );
+
+      console.log('✅ Store updated successfully:', response.data);
+      
+      if (!response.data) {
+        throw new Error('Store update failed');
+      }
+      
+      // Update cache
+      localStorage.setItem('seller_store_info', JSON.stringify(response.data));
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error updating store:', error);
       throw error;
     }
   }

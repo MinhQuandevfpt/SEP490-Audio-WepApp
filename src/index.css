@@ -1,3 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Store Profile - Circular Avatar Upload */
+.avatar-uploader .ant-upload-list-item {
+  width: 144px !important;
+  height: 144px !important;
+  border-radius: 50% !important;
+  overflow: hidden;
+}
+
+.avatar-uploader .ant-upload-list-item img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.avatar-uploader .ant-upload-select {
+  width: 144px !important;
+  height: 144px !important;
+  border-radius: 50% !important;
+  margin: 0 !important;
+}
+
+.avatar-uploader .ant-upload-list {
+  display: flex;
+  justify-content: center;
+}

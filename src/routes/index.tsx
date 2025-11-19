@@ -43,6 +43,7 @@ import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/Camp
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
+import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
@@ -351,6 +352,10 @@ export const router = createBrowserRouter([
       {
         path: 'store-address',
         element: <StoreAddressPage />
+      },
+      {
+        path: 'profile',
+        element: <StoreProfile />
       },
       {
         path: 'finance/revenue',

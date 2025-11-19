@@ -245,7 +245,7 @@ const Header: React.FC = () => {
 
             <div className="flex items-center space-x-2 text-gray-700">
               <Truck className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">Freeship mọi đơn</span>
+              <span className="text-sm font-medium">Vận chuyển nhanh chóng</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
@@ -258,12 +258,7 @@ const Header: React.FC = () => {
               <span className="text-sm font-medium">30 ngày đổi trả</span>
             </div>
 
-            <div className="flex items-center space-x-2 text-gray-700">
-              <Truck className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">Giao nhanh 2h</span>
-            </div>
-
-            <div className="flex items-center space-x-2 text-gray-700">
+           <div className="flex items-center space-x-2 text-gray-700">
               <DollarSign className="w-5 h-5 text-blue-600" />
               <span className="text-sm font-medium">Giá siêu rẻ</span>
             </div>
