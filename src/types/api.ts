@@ -336,6 +336,7 @@ export interface OrderItem {
 // Store Order (sub-order within main order)
 export interface StoreOrder {
   id: string;
+  orderCode?: string;
   storeId: string;
   storeName: string;
   status: OrderStatus;

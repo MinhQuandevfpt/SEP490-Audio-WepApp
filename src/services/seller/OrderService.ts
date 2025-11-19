@@ -63,10 +63,11 @@ export class StoreOrderService {
 
       let filteredItems = response.items || [];
 
-      // Client-side search by order ID, customer name, or phone
+      // Client-side search by order code, order ID, customer name, or phone
       if (params?.search) {
         const searchTerm = params.search.toLowerCase();
         filteredItems = filteredItems.filter(order => 
+          (order.orderCode && order.orderCode.toLowerCase().includes(searchTerm)) ||
           order.id.toLowerCase().includes(searchTerm) ||
           order.customerOrderId.toLowerCase().includes(searchTerm) ||
           order.customerName.toLowerCase().includes(searchTerm) ||

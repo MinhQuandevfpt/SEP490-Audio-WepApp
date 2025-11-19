@@ -433,6 +433,7 @@ export interface StoreOrderItem {
 // Store Order (from API response)
 export interface StoreOrder {
   id: string;
+  orderCode: string;
   storeId: string;
   storeName: string;
   status: StoreOrderStatus;

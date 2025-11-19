@@ -191,9 +191,9 @@ const OrderManageForStoreOwner: React.FC = () => {
   const columns: ColumnsType<StoreOrder> = [
     {
       title: 'Mã đơn',
-      dataIndex: 'id',
-      key: 'id',
-      render: (id: string) => <Text code>{id.slice(0, 8)}</Text>,
+      dataIndex: 'orderCode',
+      key: 'orderCode',
+      render: (orderCode: string) => <Text code>{orderCode || '-'}</Text>,
     },
     {
       title: 'Khách hàng',
