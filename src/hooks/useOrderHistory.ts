@@ -35,6 +35,7 @@ export const useOrderHistory = () => {
       setTotalPages(res.totalPages);
 
       // Load GHN order data for each storeOrder
+      // Note: Many orders may not have GHN orders yet (404/500 is normal)
       const ghnDataPromises: Promise<void>[] = [];
       res.data.forEach((order) => {
         order.storeOrders.forEach((storeOrder) => {
@@ -43,6 +44,7 @@ export const useOrderHistory = () => {
             ghnDataPromises.push(
               OrderHistoryService.getGhnOrderByStoreOrderId(storeOrder.id)
                 .then((ghnOrder) => {
+                  // Service returns null if not found (404/500) - this is normal
                   if (ghnOrder && ghnOrder.data) {
                     setGhnOrderData((prev) => ({
                       ...prev,
@@ -51,7 +53,11 @@ export const useOrderHistory = () => {
                   }
                 })
                 .catch((err) => {
-                  console.error(`Error loading GHN order for ${storeOrder.id}:`, err);
+                  // Only log unexpected errors (network issues, etc.)
+                  // 404/500 errors are handled by service and return null
+                  if (err?.status !== 404 && err?.status !== 500) {
+                    console.error(`Unexpected error loading GHN order for ${storeOrder.id}:`, err);
+                  }
                   // Silently fail - don't block UI
                 })
             );
@@ -60,8 +66,9 @@ export const useOrderHistory = () => {
       });
 
       // Load GHN data in parallel (don't await - load in background)
-      Promise.all(ghnDataPromises).catch((err) => {
-        console.error('Error loading GHN orders:', err);
+      // Errors are handled individually, so we don't need to catch here
+      Promise.all(ghnDataPromises).catch(() => {
+        // Silently fail - individual errors are already handled
       });
     } catch (e: any) {
       setError(e?.message || 'Không thể tải danh sách đơn hàng');

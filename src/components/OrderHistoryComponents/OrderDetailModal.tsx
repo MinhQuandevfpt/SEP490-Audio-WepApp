@@ -1,4 +1,5 @@
 import React from 'react';
+import { Modal, Button, Select, Input, Space, message } from 'antd';
 import type { CustomerOrder } from '../../types/api';
 import { 
   getStatusBadgeClass, 
@@ -7,20 +8,56 @@ import {
   formatDate,
   canCancelOrder
 } from '../../utils/orderStatus';
-import { X, Package, MapPin, Phone, Receipt, Store, Truck, Calendar, AlertCircle, Copy, Check, ExternalLink, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Package, MapPin, Phone, Receipt, Store, Truck, Calendar, Copy, Check, ExternalLink, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
+
+const { Option } = Select;
+const { TextArea } = Input;
 
 interface Props {
   order: CustomerOrder | null;
   onClose: () => void;
   ghnOrderData?: Record<string, any>;
+  onOrderCancelled?: () => void;
 }
 
-const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }) => {
+const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, onOrderCancelled }) => {
   if (!order) return null;
 
   const [copiedGhnCode, setCopiedGhnCode] = React.useState<string | null>(null);
   const [showTrackingGuide, setShowTrackingGuide] = React.useState<Record<string, boolean>>({});
+  const [showCancelModal, setShowCancelModal] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState<string>('CHANGE_OF_MIND');
+  const [cancelNote, setCancelNote] = React.useState<string>('');
+  const [isCancelling, setIsCancelling] = React.useState(false);
   const totalItemsCount = order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0);
+
+  const handleCancelOrder = async () => {
+    try {
+      setIsCancelling(true);
+      
+      // Use different API based on order status
+      if (order.status === 'AWAITING_SHIPMENT') {
+        await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
+        message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng. Vui lòng chờ cửa hàng xem xét.');
+      } else {
+        await OrderHistoryService.cancel(order.id, cancelReason, cancelNote);
+        message.success('Hủy đơn hàng thành công');
+      }
+      
+      setShowCancelModal(false);
+      setCancelReason('CHANGE_OF_MIND');
+      setCancelNote('');
+      if (onOrderCancelled) {
+        onOrderCancelled();
+      }
+      onClose();
+    } catch (err: any) {
+      message.error(err?.message || (order.status === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy đơn hàng thất bại' : 'Hủy đơn hàng thất bại'));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -32,7 +69,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
         <div className="flex items-center justify-between border-b p-6 bg-gray-50">
           <div>
             <h3 className="text-xl font-bold text-gray-900">Chi tiết đơn hàng</h3>
-            <p className="text-sm text-gray-500 mt-1">Mã đơn: {order.id}</p>
+            <p className="text-sm text-gray-500 mt-1">Mã đơn: {order.orderCode ?? ' - '}</p>
             {order.externalOrderCode && (
               <p className="text-xs text-gray-400 mt-0.5">Mã thanh toán: {order.externalOrderCode}</p>
             )}
@@ -52,7 +89,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
             <div className="lg:col-span-2 space-y-4">
               {/* Status & Order Info */}
               <div className="border rounded-lg p-4 bg-white">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between">
                   <span className={getStatusBadgeClass(order.status)}>
                     {getStatusLabel(order.status)}
                   </span>
@@ -61,12 +98,6 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
                     {formatDate(order.createdAt)}
                   </div>
                 </div>
-                {order.message && (
-                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-yellow-800">{order.message}</p>
-                  </div>
-                )}
               </div>
 
               {/* Shipping Address */}
@@ -85,7 +116,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
                     {order.street}, {order.ward}, {order.district}, {order.province}
                   </p>
                   {order.note && (
-                    <div className="mt-2 pt-2 border-t text-xs text-gray-500">
+                    <div className="mt-3 pt-3 border-t text-xs text-gray-500">
                       <span className="font-medium">Ghi chú: </span>
                       {order.note}
                     </div>
@@ -100,18 +131,33 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
                   Đơn hàng từ các cửa hàng ({order.storeOrders.length})
                 </h4>
                 
-                {order.storeOrders.map((storeOrder, index) => (
-                  <div key={storeOrder.id} className="border rounded-lg p-4 bg-white">
-                    {/* Store Header */}
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b">
-                      <div>
-                        <p className="font-semibold text-gray-900">{storeOrder.storeName}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Cửa hàng #{index + 1}</p>
+                {order.storeOrders.map((storeOrder) => {
+                  // Truncate store name: show first 2 chars + "..." + last 2 chars if long
+                  const storeName = storeOrder.storeName || '';
+                  const displayStoreName = storeName.length > 8 
+                    ? `${storeName.substring(0, 2)}...${storeName.substring(storeName.length - 2)}`
+                    : storeName;
+                  
+                  return (
+                    <div key={storeOrder.id} className="border rounded-lg p-4 bg-white">
+                      {/* Store Header */}
+                      <div className="flex items-center justify-between mb-4 pb-3 border-b">
+                        <div className="flex-1 min-w-0">
+                          <p 
+                            className="font-semibold text-gray-400 truncate"
+                            title={storeOrder.storeName}
+                            style={{ 
+                              fontSize: '14px',
+                              opacity: 0.6
+                            }}
+                          >
+                            {displayStoreName}
+                          </p>
+                        </div>
+                        <span className={getStatusBadgeClass(storeOrder.status)}>
+                          {getStatusLabel(storeOrder.status)}
+                        </span>
                       </div>
-                      <span className={getStatusBadgeClass(storeOrder.status)}>
-                        {getStatusLabel(storeOrder.status)}
-                      </span>
-                    </div>
 
                     {/* Items */}
                     <div className="space-y-3 mb-4">
@@ -255,7 +301,8 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -272,10 +319,6 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
                   <div className="flex justify-between text-gray-600">
                     <span>Số sản phẩm:</span>
                     <span className="font-medium">{totalItemsCount} sản phẩm</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>Số cửa hàng:</span>
-                    <span className="font-medium">{order.storeOrders.length} cửa hàng</span>
                   </div>
                   <div className="border-t pt-3 space-y-2">
                     <div className="flex justify-between text-gray-600">
@@ -305,30 +348,77 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
                 <h4 className="font-semibold text-gray-900 mb-3">Thao tác</h4>
                 <div className="space-y-2">
                   {order.status === 'SHIPPING' && (
-                    <button className="w-full px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium flex items-center justify-center gap-2">
-                      <Truck className="w-4 h-4" />
+                    <Button 
+                      type="primary"
+                      className="w-full"
+                      icon={<Truck className="w-4 h-4" />}
+                      style={{ 
+                        backgroundColor: '#f97316',
+                        borderColor: '#f97316',
+                        borderRadius: '8px',
+                        height: '40px'
+                      }}
+                    >
                       Theo dõi đơn hàng
-                    </button>
+                    </Button>
                   )}
                   {order.status === 'COMPLETED' && (
                     <>
-                      <button className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium">
+                      <Button 
+                        type="primary"
+                        className="w-full"
+                        style={{ 
+                          backgroundColor: '#10b981',
+                          borderColor: '#10b981',
+                          borderRadius: '8px',
+                          height: '40px'
+                        }}
+                      >
                         Đánh giá sản phẩm
-                      </button>
-                      <button className="w-full px-4 py-2 border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 transition-colors text-sm font-medium">
+                      </Button>
+                      <Button 
+                        className="w-full"
+                        style={{ 
+                          borderColor: '#f97316',
+                          color: '#f97316',
+                          borderRadius: '8px',
+                          height: '40px'
+                        }}
+                      >
                         Yêu cầu đổi trả
-                      </button>
+                      </Button>
                     </>
                   )}
                   {canCancelOrder(order.status) && (
-                    <button className="w-full px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium">
-                      Hủy đơn hàng
-                    </button>
+                    <Button 
+                      danger
+                      className="w-full"
+                      onClick={() => {
+                        setShowCancelModal(true);
+                        setCancelReason('CHANGE_OF_MIND');
+                        setCancelNote('');
+                      }}
+                      style={{ 
+                        borderRadius: '8px',
+                        height: '40px'
+                      }}
+                    >
+                      {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
+                    </Button>
                   )}
                   {order.status === 'UNPAID' && (
-                    <button className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">
+                    <Button 
+                      type="primary"
+                      className="w-full"
+                      style={{ 
+                        backgroundColor: '#3b82f6',
+                        borderColor: '#3b82f6',
+                        borderRadius: '8px',
+                        height: '40px'
+                      }}
+                    >
                       Thanh toán ngay
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -336,6 +426,101 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {} }
           </div>
         </div>
       </div>
+
+      {/* Cancel Order Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-orange-500" />
+            <span className="text-lg font-semibold">
+              {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
+            </span>
+          </div>
+        }
+        open={showCancelModal}
+        onCancel={() => {
+          if (!isCancelling) {
+            setShowCancelModal(false);
+          }
+        }}
+        footer={[
+          <Button 
+            key="cancel" 
+            onClick={() => {
+              if (!isCancelling) {
+                setShowCancelModal(false);
+              }
+            }} 
+            disabled={isCancelling}
+            size="large"
+            style={{ borderRadius: '8px' }}
+          >
+            Đóng
+          </Button>,
+          <Button
+            key="confirm"
+            danger
+            loading={isCancelling}
+            size="large"
+            onClick={handleCancelOrder}
+            style={{ borderRadius: '8px' }}
+          >
+            {order.status === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy' : 'Xác nhận hủy'}
+          </Button>,
+        ]}
+        styles={{ 
+          body: { padding: '24px' },
+          header: { borderBottom: '1px solid #f0f0f0', padding: '16px 24px' }
+        }}
+      >
+        <Space direction="vertical" size="large" className="w-full">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-gray-700">
+              {order.status === 'AWAITING_SHIPMENT' ? (
+                <>
+                  <strong>Lưu ý:</strong> Đơn hàng đang ở trạng thái <strong>Chờ lấy hàng</strong>. 
+                  Yêu cầu hủy đơn sẽ được gửi đến cửa hàng để xem xét. Cửa hàng sẽ quyết định có chấp nhận yêu cầu hủy hay không.
+                </>
+              ) : (
+                <>
+                  <strong>Lưu ý:</strong> Chỉ có thể hủy khi trạng thái đơn là <strong>PENDING</strong>.
+                </>
+              )}
+            </p>
+          </div>
+          
+          <div>
+            <p className="font-semibold mb-2 text-base">Lý do hủy</p>
+            <Select
+              value={cancelReason}
+              onChange={setCancelReason}
+              className="w-full"
+              size="large"
+              style={{ borderRadius: '8px' }}
+            >
+              <Option value="CHANGE_OF_MIND">Đổi ý</Option>
+              <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
+              <Option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</Option>
+              <Option value="ORDERED_BY_ACCIDENT">Đặt nhầm</Option>
+              <Option value="OTHER">Khác</Option>
+            </Select>
+          </div>
+          
+          <div>
+            <p className="font-semibold mb-2 text-base">Ghi chú</p>
+            <TextArea
+              value={cancelNote}
+              onChange={(e) => setCancelNote(e.target.value)}
+              placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
+              rows={4}
+              style={{ borderRadius: '8px' }}
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              Ghi chú sẽ được gửi kèm yêu cầu hủy đơn hàng.
+            </p>
+          </div>
+        </Space>
+      </Modal>
     </div>
   );
 };

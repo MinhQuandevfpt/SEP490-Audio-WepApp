@@ -336,7 +336,7 @@ export interface OrderItem {
 // Store Order (sub-order within main order)
 export interface StoreOrder {
   id: string;
-  orderCode?: string;
+  orderCode: string | null;
   storeId: string;
   storeName: string;
   status: OrderStatus;
@@ -351,6 +351,7 @@ export interface StoreOrder {
 // Main Customer Order
 export interface CustomerOrder {
   id: string;
+  orderCode: string | null;
   status: OrderStatus;
   message: string | null;
   createdAt: string;

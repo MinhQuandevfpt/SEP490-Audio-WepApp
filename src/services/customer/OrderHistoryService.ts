@@ -91,12 +91,16 @@ export class OrderHistoryService {
       const customerId = this.getCustomerId();
       const endpoint = `/api/customers/${customerId}/orders/${orderId}`;
       
-      const response = await HttpInterceptor.get<CustomerOrder>(
+      const response = await HttpInterceptor.get<CustomerOrder | { status: number; message: string; data: CustomerOrder }>(
         endpoint,
         { userType: 'customer' }
       );
 
-      return response;
+      if (response && typeof response === 'object' && 'data' in response) {
+        return (response as { data: CustomerOrder }).data;
+      }
+
+      return response as CustomerOrder;
     } catch (error: any) {
       console.error('❌ Error fetching order detail:', error);
       if (error?.status === 404) {
@@ -170,8 +174,9 @@ export class OrderHistoryService {
   /**
    * Get GHN order by store order ID (for customer)
    * GET /api/v1/ghn-orders/by-store-order/{storeOrderId}
+   * Returns null if GHN order not found (404/500) - this is normal for orders without GHN tracking
    */
-  static async getGhnOrderByStoreOrderId(storeOrderId: string): Promise<any> {
+  static async getGhnOrderByStoreOrderId(storeOrderId: string): Promise<any | null> {
     try {
       const response = await HttpInterceptor.get<any>(
         `/api/v1/ghn-orders/by-store-order/${storeOrderId}`,
@@ -179,12 +184,14 @@ export class OrderHistoryService {
       );
       return response;
     } catch (error: any) {
-      console.error('Failed to get GHN order:', error);
-      // Return null if 404 (no GHN order found for this store order)
-      if (error?.status === 404) {
+      // Return null for 404 or 500 - this is normal when order doesn't have GHN tracking yet
+      // Don't log errors for "not found" cases as they're expected
+      if (error?.status === 404 || error?.status === 500) {
         return null;
       }
-      throw new Error(error?.message || 'Không thể lấy thông tin đơn GHN. Vui lòng thử lại.');
+      // Only log unexpected errors (network issues, auth errors, etc.)
+      console.error('Failed to get GHN order:', error);
+      return null; // Return null instead of throwing to prevent UI errors
     }
   }
 }

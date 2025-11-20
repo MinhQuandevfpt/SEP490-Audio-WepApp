@@ -1,32 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   Card, 
   Select, 
-  Input, 
-  Button, 
   Pagination, 
   Empty, 
   Spin, 
-  Modal, 
-  message, 
   Space, 
   Typography, 
   Breadcrumb,
   Row,
   Col,
   Statistic,
-  Divider
+  Divider,
+  List
 } from 'antd';
-import { Home, Package, ShoppingBag, DollarSign, FileText } from 'lucide-react';
+import { Home, ShoppingBag, DollarSign, FileText } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import { OrderCard, OrderDetailModal, OrderFilterTabs } from '../../../components/OrderHistoryComponents';
 import useOrderHistory from '../../../hooks/useOrderHistory';
-import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
 import { formatCurrency } from '../../../utils/orderStatus';
 
 const { Option } = Select;
-const { TextArea } = Input;
 const { Title, Text } = Typography;
 
 const OrderHistoryPage: React.FC = () => {
@@ -52,12 +47,6 @@ const OrderHistoryPage: React.FC = () => {
     ghnOrderData,
   } = useOrderHistory();
 
-  // Cancel modal state
-  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
-  const [cancelTargetStatus, setCancelTargetStatus] = useState<string | null>(null); // Track order status for cancel type
-  const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
-  const [cancelNote, setCancelNote] = useState<string>('');
-  const [isCancelling, setIsCancelling] = useState(false);
 
   // Auto-open order detail modal if orderId is passed via navigation state
   useEffect(() => {
@@ -166,53 +155,37 @@ const OrderHistoryPage: React.FC = () => {
                   <Text type="danger" className="text-base">{error}</Text>
                 </div>
               </Card>
+            ) : orders.length === 0 ? (
+              <Card className="border-gray-200 shadow-sm">
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <div>
+                      <p className="text-gray-600 font-medium text-base mb-1">Chưa có đơn hàng nào</p>
+                      <p className="text-sm text-gray-500">
+                        {search || status !== 'ALL' 
+                          ? 'Bạn chưa có đơn hàng phù hợp với bộ lọc đã chọn.' 
+                          : 'Bạn chưa có đơn hàng nào. Hãy bắt đầu mua sắm ngay!'}
+                      </p>
+                    </div>
+                  }
+                />
+              </Card>
             ) : (
-              <Space direction="vertical" size="large" className="w-full">
-                {orders.map(order => (
-                  <div key={order.id}>
-                    <OrderCard order={order} ghnOrderData={ghnOrderData} />
-                    {(order.status === 'PENDING' || order.status === 'AWAITING_SHIPMENT') && (
-                      <Card 
-                        className="mt-3 border-orange-200 bg-orange-50"
-                        styles={{ body: { padding: '12px 16px' } }}
-                      >
-                        <div className="flex justify-end">
-                          <Button
-                            danger
-                            size="large"
-                            onClick={() => {
-                              setCancelTargetId(order.id);
-                              setCancelTargetStatus(order.status);
-                              setCancelReason('CHANGE_OF_MIND');
-                              setCancelNote('');
-                            }}
-                            style={{ borderRadius: '8px' }}
-                          >
-                            {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
-                          </Button>
-                        </div>
-                      </Card>
-                    )}
-                  </div>
-                ))}
-                {orders.length === 0 && (
-                  <Card className="border-gray-200 shadow-sm">
-                    <Empty
-                      image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      description={
-                        <div>
-                          <p className="text-gray-600 font-medium text-base mb-1">Chưa có đơn hàng nào</p>
-                          <p className="text-sm text-gray-500">
-                            {search || status !== 'ALL' 
-                              ? 'Bạn chưa có đơn hàng phù hợp với bộ lọc đã chọn.' 
-                              : 'Bạn chưa có đơn hàng nào. Hãy bắt đầu mua sắm ngay!'}
-                          </p>
-                        </div>
-                      }
-                    />
-                  </Card>
+              <List
+                dataSource={orders}
+                renderItem={(order) => (
+                  <List.Item style={{ padding: 0, marginBottom: 16, border: 'none' }}>
+                    <div className="w-full">
+                      <OrderCard 
+                        order={order} 
+                        onViewDetail={viewDetail}
+                      />
+                    </div>
+                  </List.Item>
                 )}
-              </Space>
+                locale={{ emptyText: null }}
+              />
             )}
 
             {/* Pagination & Page Size Selector */}
@@ -292,126 +265,12 @@ const OrderHistoryPage: React.FC = () => {
         </div>
       </div>
 
-      <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} ghnOrderData={ghnOrderData} />
-
-      {/* Cancel Order Modal */}
-      <Modal
-        title={
-          <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-orange-500" />
-            <span className="text-lg font-semibold">
-              {cancelTargetStatus === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
-            </span>
-          </div>
-        }
-        open={!!cancelTargetId}
-        onCancel={() => {
-          if (!isCancelling) {
-            setCancelTargetId(null);
-            setCancelTargetStatus(null);
-          }
-        }}
-        footer={[
-          <Button 
-            key="cancel" 
-            onClick={() => {
-              if (!isCancelling) {
-                setCancelTargetId(null);
-                setCancelTargetStatus(null);
-              }
-            }} 
-            disabled={isCancelling}
-            size="large"
-            style={{ borderRadius: '8px' }}
-          >
-            Đóng
-          </Button>,
-          <Button
-            key="confirm"
-            danger
-            loading={isCancelling}
-            size="large"
-            onClick={async () => {
-              if (!cancelTargetId) return;
-              try {
-                setIsCancelling(true);
-                
-                // Use different API based on order status
-                if (cancelTargetStatus === 'AWAITING_SHIPMENT') {
-                  await OrderHistoryService.requestCancel(cancelTargetId, cancelReason, cancelNote);
-                  message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng. Vui lòng chờ cửa hàng xem xét.');
-                } else {
-                  await OrderHistoryService.cancel(cancelTargetId, cancelReason, cancelNote);
-                  message.success('Hủy đơn hàng thành công');
-                }
-                
-                setCancelTargetId(null);
-                setCancelTargetStatus(null);
-                await reload();
-              } catch (err: any) {
-                message.error(err?.message || (cancelTargetStatus === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy đơn hàng thất bại' : 'Hủy đơn hàng thất bại'));
-              } finally {
-                setIsCancelling(false);
-              }
-            }}
-            style={{ borderRadius: '8px' }}
-          >
-            {cancelTargetStatus === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy' : 'Xác nhận hủy'}
-          </Button>,
-        ]}
-        styles={{ 
-          body: { padding: '24px' },
-          header: { borderBottom: '1px solid #f0f0f0', padding: '16px 24px' }
-        }}
-      >
-        <Space direction="vertical" size="large" className="w-full">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <Text type="secondary" className="text-sm">
-              {cancelTargetStatus === 'AWAITING_SHIPMENT' ? (
-                <>
-                  <strong>Lưu ý:</strong> Đơn hàng đang ở trạng thái <strong>Chờ lấy hàng</strong>. 
-                  Yêu cầu hủy đơn sẽ được gửi đến cửa hàng để xem xét. Cửa hàng sẽ quyết định có chấp nhận yêu cầu hủy hay không.
-                </>
-              ) : (
-                <>
-                  <strong>Lưu ý:</strong> Chỉ có thể hủy khi trạng thái đơn là <strong>PENDING</strong>.
-                </>
-              )}
-            </Text>
-          </div>
-          
-          <div>
-            <Text strong className="block mb-2 text-base">Lý do hủy</Text>
-            <Select
-              value={cancelReason}
-              onChange={setCancelReason}
-              className="w-full"
-              size="large"
-              style={{ borderRadius: '8px' }}
-            >
-              <Option value="CHANGE_OF_MIND">Đổi ý</Option>
-              <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
-              <Option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</Option>
-              <Option value="ORDERED_BY_ACCIDENT">Đặt nhầm</Option>
-              <Option value="OTHER">Khác</Option>
-            </Select>
-          </div>
-          
-          <div>
-            <Text strong className="block mb-2 text-base">Ghi chú</Text>
-            <TextArea
-              value={cancelNote}
-              onChange={(e) => setCancelNote(e.target.value)}
-              placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
-              rows={4}
-              style={{ borderRadius: '8px' }}
-            />
-            <Text type="secondary" className="text-xs mt-2 block">
-              Ghi chú sẽ được gửi kèm yêu cầu hủy đơn hàng.
-            </Text>
-          </div>
-        </Space>
-      </Modal>
+      <OrderDetailModal 
+        order={selectedOrder} 
+        onClose={() => setSelectedOrder(null)} 
+        ghnOrderData={ghnOrderData}
+        onOrderCancelled={reload}
+      />
     </Layout>
   );
 };
