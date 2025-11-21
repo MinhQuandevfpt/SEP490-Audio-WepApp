@@ -314,16 +314,13 @@ const ShoppingCart: React.FC = () => {
     messages.forEach(msg => showCenterError(msg, 'Voucher'));
   }, [items, productCache, storeVoucherMap]);
 
-  // Calculate subtotal after platform voucher discounts
-  const subtotalAfterPlatformDiscount = useMemo(() => {
+  // Calculate subtotal before and after platform discounts
+  const subtotalBeforePlatformDiscount = useMemo(() => {
     return items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
-      const platformDiscount = platformVoucherDiscounts[item.productId] || 0;
-      const itemPriceAfterDiscount = item.price - platformDiscount;
-      const finalPrice = Math.max(0, itemPriceAfterDiscount);
-      return sum + finalPrice * item.quantity;
+      return sum + item.price * item.quantity;
     }, 0);
-  }, [items, platformVoucherDiscounts]);
+  }, [items]);
 
   // Calculate total platform voucher discount amount
   const totalPlatformDiscount = useMemo(() => {
@@ -339,11 +336,15 @@ const ShoppingCart: React.FC = () => {
     return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
   }, [appliedStoreVouchers]);
 
-  // Grand total = subtotal (after platform discount) - store voucher discount + shipping fee
+  // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const grandTotal = useMemo(() => {
-    const total = subtotalAfterPlatformDiscount + shippingFee - voucherDiscount;
+    const total =
+      subtotalBeforePlatformDiscount -
+      totalPlatformDiscount -
+      voucherDiscount +
+      shippingFee;
     return Math.max(0, total);
-  }, [subtotalAfterPlatformDiscount, shippingFee, voucherDiscount]);
+  }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
 
   // Calculate discount amount for a voucher
   const handleApplyStoreVoucher = (storeId: string, voucher: ShopVoucher, discountValue: number) => {
@@ -550,7 +551,7 @@ const ShoppingCart: React.FC = () => {
               onPackageWeightChange={setPackageWeight}
               shippingFee={shippingFee}
               onShippingFeeChange={setShippingFee}
-              subtotal={subtotalAfterPlatformDiscount}
+              subtotal={subtotalBeforePlatformDiscount}
               discount={totalPlatformDiscount}
               voucherDiscount={voucherDiscount}
               selectedCount={summary.selectedCount}

@@ -22,9 +22,11 @@ export const useStoreOrders = () => {
       // Backend uses 0-based indexing
       const backendPage = page - 1;
       
+      const keyword = search?.trim();
       const res = await StoreOrderService.getOrders({
         status: status === 'ALL' ? undefined : status,
-        search: search || undefined,
+        search: keyword || undefined,
+        orderCodeKeyword: keyword || undefined,
         page: backendPage,
         size: pageSize,
       });

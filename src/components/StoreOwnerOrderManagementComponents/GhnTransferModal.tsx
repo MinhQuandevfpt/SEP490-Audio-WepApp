@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Truck, Plus, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { X, Truck, Loader2, AlertCircle } from 'lucide-react';
 import { GhnService, type PickShift } from '../../services/seller/GhnService';
 import { StoreService } from '../../services/seller/StoreService';
 import { StoreAddressService } from '../../services/seller/StoreAddressService';
+import { StoreOrderService } from '../../services/seller/OrderService';
+import { ProductService } from '../../services/seller/ProductService';
 import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
@@ -64,6 +66,105 @@ interface Props {
   onSubmit?: (data: GhnTransferFormData) => void;
 }
 
+const PROVINCE_PREFIXES = ['tinh', 'thanh pho', 'tp'];
+const DISTRICT_PREFIXES = ['quan', 'huyen', 'thi xa', 'thi tran', 'tx', 'tp'];
+const WARD_PREFIXES = ['phuong', 'xa', 'thi tran', 'tt'];
+
+const PROVINCE_ALIASES: Record<string, string> = {
+  hcm: 'ho chi minh',
+  'ho chi minh city': 'ho chi minh',
+  'sai gon': 'ho chi minh',
+  sg: 'ho chi minh',
+  'tp hcm': 'ho chi minh',
+  'tp ho chi minh': 'ho chi minh',
+  hn: 'ha noi',
+  'tp ha noi': 'ha noi',
+  'ha noi city': 'ha noi',
+};
+
+const normalizeText = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const stripPrefix = (value: string, prefixes: string[]): string => {
+  for (const prefix of prefixes) {
+    if (value === prefix) {
+      return '';
+    }
+    if (value.startsWith(`${prefix} `)) {
+      return value.slice(prefix.length + 1).trim();
+    }
+  }
+  return value;
+};
+
+const buildVariants = (
+  rawValue: string,
+  prefixes: string[],
+  aliasMap?: Record<string, string>
+): string[] => {
+  const normalized = normalizeText(rawValue);
+  const variants = new Set<string>();
+  if (normalized) {
+    variants.add(aliasMap?.[normalized] || normalized);
+  }
+  const stripped = stripPrefix(normalized, prefixes);
+  if (stripped && stripped !== normalized) {
+    variants.add(aliasMap?.[stripped] || stripped);
+  }
+  return Array.from(variants).filter(Boolean);
+};
+
+const isAdministrativeMatch = (
+  candidate: string,
+  target: string,
+  prefixes: string[],
+  aliasMap?: Record<string, string>,
+  extraTargets: string[] = []
+): boolean => {
+  const candidateVariants = buildVariants(candidate, prefixes, aliasMap);
+  const targetVariants = [
+    ...buildVariants(target, prefixes, aliasMap),
+    ...extraTargets.flatMap((extra) => buildVariants(extra, prefixes, aliasMap)),
+  ].filter(Boolean);
+
+  return candidateVariants.some((candidateVariant) =>
+    targetVariants.some(
+      (targetVariant) =>
+        candidateVariant === targetVariant ||
+        candidateVariant.includes(targetVariant) ||
+        targetVariant.includes(candidateVariant)
+    )
+  );
+};
+
+const parseAddressSegments = (address: string) => {
+  if (!address) {
+    return {};
+  }
+  const cleaned = address.replace(/[.]/g, ',');
+  const parts = cleaned
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return {};
+  }
+
+  const province = parts[parts.length - 1];
+  const district = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+  const ward = parts.length >= 3 ? parts[parts.length - 3] : undefined;
+
+  return { province, district, ward };
+};
+
 const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
   const [formData, setFormData] = useState<GhnTransferFormData>({
     payment_type_id: 0,
@@ -103,12 +204,19 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
   const [pickShifts, setPickShifts] = useState<PickShift[]>([]);
   const [isLoadingPickShifts, setIsLoadingPickShifts] = useState(false);
   const [isLoadingStoreInfo, setIsLoadingStoreInfo] = useState(false);
+  // Track which items have level2/level3 category fields visible
+  const [itemCategoryLevels, setItemCategoryLevels] = useState<Record<number, { level2: boolean; level3: boolean }>>({});
   
   // Address selection states (from address)
   const [selectedProvinceId, setSelectedProvinceId] = useState<number | null>(null);
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
   const [selectedWardCode, setSelectedWardCode] = useState<string>('');
   const [addressValidationError, setAddressValidationError] = useState<string>('');
+  const [parsedAddressSegmentsValue, setParsedAddressSegmentsValue] = useState<{
+    province?: string;
+    district?: string;
+    ward?: string;
+  }>({});
   
   // GHN Hooks for cascading dropdowns (from address only)
   const { provinces, loading: provincesLoading } = useProvinces();
@@ -150,7 +258,160 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
         setIsLoadingPickShifts(false);
       }
 
-      // Load store info and address
+      // Load order details to get customer information (separate try-catch to not affect store info loading)
+      try {
+        setIsLoadingStoreInfo(true);
+        
+        // Load order details to get customer info
+        const order = await StoreOrderService.getOrderById(orderId);
+        
+        if (order) {
+          console.log('📦 Order loaded:', order);
+          
+          // Extract customer information from order
+          const customerId = order.customerId;
+          const customerName = order.customerName;
+          const customerPhone = order.customerPhone;
+          
+          // Initialize to address fields with customer name and phone
+          let toAddressData: Partial<GhnTransferFormData> = {
+            to_name: customerName || '',
+            to_phone: customerPhone || '',
+          };
+          
+          // Load customer addresses if customerId exists
+          if (customerId) {
+            try {
+              console.log('📍 Loading customer addresses for customerId:', customerId);
+              const customerAddresses = await StoreOrderService.getCustomerAddresses(customerId);
+              console.log('✅ Customer addresses loaded:', customerAddresses);
+              
+              // Find default address or use first address
+              const defaultAddress = customerAddresses.find(addr => addr.default) || customerAddresses[0];
+              
+              if (defaultAddress) {
+                console.log('📍 Using address:', defaultAddress);
+                
+                // Build address string from address components
+                const addressParts = [
+                  defaultAddress.addressLine,
+                  defaultAddress.street,
+                  defaultAddress.ward,
+                  defaultAddress.district,
+                  defaultAddress.province
+                ].filter(Boolean); // Remove empty parts
+                
+                const fullAddress = addressParts.join(', ');
+                
+                // Add address fields to toAddressData
+                toAddressData = {
+                  ...toAddressData,
+                  to_address: fullAddress,
+                  to_ward_code: defaultAddress.wardCode || '',
+                  to_district_id: defaultAddress.districtId || 0,
+                };
+                
+                console.log('✅ To address prepared:', {
+                  address: fullAddress,
+                  wardCode: defaultAddress.wardCode,
+                  districtId: defaultAddress.districtId,
+                });
+              } else {
+                console.warn('⚠️ No customer address found');
+              }
+            } catch (error: any) {
+              console.error('❌ Error loading customer addresses:', error);
+              // Don't throw - continue with customer name and phone only
+            }
+          }
+          
+          // Map order items to GHN items format
+          // For each item, fetch product detail to get SKU
+          try {
+            console.log('📦 Loading product details for items...');
+            const ghnItemsPromises = order.items.map(async (item) => {
+              let productCode = item.refId || item.id || '';
+              
+              // Fetch product detail to get SKU
+              if (item.refId) {
+                try {
+                  console.log(`🔍 Fetching product detail for refId: ${item.refId}`);
+                  const product = await ProductService.getProductById(item.refId);
+                  // Product response may be wrapped in data property
+                  const productData = (product as any).data || product;
+                  productCode = productData.sku || productCode;
+                  console.log(`✅ Product SKU loaded: ${productCode}`);
+                } catch (error: any) {
+                  console.warn(`⚠️ Failed to load product detail for ${item.refId}:`, error);
+                  // Continue with refId as fallback
+                }
+              }
+              
+              return {
+                name: item.name || '',
+                code: productCode,
+                quantity: item.quantity || 1,
+                price: item.lineTotal || item.unitPrice || 0,
+                length: 0,
+                width: 0,
+                height: 0,
+                weight: 0,
+                category: {
+                  level1: '',
+                  level2: '',
+                  level3: '',
+                },
+              };
+            });
+
+            // Wait for all product details to load
+            const ghnItems = await Promise.all(ghnItemsPromises);
+            console.log('📦 Mapped GHN items:', ghnItems);
+
+            // Set all to address fields and items at once
+            setFormData(prev => ({
+              ...prev,
+              ...toAddressData,
+              items: ghnItems,
+            }));
+          } catch (error: any) {
+            console.error('❌ Error loading product details:', error);
+            // Fallback: use items without SKU
+            const ghnItems: GhnItem[] = order.items.map((item) => ({
+              name: item.name || '',
+              code: item.refId || item.id || '',
+              quantity: item.quantity || 1,
+              price: item.lineTotal || item.unitPrice || 0,
+              length: 0,
+              width: 0,
+              height: 0,
+              weight: 0,
+              category: {
+                level1: '',
+                level2: '',
+                level3: '',
+              },
+            }));
+            
+            setFormData(prev => ({
+              ...prev,
+              ...toAddressData,
+              items: ghnItems,
+            }));
+          }
+        } else {
+          console.warn('⚠️ Order not found or returned null');
+        }
+      } catch (error: any) {
+        console.error('❌ Error loading order details:', error);
+        // Don't throw - continue to load store info even if order loading fails
+        showCenterError(
+          `Không thể tải thông tin đơn hàng: ${error?.message || 'Lỗi không xác định'}. Vui lòng nhập thủ công thông tin người nhận.`,
+          'Cảnh báo'
+        );
+      }
+
+      // Load store info and address (for "from" address) - separate try-catch
       try {
         setIsLoadingStoreInfo(true);
         
@@ -173,20 +434,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
           // Parse full address string to extract detailed address (số nhà, tên đường)
           let detailedAddress = defaultAddress.address || '';
           
-          // Set selected province, district, ward based on codes
-          if (defaultAddress.provinceCode) {
-            const provinceId = Number(defaultAddress.provinceCode);
-            if (!isNaN(provinceId)) {
-              setSelectedProvinceId(provinceId);
-            }
-          }
-          
           // Convert districtCode and wardCode for return address
           // districtCode is stored as string in StoreAddress, but GHN API needs number (DistrictID)
           const returnDistrictId = defaultAddress.districtCode ? Number(defaultAddress.districtCode) : 0;
           const returnWardCode = defaultAddress.wardCode || '';
           
           // Auto-fill form with store information (from address)
+          // Note: We don't set selectedProvinceId/districtId/wardCode here
+          // Instead, let the parse logic auto-select them from the address string
           setFormData(prev => ({
             ...prev,
             from_name: storeName,
@@ -209,7 +464,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
           }));
         }
       } catch (error: any) {
-        console.error('Error loading store info:', error);
+        console.error('❌ Error loading store info:', error);
+        showCenterError(
+          `Không thể tải thông tin cửa hàng: ${error?.message || 'Lỗi không xác định'}`,
+          'Lỗi'
+        );
       } finally {
         setIsLoadingStoreInfo(false);
       }
@@ -218,6 +477,16 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
 
     loadData();
   }, [orderId]);
+
+  useEffect(() => {
+    if (!formData.from_address) {
+      setParsedAddressSegmentsValue({});
+      return;
+    }
+    const parsed = parseAddressSegments(formData.from_address);
+    console.log('📍 Parsed address segments:', parsed);
+    setParsedAddressSegmentsValue(parsed);
+  }, [formData.from_address]);
 
 
   const handleInputChange = (field: keyof GhnTransferFormData, value: any) => {
@@ -253,36 +522,30 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
     }));
   };
 
-  const addItem = () => {
-    setFormData(prev => ({
+  const toggleCategoryLevel = (itemIndex: number, level: 'level2' | 'level3') => {
+    setItemCategoryLevels(prev => ({
       ...prev,
-      items: [
-        ...prev.items,
-        {
-          name: '',
-          code: '',
-          quantity: 1,
-          price: 0,
-          length: 0,
-          width: 0,
-          height: 0,
-          weight: 0,
-          category: {
-            level1: '',
-            level2: '',
-            level3: '',
-          },
-        },
-      ],
+      [itemIndex]: {
+        ...prev[itemIndex],
+        [level]: !prev[itemIndex]?.[level],
+      },
     }));
   };
 
-  const removeItem = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index),
-    }));
+  // Helper function to mask sensitive information
+  const maskInfo = (value: string | undefined | null): string => {
+    if (!value || value.trim() === '') return '';
+    const trimmed = value.trim();
+    if (trimmed.length <= 4) {
+      // If too short, just show first char + dots
+      return trimmed[0] + '.....';
+    }
+    // Show first 1-2 chars + dots + last 1-2 chars
+    const startChars = trimmed.length > 5 ? 2 : 1;
+    const endChars = trimmed.length > 5 ? 2 : 1;
+    return trimmed.substring(0, startChars) + '.....' + trimmed.substring(trimmed.length - endChars);
   };
+
 
   const handlePickShiftChange = (shiftId: number) => {
     setFormData(prev => ({
@@ -521,6 +784,136 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
     }
   }, [wards, selectedDistrictId, selectedWardCode]);
 
+  useEffect(() => {
+    if (
+      !parsedAddressSegmentsValue.province ||
+      provincesLoading ||
+      provinces.length === 0
+    ) {
+      return;
+    }
+
+    console.log('🔍 Auto-selecting province from:', parsedAddressSegmentsValue.province);
+
+    // Find matching province from parsed address
+    const matchedProvince = provinces.find((province) =>
+      isAdministrativeMatch(
+        parsedAddressSegmentsValue.province as string,
+        province.ProvinceName,
+        PROVINCE_PREFIXES,
+        PROVINCE_ALIASES,
+        province.NameExtension
+      )
+    );
+
+    console.log('✅ Matched province:', matchedProvince?.ProvinceName, matchedProvince?.ProvinceID);
+
+    // Auto-select province if matched and not already selected, or if different from current
+    if (matchedProvince) {
+      if (!selectedProvinceId || selectedProvinceId !== matchedProvince.ProvinceID) {
+        console.log('🎯 Setting province to:', matchedProvince.ProvinceID);
+        handleProvinceChange(matchedProvince.ProvinceID);
+      } else {
+        console.log('⏭️ Province already selected:', selectedProvinceId);
+      }
+    } else {
+      console.log('❌ No matching province found');
+    }
+  }, [
+    parsedAddressSegmentsValue.province,
+    provinces,
+    provincesLoading,
+    selectedProvinceId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !parsedAddressSegmentsValue.district ||
+      !selectedProvinceId ||
+      districtsLoading ||
+      districts.length === 0
+    ) {
+      return;
+    }
+
+    console.log('🔍 Auto-selecting district from:', parsedAddressSegmentsValue.district);
+
+    // Find matching district from parsed address
+    const matchedDistrict = districts.find((district) =>
+      isAdministrativeMatch(
+        parsedAddressSegmentsValue.district as string,
+        district.DistrictName,
+        DISTRICT_PREFIXES,
+        undefined,
+        district.NameExtension
+      )
+    );
+
+    console.log('✅ Matched district:', matchedDistrict?.DistrictName, matchedDistrict?.DistrictID);
+
+    // Auto-select district if matched and not already selected, or if different from current
+    if (matchedDistrict) {
+      if (!selectedDistrictId || selectedDistrictId !== matchedDistrict.DistrictID) {
+        console.log('🎯 Setting district to:', matchedDistrict.DistrictID);
+        handleDistrictChange(matchedDistrict.DistrictID);
+      } else {
+        console.log('⏭️ District already selected:', selectedDistrictId);
+      }
+    } else {
+      console.log('❌ No matching district found');
+    }
+  }, [
+    parsedAddressSegmentsValue.district,
+    selectedProvinceId,
+    selectedDistrictId,
+    districts,
+    districtsLoading,
+  ]);
+
+  useEffect(() => {
+    if (
+      !parsedAddressSegmentsValue.ward ||
+      !selectedDistrictId ||
+      wardsLoading ||
+      wards.length === 0
+    ) {
+      return;
+    }
+
+    console.log('🔍 Auto-selecting ward from:', parsedAddressSegmentsValue.ward);
+
+    // Find matching ward from parsed address
+    const matchedWard = wards.find((ward) =>
+      isAdministrativeMatch(
+        parsedAddressSegmentsValue.ward as string,
+        ward.WardName,
+        WARD_PREFIXES,
+        undefined,
+        ward.NameExtension
+      )
+    );
+
+    console.log('✅ Matched ward:', matchedWard?.WardName, matchedWard?.WardCode);
+
+    // Auto-select ward if matched and not already selected, or if different from current
+    if (matchedWard) {
+      if (!selectedWardCode || selectedWardCode !== matchedWard.WardCode) {
+        console.log('🎯 Setting ward to:', matchedWard.WardCode);
+        handleWardChange(matchedWard.WardCode);
+      } else {
+        console.log('⏭️ Ward already selected:', selectedWardCode);
+      }
+    } else {
+      console.log('❌ No matching ward found');
+    }
+  }, [
+    parsedAddressSegmentsValue.ward,
+    selectedDistrictId,
+    selectedWardCode,
+    wards,
+    wardsLoading,
+  ]);
+
   // Validate address when from_address or selections change
   useEffect(() => {
     validateAddress();
@@ -546,13 +939,73 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
         return;
       }
 
-      if (!formData.weight || !formData.length || !formData.width || !formData.height) {
-        showCenterError('Vui lòng điền đầy đủ thông tin kiện hàng', 'Lỗi');
+      if (formData.items.length === 0) {
+        showCenterError('Vui lòng thêm ít nhất một sản phẩm', 'Lỗi');
         return;
       }
 
-      if (formData.items.length === 0) {
-        showCenterError('Vui lòng thêm ít nhất một sản phẩm', 'Lỗi');
+      // Calculate total dimensions and weight from items
+      const totalItemWeight = formData.items.reduce((sum, item) => sum + (item.weight || 0), 0);
+      const totalItemLength = formData.items.reduce((sum, item) => sum + (item.length || 0), 0);
+      const totalItemWidth = formData.items.reduce((sum, item) => sum + (item.width || 0), 0);
+      const totalItemHeight = formData.items.reduce((sum, item) => sum + (item.height || 0), 0);
+
+      // Validate package information must be >= total items
+      if (!formData.weight || formData.weight < totalItemWeight) {
+        showCenterError(`Trọng lượng kiện hàng (${formData.weight || 0}g) phải lớn hơn hoặc bằng tổng trọng lượng sản phẩm (${totalItemWeight}g)`, 'Lỗi');
+        setIsSubmitting(false);
+        return;
+      }
+      if (!formData.length || formData.length < totalItemLength) {
+        showCenterError(`Chiều dài kiện hàng (${formData.length || 0}cm) phải lớn hơn hoặc bằng tổng chiều dài sản phẩm (${totalItemLength}cm)`, 'Lỗi');
+        setIsSubmitting(false);
+        return;
+      }
+      if (!formData.width || formData.width < totalItemWidth) {
+        showCenterError(`Chiều rộng kiện hàng (${formData.width || 0}cm) phải lớn hơn hoặc bằng tổng chiều rộng sản phẩm (${totalItemWidth}cm)`, 'Lỗi');
+        setIsSubmitting(false);
+        return;
+      }
+      if (!formData.height || formData.height < totalItemHeight) {
+        showCenterError(`Chiều cao kiện hàng (${formData.height || 0}cm) phải lớn hơn hoặc bằng tổng chiều cao sản phẩm (${totalItemHeight}cm)`, 'Lỗi');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validate required fields for each item
+      for (let i = 0; i < formData.items.length; i++) {
+        const item = formData.items[i];
+        if (!item.length || item.length <= 0) {
+          showCenterError(`Sản phẩm #${i + 1}: Vui lòng nhập chiều dài`, 'Lỗi');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!item.width || item.width <= 0) {
+          showCenterError(`Sản phẩm #${i + 1}: Vui lòng nhập chiều rộng`, 'Lỗi');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!item.height || item.height <= 0) {
+          showCenterError(`Sản phẩm #${i + 1}: Vui lòng nhập chiều cao`, 'Lỗi');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!item.weight || item.weight <= 0) {
+          showCenterError(`Sản phẩm #${i + 1}: Vui lòng nhập trọng lượng`, 'Lỗi');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!item.category.level1 || item.category.level1.trim() === '') {
+          showCenterError(`Sản phẩm #${i + 1}: Vui lòng nhập danh mục Level 1`, 'Lỗi');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Validate pick shift is required
+      if (!formData.pick_shift || formData.pick_shift.length === 0 || !formData.pick_shift[0]) {
+        showCenterError('Vui lòng chọn ca lấy hàng', 'Lỗi');
+        setIsSubmitting(false);
         return;
       }
 
@@ -878,8 +1331,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                   <input
                     type="text"
                     value={formData.from_name}
-                    onChange={(e) => handleInputChange('from_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -887,8 +1341,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                   <input
                     type="text"
                     value={formData.from_phone}
-                    onChange={(e) => handleInputChange('from_phone', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -896,8 +1351,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                   <input
                     type="text"
                     value={formData.from_address}
-                    onChange={(e) => handleInputChange('from_address', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -905,8 +1361,8 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                   <select
                     value={selectedProvinceId || ''}
                     onChange={(e) => handleProvinceChange(e.target.value ? Number(e.target.value) : null)}
-                    disabled={provincesLoading}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   >
                     <option value="">-- Chọn tỉnh/thành phố --</option>
                     {provinces.map((province) => (
@@ -915,17 +1371,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                       </option>
                     ))}
                   </select>
-                  {provincesLoading && (
-                    <p className="text-xs text-gray-500 mt-1">Đang tải...</p>
-                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Quận/Huyện *</label>
                   <select
                     value={selectedDistrictId || ''}
                     onChange={(e) => handleDistrictChange(e.target.value ? Number(e.target.value) : null)}
-                    disabled={!selectedProvinceId || districtsLoading}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   >
                     <option value="">-- Chọn quận/huyện --</option>
                     {districts.map((district) => (
@@ -934,20 +1387,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                       </option>
                     ))}
                   </select>
-                  {districtsLoading && (
-                    <p className="text-xs text-gray-500 mt-1">Đang tải...</p>
-                  )}
-                  {!selectedProvinceId && (
-                    <p className="text-xs text-gray-500 mt-1">Vui lòng chọn tỉnh/thành phố trước</p>
-                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Phường/Xã *</label>
                   <select
                     value={selectedWardCode}
                     onChange={(e) => handleWardChange(e.target.value)}
-                    disabled={!selectedDistrictId || wardsLoading}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   >
                     <option value="">-- Chọn phường/xã --</option>
                     {wards.map((ward) => (
@@ -956,12 +1403,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                       </option>
                     ))}
                   </select>
-                  {wardsLoading && (
-                    <p className="text-xs text-gray-500 mt-1">Đang tải...</p>
-                  )}
-                  {!selectedDistrictId && (
-                    <p className="text-xs text-gray-500 mt-1">Vui lòng chọn quận/huyện trước</p>
-                  )}
                 </div>
                 {addressValidationError && (
                   <div className="md:col-span-2 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -980,47 +1421,38 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                   <label className="block text-xs text-gray-600 mb-1">Tên người nhận *</label>
                   <input
                     type="text"
-                    value={formData.to_name}
-                    onChange={(e) => handleInputChange('to_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={maskInfo(formData.to_name)}
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Số điện thoại *</label>
                   <input
                     type="text"
-                    value={formData.to_phone}
-                    onChange={(e) => handleInputChange('to_phone', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={maskInfo(formData.to_phone)}
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs text-gray-600 mb-1">Địa chỉ *</label>
                   <input
                     type="text"
-                    value={formData.to_address}
-                    onChange={(e) => handleInputChange('to_address', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={maskInfo(formData.to_address)}
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Mã Phường/Xã *</label>
-                  <input
-                    type="text"
-                    value={formData.to_ward_code}
-                    onChange={(e) => handleInputChange('to_ward_code', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">District ID *</label>
-                  <input
-                    type="number"
-                    value={formData.to_district_id}
-                    onChange={(e) => handleInputChange('to_district_id', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
+                {/* Hidden fields - still in form but not visible for API */}
+                <input type="hidden" value={formData.to_name} />
+                <input type="hidden" value={formData.to_phone} />
+                <input type="hidden" value={formData.to_address} />
+                <input type="hidden" value={formData.to_ward_code} />
+                <input type="hidden" value={formData.to_district_id} />
               </div>
             </div>
 
@@ -1046,24 +1478,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">District ID</label>
-                  <input
-                    type="number"
-                    value={formData.return_district_id}
-                    onChange={(e) => handleInputChange('return_district_id', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Mã Phường/Xã</label>
-                  <input
-                    type="text"
-                    value={formData.return_ward_code}
-                    onChange={(e) => handleInputChange('return_ward_code', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
+                {/* Hidden fields - still in form but not visible */}
+                <input type="hidden" value={formData.return_district_id} />
+                <input type="hidden" value={formData.return_ward_code} />
               </div>
             </div>
 
@@ -1178,7 +1595,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
 
             {/* Pick Shift */}
             <div className="border rounded-lg p-4 bg-gray-50">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Ca lấy hàng</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Ca lấy hàng *</h3>
               {isLoadingPickShifts ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
@@ -1188,9 +1605,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                 <select
                   value={formData.pick_shift[0] || ''}
                   onChange={(e) => handlePickShiftChange(Number(e.target.value))}
+                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                 >
-                  <option value="">-- Chọn ca lấy hàng (tùy chọn) --</option>
+                  <option value="">-- Chọn ca lấy hàng * --</option>
                   {pickShifts.map((shift) => (
                     <option key={shift.id} value={shift.id}>
                       {shift.title} - {formatTime(shift.from_time)} - {formatTime(shift.to_time)}
@@ -1207,14 +1625,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
             <div className="border rounded-lg p-4 bg-gray-50">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-gray-900">Sản phẩm trong đơn</h3>
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors"
-                >
-                  <Plus className="w-3 h-3" />
-                  Thêm sản phẩm
-                </button>
               </div>
 
               <div className="space-y-4">
@@ -1222,13 +1632,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                   <div key={index} className="border rounded-lg p-4 bg-white">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-sm font-medium text-gray-900">Sản phẩm #{index + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(index)}
-                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
@@ -1236,8 +1639,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                         <input
                           type="text"
                           value={item.name}
-                          onChange={(e) => handleItemChange(index, 'name', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          disabled
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                         />
                       </div>
                       <div>
@@ -1245,8 +1649,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                         <input
                           type="text"
                           value={item.code}
-                          onChange={(e) => handleItemChange(index, 'code', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          disabled
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                         />
                       </div>
                       <div>
@@ -1254,8 +1659,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                         <input
                           type="number"
                           value={item.quantity}
-                          onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          disabled
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                         />
                       </div>
                       <div>
@@ -1263,72 +1669,104 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                         <input
                           type="number"
                           value={item.price}
-                          onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          disabled
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Chiều dài (cm)</label>
+                        <label className="block text-xs text-gray-600 mb-1">Chiều dài (cm) *</label>
                         <input
                           type="number"
                           value={item.length}
+                          required
                           onChange={(e) => handleItemChange(index, 'length', Number(e.target.value))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Chiều rộng (cm)</label>
+                        <label className="block text-xs text-gray-600 mb-1">Chiều rộng (cm) *</label>
                         <input
                           type="number"
                           value={item.width}
+                          required
                           onChange={(e) => handleItemChange(index, 'width', Number(e.target.value))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Chiều cao (cm)</label>
+                        <label className="block text-xs text-gray-600 mb-1">Chiều cao (cm) *</label>
                         <input
                           type="number"
                           value={item.height}
+                          required
                           onChange={(e) => handleItemChange(index, 'height', Number(e.target.value))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Trọng lượng (gram)</label>
+                        <label className="block text-xs text-gray-600 mb-1">Trọng lượng (gram) *</label>
                         <input
                           type="number"
                           value={item.weight}
+                          required
                           onChange={(e) => handleItemChange(index, 'weight', Number(e.target.value))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Danh mục Level 1</label>
+                        <label className="block text-xs text-gray-600 mb-1">Danh mục Level 1 *</label>
                         <input
                           type="text"
                           value={item.category.level1}
+                          required
                           onChange={(e) => handleCategoryChange(index, 'level1', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Danh mục Level 2</label>
-                        <input
-                          type="text"
-                          value={item.category.level2}
-                          onChange={(e) => handleCategoryChange(index, 'level2', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Danh mục Level 3</label>
-                        <input
-                          type="text"
-                          value={item.category.level3}
-                          onChange={(e) => handleCategoryChange(index, 'level3', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                        />
+                      {itemCategoryLevels[index]?.level2 && (
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Danh mục Level 2</label>
+                          <input
+                            type="text"
+                            value={item.category.level2}
+                            onChange={(e) => handleCategoryChange(index, 'level2', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+                      )}
+                      {itemCategoryLevels[index]?.level3 && (
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Danh mục Level 3</label>
+                          <input
+                            type="text"
+                            value={item.category.level3}
+                            onChange={(e) => handleCategoryChange(index, 'level3', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+                      )}
+                      <div className="md:col-span-2">
+                        <div className="flex items-center gap-2">
+                          {!itemCategoryLevels[index]?.level2 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleCategoryLevel(index, 'level2')}
+                              className="px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                            >
+                              + Thêm danh mục Level 2
+                            </button>
+                          )}
+                          {!itemCategoryLevels[index]?.level3 && itemCategoryLevels[index]?.level2 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleCategoryLevel(index, 'level3')}
+                              className="px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                            >
+                              + Thêm danh mục Level 3
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

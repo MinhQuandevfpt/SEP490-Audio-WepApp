@@ -186,7 +186,13 @@ const CheckoutOrderContainer: React.FC = () => {
     return Array.from(groups.values());
   }, [checkoutCartItems, productCache, storeMetadata]);
 
-  // Calculate subtotal after platform voucher discounts
+  // Calculate subtotal before and after platform voucher discounts
+  const subtotalBeforePlatformDiscount = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
+      return sum + item.price * item.quantity;
+    }, 0);
+  }, [cartItems]);
+
   const subtotalAfterPlatformDiscount = useMemo(() => {
     return cartItems.reduce((sum, item) => {
       const platformVoucherInfo = platformVoucherDiscounts[item.productId];
@@ -244,10 +250,16 @@ const CheckoutOrderContainer: React.FC = () => {
     return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
   }, [appliedStoreVouchers]);
 
-  // Grand total = subtotal (after platform discount) - store voucher discount + shipping fee
+  // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const total = useMemo(() => {
-    return Math.max(0, subtotalAfterPlatformDiscount + shippingFee - voucherDiscount);
-  }, [subtotalAfterPlatformDiscount, shippingFee, voucherDiscount]);
+    return Math.max(
+      0,
+      subtotalBeforePlatformDiscount -
+        totalPlatformDiscount -
+        voucherDiscount +
+        shippingFee
+    );
+  }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
 
   const loadAddresses = useCallback(async (): Promise<CustomerAddressApiItem[]> => {
     try {
@@ -740,7 +752,7 @@ const CheckoutOrderContainer: React.FC = () => {
                     </div>
                     <div className="px-5 py-4">
                       <OrderSummaryCard
-                        subtotal={subtotalAfterPlatformDiscount}
+                        subtotal={subtotalBeforePlatformDiscount}
                         platformDiscount={totalPlatformDiscount}
                         voucherDiscount={voucherDiscount}
                         shippingFee={shippingFee}

@@ -12,7 +12,7 @@ import type {
   AssignDeliveryStaffRequest,
   AssignDeliveryStaffResponse
 } from '../../types/seller';
-import type { ApiResponse } from '../../types/api';
+import type { ApiResponse, CustomerAddressApiItem } from '../../types/api';
 
 export class StoreOrderService {
   /**
@@ -53,6 +53,9 @@ export class StoreOrderService {
       if (params?.status) {
         queryParams.append('status', params.status);
       }
+      if (params?.orderCodeKeyword) {
+        queryParams.append('orderCodeKeyword', params.orderCodeKeyword);
+      }
 
       const endpoint = `/api/v1/stores/${storeId}/orders?${queryParams.toString()}`;
       
@@ -90,12 +93,12 @@ export class StoreOrderService {
 
   /**
    * Get order detail by order ID
-   * GET /api/v1/stores/{storeId}/orders/{orderId}
+   * GET /api/v1/stores/{storeId}/orders/{orderId}?storeId={storeId}
    */
   static async getOrderById(orderId: string): Promise<StoreOrder | null> {
     try {
       const storeId = await this.getStoreId();
-      const endpoint = `/api/v1/stores/${storeId}/orders/${orderId}`;
+      const endpoint = `/api/v1/stores/${storeId}/orders/${orderId}?storeId=${storeId}`;
       
       const response = await HttpInterceptor.get<StoreOrder>(
         endpoint,
@@ -258,6 +261,30 @@ export class StoreOrderService {
     } catch (error: any) {
       console.error('❌ Error rejecting cancel request:', error);
       throw new Error(error?.message || 'Không thể từ chối yêu cầu hủy đơn hàng');
+    }
+  }
+
+  /**
+   * Get customer addresses by customer ID
+   * GET /api/customers/{customerId}/addresses
+   * Used by seller to get customer shipping address for GHN transfer
+   */
+  static async getCustomerAddresses(customerId: string): Promise<CustomerAddressApiItem[]> {
+    try {
+      const endpoint = `/api/customers/${customerId}/addresses`;
+      
+      const response = await HttpInterceptor.get<CustomerAddressApiItem[]>(
+        endpoint,
+        { userType: 'seller' }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('❌ Error fetching customer addresses:', error);
+      if (error?.status === 404) {
+        return [];
+      }
+      throw new Error(error?.message || 'Không thể tải địa chỉ khách hàng');
     }
   }
 }

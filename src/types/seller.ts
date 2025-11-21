@@ -475,6 +475,7 @@ export interface StoreOrdersRequest {
   size?: number;
   status?: StoreOrderStatus;
   search?: string;
+  orderCodeKeyword?: string;
 }
 
 // Assign Delivery Staff Request

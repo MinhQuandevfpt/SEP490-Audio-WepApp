@@ -36,9 +36,11 @@ const StoreOwnerWarranty: React.FC = () => {
       setError(null);
 
       // Step 1: Get orders with DELIVERY_SUCCESS status
+      const keyword = term && term.trim().length > 0 ? term.trim() : undefined;
       const response = await StoreOrderService.getOrders({
         status: 'DELIVERY_SUCCESS',
-        search: term && term.trim().length > 0 ? term.trim() : undefined,
+        search: keyword,
+        orderCodeKeyword: keyword,
         page: 0,
         size: 50,
       });
