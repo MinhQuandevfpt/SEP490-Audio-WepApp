@@ -546,124 +546,27 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
     return trimmed.substring(0, startChars) + '.....' + trimmed.substring(trimmed.length - endChars);
   };
 
+  // Helper function to format number with dot separator (1.000.000)
+  const formatCurrency = (value: number | undefined | null): string => {
+    if (value === null || value === undefined || isNaN(value) || value === 0) return '';
+    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // Helper function to parse number from formatted string (1.000.000 -> 1000000)
+  const parseCurrency = (value: string): number => {
+    if (!value || value.trim() === '') return 0;
+    // Remove all dots and parse
+    const cleaned = value.replace(/\./g, '');
+    const parsed = parseInt(cleaned, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
 
   const handlePickShiftChange = (shiftId: number) => {
     setFormData(prev => ({
       ...prev,
       pick_shift: [shiftId],
     }));
-  };
-
-  // Fill sample data for testing
-  const fillSampleData = () => {
-    setFormData({
-      payment_type_id: 2,
-      note: 'Demo GHN',
-      required_note: 'KHONGCHOXEMHANG',
-      from_name: 'Demo Shop',
-      from_phone: '0988888888',
-      from_address: 'Trung tâm Si Ma Cai',
-      from_ward_name: 'Thị Trấn Si Ma Cai',
-      from_district_name: 'Huyện Si Ma Cai',
-      from_province_name: 'Lào Cai',
-      return_phone: '0988888888',
-      return_address: 'Trung tâm Si Ma Cai',
-      return_district_id: 2264,
-      return_ward_code: '90816',
-      to_name: 'Khách Demo',
-      to_phone: '0912345678',
-      to_address: 'Phường An Khánh, TP Thủ Đức, Hồ Chí Minh',
-      to_ward_code: '90768',
-      to_district_id: 3695,
-      cod_amount: 10000,
-      content: 'Demo',
-      weight: 200,
-      length: 10,
-      width: 10,
-      height: 5,
-      pick_station_id: 2264,
-      insurance_value: 0,
-      service_id: 0,
-      service_type_id: 2,
-      coupon: '',
-      pick_shift: [2],
-      items: [
-        {
-          name: 'TestItem',
-          code: 'TEST01',
-          quantity: 1,
-          price: 10000,
-          length: 5,
-          width: 5,
-          height: 5,
-          weight: 50,
-          category: {
-            level1: 'Khác',
-            level2: '',
-            level3: '',
-          },
-        },
-      ],
-    });
-
-    // Set selected province, district, ward for from address
-    // Note: You may need to adjust these IDs based on actual GHN API data
-    // For now, we'll try to find matching province
-    const findAndSetProvince = async () => {
-      try {
-        const allProvinces = await GhnService.getActiveProvinces();
-        const matchedProvince = allProvinces.find(
-          p => p.ProvinceName.toLowerCase().includes('lào cai') || 
-               p.ProvinceName.toLowerCase().includes('lao cai')
-        );
-        if (matchedProvince) {
-          setSelectedProvinceId(matchedProvince.ProvinceID);
-          
-          // Wait a bit for districts to load, then set district
-          setTimeout(async () => {
-            try {
-              const allDistricts = await GhnService.getActiveDistricts(matchedProvince.ProvinceID);
-              const matchedDistrict = allDistricts.find(
-                d => d.DistrictName.toLowerCase().includes('si ma cai') ||
-                     d.DistrictName.toLowerCase().includes('sima cai')
-              );
-              if (matchedDistrict) {
-                setSelectedDistrictId(matchedDistrict.DistrictID);
-                
-                // Wait a bit for wards to load, then set ward
-                setTimeout(async () => {
-                  try {
-                    const allWards = await GhnService.getActiveWards(matchedDistrict.DistrictID);
-                    const matchedWard = allWards.find(
-                      w => w.WardName.toLowerCase().includes('thị trấn si ma cai') ||
-                           w.WardCode === '90816'
-                    );
-                    if (matchedWard) {
-                      setSelectedWardCode(matchedWard.WardCode);
-                    }
-                  } catch (error) {
-                    console.error('Error loading wards:', error);
-                  }
-                }, 500);
-              }
-            } catch (error) {
-              console.error('Error loading districts:', error);
-            }
-          }, 500);
-        }
-      } catch (error) {
-        console.error('Error loading provinces:', error);
-      }
-    };
-    
-    findAndSetProvince();
-  };
-
-  // Format time from seconds to HH:mm
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
   // Handle province selection
@@ -949,6 +852,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
       const totalItemLength = formData.items.reduce((sum, item) => sum + (item.length || 0), 0);
       const totalItemWidth = formData.items.reduce((sum, item) => sum + (item.width || 0), 0);
       const totalItemHeight = formData.items.reduce((sum, item) => sum + (item.height || 0), 0);
+      
+      // Calculate total product value (price * quantity for all items)
+      const totalProductValue = formData.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
 
       // Validate package information must be >= total items
       if (!formData.weight || formData.weight < totalItemWeight) {
@@ -970,6 +876,18 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
         showCenterError(`Chiều cao kiện hàng (${formData.height || 0}cm) phải lớn hơn hoặc bằng tổng chiều cao sản phẩm (${totalItemHeight}cm)`, 'Lỗi');
         setIsSubmitting(false);
         return;
+      }
+
+      // Validate COD amount must be <= total product value
+      if (formData.cod_amount && formData.cod_amount > 0) {
+        if (formData.cod_amount > totalProductValue) {
+          showCenterError(
+            `Số tiền thu hộ (${formData.cod_amount.toLocaleString('vi-VN')} VND) không được vượt quá tổng giá trị sản phẩm (${totalProductValue.toLocaleString('vi-VN')} VND)`,
+            'Lỗi'
+          );
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Validate required fields for each item
@@ -1484,143 +1402,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
               </div>
             </div>
 
-            {/* Package Information */}
-            <div className="border rounded-lg p-4 bg-gray-50">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Thông tin kiện hàng</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Trọng lượng (gram) *</label>
-                  <input
-                    type="number"
-                    value={formData.weight || ''}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value <= 30000 || e.target.value === '') {
-                        handleInputChange('weight', value);
-                      }
-                    }}
-                    placeholder="≤ 30.000g"
-                    max={30000}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 30.000 gram</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Chiều dài (cm) *</label>
-                  <input
-                    type="number"
-                    value={formData.length || ''}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value <= 150 || e.target.value === '') {
-                        handleInputChange('length', value);
-                      }
-                    }}
-                    placeholder="≤ 150cm"
-                    max={150}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Chiều rộng (cm) *</label>
-                  <input
-                    type="number"
-                    value={formData.width || ''}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value <= 150 || e.target.value === '') {
-                        handleInputChange('width', value);
-                      }
-                    }}
-                    placeholder="≤ 150cm"
-                    max={150}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Chiều cao (cm) *</label>
-                  <input
-                    type="number"
-                    value={formData.height || ''}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value <= 150 || e.target.value === '') {
-                        handleInputChange('height', value);
-                      }
-                    }}
-                    placeholder="≤ 150cm"
-                    max={150}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Số tiền thu hộ (VND)</label>
-                  <input
-                    type="number"
-                    value={formData.cod_amount || ''}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value <= 10000000 || e.target.value === '') {
-                        handleInputChange('cod_amount', value);
-                      }
-                    }}
-                    placeholder="≤ 10.000.000 VND"
-                    max={10000000}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 10.000.000 VND</p>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">Giá trị bảo hiểm (VND)</label>
-                  <input
-                    type="number"
-                    value={formData.insurance_value || ''}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value <= 5000000 || e.target.value === '') {
-                        handleInputChange('insurance_value', value);
-                      }
-                    }}
-                    placeholder="≤ 5.000.000 VND"
-                    max={5000000}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 5.000.000 VND</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Pick Shift */}
-            <div className="border rounded-lg p-4 bg-gray-50">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Ca lấy hàng *</h3>
-              {isLoadingPickShifts ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
-                  <span className="ml-2 text-sm text-gray-600">Đang tải danh sách ca lấy hàng...</span>
-                </div>
-              ) : (
-                <select
-                  value={formData.pick_shift[0] || ''}
-                  onChange={(e) => handlePickShiftChange(Number(e.target.value))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-                >
-                  <option value="">-- Chọn ca lấy hàng * --</option>
-                  {pickShifts.map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {shift.title} - {formatTime(shift.from_time)} - {formatTime(shift.to_time)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {pickShifts.length === 0 && !isLoadingPickShifts && (
-                <p className="text-sm text-gray-500 mt-2">Không có ca lấy hàng nào khả dụng</p>
-              )}
-            </div>
-
             {/* Items */}
             <div className="border rounded-lg p-4 bg-gray-50">
               <div className="flex items-center justify-between mb-4">
@@ -1667,8 +1448,8 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Giá (VND) *</label>
                         <input
-                          type="number"
-                          value={item.price}
+                          type="text"
+                          value={formatCurrency(item.price)}
                           disabled
                           readOnly
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
@@ -1776,45 +1557,179 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                 )}
               </div>
             </div>
+
+            {/* Package Information */}
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Thông tin kiện hàng</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Trọng lượng (gram) *</label>
+                  <input
+                    type="number"
+                    value={formData.weight || ''}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (value <= 30000 || e.target.value === '') {
+                        handleInputChange('weight', value);
+                      }
+                    }}
+                    placeholder="≤ 30.000g"
+                    max={30000}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 30.000 gram</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Chiều dài (cm) *</label>
+                  <input
+                    type="number"
+                    value={formData.length || ''}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (value <= 150 || e.target.value === '') {
+                        handleInputChange('length', value);
+                      }
+                    }}
+                    placeholder="≤ 150cm"
+                    max={150}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Chiều rộng (cm) *</label>
+                  <input
+                    type="number"
+                    value={formData.width || ''}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (value <= 150 || e.target.value === '') {
+                        handleInputChange('width', value);
+                      }
+                    }}
+                    placeholder="≤ 150cm"
+                    max={150}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Chiều cao (cm) *</label>
+                  <input
+                    type="number"
+                    value={formData.height || ''}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (value <= 150 || e.target.value === '') {
+                        handleInputChange('height', value);
+                      }
+                    }}
+                    placeholder="≤ 150cm"
+                    max={150}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Số tiền thu hộ (VND)</label>
+                  <input
+                    type="text"
+                    value={formatCurrency(formData.cod_amount)}
+                    onChange={(e) => {
+                      const inputValue = e.target.value;
+                      // Allow empty input
+                      if (inputValue === '') {
+                        handleInputChange('cod_amount', 0);
+                        return;
+                      }
+                      // Parse the formatted value
+                      const parsedValue = parseCurrency(inputValue);
+                      // Validate max value
+                      if (parsedValue <= 10000000) {
+                        handleInputChange('cod_amount', parsedValue);
+                      }
+                    }}
+                    placeholder="≤ 10.000.000 VND"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 10.000.000 VND</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Giá trị bảo hiểm (VND)</label>
+                  <input
+                    type="number"
+                    value={formData.insurance_value || ''}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      if (value <= 5000000 || e.target.value === '') {
+                        handleInputChange('insurance_value', value);
+                      }
+                    }}
+                    placeholder="≤ 5.000.000 VND"
+                    max={5000000}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 5.000.000 VND</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Pick Shift */}
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Ca lấy hàng *</h3>
+              {isLoadingPickShifts ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                  <span className="ml-2 text-sm text-gray-600">Đang tải danh sách ca lấy hàng...</span>
+                </div>
+              ) : (
+                <select
+                  value={formData.pick_shift[0] || ''}
+                  onChange={(e) => handlePickShiftChange(Number(e.target.value))}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                >
+                  <option value="">-- Chọn ca lấy hàng * --</option>
+                  {pickShifts.map((shift) => (
+                    <option key={shift.id} value={shift.id}>
+                      {shift.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {pickShifts.length === 0 && !isLoadingPickShifts && (
+                <p className="text-sm text-gray-500 mt-2">Không có ca lấy hàng nào khả dụng</p>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3">
           <button
-            onClick={fillSampleData}
+            onClick={onClose}
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-            title="Điền dữ liệu mẫu để test"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            Điền dữ liệu mẫu
+            Hủy
           </button>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Hủy
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Đang xử lý...</span>
-                </>
-              ) : (
-                <>
-                  <Truck className="w-4 h-4" />
-                  <span>Xác nhận chuyển nhượng</span>
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Đang xử lý...</span>
+              </>
+            ) : (
+              <>
+                <Truck className="w-4 h-4" />
+                <span>Xác nhận chuyển nhượng</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
