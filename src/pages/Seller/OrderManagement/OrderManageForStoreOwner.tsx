@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input } from 'antd';
+import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X } from 'lucide-react';
 import { StoreOrderFilter, GhnTransferModal } from '../../../components/StoreOwnerOrderManagementComponents';
@@ -11,6 +11,47 @@ import { GhnService } from '../../../services/seller/GhnService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 
 const { Text } = Typography;
+
+// Helper function to mask address/name: "2 ký tự đầu ... 2 ký tự cuối"
+const maskAddress = (value: string | undefined | null): string => {
+  if (!value || value.trim() === '') return '';
+  const trimmed = value.trim();
+  if (trimmed.length <= 4) {
+    // If too short, just show first char + dots
+    return trimmed[0] + '...';
+  }
+  // Show first 2 chars + dots + last 2 chars
+  return trimmed.substring(0, 2) + '...' + trimmed.substring(trimmed.length - 2);
+};
+
+// Helper function to mask customer info: random 2-3 ký tự đầu hoặc cuối, còn lại là dấu chấm
+const maskCustomerInfo = (value: string | undefined | null): string => {
+  if (!value || value.trim() === '') return '-';
+  const trimmed = value.trim();
+  
+  if (trimmed.length <= 3) {
+    // If too short, show first char + dots
+    return trimmed[0] + '...';
+  }
+  
+  // Use hash of value to make it consistent (same value always shows same pattern)
+  // This ensures the same value always displays the same way
+  const hash = trimmed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  
+  // Random: 50% chance show đầu, 50% chance show cuối
+  const showStart = hash % 2 === 0;
+  
+  // Random: 2 or 3 characters (based on hash, using different modulo)
+  const charsToShow = (hash % 3) === 0 ? 3 : 2; // 2 or 3 characters
+  
+  if (showStart) {
+    // Show 2-3 ký tự đầu + dots
+    return trimmed.substring(0, charsToShow) + '...';
+  } else {
+    // Show dots + 2-3 ký tự cuối
+    return '...' + trimmed.substring(trimmed.length - charsToShow);
+  }
+};
 
 const OrderManageForStoreOwner: React.FC = () => {
   const {
@@ -37,10 +78,6 @@ const OrderManageForStoreOwner: React.FC = () => {
   const [showPrintTokenModal, setShowPrintTokenModal] = useState(false);
   const [printTokenOrderCode, setPrintTokenOrderCode] = useState('');
   const [isGettingPrintToken, setIsGettingPrintToken] = useState(false);
-  const [printTokenResponse, setPrintTokenResponse] = useState<any>(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceHtml, setInvoiceHtml] = useState<string>('');
-  const [isLoadingInvoice, setIsLoadingInvoice] = useState(false);
   const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
   const [loadingGhnOrders, setLoadingGhnOrders] = useState<Record<string, boolean>>({});
   const [cancelRequestsData, setCancelRequestsData] = useState<Record<string, any[]>>({});
@@ -117,19 +154,21 @@ const OrderManageForStoreOwner: React.FC = () => {
       
       const response = await GhnService.getPrintToken([printTokenOrderCode.trim()]);
       
-      // Log and save response
+      // Log response (for debugging only)
       console.log('📦 GHN Print Token Response:', JSON.stringify(response, null, 2));
-      console.log('📦 GHN Print Token Response Object:', response);
-      
-      // Save response to state
-      setPrintTokenResponse(response);
       
       if (response.code === 200 && response.data && response.data.token) {
-        showCenterSuccess(
-          `Lấy print token thành công!\n\nToken: ${response.data.token}`,
-          'Thành công',
-          5000
-        );
+        // Auto-print invoice when token is successfully retrieved
+        const token = response.data.token;
+        
+        // Close print token modal
+        setShowPrintTokenModal(false);
+        setPrintTokenOrderCode('');
+        
+        // Automatically open invoice modal and print
+        await handlePrintInvoice(token);
+        
+        showCenterSuccess('Đang tải hóa đơn để in...', 'Thành công');
       } else {
         showCenterError(response.message || 'Không thể lấy print token', 'Lỗi');
       }
@@ -139,7 +178,6 @@ const OrderManageForStoreOwner: React.FC = () => {
         error?.message || 'Không thể lấy print token. Vui lòng thử lại.',
         'Lỗi'
       );
-      setPrintTokenResponse(null);
     } finally {
       setIsGettingPrintToken(false);
     }
@@ -147,44 +185,33 @@ const OrderManageForStoreOwner: React.FC = () => {
 
   const handlePrintInvoice = async (token: string) => {
     try {
-      setIsLoadingInvoice(true);
-      setShowInvoiceModal(true);
-      
       console.log('🖨️ Getting invoice HTML for token:', token);
       
       const html = await GhnService.getPrintA5(token);
       
       console.log('📄 Invoice HTML received, length:', html.length);
       
-      // Save HTML to state
-      setInvoiceHtml(html);
+      // Create a new window with the invoice HTML and auto-print
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        
+        // Wait for images to load, then auto-print
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 1000);
+        };
+      }
+      
+      showCenterSuccess('Đã mở cửa sổ in hóa đơn', 'Thành công');
     } catch (error: any) {
       console.error('❌ Error getting invoice:', error);
       showCenterError(
         error?.message || 'Không thể lấy hóa đơn in. Vui lòng thử lại.',
         'Lỗi'
       );
-      setInvoiceHtml('');
-    } finally {
-      setIsLoadingInvoice(false);
-    }
-  };
-
-  const handlePrintInvoiceWindow = () => {
-    if (!invoiceHtml) return;
-    
-    // Create a new window with the invoice HTML
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (printWindow) {
-      printWindow.document.write(invoiceHtml);
-      printWindow.document.close();
-      
-      // Wait for images to load, then print
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-        }, 500);
-      };
     }
   };
 
@@ -252,10 +279,15 @@ const OrderManageForStoreOwner: React.FC = () => {
       key: 'shipAddress',
       render: (_, r) => {
         const addr = [r.shipStreet, r.shipWard, r.shipDistrict, r.shipProvince].filter(Boolean).join(', ');
+        const receiverName = r.shipReceiverName || '';
         return (
-          <div className="max-w-xs truncate">
-            <div className="font-medium text-gray-800">{r.shipReceiverName}</div>
-            <div className="text-xs text-gray-500 truncate">{addr}</div>
+          <div className="max-w-xs">
+            <Tooltip title={receiverName} placement="top">
+              <div className="font-medium text-gray-800 cursor-help">{maskAddress(receiverName)}</div>
+            </Tooltip>
+            <Tooltip title={addr} placement="top">
+              <div className="text-xs text-gray-500 cursor-help">{maskAddress(addr)}</div>
+            </Tooltip>
           </div>
         );
       }
@@ -339,13 +371,12 @@ const OrderManageForStoreOwner: React.FC = () => {
           icon={<Printer className="w-4 h-4" />}
           onClick={() => {
             setPrintTokenOrderCode('');
-            setPrintTokenResponse(null);
             setShowPrintTokenModal(true);
           }}
           size="middle"
-          title="Lấy print token"
+          title="In hóa đơn GHN"
         >
-          Print Token
+          In hóa đơn
         </Button>
       </div>
 
@@ -397,18 +428,18 @@ const OrderManageForStoreOwner: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       <Descriptions title="Thông tin khách hàng" size="small" column={1} bordered>
-                        <Descriptions.Item label="Tên">{record.customerName}</Descriptions.Item>
-                        <Descriptions.Item label="SĐT">{record.customerPhone || '-'}</Descriptions.Item>
-                        <Descriptions.Item label="Ghi chú KH">{record.customerMessage || '-'}</Descriptions.Item>
+                        <Descriptions.Item label="Tên">{maskCustomerInfo(record.customerName)}</Descriptions.Item>
+                        <Descriptions.Item label="SĐT">{maskCustomerInfo(record.customerPhone)}</Descriptions.Item>
+                        <Descriptions.Item label="Ghi chú KH">{maskCustomerInfo(record.customerMessage)}</Descriptions.Item>
                       </Descriptions>
                     </div>
 
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       <Descriptions title="Giao hàng" size="small" column={1} bordered>
-                        <Descriptions.Item label="Người nhận">{record.shipReceiverName || '-'}</Descriptions.Item>
-                        <Descriptions.Item label="SĐT nhận">{record.shipPhoneNumber || '-'}</Descriptions.Item>
-                        <Descriptions.Item label="Địa chỉ">{addr || '-'}</Descriptions.Item>
-                        <Descriptions.Item label="Ghi chú">{record.shipNote || '-'}</Descriptions.Item>
+                        <Descriptions.Item label="Người nhận">{maskCustomerInfo(record.shipReceiverName)}</Descriptions.Item>
+                        <Descriptions.Item label="SĐT nhận">{maskCustomerInfo(record.shipPhoneNumber)}</Descriptions.Item>
+                        <Descriptions.Item label="Địa chỉ">{maskCustomerInfo(addr)}</Descriptions.Item>
+                        <Descriptions.Item label="Ghi chú">{maskCustomerInfo(record.shipNote)}</Descriptions.Item>
                       </Descriptions>
                     </div>
 
@@ -751,17 +782,16 @@ const OrderManageForStoreOwner: React.FC = () => {
         title={
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-blue-500" />
-            <span>Lấy Print Token GHN</span>
+            <span>In hóa đơn GHN</span>
           </div>
         }
         open={showPrintTokenModal}
         onCancel={() => {
           setShowPrintTokenModal(false);
           setPrintTokenOrderCode('');
-          setPrintTokenResponse(null);
         }}
         footer={null}
-        width={600}
+        width={500}
       >
         <div className="space-y-4 py-4">
           <div>
@@ -771,73 +801,21 @@ const OrderManageForStoreOwner: React.FC = () => {
             <Input
               value={printTokenOrderCode}
               onChange={(e) => setPrintTokenOrderCode(e.target.value)}
-              placeholder="Nhập mã đơn hàng GHN (ví dụ: GYNPVL84)"
+              placeholder="Nhập hoặc dán mã đơn hàng GHN (ví dụ: GYNPVL84)"
               disabled={isGettingPrintToken}
               size="large"
+              onPressEnter={handleGetPrintToken}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Nhập mã đơn hàng GHN để lấy print token
+              Nhập mã đơn hàng GHN để in hóa đơn
             </p>
           </div>
-
-          {/* Display response if available */}
-          {printTokenResponse && (
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-700">Response:</span>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    const jsonStr = JSON.stringify(printTokenResponse, null, 2);
-                    navigator.clipboard.writeText(jsonStr);
-                    showCenterSuccess('Đã copy response vào clipboard!', 'Thành công');
-                  }}
-                >
-                  Copy
-                </Button>
-              </div>
-              <pre className="text-xs bg-white p-3 rounded border border-gray-300 overflow-auto max-h-60">
-                {JSON.stringify(printTokenResponse, null, 2)}
-              </pre>
-              {printTokenResponse.code === 200 && printTokenResponse.data?.token && (
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-gray-600 mb-1">Token:</p>
-                  <p className="text-sm font-mono font-semibold text-blue-700 break-all">
-                    {printTokenResponse.data.token}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Button
-                      size="small"
-                      type="link"
-                      className="p-0 h-auto"
-                      onClick={() => {
-                        navigator.clipboard.writeText(printTokenResponse.data.token);
-                        showCenterSuccess('Đã copy token vào clipboard!', 'Thành công');
-                      }}
-                    >
-                      Copy Token
-                    </Button>
-                    <Button
-                      size="small"
-                      type="primary"
-                      icon={<Printer className="w-3 h-3" />}
-                      onClick={() => handlePrintInvoice(printTokenResponse.data.token)}
-                      loading={isLoadingInvoice}
-                    >
-                      In hóa đơn
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
           
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
             <Button
               onClick={() => {
                 setShowPrintTokenModal(false);
                 setPrintTokenOrderCode('');
-                setPrintTokenResponse(null);
               }}
               disabled={isGettingPrintToken}
             >
@@ -850,74 +828,9 @@ const OrderManageForStoreOwner: React.FC = () => {
               disabled={isGettingPrintToken || !printTokenOrderCode.trim()}
               loading={isGettingPrintToken}
             >
-              Lấy Print Token
+              In hóa đơn
             </Button>
           </div>
-        </div>
-      </Modal>
-
-      {/* Invoice Print Modal */}
-      <Modal
-        title={
-          <div className="flex items-center gap-2">
-            <Printer className="w-5 h-5 text-green-500" />
-            <span>Hóa đơn A5 - GHN</span>
-          </div>
-        }
-        open={showInvoiceModal}
-        onCancel={() => {
-          setShowInvoiceModal(false);
-          setInvoiceHtml('');
-        }}
-        footer={[
-          <Button
-            key="close"
-            onClick={() => {
-              setShowInvoiceModal(false);
-              setInvoiceHtml('');
-            }}
-          >
-            Đóng
-          </Button>,
-          <Button
-            key="print"
-            type="primary"
-            icon={<Printer className="w-4 h-4" />}
-            onClick={handlePrintInvoiceWindow}
-            disabled={!invoiceHtml || isLoadingInvoice}
-          >
-            In hóa đơn
-          </Button>,
-        ]}
-        width="90%"
-        style={{ maxWidth: '1200px' }}
-      >
-        <div className="w-full">
-          {isLoadingInvoice ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-gray-600">Đang tải hóa đơn...</p>
-              </div>
-            </div>
-          ) : invoiceHtml ? (
-            <div className="border border-gray-300 rounded-lg overflow-hidden">
-              <iframe
-                srcDoc={invoiceHtml}
-                className="w-full"
-                style={{
-                  height: '80vh',
-                  minHeight: '600px',
-                  border: 'none',
-                }}
-                title="GHN Invoice A5"
-              />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-20">
-              <p className="text-gray-500">Không có dữ liệu hóa đơn</p>
-            </div>
-          )}
         </div>
       </Modal>
 

@@ -1194,9 +1194,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                   >
                     <option value="">-- Chọn yêu cầu --</option>
-                    <option value="CHOTHUHANG">CHOTHUHANG</option>
-                    <option value="CHOXEMHANGKHONGTHU">CHOXEMHANGKHONGTHU</option>
-                    <option value="KHONGCHOXEMHANG">KHONGCHOXEMHANG</option>
+                    <option value="CHOTHUHANG">Cho thử hàng</option>
+                    <option value="CHOXEMHANGKHONGTHU">Cho xem hàng không thử</option>
+                    <option value="KHONGCHOXEMHANG">Không cho xem hàng</option>
                   </select>
                 </div>
                 <div>
