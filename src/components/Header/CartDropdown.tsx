@@ -129,7 +129,7 @@ const CartDropdown: React.FC = () => {
                       {/* Image - Smaller */}
                       <div className="flex-shrink-0">
                         <img
-                          src={item.image || '/images/placeholder-product.png'}
+                          src={item.variantUrl || item.image || '/images/placeholder-product.png'}
                           alt={item.name}
                           className="w-12 h-12 object-cover rounded border border-gray-200"
                           onError={(e) => {

@@ -128,21 +128,29 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       const productsWithConfig: ProductWithConfig[] = availableProducts.map(product => {
         const hasVariants = product.variants && product.variants.length > 0;
         
+        // Define default config for voucher
+        const defaultConfig = {
+          slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
+          type: 'PERCENT' as VoucherType,
+          discountPercent: 10,
+          discountValue: undefined,
+          maxDiscountValue: undefined,
+          minOrderValue: undefined,
+          totalVoucherIssued: 100,
+          totalUsageLimit: 100,
+          usagePerUser: 1,
+        };
+        
         // Parent row
         const parentRow: ProductWithConfig = {
           ...product,
           key: product.productId,
-          slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
-          type: 'PERCENT' as VoucherType,
-          discountPercent: 10,
-          totalVoucherIssued: 100,
-          totalUsageLimit: 100,
-          usagePerUser: 1,
+          ...defaultConfig,
           // Use finalPrice for products without variants
           price: hasVariants ? product.price : product.finalPrice,
         };
 
-        // If has variants, add children rows
+        // If has variants, add children rows with FULL CONFIG from parent
         if (hasVariants) {
           const variantRows = product.variants!.map(variant => ({
             ...product,
@@ -151,17 +159,13 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             name: variant.optionValue,
             sku: variant.variantSku,
             images: variant.variantUrl ? [variant.variantUrl] : product.images,
-            price: variant.variantPrice, // Use variant price
+            price: variant.variantPrice, // Use variant price for calculation
             stockQuantity: variant.variantStock,
             isVariant: true,
             variantInfo: `${variant.optionName}: ${variant.optionValue}`,
-            originalProduct: product,
-            slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
-            type: 'PERCENT' as VoucherType,
-            discountPercent: 10,
-            totalVoucherIssued: 100,
-            totalUsageLimit: 100,
-            usagePerUser: 1,
+            originalProduct: { ...parentRow } as Product, // Store full parent with config
+            // Inherit ALL config from parent
+            ...defaultConfig,
           }));
           // Store in variantData instead of children to prevent Ant Design from auto-rendering
           parentRow.variantData = variantRows;
@@ -195,10 +199,34 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       const updateProduct = (product: ProductWithConfig): ProductWithConfig => {
         // Update current product if ID matches
         if (product.productId === productId || product.key === productId) {
-          return { ...product, [field]: value };
+          const updatedProduct = { ...product, [field]: value };
+          
+          // If this product has variants, also update ALL config fields in each variant
+          if (updatedProduct.variantData && updatedProduct.variantData.length > 0) {
+            updatedProduct.variantData = updatedProduct.variantData.map(variant => {
+              const updatedVariant = {
+                ...variant,
+                // Update the variant itself with the config
+                [field]: value,
+                // Also update the originalProduct reference so child table can access latest config
+                originalProduct: {
+                  ...updatedProduct, // Use full updated parent config
+                  // Preserve original product info (not variant-specific)
+                  productId: product.productId,
+                  name: product.name,
+                  images: product.images,
+                  sku: product.sku,
+                } as Product,
+              };
+              
+              return updatedVariant;
+            });
+          }
+          
+          return updatedProduct;
         }
         
-        // Update variantData if exists
+        // Update variantData if exists (for nested updates)
         if (product.variantData) {
           return {
             ...product,
@@ -214,45 +242,48 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   };
 
   const calculateDiscountedPrice = (product: ProductWithConfig): number => {
-    if (!product.price) return 0;
+    // For products WITH variants, price is 0, so we need to show a range or placeholder
+    // For parent table display, we'll show a dash or "Xem chi tiết"
+    const hasVariants = product.variantData && product.variantData.length > 0;
+    
+    if (hasVariants) {
+      // Return 0 or null for parent row - we'll handle display differently
+      return 0;
+    }
+    
+    // For products WITHOUT variants, use finalPrice or price
+    const basePrice = product.finalPrice || product.price || 0;
+    if (!basePrice) return 0;
 
     if (product.type === 'FIXED') {
-      return Math.max(0, product.price - (product.discountValue || 0));
+      return Math.max(0, basePrice - (product.discountValue || 0));
     } else if (product.type === 'PERCENT') {
-      const discount = (product.price * (product.discountPercent || 0)) / 100;
+      const discount = (basePrice * (product.discountPercent || 0)) / 100;
       const maxDiscount = product.maxDiscountValue || discount;
-      return Math.max(0, product.price - Math.min(discount, maxDiscount));
+      return Math.max(0, basePrice - Math.min(discount, maxDiscount));
     }
-    return product.price;
+    return basePrice;
   };
 
   const handleSubmit = async () => {
-    // Collect all selected products (including variants)
-    const allProducts: ProductWithConfig[] = [];
+    // Collect only PARENT products (not variants)
+    const selectedProducts: ProductWithConfig[] = [];
     
     products.forEach(product => {
+      // Only include parent products that are selected
       if (selectedRowKeys.includes(product.key || product.productId)) {
-        allProducts.push(product);
-      }
-      
-      // Check variants if parent has variantData
-      if (product.variantData) {
-        product.variantData.forEach(variant => {
-          if (selectedRowKeys.includes(variant.key || variant.productId)) {
-            allProducts.push(variant);
-          }
-        });
+        selectedProducts.push(product);
       }
     });
 
-    if (allProducts.length === 0) {
+    if (selectedProducts.length === 0) {
       showTikiNotification('Vui lòng chọn ít nhất một sản phẩm', 'Thông báo', 'error');
       return;
     }
 
     // Validate Flash Sale products must have slotId
     if (isFlashSale) {
-      const invalidProducts = allProducts.filter(p => !p.slotId);
+      const invalidProducts = selectedProducts.filter(p => !p.slotId);
       if (invalidProducts.length > 0) {
         showTikiNotification(
           'Tất cả sản phẩm Flash Sale phải chọn khung giờ',
@@ -266,9 +297,8 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     setIsSubmitting(true);
     try {
       const request = {
-        products: allProducts.map(product => ({
-          // Use originalProduct.productId for variants, otherwise use productId
-          productId: product.isVariant ? product.originalProduct!.productId : product.productId,
+        products: selectedProducts.map(product => ({
+          productId: product.productId, // Always use parent productId
           slotId: product.slotId,
           type: product.type,
           discountValue: product.discountValue,
@@ -305,81 +335,32 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     onClose();
   };
 
-  // Handle parent checkbox click - select/deselect all children
+  // Handle parent checkbox click - only select/deselect parent
   const handleParentSelect = (record: ProductWithConfig, selected: boolean) => {
-    const childKeys: React.Key[] = [];
-    
-    // Collect all child keys
-    if (record.variantData && record.variantData.length > 0) {
-      record.variantData.forEach(variant => {
-        if (variant.stockQuantity > 0) { // Only select if in stock
-          childKeys.push(variant.key || variant.productId);
-        }
-      });
-    } else {
-      // No variants, just the product itself
-      childKeys.push(record.key || record.productId);
-    }
+    const parentKey = record.key || record.productId;
     
     if (selected) {
-      // Add parent and all children
-      setSelectedRowKeys(prev => [...new Set([...prev, record.key || record.productId, ...childKeys])]);
+      // Add only parent key
+      setSelectedRowKeys(prev => [...new Set([...prev, parentKey])]);
     } else {
-      // Remove parent and all children
-      setSelectedRowKeys(prev => prev.filter(key => 
-        key !== (record.key || record.productId) && !childKeys.includes(key)
-      ));
+      // Remove only parent key
+      setSelectedRowKeys(prev => prev.filter(key => key !== parentKey));
     }
   };
 
-  // Check if parent should be indeterminate
-  const isParentIndeterminate = (record: ProductWithConfig): boolean => {
-    if (!record.variantData || record.variantData.length === 0) {
-      return false;
-    }
-    
-    const childKeys = record.variantData
-      .filter(v => v.stockQuantity > 0)
-      .map(v => v.key || v.productId);
-    
-    const selectedChildren = childKeys.filter(key => selectedRowKeys.includes(key));
-    
-    return selectedChildren.length > 0 && selectedChildren.length < childKeys.length;
-  };
-
-  // Check if parent should be checked
+  // Check if parent should be checked (simplified - no variants consideration)
   const isParentChecked = (record: ProductWithConfig): boolean => {
-    if (!record.variantData || record.variantData.length === 0) {
-      return selectedRowKeys.includes(record.key || record.productId);
-    }
-    
-    const childKeys = record.variantData
-      .filter(v => v.stockQuantity > 0)
-      .map(v => v.key || v.productId);
-    
-    if (childKeys.length === 0) return false;
-    
-    return childKeys.every(key => selectedRowKeys.includes(key));
+    return selectedRowKeys.includes(record.key || record.productId);
   };
 
-  // Get all selectable keys (products + variants)
+  // Get all selectable keys (only parents, not variants)
   const getAllSelectableKeys = (): React.Key[] => {
     const allKeys: React.Key[] = [];
     
     products.forEach(product => {
       if (product.stockQuantity > 0) {
-        if (product.variantData && product.variantData.length > 0) {
-          // Has variants - add parent key AND all variant keys
-          allKeys.push(product.key || product.productId);
-          product.variantData.forEach(variant => {
-            if (variant.stockQuantity > 0) {
-              allKeys.push(variant.key || variant.productId);
-            }
-          });
-        } else {
-          // No variants - add product key
-          allKeys.push(product.key || product.productId);
-        }
+        // Only add parent key, not variants
+        allKeys.push(product.key || product.productId);
       }
     });
     
@@ -416,17 +397,11 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             <div className="text-sm font-medium text-gray-900 line-clamp-2">
               {record.name}
             </div>
+            <div className="text-xs text-gray-500 mt-1 break-all">
+              ID: #{record.productId}
+            </div>
           </div>
         </div>
-      ),
-    },
-    {
-      title: 'ID Sản phẩm',
-      dataIndex: 'productId',
-      key: 'productId',
-      width: 200,
-      render: (productId: string) => (
-        <span className="text-xs font-mono text-gray-600">#{productId.slice(0, 18)}...</span>
       ),
     },
     {
@@ -447,73 +422,12 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
         <span className="text-sm text-gray-700">{model || '-'}</span>
       ),
     },
-  ];
-
-  // Child table columns - full details for expanded row
-  const childColumns: ColumnsType<ProductWithConfig> = [
-    {
-      title: 'Phân loại hàng',
-      key: 'variant',
-      width: 250,
-      render: (_, record) => {
-        // If this is a variant row
-        if (record.isVariant && record.originalProduct) {
-          return (
-            <div className="flex items-center gap-3">
-              <Image
-                src={record.images?.[0]}
-                alt={record.name}
-                width={40}
-                height={40}
-                className="rounded object-cover"
-                fallback="https://via.placeholder.com/40"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-900">
-                  {record.name}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  ID: {record.productId.slice(0, 13)}
-                </div>
-              </div>
-            </div>
-          );
-        }
-        
-        // If this is a non-variant product (single SKU)
-        return (
-          <div className="text-sm text-gray-500 italic text-center">—</div>
-        );
-      },
-    },
-    {
-      title: 'Giá hiện tại',
-      dataIndex: 'price',
-      key: 'price',
-      width: 120,
-      render: (price: number) => (
-        <span className="font-medium text-orange-600 text-sm">
-          {price?.toLocaleString('vi-VN')}đ
-        </span>
-      ),
-    },
-    {
-      title: 'Kho',
-      dataIndex: 'stockQuantity',
-      key: 'stock',
-      width: 80,
-      render: (stock: number) => (
-        <Tag color={stock > 0 ? 'success' : 'error'} className="text-xs">
-          {stock > 0 ? `${stock}` : 'Hết'}
-        </Tag>
-      ),
-    },
     ...(isFlashSale
       ? [
           {
             title: '⚡ Khung giờ',
             key: 'slot',
-            width: 180,
+            width: 220,
             render: (_: any, record: ProductWithConfig) => (
               <Select
                 value={record.slotId}
@@ -522,24 +436,27 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                 size="small"
                 placeholder="Chọn khung giờ"
                 disabled={!selectedRowKeys.includes(record.key || record.productId)}
+                style={{ minWidth: '200px' }}
               >
-                {campaign?.flashSlots?.map(slot => (
-                  <Option key={slot.slotId} value={slot.slotId}>
-                    {new Date(slot.openTime).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false
-                    })}{' '}
-                    -{' '}
-                    {new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false
-                    })}
-                  </Option>
-                ))}
+                {campaign?.flashSlots?.map(slot => {
+                  const openTime = new Date(slot.openTime).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                  });
+                  const closeTime = new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                  });
+                  return (
+                    <Option key={slot.slotId} value={slot.slotId} title={`${openTime} - ${closeTime}`}>
+                      {openTime} - {closeTime}
+                    </Option>
+                  );
+                })}
               </Select>
             ),
           },
@@ -602,11 +519,12 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                 handleProductUpdate(record.key || record.productId, 'discountValue', value)
               }
               min={1000}
-              max={record.price}
+              max={undefined} // Remove max limit to allow any value for products with variants
               addonAfter="đ"
               className="w-full"
               size="small"
               disabled={!selectedRowKeys.includes(record.key || record.productId)}
+              placeholder="Nhập số tiền"
             />
           )}
         </div>
@@ -615,19 +533,36 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     {
       title: 'Giá sau giảm',
       key: 'finalPrice',
-      width: 120,
-      render: (_: any, record: ProductWithConfig) => (
-        <div>
-          <div className="font-semibold text-green-600 text-sm">
-            {calculateDiscountedPrice(record).toLocaleString('vi-VN')}đ
-          </div>
-          {record.price && (
-            <div className="text-xs text-gray-400 line-through">
-              {record.price.toLocaleString('vi-VN')}đ
+      width: 140,
+      render: (_: any, record: ProductWithConfig) => {
+        const hasVariants = record.variantData && record.variantData.length > 0;
+        
+        // If product has variants, show message to expand
+        if (hasVariants) {
+          return (
+            <div className="text-sm text-blue-600 italic">
+              Xem chi tiết ↓
             </div>
-          )}
-        </div>
-      ),
+          );
+        }
+        
+        // For products without variants
+        const basePrice = record.finalPrice || record.price || 0;
+        const discountedPrice = calculateDiscountedPrice(record);
+        
+        return (
+          <div>
+            <div className="font-semibold text-green-600 text-sm">
+              {discountedPrice.toLocaleString('vi-VN')}đ
+            </div>
+            {basePrice > 0 && (
+              <div className="text-xs text-gray-400 line-through">
+                {basePrice.toLocaleString('vi-VN')}đ
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'SL Voucher',
@@ -679,6 +614,137 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     },
   ];
 
+  // Child table columns - READ ONLY, showing info calculated from parent
+  const childColumns: ColumnsType<ProductWithConfig> = [
+    {
+      title: 'Phân loại hàng',
+      key: 'variant',
+      width: 200,
+      render: (_, record) => {
+        // If this is a variant row
+        if (record.isVariant && record.originalProduct) {
+          return (
+            <div className="flex items-center gap-3">
+              <Image
+                src={record.images?.[0]}
+                alt={record.name}
+                width={40}
+                height={40}
+                className="rounded object-cover"
+                fallback="https://via.placeholder.com/40"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-900">
+                  {record.name}
+                </div>
+                <div className="text-xs text-gray-500 mt-1 break-all">
+                  ID: {record.productId}
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        // If this is a non-variant product (single SKU)
+        return (
+          <div className="text-sm text-gray-500 italic text-center">—</div>
+        );
+      },
+    },
+    {
+      title: 'Giá hiện tại',
+      dataIndex: 'price',
+      key: 'price',
+      width: 120,
+      render: (price: number) => (
+        <span className="font-medium text-orange-600 text-sm">
+          {price?.toLocaleString('vi-VN')}đ
+        </span>
+      ),
+    },
+    {
+      title: 'Kho',
+      dataIndex: 'stockQuantity',
+      key: 'stock',
+      width: 80,
+      render: (stock: number) => (
+        <Tag color={stock > 0 ? 'success' : 'error'} className="text-xs">
+          {stock > 0 ? `${stock}` : 'Hết'}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Loại giảm',
+      key: 'type',
+      width: 100,
+      render: (_: any, record: ProductWithConfig) => {
+        // Use config from the variant itself (already synced from parent)
+        return (
+          <span className="text-sm text-gray-700">
+            {record.type === 'PERCENT' ? '% Giảm' : 'Số tiền'}
+          </span>
+        );
+      },
+    },
+    {
+      title: 'Giá trị giảm',
+      key: 'discount',
+      width: 120,
+      render: (_: any, record: ProductWithConfig) => {
+        // Use config from the variant itself (already synced from parent)
+        if (record.type === 'PERCENT') {
+          return (
+            <div className="text-sm text-gray-700">
+              <div>{record.discountPercent}%</div>
+              {record.maxDiscountValue && (
+                <div className="text-xs text-gray-500">
+                  Tối đa: {record.maxDiscountValue.toLocaleString('vi-VN')}đ
+                </div>
+              )}
+            </div>
+          );
+        } else {
+          return (
+            <span className="text-sm text-gray-700">
+              {record.discountValue?.toLocaleString('vi-VN')}đ
+            </span>
+          );
+        }
+      },
+    },
+    {
+      title: 'Giá sau giảm',
+      key: 'finalPrice',
+      width: 120,
+      render: (_: any, record: ProductWithConfig) => {
+        // Use the variant's own price and config (already synced from parent)
+        const variantPrice = record.price; // This is variantPrice for variant rows
+        
+        let discountedPrice = variantPrice;
+        
+        // Use config from the record itself (already synced)
+        if (record.type === 'FIXED') {
+          discountedPrice = Math.max(0, variantPrice - (record.discountValue || 0));
+        } else if (record.type === 'PERCENT') {
+          const discount = (variantPrice * (record.discountPercent || 0)) / 100;
+          const maxDiscount = record.maxDiscountValue || discount;
+          discountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+        }
+        
+        return (
+          <div>
+            <div className="font-semibold text-green-600 text-sm">
+              {discountedPrice.toLocaleString('vi-VN')}đ
+            </div>
+            <div className="text-xs text-gray-400 line-through">
+              {variantPrice.toLocaleString('vi-VN')}đ
+            </div>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <>
       <style>
@@ -722,7 +788,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: `linear-gradient(135deg, ${campaign?.badgeColor || '#f97316'}, ${campaign?.badgeColor || '#f97316'}dd)`,
+                background: 'linear-gradient(135deg, #f97316, #f97316dd)',
                 color: '#fff'
               }}
             >
@@ -807,7 +873,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             renderCell: (_value, record, _index, originNode) => {
               // For data rows (not header)
               if (record && record.key) {
-                const isIndeterminate = isParentIndeterminate(record);
                 const isChecked = isParentChecked(record);
                 
                 // Clone the checkbox node and add custom props
@@ -815,7 +880,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                   const props = originNode.props as any;
                   return React.cloneElement(originNode as any, {
                     ...props,
-                    indeterminate: isIndeterminate,
                     checked: isChecked,
                   });
                 }
@@ -841,67 +905,37 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             expandIconColumnIndex: 1, // Put expand icon AFTER checkbox (index 0)
             // Render child table with detailed info when row is expanded
             expandedRowRender: (record: ProductWithConfig) => {
+              // ⚠️ IMPORTANT: Find the latest product from state to get updated variantData
+              const latestProduct = products.find(p => 
+                p.productId === record.productId || p.key === record.key
+              );
+              
               // Prepare data for child table
               const childData: ProductWithConfig[] = [];
               
+              // Use latest product's variantData (with updated config)
+              const productToUse = latestProduct || record;
+              
               // If product has variants, show all variant rows
-              if (record.variantData && record.variantData.length > 0) {
-                childData.push(...record.variantData);
+              if (productToUse.variantData && productToUse.variantData.length > 0) {
+                childData.push(...productToUse.variantData);
               } else {
                 // If no variants, show single row with the product itself
-                childData.push(record);
+                childData.push(productToUse);
               }
               
               return (
                 <div className="bg-gray-50 p-4">
+                  {/* Info message */}
+                  <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                    💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình bên trên.
+                  </div>
+                  
                   <Table
                     columns={childColumns}
                     dataSource={childData}
                     rowKey={(childRecord) => childRecord.key || childRecord.productId}
-                    rowSelection={{
-                      selectedRowKeys,
-                      onSelect: (childRecord, selected) => {
-                        // Handle individual variant selection
-                        const childKey = childRecord.key || childRecord.productId;
-                        
-                        if (selected) {
-                          // Add this variant AND parent key
-                          setSelectedRowKeys(prev => {
-                            const parentKey = record.key || record.productId;
-                            // Always add both variant key and parent key
-                            return [...new Set([...prev, childKey, parentKey])];
-                          });
-                        } else {
-                          // Remove this variant
-                          setSelectedRowKeys(prev => {
-                            const newKeys = prev.filter(key => key !== childKey);
-                            
-                            // Check if ANY variants are still selected
-                            if (record.variantData && record.variantData.length > 0) {
-                              const allVariantKeys = record.variantData
-                                .filter(v => v.stockQuantity > 0)
-                                .map(v => v.key || v.productId);
-                              
-                              const anySelected = allVariantKeys.some(key => 
-                                newKeys.includes(key)
-                              );
-                              
-                              // If NO variants selected, remove parent key too
-                              if (!anySelected) {
-                                const parentKey = record.key || record.productId;
-                                return newKeys.filter(key => key !== parentKey);
-                              }
-                            }
-                            
-                            return newKeys;
-                          });
-                        }
-                      },
-                      getCheckboxProps: (childRecord) => ({
-                        disabled: childRecord.stockQuantity === 0,
-                      }),
-                      hideSelectAll: true, // Hide "Select All" checkbox in child table header
-                    }}
+                    // NO rowSelection for child table - variants are not selectable
                     pagination={false}
                     size="small"
                     showHeader={true}

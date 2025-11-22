@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Table, Tag, Button, Modal, Space, Card, Row, Col, Statistic, 
-  Select, Image, Alert, Empty, Typography, Input
+  Select, Image, Alert, Empty, Typography, Input, Tooltip
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -9,7 +9,8 @@ import {
   TagOutlined,
   ClockCircleOutlined,
   FilterOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignProductService } from '../../../services/admin/CampaignProductService';
@@ -270,23 +271,52 @@ const CampaignProductApproval: React.FC = () => {
       title: 'Sản phẩm',
       dataIndex: 'productName',
       key: 'productName',
-      width: 300,
-      render: (_, record) => (
-        <div className="flex items-start gap-3">
-          <Image
-            src={record.productImage}
-            alt={record.productName}
-            width={60}
-            height={60}
-            className="rounded object-cover"
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-          />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-gray-900 line-clamp-2">{record.productName}</div>
-            <div className="text-xs text-gray-500 mt-1">ID: {record.productId.slice(0, 8)}...</div>
+      width: 320,
+      render: (_, record) => {
+        const isFlashSale = record.campaignType === 'FAST_SALE';
+        const flashSlot = isFlashSale && record.flashSaleSlots?.[0];
+        
+        return (
+          <div className="flex items-start gap-3">
+            <Image
+              src={record.productImage}
+              alt={record.productName}
+              width={60}
+              height={60}
+              className="rounded object-cover"
+              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+            />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-gray-900 line-clamp-2">{record.productName}</div>
+              <div className="text-xs text-gray-500 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+                <Tooltip title={record.productId}>
+                  ID: {record.productId}
+                </Tooltip>
+              </div>
+              {flashSlot && (
+                <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                  <ThunderboltOutlined />
+                  <span className="font-medium whitespace-nowrap">
+                    {new Date(flashSlot.openTime).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    })}
+                    {' - '}
+                    {new Date(flashSlot.closeTime).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     {
       title: 'Chiến dịch',

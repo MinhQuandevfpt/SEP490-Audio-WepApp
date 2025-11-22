@@ -185,7 +185,6 @@ const SellerCampaignList: React.FC = () => {
       campaign.status,
       campaign.startTime
     );
-    const badgeColor = campaign.badgeColor || (isMegaSale ? '#9333ea' : '#f97316');
 
     return (
       <Card
@@ -207,7 +206,7 @@ const SellerCampaignList: React.FC = () => {
               ) : (
                 <div
                   className="w-full h-full"
-                  style={{ background: `linear-gradient(135deg, ${badgeColor}dd, ${badgeColor})` }}
+                  style={{ background: 'linear-gradient(135deg, #f97316dd, #f97316)' }}
                 />
               )}
             </div>
@@ -339,8 +338,8 @@ const SellerCampaignList: React.FC = () => {
                   style={
                     canJoin
                       ? {
-                          background: `linear-gradient(135deg, ${badgeColor}, ${badgeColor}dd)`,
-                          borderColor: badgeColor,
+                          background: 'linear-gradient(135deg, #f97316, #f97316dd)',
+                          borderColor: '#f97316',
                         }
                       : {}
                   }
@@ -365,8 +364,8 @@ const SellerCampaignList: React.FC = () => {
                 onClick={() => navigate(`/seller/dashboard/campaigns/${campaign.id}/products`)}
                 className="flex-1 h-14 font-bold text-base rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
                 style={{
-                  background: `linear-gradient(135deg, ${badgeColor}, ${badgeColor}dd)`,
-                  borderColor: badgeColor,
+                  background: 'linear-gradient(135deg, #f97316, #f97316dd)',
+                  borderColor: '#f97316',
                 }}
                 icon={<EyeOutlined className="text-lg" />}
               >

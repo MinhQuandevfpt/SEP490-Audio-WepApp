@@ -40,12 +40,28 @@ import { showTikiNotification } from '../../../utils/notification';
 
 const { Title } = Typography;
 
+// Extended type to include variant information
+interface CampaignProductWithVariants extends CampaignProductDetail {
+  fullProduct?: Product;
+  variantData?: VariantRow[];
+}
+
+interface VariantRow {
+  variantId: string;
+  variantName: string;
+  variantPrice: number;
+  variantStock: number;
+  variantImage?: string;
+  variantSku?: string;
+  discountedPrice: number;
+}
+
 const CampaignProductDetails: React.FC = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState<CampaignProductDetail[]>([]);
+  const [products, setProducts] = useState<CampaignProductWithVariants[]>([]);
   const [productsMap, setProductsMap] = useState<Map<string, Product>>(new Map());
   const [storeId, setStoreId] = useState<string>('');
   const [campaignInfo, setCampaignInfo] = useState<{
@@ -119,9 +135,52 @@ const CampaignProductDetails: React.FC = () => {
             productMap.set(p.productId, p);
           });
           setProductsMap(productMap);
+
+          // Enrich campaign products with variant information
+          const enrichedProducts: CampaignProductWithVariants[] = campaignProducts.map(cp => {
+            const fullProduct = productMap.get(cp.productId);
+            const enriched: CampaignProductWithVariants = {
+              ...cp,
+              fullProduct
+            };
+
+            // If product has variants, calculate discounted price for each variant
+            if (fullProduct?.variants && fullProduct.variants.length > 0) {
+              enriched.variantData = fullProduct.variants.map(variant => {
+                const variantPrice = variant.variantPrice || 0;
+                let discountedPrice = variantPrice;
+
+                // Calculate discounted price based on campaign config
+                if (cp.discountType === 'FIXED' && cp.discountValue) {
+                  discountedPrice = Math.max(0, variantPrice - cp.discountValue);
+                } else if (cp.discountType === 'PERCENT' && cp.discountPercent) {
+                  const discount = (variantPrice * cp.discountPercent) / 100;
+                  const maxDiscount = cp.maxDiscountValue || discount;
+                  discountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+                }
+
+                return {
+                  variantId: variant.variantId || `${fullProduct.productId}-variant`,
+                  variantName: variant.optionValue || '',
+                  variantPrice,
+                  variantStock: variant.variantStock || 0,
+                  variantImage: variant.variantUrl,
+                  variantSku: variant.variantSku,
+                  discountedPrice
+                };
+              });
+            }
+
+            return enriched;
+          });
+
+          setProducts(enrichedProducts);
         } catch (error) {
           console.warn('Could not fetch full product details:', error);
+          setProducts(campaignProducts);
         }
+      } else {
+        setProducts([]);
       }
     } catch (error: any) {
       showTikiNotification(
@@ -208,14 +267,15 @@ const CampaignProductDetails: React.FC = () => {
     });
   };
 
-  const columns: ColumnsType<CampaignProductDetail> = [
+  const columns: ColumnsType<CampaignProductWithVariants> = [
     {
       title: 'Sản phẩm',
       key: 'product',
-      width: 280,
+      width: 320,
       render: (_, record) => {
-        const fullProduct = productsMap.get(record.productId);
+        const fullProduct = record.fullProduct || productsMap.get(record.productId);
         const imageUrl = fullProduct?.images?.[0] || `https://via.placeholder.com/80?text=${encodeURIComponent(record.productName.slice(0, 2))}`;
+        const isFlashSale = campaignInfo?.type === 'FAST_SALE';
         
         return (
           <div className="flex items-start gap-3">
@@ -231,7 +291,32 @@ const CampaignProductDetails: React.FC = () => {
               <div className="font-medium text-gray-900 line-clamp-2 mb-1">
                 {record.productName}
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
+                <Tooltip title={record.productId}>
+                  ID: {record.productId}
+                </Tooltip>
+              </div>
+              {isFlashSale && record.slot && (
+                <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                  <ThunderboltOutlined />
+                  <span className="font-medium whitespace-nowrap">
+                    {new Date(record.slot.openTime).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    })}
+                    {' - '}
+                    {new Date(record.slot.closeTime).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false
+                    })}
+                  </span>
+                </div>
+              )}
+              <div className="text-xs text-gray-500 mt-1">
                 <span className="font-medium">{record.brandName}</span>
                 {' • '}
                 <span>{record.category}</span>
@@ -247,9 +332,26 @@ const CampaignProductDetails: React.FC = () => {
       width: 90,
       align: 'center',
       render: (_, record) => {
-        const fullProduct = productsMap.get(record.productId);
+        const fullProduct = record.fullProduct || productsMap.get(record.productId);
         const stock = fullProduct?.stockQuantity || 0;
         const color = stock > 10 ? '#52c41a' : stock > 0 ? '#faad14' : '#ff4d4f';
+        
+        // If has variants, show total stock
+        if (record.variantData && record.variantData.length > 0) {
+          const totalVariantStock = record.variantData.reduce((sum, v) => sum + v.variantStock, 0);
+          const variantColor = totalVariantStock > 10 ? '#52c41a' : totalVariantStock > 0 ? '#faad14' : '#ff4d4f';
+          
+          return (
+            <div className="text-center">
+              <div className="font-bold text-lg" style={{ color: variantColor }}>
+                {totalVariantStock}
+              </div>
+              <div className="text-xs text-gray-400">
+                {totalVariantStock > 10 ? 'Còn hàng' : totalVariantStock > 0 ? 'Sắp hết' : 'Hết hàng'}
+              </div>
+            </div>
+          );
+        }
         
         return (
           <div className="text-center">
@@ -269,11 +371,40 @@ const CampaignProductDetails: React.FC = () => {
       key: 'originalPrice',
       width: 110,
       align: 'right',
-      render: (price: number) => (
-        <span className="text-gray-600 font-medium">
-          {price.toLocaleString('vi-VN')}₫
-        </span>
-      )
+      render: (price: number, record) => {
+        // If has variants, show range or "Xem chi tiết"
+        if (record.variantData && record.variantData.length > 0) {
+          const prices = record.variantData.map(v => v.variantPrice);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          
+          if (minPrice === maxPrice) {
+            return (
+              <span className="text-gray-600 font-medium">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </span>
+            );
+          }
+          
+          return (
+            <div className="text-right">
+              <div className="text-gray-600 font-medium text-xs">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </div>
+              <div className="text-gray-400 text-xs">~</div>
+              <div className="text-gray-600 font-medium text-xs">
+                {maxPrice.toLocaleString('vi-VN')}₫
+              </div>
+            </div>
+          );
+        }
+        
+        return (
+          <span className="text-gray-600 font-medium">
+            {price.toLocaleString('vi-VN')}₫
+          </span>
+        );
+      }
     },
     {
       title: 'Giảm giá',
@@ -304,11 +435,40 @@ const CampaignProductDetails: React.FC = () => {
       key: 'discountedPrice',
       width: 120,
       align: 'right',
-      render: (price: number) => (
-        <span className="text-red-600 font-bold text-base">
-          {price.toLocaleString('vi-VN')}₫
-        </span>
-      )
+      render: (price: number, record) => {
+        // If has variants, show range or "Xem chi tiết"
+        if (record.variantData && record.variantData.length > 0) {
+          const prices = record.variantData.map(v => v.discountedPrice);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          
+          if (minPrice === maxPrice) {
+            return (
+              <span className="text-red-600 font-bold text-base">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </span>
+            );
+          }
+          
+          return (
+            <div className="text-right">
+              <div className="text-red-600 font-bold text-xs">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </div>
+              <div className="text-red-400 text-xs">~</div>
+              <div className="text-red-600 font-bold text-xs">
+                {maxPrice.toLocaleString('vi-VN')}₫
+              </div>
+            </div>
+          );
+        }
+        
+        return (
+          <span className="text-red-600 font-bold text-base">
+            {price.toLocaleString('vi-VN')}₫
+          </span>
+        );
+      }
     },
     {
       title: 'Voucher',
@@ -357,6 +517,86 @@ const CampaignProductDetails: React.FC = () => {
               </div>
             </Tooltip>
           )}
+        </div>
+      )
+    }
+  ];
+
+  // Child table columns for variants
+  const variantColumns: ColumnsType<VariantRow> = [
+    {
+      title: 'Phân loại hàng',
+      key: 'variant',
+      width: 220,
+      render: (_, variant) => (
+        <div className="flex items-center gap-3">
+          <Image
+            src={variant.variantImage || 'https://via.placeholder.com/40'}
+            alt={variant.variantName}
+            width={40}
+            height={40}
+            className="rounded object-cover"
+            fallback="https://via.placeholder.com/40"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900">
+              {variant.variantName}
+            </div>
+            {variant.variantSku && (
+              <div className="text-xs text-gray-500 mt-1">
+                SKU: {variant.variantSku}
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+              <Tooltip title={variant.variantId}>
+                ID: {variant.variantId}
+              </Tooltip>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      title: 'Giá gốc',
+      dataIndex: 'variantPrice',
+      key: 'variantPrice',
+      width: 120,
+      align: 'right',
+      render: (price: number) => (
+        <span className="font-medium text-orange-600 text-sm">
+          {price.toLocaleString('vi-VN')}₫
+        </span>
+      )
+    },
+    {
+      title: 'Kho',
+      dataIndex: 'variantStock',
+      key: 'variantStock',
+      width: 80,
+      align: 'center',
+      render: (stock: number) => {
+        const color = stock > 0 ? 'success' : 'error';
+        return (
+          <Tag color={color} className="text-xs">
+            {stock > 0 ? `${stock}` : 'Hết'}
+          </Tag>
+        );
+      }
+    },
+    {
+      title: 'Giá sau giảm',
+      dataIndex: 'discountedPrice',
+      key: 'discountedPrice',
+      width: 120,
+      align: 'right',
+      render: (discountedPrice: number, variant) => (
+        <div>
+          <div className="font-semibold text-green-600 text-sm">
+            {discountedPrice.toLocaleString('vi-VN')}₫
+          </div>
+          <div className="text-xs text-gray-400 line-through">
+            {variant.variantPrice.toLocaleString('vi-VN')}₫
+          </div>
         </div>
       )
     }
@@ -530,6 +770,35 @@ const CampaignProductDetails: React.FC = () => {
                   if (record.status === 'DRAFT') return 'bg-orange-50';
                   if (record.status === 'ACTIVE') return 'bg-blue-50';
                   return '';
+                }}
+                expandable={{
+                  expandedRowRender: (record) => {
+                    // Only show expanded view if product has variants
+                    if (!record.variantData || record.variantData.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <div className="bg-gray-50 p-4">
+                        <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                          💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình voucher.
+                        </div>
+                        <Table
+                          columns={variantColumns}
+                          dataSource={record.variantData}
+                          rowKey="variantId"
+                          pagination={false}
+                          size="small"
+                          showHeader={true}
+                        />
+                      </div>
+                    );
+                  },
+                  rowExpandable: (record) => {
+                    // Only allow expand if product has variants
+                    return !!(record.variantData && record.variantData.length > 0);
+                  },
+                  columnWidth: 48,
                 }}
               />
             </Card>

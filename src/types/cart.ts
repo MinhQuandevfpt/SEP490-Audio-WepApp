@@ -34,6 +34,13 @@ export interface CartItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  originProvinceCode?: string;
+  originDistrictCode?: string;
+  originWardCode?: string;
+  variantId?: string;
+  variantOptionName?: string;
+  variantOptionValue?: string;
+  variantUrl?: string;  // URL của ảnh variant (nếu có)
 }
 
 // Cart Response

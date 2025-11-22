@@ -31,10 +31,12 @@ const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem => ({
   id: apiItem.cartItemId,
   productId: apiItem.refId,
   name: apiItem.name,
-  image: apiItem.image,
+  // Ưu tiên sử dụng variantUrl nếu có, nếu không thì dùng image
+  image: apiItem.variantUrl || apiItem.image,
   price: apiItem.unitPrice,
   quantity: apiItem.quantity,
   isSelected: true,
+  variant: apiItem.variantOptionValue || undefined,
 });
 
 const calculateStoreTotal = (
