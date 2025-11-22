@@ -148,24 +148,32 @@ export class FlashSaleService {
   }
 
   /**
-   * Helper: Lấy thêm thông tin hình ảnh cho products
+   * Helper: Lấy thêm thông tin hình ảnh và tính giá cho products với variants
    */
   static async enrichProductsWithImages(
     products: FlashSaleProduct[]
   ): Promise<FlashSaleProduct[]> {
     try {
-      console.log(`🖼️ Enriching ${products.length} products with images...`);
+      console.log(`🖼️ Enriching ${products.length} products with images and prices...`);
       
       const enrichedProducts = await Promise.all(
         products.map(async (product) => {
           try {
-            // Fetch product detail để lấy hình ảnh
+            // Fetch product detail để lấy hình ảnh và variants
             const response = await HttpInterceptor.fetch<{
               status: number;
               message: string;
               data: {
                 productId: string;
-                images?: string[]; // Array of image URLs
+                price: number;
+                images?: string[];
+                variants?: Array<{
+                  variantId: string;
+                  variantPrice?: number; // Seller API uses this
+                  price?: number;        // Customer API uses this
+                  stock?: number;
+                  variantStock?: number;
+                }>;
               };
             }>(`/api/products/${product.productId}`, {
               userType: 'customer'
@@ -174,14 +182,53 @@ export class FlashSaleService {
             // Get first image from array
             const firstImage = response.data?.images?.[0];
 
-            console.log(`✅ Loaded image for ${product.productName}:`, firstImage || 'No image');
+            // Check if product has variants
+            const variants = response.data?.variants || [];
+            const hasVariants = variants.length > 0;
+
+            let originalPrice = product.originalPrice;
+            let discountedPrice = product.discountedPrice;
+
+            // If product has variants, calculate prices from min variant price
+            if (hasVariants) {
+              // Get prices from variants (handle both variantPrice and price fields)
+              const variantPrices = variants
+                .map(v => v.variantPrice || v.price || 0)
+                .filter(p => p > 0);
+              
+              if (variantPrices.length > 0) {
+                const minVariantPrice = Math.min(...variantPrices);
+                
+                // originalPrice = min variant price
+                originalPrice = minVariantPrice;
+                
+                // Calculate discounted price based on voucher type
+                if (product.type === 'PERCENT' && product.discountPercent) {
+                  const discount = (minVariantPrice * product.discountPercent) / 100;
+                  const maxDiscount = product.maxDiscountValue || discount;
+                  discountedPrice = minVariantPrice - Math.min(discount, maxDiscount);
+                } else if (product.type === 'FIXED' && product.discountValue) {
+                  discountedPrice = Math.max(0, minVariantPrice - product.discountValue);
+                } else {
+                  // No discount, just use original price
+                  discountedPrice = minVariantPrice;
+                }
+
+                console.log(`✅ Variant product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}`);
+              }
+            } else {
+              // No variants, ensure we have valid prices
+              console.log(`✅ Single product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}`);
+            }
 
             return {
               ...product,
-              imageUrl: firstImage || ''
+              imageUrl: firstImage || '',
+              originalPrice,
+              discountedPrice
             };
           } catch (error) {
-            console.error(`❌ Error fetching image for product ${product.productId}:`, error);
+            console.error(`❌ Error fetching details for product ${product.productId}:`, error);
             return {
               ...product,
               imageUrl: ''

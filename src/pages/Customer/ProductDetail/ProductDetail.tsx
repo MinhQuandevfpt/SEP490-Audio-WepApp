@@ -155,35 +155,15 @@ const ProductDetail: React.FC = () => {
     let originalPrice = product.price;
     let displayPrice = product.price;
     let priceRangeText: string | null = null;
+    let discountedPriceRangeText: string | null = null;
     
-    // If product has variants
-    if (hasVariants) {
-      if (selectedVariant) {
-        // Show selected variant price
-        originalPrice = selectedVariant.variantPrice;
-        displayPrice = selectedVariant.variantPrice;
-      } else {
-        // Show price range
-        const prices = product.variants!.map(v => v.variantPrice);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-        
-        if (minPrice === maxPrice) {
-          originalPrice = minPrice;
-          displayPrice = minPrice;
-        } else {
-          priceRangeText = `${minPrice.toLocaleString('vi-VN')}đ - ${maxPrice.toLocaleString('vi-VN')}đ`;
-          originalPrice = minPrice; // Use min for voucher calculation
-          displayPrice = minPrice;
-        }
-      }
-    }
-    
-    let finalPrice = displayPrice;
+    // Get platform voucher info first
     let discountPercent = 0;
     let campaignBadge: { label: string; color: string } | null = null;
+    let voucherType: 'PERCENT' | 'FIXED' | null = null;
+    let voucherDiscountValue = 0;
+    let voucherMaxDiscount: number | null = null;
 
-    // Check platform vouchers first (Flash Sale, etc.)
     if (platformCampaigns.length > 0) {
       const campaign = platformCampaigns[0];
       const voucher = campaign.vouchers?.[0];
@@ -192,11 +172,16 @@ const ProductDetail: React.FC = () => {
         const now = new Date();
         const isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
         
-        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
-          discountPercent = voucher.discountPercent;
-          finalPrice = originalPrice * (1 - discountPercent / 100);
+        if (isActive) {
+          if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+            voucherType = 'PERCENT';
+            discountPercent = voucher.discountPercent;
+            voucherMaxDiscount = voucher.maxDiscountValue || null;
+          } else if (voucher.type === 'FIXED' && voucher.discountValue) {
+            voucherType = 'FIXED';
+            voucherDiscountValue = voucher.discountValue;
+          }
           
-          // Add campaign badge
           campaignBadge = {
             label: campaign.badgeLabel || 'FLASH SALE',
             color: campaign.badgeColor || '#FF6600'
@@ -205,14 +190,59 @@ const ProductDetail: React.FC = () => {
       }
     }
 
+    // Helper function to calculate discounted price
+    const applyDiscount = (price: number): number => {
+      if (voucherType === 'PERCENT') {
+        const discount = (price * discountPercent) / 100;
+        const maxDiscount = voucherMaxDiscount || discount;
+        return price - Math.min(discount, maxDiscount);
+      } else if (voucherType === 'FIXED') {
+        return Math.max(0, price - voucherDiscountValue);
+      }
+      return price;
+    };
+
+    // If product has variants
+    if (hasVariants) {
+      if (selectedVariant) {
+        // Show selected variant price
+        originalPrice = selectedVariant.variantPrice;
+        displayPrice = applyDiscount(originalPrice);
+      } else {
+        // Show price range for both original and discounted
+        const prices = product.variants!.map(v => v.variantPrice);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        
+        if (minPrice === maxPrice) {
+          originalPrice = minPrice;
+          displayPrice = applyDiscount(minPrice);
+        } else {
+          // Calculate discounted price range
+          const minDiscountedPrice = applyDiscount(minPrice);
+          const maxDiscountedPrice = applyDiscount(maxPrice);
+          
+          priceRangeText = `${minPrice.toLocaleString('vi-VN')}₫ - ${maxPrice.toLocaleString('vi-VN')}₫`;
+          discountedPriceRangeText = `${minDiscountedPrice.toLocaleString('vi-VN')}₫ - ${maxDiscountedPrice.toLocaleString('vi-VN')}₫`;
+          
+          originalPrice = minPrice;
+          displayPrice = minDiscountedPrice;
+        }
+      }
+    } else {
+      // Single product without variants
+      displayPrice = applyDiscount(originalPrice);
+    }
+
     return {
       originalPrice,
-      finalPrice,
+      finalPrice: displayPrice,
       displayPrice,
       priceRangeText,
+      discountedPriceRangeText,
       discountPercent,
       campaignBadge,
-      hasDiscount: finalPrice < originalPrice
+      hasDiscount: displayPrice < originalPrice || discountPercent > 0
     };
   };
 
@@ -271,10 +301,12 @@ const ProductDetail: React.FC = () => {
               rating={product.ratingAverage || 0}
               reviewsCount={product.reviewCount || 0}
               soldCount={0} // API doesn't provide this
-              price={priceInfo.displayPrice}
+              price={priceInfo.originalPrice}
               priceRange={priceInfo.priceRangeText}
+              discountedPriceRange={priceInfo.discountedPriceRangeText}
               salePrice={priceInfo.hasDiscount ? priceInfo.finalPrice : undefined}
               discountPercent={priceInfo.discountPercent}
+              campaignBadge={priceInfo.campaignBadge}
               shortDescription={product.shortDescription}
             />
        

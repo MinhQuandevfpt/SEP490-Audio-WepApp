@@ -2,18 +2,82 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CustomerCartService } from '../../services/customer/CartService';
+import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
 import type { CartResponse } from '../../types/cart';
+
+interface EnrichedCartItem {
+  cartItemId: string;
+  refId: string;
+  name: string;
+  image: string;
+  variantUrl?: string;
+  unitPrice: number;
+  discountedPrice: number;
+  quantity: number;
+  variantOptionValue?: string;
+}
 
 const CartDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [cart, setCart] = useState<CartResponse | null>(null);
+  const [enrichedItems, setEnrichedItems] = useState<EnrichedCartItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Load cart data - Tối ưu: không hiển thị loading spinner
+  // Load cart data and enrich with platform voucher prices
   const loadCart = async () => {
     try {
       const cartData = await CustomerCartService.getCart();
       setCart(cartData);
+      
+      // Enrich items with discounted prices (only for first 5 items to display)
+      const itemsToEnrich = cartData.items.slice(0, 5);
+      const enriched = await Promise.all(
+        itemsToEnrich.map(async (item) => {
+          let discountedPrice = item.unitPrice;
+          
+          try {
+            // Fetch platform vouchers for this product
+            const voucherData = await ProductVoucherService.getProductVouchers(item.refId, null, null);
+            const platformVouchers = voucherData.data?.vouchers?.platform || [];
+            
+            if (platformVouchers.length > 0) {
+              const campaign = platformVouchers[0];
+              const voucher = campaign.vouchers?.[0];
+              
+              if (voucher && voucher.status === 'ACTIVE') {
+                const now = new Date();
+                const isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+                
+                if (isActive) {
+                  if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+                    const discount = (item.unitPrice * voucher.discountPercent) / 100;
+                    const maxDiscount = voucher.maxDiscountValue || discount;
+                    discountedPrice = item.unitPrice - Math.min(discount, maxDiscount);
+                  } else if (voucher.type === 'FIXED' && voucher.discountValue) {
+                    discountedPrice = Math.max(0, item.unitPrice - voucher.discountValue);
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching vouchers for product ${item.refId}:`, error);
+          }
+          
+          return {
+            cartItemId: item.cartItemId,
+            refId: item.refId,
+            name: item.name,
+            image: item.image,
+            variantUrl: item.variantUrl,
+            unitPrice: item.unitPrice,
+            discountedPrice,
+            quantity: item.quantity,
+            variantOptionValue: item.variantOptionValue
+          };
+        })
+      );
+      
+      setEnrichedItems(enriched);
     } catch (error) {
       console.error('Error loading cart:', error);
     }
@@ -60,22 +124,21 @@ const CartDropdown: React.FC = () => {
 
   const cartItemCount = cart?.items?.length || 0;
   const formatPrice = (price: number) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
+
+  // Use enriched items for display, fallback to first 5 raw items if enrichment not done
+  const displayItems = enrichedItems.length > 0 ? enrichedItems : cart?.items?.slice(0, 5).map(item => ({
+    cartItemId: item.cartItemId,
+    refId: item.refId,
+    name: item.name,
+    image: item.image,
+    variantUrl: item.variantUrl,
+    unitPrice: item.unitPrice,
+    discountedPrice: item.unitPrice, // Fallback: no discount
+    quantity: item.quantity,
+    variantOptionValue: item.variantOptionValue
+  })) || [];
   
-  // Chỉ hiển thị 5 sản phẩm mới nhất (sản phẩm mới thêm sẽ ở đầu)
-  const displayItems = cart?.items?.slice(0, 5) || [];
-  const remainingCount = Math.max(0, cartItemCount - 5);
-
-  // Tính giá sau giảm từ voucher/campaign (giống ProductDetail logic)
-  const calculateDiscountedPrice = (item: any) => {
-    // Nếu có discountedPrice từ API thì dùng
-    if (item.discountedPrice && item.discountedPrice < item.unitPrice) {
-      return item.discountedPrice;
-    }
-    // Fallback về unitPrice (giá gốc)
-    return item.unitPrice;
-  };
-
-  return (
+  const remainingCount = Math.max(0, cartItemCount - 5);  return (
     <div className="relative" ref={dropdownRef}>
       {/* Cart Icon */}
       <button
@@ -122,8 +185,6 @@ const CartDropdown: React.FC = () => {
             ) : (
               <div className="divide-y divide-gray-100">
                 {displayItems.map((item) => {
-                  const discountedPrice = calculateDiscountedPrice(item);
-                  
                   return (
                     <div key={item.cartItemId} className="p-3 hover:bg-gray-50 flex gap-2">
                       {/* Image - Smaller */}
@@ -148,10 +209,17 @@ const CartDropdown: React.FC = () => {
                         }}>
                           {item.name}
                         </h4>
-                        {/* Giá màu cam bên phải */}
-                        <span className="text-sm font-semibold text-orange-500 flex-shrink-0">
-                          {formatPrice(discountedPrice)}
-                        </span>
+                        {/* Giá sau giảm màu đỏ, gạch giá gốc nếu có discount */}
+                        <div className="flex flex-col items-end flex-shrink-0">
+                          {item.discountedPrice < item.unitPrice && (
+                            <span className="text-xs text-gray-400 line-through">
+                              {formatPrice(item.unitPrice)}
+                            </span>
+                          )}
+                          <span className={`text-sm font-semibold ${item.discountedPrice < item.unitPrice ? 'text-red-600' : 'text-orange-500'}`}>
+                            {formatPrice(item.discountedPrice)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );

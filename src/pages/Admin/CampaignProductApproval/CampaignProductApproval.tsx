@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignProductService } from '../../../services/admin/CampaignProductService';
+import { ProductService } from '../../../services/seller/ProductService';
 import type { 
   CampaignProduct, 
   CampaignOverviewItem,
@@ -22,15 +23,35 @@ import type {
   Campaign,
   CampaignVoucher
 } from '../../../types/admin';
+import type { Product } from '../../../types/seller';
 import { showTikiNotification } from '../../../utils/notification';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+// Extended type with variant information
+interface CampaignProductWithVariants extends CampaignProduct {
+  campaignId: string;
+  campaignName: string;
+  campaignType: CampaignType;
+  fullProduct?: Product;
+  variantData?: VariantRow[];
+}
+
+interface VariantRow {
+  variantId: string;
+  variantName: string;
+  variantPrice: number;
+  variantStock: number;
+  variantImage?: string;
+  variantSku?: string;
+  discountedPrice: number;
+}
+
 const CampaignProductApproval: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [campaignData, setCampaignData] = useState<CampaignOverviewItem[]>([]);
+  const [enrichedProducts, setEnrichedProducts] = useState<CampaignProductWithVariants[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -81,11 +102,13 @@ const CampaignProductApproval: React.FC = () => {
         size: pagination.pageSize || 20
       });
 
-      setCampaignData(response.data.data);
       setPagination(prev => ({
         ...prev,
         total: response.data.totalCampaigns * 10 // Approximate total products
       }));
+
+      // Fetch product details to get variants
+      await fetchProductDetails(response.data.data);
     } catch (error: any) {
       showTikiNotification(
         error.message || 'Không thể tải danh sách sản phẩm',
@@ -94,6 +117,86 @@ const CampaignProductApproval: React.FC = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProductDetails = async (campaigns: CampaignOverviewItem[]) => {
+    try {
+      // Collect all unique product IDs
+      const productIds = new Set<string>();
+      campaigns.forEach(campaign => {
+        campaign.products.forEach(product => {
+          productIds.add(product.productId);
+        });
+      });
+
+      // Fetch all products in parallel
+      const productPromises = Array.from(productIds).map(async (productId) => {
+        try {
+          const product = await ProductService.getProductById(productId);
+          return product;
+        } catch (error) {
+          console.warn(`Failed to fetch product ${productId}:`, error);
+          return null;
+        }
+      });
+
+      const products = await Promise.all(productPromises);
+      const productMap = new Map<string, Product>();
+      products.forEach(p => {
+        if (p) productMap.set(p.productId, p);
+      });
+
+      // Enrich campaign products with variant data
+      const enriched: CampaignProductWithVariants[] = [];
+      
+      campaigns.forEach(campaign => {
+        campaign.products.forEach(product => {
+          const fullProduct = productMap.get(product.productId);
+          const voucher = getProductVoucher(product);
+          
+          const enrichedProduct: CampaignProductWithVariants = {
+            ...product,
+            campaignId: campaign.campaignId,
+            campaignName: campaign.campaignName,
+            campaignType: campaign.campaignType,
+            fullProduct
+          };
+
+          // If product has variants, calculate discounted price for each variant
+          if (fullProduct?.variants && fullProduct.variants.length > 0 && voucher) {
+            enrichedProduct.variantData = fullProduct.variants.map(variant => {
+              const variantPrice = variant.variantPrice || 0;
+              let discountedPrice = variantPrice;
+
+              // Calculate discounted price based on voucher config
+              if (voucher.type === 'FIXED' && voucher.discountValue) {
+                discountedPrice = Math.max(0, variantPrice - voucher.discountValue);
+              } else if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+                const discount = (variantPrice * voucher.discountPercent) / 100;
+                const maxDiscount = voucher.maxDiscountValue || discount;
+                discountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+              }
+
+              return {
+                variantId: variant.variantId || `${fullProduct.productId}-variant`,
+                variantName: variant.optionValue || '',
+                variantPrice,
+                variantStock: variant.variantStock || 0,
+                variantImage: variant.variantUrl,
+                variantSku: variant.variantSku,
+                discountedPrice
+              };
+            });
+          }
+
+          enriched.push(enrichedProduct);
+        });
+      });
+
+      setEnrichedProducts(enriched);
+    } catch (error) {
+      console.error('Error fetching product details:', error);
     }
   };
 
@@ -115,21 +218,10 @@ const CampaignProductApproval: React.FC = () => {
     return null;
   }, []);
 
-  // Flatten products from all campaigns for table display
+  // Use enriched products with variant data
   const allProducts = useMemo(() => {
-    const products: (CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType })[] = [];
-    campaignData.forEach(campaign => {
-      campaign.products.forEach(product => {
-        products.push({
-          ...product,
-          campaignId: campaign.campaignId,
-          campaignName: campaign.campaignName,
-          campaignType: campaign.campaignType
-        });
-      });
-    });
-    return products;
-  }, [campaignData]);
+    return enrichedProducts;
+  }, [enrichedProducts]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -266,7 +358,7 @@ const CampaignProductApproval: React.FC = () => {
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
-  const columns: ColumnsType<CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }> = useMemo(() => [
+  const columns: ColumnsType<CampaignProductWithVariants> = useMemo(() => [
     {
       title: 'Sản phẩm',
       dataIndex: 'productName',
@@ -353,9 +445,36 @@ const CampaignProductApproval: React.FC = () => {
       key: 'originalPrice',
       width: 120,
       align: 'right',
-      render: (price: number) => (
-        <span className="text-gray-600">{price.toLocaleString('vi-VN')}₫</span>
-      )
+      render: (price: number, record) => {
+        // If has variants, show range
+        if (record.variantData && record.variantData.length > 0) {
+          const prices = record.variantData.map(v => v.variantPrice);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          
+          if (minPrice === maxPrice) {
+            return (
+              <span className="text-gray-600">{minPrice.toLocaleString('vi-VN')}₫</span>
+            );
+          }
+          
+          return (
+            <div className="text-right">
+              <div className="text-gray-600 text-xs">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </div>
+              <div className="text-gray-400 text-xs">~</div>
+              <div className="text-gray-600 text-xs">
+                {maxPrice.toLocaleString('vi-VN')}₫
+              </div>
+            </div>
+          );
+        }
+        
+        return (
+          <span className="text-gray-600">{price.toLocaleString('vi-VN')}₫</span>
+        );
+      }
     },
     {
       title: 'Giảm giá',
@@ -386,6 +505,35 @@ const CampaignProductApproval: React.FC = () => {
       align: 'right',
       render: (_, record) => {
         const voucher = getProductVoucher(record);
+        
+        // If has variants, show range
+        if (record.variantData && record.variantData.length > 0) {
+          const prices = record.variantData.map(v => v.discountedPrice);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          
+          if (minPrice === maxPrice) {
+            return (
+              <span className="text-red-600 font-bold">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </span>
+            );
+          }
+          
+          return (
+            <div className="text-right">
+              <div className="text-red-600 font-bold text-xs">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </div>
+              <div className="text-red-400 text-xs">~</div>
+              <div className="text-red-600 font-bold text-xs">
+                {maxPrice.toLocaleString('vi-VN')}₫
+              </div>
+            </div>
+          );
+        }
+        
+        // No variants
         if (!voucher) {
           return (
             <span className="text-gray-400">
@@ -445,12 +593,92 @@ const CampaignProductApproval: React.FC = () => {
     }
   ], [getProductVoucher]);
 
+  // Child table columns for variants
+  const variantColumns: ColumnsType<VariantRow> = useMemo(() => [
+    {
+      title: 'Phân loại hàng',
+      key: 'variant',
+      width: 220,
+      render: (_, variant) => (
+        <div className="flex items-center gap-3">
+          <Image
+            src={variant.variantImage || 'https://via.placeholder.com/40'}
+            alt={variant.variantName}
+            width={40}
+            height={40}
+            className="rounded object-cover"
+            fallback="https://via.placeholder.com/40"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-gray-900">
+              {variant.variantName}
+            </div>
+            {variant.variantSku && (
+              <div className="text-xs text-gray-500 mt-1">
+                SKU: {variant.variantSku}
+              </div>
+            )}
+            <div className="text-xs text-gray-400 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+              <Tooltip title={variant.variantId}>
+                ID: {variant.variantId}
+              </Tooltip>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      title: 'Giá gốc',
+      dataIndex: 'variantPrice',
+      key: 'variantPrice',
+      width: 120,
+      align: 'right',
+      render: (price: number) => (
+        <span className="font-medium text-orange-600 text-sm">
+          {price.toLocaleString('vi-VN')}₫
+        </span>
+      )
+    },
+    {
+      title: 'Kho',
+      dataIndex: 'variantStock',
+      key: 'variantStock',
+      width: 80,
+      align: 'center',
+      render: (stock: number) => {
+        const color = stock > 0 ? 'success' : 'error';
+        return (
+          <Tag color={color} className="text-xs">
+            {stock > 0 ? `${stock}` : 'Hết'}
+          </Tag>
+        );
+      }
+    },
+    {
+      title: 'Giá sau giảm',
+      dataIndex: 'discountedPrice',
+      key: 'discountedPrice',
+      width: 120,
+      align: 'right',
+      render: (discountedPrice: number, variant) => (
+        <div>
+          <div className="font-semibold text-green-600 text-sm">
+            {discountedPrice.toLocaleString('vi-VN')}₫
+          </div>
+          <div className="text-xs text-gray-400 line-through">
+            {variant.variantPrice.toLocaleString('vi-VN')}₫
+          </div>
+        </div>
+      )
+    }
+  ], []);
+
   const rowSelection = {
     selectedRowKeys: selectedProducts,
     onChange: (selectedRowKeys: React.Key[]) => {
       setSelectedProducts(selectedRowKeys as string[]);
     },
-    getCheckboxProps: (record: CampaignProduct & { campaignId: string; campaignName: string; campaignType: CampaignType }) => {
+    getCheckboxProps: (record: CampaignProductWithVariants) => {
       const voucher = getProductVoucher(record);
       return {
         disabled: !voucher?.status || !['DRAFT', 'APPROVE'].includes(voucher.status),
@@ -624,6 +852,26 @@ const CampaignProductApproval: React.FC = () => {
             onChange={(newPagination) => setPagination(newPagination)}
             rowSelection={rowSelection}
             scroll={{ x: 1400 }}
+            expandable={{
+              expandedRowRender: (record) => {
+                if (!record.variantData || record.variantData.length === 0) {
+                  return null;
+                }
+                return (
+                  <Table
+                    columns={variantColumns}
+                    dataSource={record.variantData}
+                    rowKey="variantId"
+                    pagination={false}
+                    size="small"
+                    className="ml-8"
+                  />
+                );
+              },
+              rowExpandable: (record) => {
+                return !!(record.variantData && record.variantData.length > 0);
+              }
+            }}
             locale={{
               emptyText: (
                 <Empty
