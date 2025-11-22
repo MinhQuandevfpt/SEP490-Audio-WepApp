@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import Room3D from './Room3D';
@@ -15,6 +15,8 @@ interface Canvas3DProps {
   listeners?: Listener[];
   speakers?: Speaker[];
   testObjectPosition?: [number, number, number] | null;
+  onUpdateListener?: (id: string, updates: Partial<Listener>) => void;
+  onUpdateFurniture?: (id: string, updates: Partial<Furniture>) => void;
 }
 
 const Canvas3D: React.FC<Canvas3DProps> = ({ 
@@ -23,8 +25,133 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
   furniture = [], 
   listeners = [], 
   speakers = [],
-  testObjectPosition = null
+  testObjectPosition = null,
+  onUpdateListener,
+  onUpdateFurniture
 }) => {
+  const [selectedListenerId, setSelectedListenerId] = useState<string | null>(null);
+  const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
+  const moveStep = 0.5; // Bước di chuyển 0.5m
+
+  // Keyboard event handler
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Ngăn chặn default behavior nếu đang nhập text hoặc trong input/textarea
+    const target = e.target as HTMLElement;
+    if (
+      target instanceof HTMLInputElement || 
+      target instanceof HTMLTextAreaElement ||
+      target.isContentEditable ||
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA'
+    ) {
+      return;
+    }
+
+    const isAltPressed = e.altKey;
+    const key = e.key.toLowerCase();
+    let shouldUpdate = false;
+
+    // Xử lý Listener
+    if (selectedListenerId && onUpdateListener) {
+      const selectedListener = listeners.find(l => l.id === selectedListenerId);
+      if (selectedListener) {
+        const newPosition = [...selectedListener.position] as [number, number, number];
+
+        // W/S: Di chuyển lên/xuống (Y axis)
+        if (key === 'w' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[1] += moveStep;
+          shouldUpdate = true;
+        } else if (key === 's' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[1] -= moveStep;
+          shouldUpdate = true;
+        }
+        // A/D: Di chuyển trái/phải (X axis)
+        else if (key === 'a' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[0] -= moveStep;
+          shouldUpdate = true;
+        } else if (key === 'd' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[0] += moveStep;
+          shouldUpdate = true;
+        }
+        // Alt + W: Di chuyển vào trong (Z axis - backward, giảm Z)
+        else if (key === 'w' && isAltPressed) {
+          e.preventDefault();
+          newPosition[2] -= moveStep;
+          shouldUpdate = true;
+        }
+        // Alt + S: Di chuyển ra phía trước (Z axis - forward, tăng Z)
+        else if (key === 's' && isAltPressed) {
+          e.preventDefault();
+          newPosition[2] += moveStep;
+          shouldUpdate = true;
+        }
+
+        if (shouldUpdate) {
+          onUpdateListener(selectedListenerId, { position: newPosition });
+          return;
+        }
+      }
+    }
+
+    // Xử lý Furniture
+    if (selectedFurnitureId && onUpdateFurniture) {
+      const selectedFurniture = furniture.find(f => f.id === selectedFurnitureId);
+      if (selectedFurniture) {
+        const newPosition = [...selectedFurniture.position] as [number, number, number];
+        shouldUpdate = false;
+
+        // W/S: Di chuyển lên/xuống (Y axis)
+        if (key === 'w' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[1] += moveStep;
+          shouldUpdate = true;
+        } else if (key === 's' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[1] -= moveStep;
+          shouldUpdate = true;
+        }
+        // A/D: Di chuyển trái/phải (X axis)
+        else if (key === 'a' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[0] -= moveStep;
+          shouldUpdate = true;
+        } else if (key === 'd' && !isAltPressed) {
+          e.preventDefault();
+          newPosition[0] += moveStep;
+          shouldUpdate = true;
+        }
+        // Alt + W: Di chuyển vào trong (Z axis - backward, giảm Z)
+        else if (key === 'w' && isAltPressed) {
+          e.preventDefault();
+          newPosition[2] -= moveStep;
+          shouldUpdate = true;
+        }
+        // Alt + S: Di chuyển ra phía trước (Z axis - forward, tăng Z)
+        else if (key === 's' && isAltPressed) {
+          e.preventDefault();
+          newPosition[2] += moveStep;
+          shouldUpdate = true;
+        }
+
+        if (shouldUpdate) {
+          onUpdateFurniture(selectedFurnitureId, { position: newPosition });
+        }
+      }
+    }
+  }, [selectedListenerId, selectedFurnitureId, listeners, furniture, onUpdateListener, onUpdateFurniture, moveStep]);
+
+  // Add keyboard event listener
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
   return (
     <div className="flex-1 relative">
       <Canvas
@@ -36,6 +163,12 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
         }}
         style={{ background: 'linear-gradient(to bottom, #87CEEB, #E0F6FF)' }}
         shadows
+        onPointerMissed={(e) => {
+          if (e.type === 'click') {
+            setSelectedListenerId(null);
+            setSelectedFurnitureId(null);
+          }
+        }}
       >
         {/* Lighting */}
         <ambientLight intensity={0.6} />
@@ -58,12 +191,28 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
 
         {/* Furniture */}
         {furniture.map((item) => (
-          <Furniture3D key={item.id} furniture={item} />
+          <Furniture3D 
+            key={item.id} 
+            furniture={item}
+            isSelected={selectedFurnitureId === item.id}
+            onSelect={() => {
+              setSelectedFurnitureId(item.id);
+              setSelectedListenerId(null); // Deselect listener when selecting furniture
+            }}
+          />
         ))}
 
         {/* Listeners (Human avatars) */}
         {listeners.map((l) => (
-          <ListenerAvatar3D key={l.id} listener={l} />
+          <ListenerAvatar3D 
+            key={l.id} 
+            listener={l}
+            isSelected={selectedListenerId === l.id}
+            onSelect={() => {
+              setSelectedListenerId(l.id);
+              setSelectedFurnitureId(null); // Deselect furniture when selecting listener
+            }}
+          />
         ))}
 
         {/* Speakers */}
@@ -95,6 +244,37 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
           <div className="text-xs">
             {furniture.length} nội thất • {speakers.length} loa • Sử dụng chuột để xoay/zoom
           </div>
+          {selectedListenerId ? (
+            <div className="text-xs mt-2 space-y-1">
+              <div className="flex items-center gap-1 text-green-600 font-semibold">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Listener đã được chọn
+              </div>
+              <div className="text-orange-600 pl-3 space-y-0.5">
+                <div>💡 W/S: Lên/Xuống</div>
+                <div>💡 A/D: Trái/Phải</div>
+                <div>💡 Alt+W: Vào trong</div>
+                <div>💡 Alt+S: Ra phía trước</div>
+              </div>
+            </div>
+          ) : selectedFurnitureId ? (
+            <div className="text-xs mt-2 space-y-1">
+              <div className="flex items-center gap-1 text-blue-600 font-semibold">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                Nội thất đã được chọn
+              </div>
+              <div className="text-orange-600 pl-3 space-y-0.5">
+                <div>💡 W/S: Lên/Xuống</div>
+                <div>💡 A/D: Trái/Phải</div>
+                <div>💡 Alt+W: Vào trong</div>
+                <div>💡 Alt+S: Ra phía trước</div>
+              </div>
+            </div>
+          ) : (listeners.length > 0 || furniture.length > 0) && (
+            <div className="text-xs mt-2 text-gray-500">
+              💡 Click vào listener hoặc nội thất để chọn và di chuyển bằng phím
+            </div>
+          )}
         </div>
       </div>
     </div>

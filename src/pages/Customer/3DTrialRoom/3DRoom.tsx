@@ -151,6 +151,8 @@ const ThreeDRoom: React.FC = () => {
               listeners={listeners}
               speakers={speakers}
               testObjectPosition={testObjectPosition}
+              onUpdateListener={handleUpdateListener}
+              onUpdateFurniture={handleUpdateFurniture}
             />
           </div>
         </div>

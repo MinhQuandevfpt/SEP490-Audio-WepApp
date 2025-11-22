@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, RotateCw, Trash2, User } from 'lucide-react';
+import { RotateCw, Trash2, User } from 'lucide-react';
 import type { Listener } from './index';
 
 interface ListenerControlsProps {
@@ -9,19 +9,7 @@ interface ListenerControlsProps {
 }
 
 const ListenerControls: React.FC<ListenerControlsProps> = ({ listener, onUpdate, onRemove }) => {
-  const moveStep = 0.5; // Bước di chuyển 0.5m
   const rotateStep = Math.PI / 4; // Xoay 45 độ
-
-  const moveListener = (axis: 'x' | 'y' | 'z', direction: 1 | -1) => {
-    const newPosition = [...listener.position] as [number, number, number];
-    const axisIndex = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
-    newPosition[axisIndex] += direction * moveStep;
-    
-    // Giới hạn di chuyển trong phòng (tùy chỉnh theo kích thước phòng)
-    newPosition[axisIndex] = Math.max(-2, Math.min(2, newPosition[axisIndex]));
-    
-    onUpdate({ position: newPosition });
-  };
 
   const rotateListener = () => {
     const newRotation = [...listener.rotation] as [number, number, number];
@@ -48,65 +36,20 @@ const ListenerControls: React.FC<ListenerControlsProps> = ({ listener, onUpdate,
         </div>
       </div>
 
-      {/* Movement Controls */}
+      {/* Keyboard Controls Instructions */}
       <div className="space-y-2">
         <div className="text-xs font-medium text-gray-700">Di chuyển:</div>
-        
-        {/* X-axis (Left/Right) */}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-500 w-8">X:</span>
-          <button
-            onClick={() => moveListener('x', -1)}
-            className="p-1 bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors"
-            title="Di chuyển trái"
-          >
-            <ArrowLeft className="w-3 h-3" />
-          </button>
-          <button
-            onClick={() => moveListener('x', 1)}
-            className="p-1 bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors"
-            title="Di chuyển phải"
-          >
-            <ArrowRight className="w-3 h-3" />
-          </button>
-        </div>
-
-        {/* Y-axis (Up/Down) */}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-500 w-8">Y:</span>
-          <button
-            onClick={() => moveListener('y', -1)}
-            className="p-1 bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
-            title="Di chuyển xuống"
-          >
-            <ArrowDown className="w-3 h-3" />
-          </button>
-          <button
-            onClick={() => moveListener('y', 1)}
-            className="p-1 bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
-            title="Di chuyển lên"
-          >
-            <ArrowUp className="w-3 h-3" />
-          </button>
-        </div>
-
-        {/* Z-axis (Forward/Backward) */}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-500 w-8">Z:</span>
-          <button
-            onClick={() => moveListener('z', -1)}
-            className="p-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
-            title="Di chuyển ra sau"
-          >
-            <ArrowDown className="w-3 h-3" />
-          </button>
-          <button
-            onClick={() => moveListener('z', 1)}
-            className="p-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors"
-            title="Di chuyển ra trước"
-          >
-            <ArrowUp className="w-3 h-3" />
-          </button>
+        <div className="text-xs text-gray-600 bg-orange-50 p-2 rounded border border-orange-200">
+          <div className="font-medium mb-1 text-orange-700">💡 Hướng dẫn sử dụng phím:</div>
+          <div className="space-y-0.5">
+            <div>• <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">W</kbd> / <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">S</kbd>: Lên / Xuống</div>
+            <div>• <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">A</kbd> / <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">D</kbd>: Trái / Phải</div>
+            <div>• <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Alt</kbd> + <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">W</kbd>: Vào trong</div>
+            <div>• <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Alt</kbd> + <kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">S</kbd>: Ra phía trước</div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-orange-200 text-orange-600">
+            ⚠️ Click vào listener trong 3D để chọn trước khi di chuyển
+          </div>
         </div>
       </div>
 
