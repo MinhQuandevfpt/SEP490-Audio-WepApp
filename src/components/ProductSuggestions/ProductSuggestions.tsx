@@ -43,9 +43,21 @@ const ProductSuggestions: React.FC = () => {
         
         // Check if voucher is active (within time range)
         const now = new Date();
-        const startTime = new Date(voucher.startTime);
-        const endTime = new Date(voucher.endTime);
-        const isActive = now >= startTime && now <= endTime && voucher.status === 'ACTIVE';
+        let isActive = false;
+        
+        if (voucher.slotOpenTime && voucher.slotCloseTime) {
+          // Flash Sale: check slot time and slot status
+          isActive = 
+            now >= new Date(voucher.slotOpenTime) && 
+            now <= new Date(voucher.slotCloseTime) &&
+            voucher.slotStatus === 'ACTIVE';
+        } else {
+          // Regular campaign: check voucher time
+          isActive = 
+            now >= new Date(voucher.startTime) && 
+            now <= new Date(voucher.endTime) && 
+            voucher.status === 'ACTIVE';
+        }
         
         if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
           discountPercent = voucher.discountPercent;

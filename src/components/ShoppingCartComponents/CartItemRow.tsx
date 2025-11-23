@@ -57,17 +57,34 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
         // Find first active platform campaign with active vouchers
         const platformCampaigns = response.data?.vouchers?.platform || [];
         let activePlatformVoucher = null;
+        const now = new Date();
 
         for (const campaign of platformCampaigns) {
           if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
-            // Find first active voucher in the campaign
-            const activeVoucher = campaign.vouchers.find(
-              (v) => v.status === 'ACTIVE'
-            );
-            if (activeVoucher) {
-              activePlatformVoucher = activeVoucher;
-              break;
+            // Find first active voucher in the campaign with valid time
+            for (const v of campaign.vouchers) {
+              if (v.status !== 'ACTIVE') continue;
+              
+              // Check if voucher is within valid time
+              let isActive = false;
+              if (v.slotOpenTime && v.slotCloseTime) {
+                // Flash Sale: check slot time and slot status
+                isActive = 
+                  now >= new Date(v.slotOpenTime) && 
+                  now <= new Date(v.slotCloseTime) &&
+                  v.slotStatus === 'ACTIVE';
+              } else {
+                // Regular campaign: check voucher time
+                isActive = now >= new Date(v.startTime) && now <= new Date(v.endTime);
+              }
+              
+              if (isActive) {
+                activePlatformVoucher = v;
+                break;
+              }
             }
+            
+            if (activePlatformVoucher) break;
           }
         }
 

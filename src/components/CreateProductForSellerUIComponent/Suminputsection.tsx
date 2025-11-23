@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import SectionCard from './SectionCard';
-import { TinyMCEEditor } from '../common';
+import ImageVideoSection from './ImageVideoSection';
+import BasicInfoSection from './BasicInfoSection';
+import ContentCheckPanel from './ContentCheckPanel';
 import { CategoryService } from '../../services/seller/CategoryService';
 import { ShippingService } from '../../services/seller/ShippingService';
 import { FileUploadService } from '../../services/FileUploadService';
@@ -14,10 +16,6 @@ import { StoreAddressService } from '../../services/seller/StoreAddressService';
 import type { Category, ShippingMethod, Province, District, Ward, StoreAddress } from '../../types/seller';
 import { CATEGORY_SPECS, type CategoryKey, translatePlacementType } from './CategorySpecsSchema';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
-
-// ============================================================================
-// TYPES & INTERFACES
-// ============================================================================
 
 type ProductImage = { id: string; url: string; file?: File };
 
@@ -155,11 +153,10 @@ const Suminputsection: React.FC = () => {
   const [bulkDiscounts, setBulkDiscounts] = useState<Array<{ fromQuantity: string; toQuantity: string; unitPrice: string }>>([]);
   
   // UI state
-  const [imageUrl, setImageUrl] = useState('');
-  const [isUrlMode, setIsUrlMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [showContentCheck, setShowContentCheck] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
   
   // Data loading state
   const [categories, setCategories] = useState<Category[]>([]);
@@ -197,51 +194,54 @@ const Suminputsection: React.FC = () => {
 
   // Content check validation
   const contentCheck = useMemo(() => {
+    // Count số lượng thông số kỹ thuật đã nhập
+    const specsCount = Object.keys(extraSpecs).filter(key => {
+      const value = extraSpecs[key];
+      return value && value.toString().trim().length > 0;
+    }).length;
+
     const checks = {
       basic: {
-        name: (form.name || '').trim().length >= 3,
+        name: (form.name || '').trim().length >= 10 && (form.name || '').trim().length <= 100,
         brandName: (form.brandName || '').trim().length >= 2,
         category: (form.category || '').trim().length > 0,
-        shortDescription: (form.shortDescription || '').trim().length > 0,
-      },
-      pricing: {
-        price: !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0,
-        sku: (form.sku || '').trim().length > 0,
-        stockQuantity: !!form.stockQuantity && !Number.isNaN(Number(form.stockQuantity)) && Number(form.stockQuantity) >= 0,
-        province: (form.provinceCode || '').trim().length > 0,
-        district: (form.districtCode || '').trim().length > 0,
-        ward: (form.wardCode || '').trim().length > 0,
+        weight: (form.weight || '').trim().length > 0 && !Number.isNaN(Number(form.weight)) && Number(form.weight) > 0,
+        specs: specsCount >= 3, // Ít nhất 3 thông số kỹ thuật
+        sku: (form.sku || '').trim().length > 0 // SKU sản phẩm LUÔN bắt buộc (không phụ thuộc vào phân loại)
       },
       media: {
-        images: images.length > 0 || (imageUrl || '').trim().length > 0,
+        images: images.length > 0,
       },
-      optional: {
-        description: (form.description || '').trim().length > 0,
-        model: (form.model || '').trim().length > 0,
-        color: (form.color || '').trim().length > 0,
-        material: (form.material || '').trim().length > 0,
-        dimensions: (form.dimensions || '').trim().length > 0,
-        weight: (form.weight || '').trim().length > 0,
-        connectionType: (form.connectionType || '').trim().length > 0,
-        voltageInput: (form.voltageInput || '').trim().length > 0,
+      pricing: {
+        // Kiểm tra theo có classifications hay không
+        hasValidPricing: classifications.length > 0 
+          ? // CÓ phân loại hàng: Check giá và kho (SKU phân loại KHÔNG bắt buộc)
+            variants.length > 0 && variants.every(v => 
+              v.variantPrice && Number(v.variantPrice) > 0 &&
+              v.variantStock && Number(v.variantStock) >= 0
+              // KHÔNG check v.variantSku - SKU phân loại không bắt buộc
+            )
+          : // KHÔNG có phân loại hàng: Check giá và kho
+            (
+              !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 &&
+              !!form.stockQuantity && !Number.isNaN(Number(form.stockQuantity)) && Number(form.stockQuantity) >= 0
+            )
       }
     };
     
     const basicComplete = Object.values(checks.basic).every(Boolean);
-    const pricingComplete = Object.values(checks.pricing).every(Boolean);
     const mediaComplete = Object.values(checks.media).every(Boolean);
-    const optionalCount = Object.values(checks.optional).filter(Boolean).length;
+    const pricingComplete = checks.pricing.hasValidPricing;
     
     return {
       checks,
       basicComplete,
-      pricingComplete,
       mediaComplete,
-      optionalCount,
-      totalOptional: Object.keys(checks.optional).length,
-      canSubmit: basicComplete && pricingComplete && mediaComplete
+      pricingComplete,
+      specsCount,
+      canSubmit: basicComplete && mediaComplete && pricingComplete
     };
-  }, [form, images, imageUrl]);
+  }, [form, images, extraSpecs, variants, classifications]);
 
   // ============================================================================
   // EFFECTS & DATA LOADING
@@ -462,36 +462,9 @@ const Suminputsection: React.FC = () => {
   // ============================================================================
 
   const canSubmit = useMemo(() => {
-    // Basic validation
-    const basicValid = (
-      (form.name || '').trim().length >= 3 &&
-      (form.brandName || '').trim().length >= 2 &&
-      (form.category || '').trim().length > 0 &&
-      (form.shortDescription || '').trim().length > 0 &&
-      images.length > 0 &&
-      (form.provinceCode || '').trim().length > 0 &&
-      (form.districtCode || '').trim().length > 0 &&
-      (form.wardCode || '').trim().length > 0
-    );
-
-    // If has variants, validate variants instead of form price/sku
-    if (variants.length > 0) {
-      const variantsValid = variants.every(v => 
-        v.variantPrice && Number(v.variantPrice) > 0 &&
-        v.variantStock && Number(v.variantStock) >= 0 &&
-        v.variantSku && v.variantSku.trim().length > 0
-      );
-      return basicValid && variantsValid;
-    }
-
-    // If no variants, validate form price/sku
-    return (
-      basicValid &&
-      !!form.price && !Number.isNaN(Number(form.price)) &&
-      Number(form.price) > 0 &&
-      (form.sku || '').trim().length > 0
-    );
-  }, [form, images, variants]);
+    // Sử dụng logic giống contentCheck
+    return contentCheck.canSubmit;
+  }, [contentCheck]);
 
   // Draft flow removed per requirement
 
@@ -540,8 +513,9 @@ const Suminputsection: React.FC = () => {
     // Keep only digits
     const val = (value || '').replace(/\D/g, '');
     const next = { ...getDimensionParts, [part]: val } as { l: string; w: string; h: string };
-    const formatted = [next.l, next.w, next.h].some(v => v)
-      ? `${next.l || '0'} x ${next.w || '0'} x ${next.h || '0'} mm`
+    // Only format if at least one dimension has a value
+    const formatted = [next.l, next.w, next.h].some(v => v && v !== '0')
+      ? `${next.l || ''} x ${next.w || ''} x ${next.h || ''} mm`
       : '';
     setForm(prev => ({ ...prev, dimensions: formatted }));
   };
@@ -869,19 +843,51 @@ const Suminputsection: React.FC = () => {
 
   const removeImage = (id: string) => setImages(prev => prev.filter(img => img.id !== id));
   const addImageFiles = (files: FileList) => {
-    const arr = Array.from(files).filter(f => f.type.startsWith('image/')).map((file, idx) => ({ id: `${Date.now()}_${idx}`, file, url: URL.createObjectURL(file) }));
-    if (arr.length) setImages(prev => [...prev, ...arr]);
-  };
-  const addImageFromUrl = () => {
-    const url = imageUrl.trim();
-    if (!url) return;
-    try {
-      new URL(url);
-      setImages(prev => [...prev, { id: `url_${Date.now()}`, url }]);
-      setImageUrl('');
-    } catch {
-      showCenterError('URL không hợp lệ. Vui lòng nhập đúng định dạng');
-    }
+    const arr = Array.from(files)
+      .filter(f => f.type.startsWith('image/'));
+    
+    if (arr.length === 0) return;
+    
+    setImages(prev => {
+      const newImages: ProductImage[] = [];
+      const duplicates: string[] = [];
+      
+      arr.forEach((file, idx) => {
+        // Kiểm tra trùng lặp dựa vào tên file và kích thước
+        const isDuplicate = prev.some(existingImg => {
+          if (existingImg.file) {
+            return existingImg.file.name === file.name && 
+                   existingImg.file.size === file.size;
+          }
+          return false;
+        });
+        
+        if (isDuplicate) {
+          duplicates.push(file.name);
+        } else {
+          newImages.push({
+            id: `${Date.now()}_${idx}`, 
+            file, 
+            url: URL.createObjectURL(file)
+          });
+        }
+      });
+      
+      // Thông báo ảnh trùng lặp
+      if (duplicates.length > 0) {
+        showCenterError(`${duplicates.length} ảnh bị trùng, xin vui lòng xem lại: ${duplicates.slice(0, 2).join(', ')}${duplicates.length > 2 ? '...' : ''}`);
+      }
+      
+      const combined = [...prev, ...newImages];
+      
+      // Giới hạn tối đa 9 ảnh (như Shopee)
+      if (combined.length > 9) {
+        showCenterError(`Bạn chỉ có thể tải lên không quá 9 files ảnh. ${combined.length - 9} ảnh cuối đã bị loại bỏ.`);
+        return combined.slice(0, 9);
+      }
+      
+      return combined;
+    });
   };
 
   // ============================================================================
@@ -890,47 +896,26 @@ const Suminputsection: React.FC = () => {
 
   const goNext = () => {
     if (currentStep === 1) {
-      const basicValid = (form.name || '').trim().length >= 3 && (form.brandName || '').trim().length >= 2 && (form.category || '').trim().length > 0 && (form.shortDescription || '').trim().length > 0;
-      if (!basicValid) {
+      // Mark fields as touched when trying to navigate
+      setTouchedFields({
+        name: true,
+        brandName: true,
+        category: true,
+        images: true,
+      });
+      
+      // Validate basic info - CHỈ hiển thị thông báo chung
+      const nameValid = (form.name || '').trim().length >= 10 && (form.name || '').trim().length <= 100;
+      const brandValid = (form.brandName || '').trim().length >= 2;
+      const categoryValid = (form.category || '').trim().length > 0;
+      const imagesValid = images.length > 0;
+      
+      if (!nameValid || !brandValid || !categoryValid || !imagesValid) {
         showCenterError('Vui lòng nhập đầy đủ thông tin chung bắt buộc');
         return;
       }
     }
-    if (currentStep === 2) {
-      // Check location first
-      const locationValid = (form.provinceCode || '').trim().length > 0 && (form.districtCode || '').trim().length > 0 && (form.wardCode || '').trim().length > 0;
-      if (!locationValid) {
-        showCenterError('Vui lòng chọn tỉnh/thành phố, quận/huyện, phường/xã');
-        return;
-      }
-
-      // If has variants, validate variants
-      if (variants.length > 0) {
-        const variantsValid = variants.every(v => 
-          v.variantPrice && Number(v.variantPrice) > 0 &&
-          v.variantStock && Number(v.variantStock) >= 0 &&
-          v.variantSku && v.variantSku.trim().length > 0
-        );
-        if (!variantsValid) {
-          showCenterError('Vui lòng nhập đầy đủ Giá, Kho hàng và SKU cho tất cả phân loại');
-          return;
-        }
-      } else {
-        // If no variants, validate form price/sku
-        const priceValid = !!form.price && !Number.isNaN(Number(form.price)) && Number(form.price) > 0 && (form.sku || '').trim().length > 0;
-        if (!priceValid) {
-          showCenterError('Vui lòng nhập giá hợp lệ và SKU');
-          return;
-        }
-      }
-    }
-    if (currentStep === 3) {
-      if (images.length === 0 && !(imageUrl || '').trim()) {
-        showCenterError('Vui lòng thêm ít nhất 1 ảnh sản phẩm');
-        return;
-      }
-    }
-    setCurrentStep(prev => Math.min(prev + 1, 3));
+    setCurrentStep(prev => Math.min(prev + 1, 2));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1027,7 +1012,7 @@ const Suminputsection: React.FC = () => {
           variantUrl: v.variantUrl?.trim() || '',
           variantSku: v.variantSku?.trim() || ''
         }))
-        .filter(v => v.optionName && v.optionValue && v.variantPrice > 0 && v.variantStock >= 0 && v.variantSku),
+        .filter(v => v.optionName && v.optionValue && v.variantPrice > 0 && v.variantStock >= 0),
       bulkDiscounts: bulkDiscounts
         .map(b => ({
           fromQuantity: Number(b.fromQuantity),
@@ -1052,21 +1037,20 @@ const Suminputsection: React.FC = () => {
     return payload;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // If user forgot to press "Thêm" for a valid URL, add it now
-    if (images.length === 0 && (imageUrl || '').trim()) {
-      try {
-        new URL(imageUrl.trim());
-        setImages(prev => [...prev, { id: `url_${Date.now()}`, url: imageUrl.trim() }]);
-        setImageUrl('');
-      } catch {
-        // fallthrough to validation error
-      }
+  const handleSubmit = async () => {
+    // Chỉ cho phép submit ở step 2
+    if (currentStep !== 2) {
+      return;
+    }
+
+    // Validate SKU trước khi submit - SKU sản phẩm LUÔN bắt buộc
+    if (!form.sku || form.sku.trim().length === 0) {
+      showCenterError('SKU (Mã sản phẩm) là bắt buộc. Vui lòng nhập SKU cho sản phẩm.');
+      return;
     }
 
     if (!canSubmit) {
-      showCenterError('Vui lòng điền thông tin bắt buộc, thêm ít nhất 1 ảnh và chọn tỉnh/thành phố, quận/huyện, phường/xã');
+      showCenterError('Vui lòng điền thông tin bắt buộc, thêm ít nhất 1 ảnh và nhập đầy đủ giá, SKU, tồn kho');
       return;
     }
 
@@ -1103,8 +1087,23 @@ const Suminputsection: React.FC = () => {
         navigate('/seller/dashboard/products');
       }, 1000);
     } catch (err: any) {
-      const msg = err?.message ? String(err.message) : 'Không thể tạo sản phẩm. Vui lòng thử lại.';
-      showCenterError(msg);
+      // Xử lý lỗi từ backend
+      let errorMessage = 'Không thể tạo sản phẩm. Vui lòng thử lại.';
+      
+      if (err?.message) {
+        const msg = String(err.message);
+        
+        // Dịch các lỗi SKU từ backend sang tiếng Việt
+        if (msg.includes('SKU must not be empty') || msg.includes('SKU is required')) {
+          errorMessage = 'SKU (Mã sản phẩm) là bắt buộc. Vui lòng nhập SKU cho sản phẩm.';
+        } else if (msg.includes('SKU already exists')) {
+          errorMessage = 'SKU này đã tồn tại trong cửa hàng của bạn. Vui lòng sử dụng SKU khác.';
+        } else {
+          errorMessage = msg;
+        }
+      }
+      
+      showCenterError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -1130,16 +1129,16 @@ const Suminputsection: React.FC = () => {
           {/* Stepper */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
             <div className="px-6 py-4">
-              <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[1,2,3].map(step => (
+              <ol className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[1,2].map(step => (
                   <li key={step} className={`flex items-center gap-3 p-3 rounded-lg border ${currentStep === step ? 'border-orange-600 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
                     <span className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentStep >= step ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-700'}`}>{step}</span>
                     <div className="flex-1">
                       <p className="text-sm font-medium text-gray-900">
-                        {step === 1 ? 'Thông tin chung' : step === 2 ? 'Chi tiết & giá' : 'Hình ảnh & Video'}
+                        {step === 1 ? 'Thông tin sản phẩm' : 'Chi tiết và Giá sản phẩm'}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {step === 1 ? 'Tên, mô tả, danh mục...' : step === 2 ? 'Giá, tồn kho, vận chuyển...' : 'Tải ảnh hoặc nhập link'}
+                        {step === 1 ? 'Tên, mô tả, hình ảnh, video...' : 'Giá, tồn kho, vận chuyển...'}
                       </p>
                     </div>
                   </li>
@@ -1152,110 +1151,46 @@ const Suminputsection: React.FC = () => {
               FORM CONTENT SECTIONS
               ============================================================================ */}
           {/* Form Content */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form 
+            className="space-y-6"
+            onKeyDown={(e) => {
+              // Ngăn Enter key submit form
+              if (e.key === 'Enter') {
+                e.preventDefault();
+              }
+            }}
+          >
       {currentStep === 1 && (
-      <SectionCard title="Thông tin chung" description="Nhập thông tin cơ bản cho sản phẩm">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Tên sản phẩm *</label>
-            <input name="name" value={form.name} onChange={onChange} type="text" placeholder="VD: Sony WH-1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Mô tả ngắn *</label>
-            <input name="shortDescription" value={form.shortDescription} onChange={onChange} type="text" placeholder="Tóm tắt 1-2 câu về sản phẩm" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Mô tả chi tiết</label>
-            <div className="mt-1">
-              <TinyMCEEditor
-                value={form.description}
-                onChange={(content) => setForm({ ...form, description: content })}
-                placeholder="Mô tả đầy đủ về sản phẩm, tính năng, chất lượng..."
-                height={400}
-              />
-            </div>
-          </div>
+      <>
+      {/* Hình ảnh & Video Section - Component */}
+      <ImageVideoSection
+        images={images}
+        videoUrl={form.videoUrl}
+        touchedImages={touchedFields.images}
+        onImagesChange={setImages}
+        onVideoUrlChange={(url) => setForm(prev => ({ ...prev, videoUrl: url }))}
+        onAddImageFiles={addImageFiles}
+        onRemoveImage={removeImage}
+        onImagesTouched={() => setTouchedFields(prev => ({ ...prev, images: true }))}
+      />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Thương hiệu *</label>
-              <input name="brandName" value={form.brandName} onChange={onChange} type="text" placeholder="VD: Sony, Sennheiser, JBL" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Danh mục *</label>
-              <select name="category" value={form.category} onChange={onChange} disabled={categoriesLoading} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed">
-                <option value="">{categoriesLoading ? 'Đang tải danh mục...' : 'Chọn danh mục'}</option>
-                {categories.map(c => (
-                  <option key={c.categoryId} value={c.name}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Mã model</label>
-              <input name="model" value={form.model} onChange={onChange} type="text" placeholder="VD: WH1000XM4" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Chất liệu</label>
-              <input name="material" value={form.material} onChange={onChange} type="text" placeholder="VD: Nhựa ABS, Nhôm, Da" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Kích thước (mm)</label>
-              <div className="mt-1 grid grid-cols-3 gap-2">
-                <input
-                  value={getDimensionParts.l}
-                  onChange={(e) => setDimensionPart('l', e.target.value)}
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Dài (mm)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-                />
-                <input
-                  value={getDimensionParts.w}
-                  onChange={(e) => setDimensionPart('w', e.target.value)}
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Rộng (mm)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-                />
-                <input
-                  value={getDimensionParts.h}
-                  onChange={(e) => setDimensionPart('h', e.target.value)}
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="Cao (mm)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-                />
-              </div>
-              {/* Hidden combined field stored in form.dimensions as "L x W x H mm" */}
-              <input name="dimensions" value={form.dimensions} onChange={() => {}} type="hidden" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Trọng lượng (kg)</label>
-            <input name="weight" value={form.weight} onChange={onChange} type="number" step="0.1" min="0" placeholder="VD: 0.25" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Kết nối</label>
-              <input name="connectionType" value={form.connectionType} onChange={onChange} type="text" placeholder="VD: Bluetooth, RCA, USB" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Điện áp</label>
-              <input name="voltageInput" value={form.voltageInput} onChange={onChange} type="text" placeholder="VD: 5V" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-          </div>
-        </div>
-      </SectionCard>
+      {/* Thông tin chung Section - Component */}
+      <BasicInfoSection
+        form={form}
+        categories={categories}
+        categoriesLoading={categoriesLoading}
+        getDimensionParts={getDimensionParts}
+        touchedFields={touchedFields}
+        onChange={onChange}
+        onDescriptionChange={(content) => setForm(prev => ({ ...prev, description: content }))}
+        onDimensionChange={setDimensionPart}
+        onBlur={(fieldName) => setTouchedFields(prev => ({ ...prev, [fieldName]: true }))}
+      />
+      </>
       )}
 
       {currentStep === 2 && (
+      <>
       <SectionCard title="Chi tiết & Giá" description="Thiết lập giá, tồn kho, biến thể và vận chuyển">
         <div className="space-y-6">
           {/* Hiển thị form cơ bản khi chưa có classifications */}
@@ -1263,21 +1198,12 @@ const Suminputsection: React.FC = () => {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Giá gốc (VND) *</label>
+                  <label className="block text-sm font-medium text-gray-700"><span className="text-red-500">* </span>Giá gốc (VND)</label>
                   <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Số lượng tồn *</label>
+                  <label className="block text-sm font-medium text-gray-700"><span className="text-red-500">* </span>Kho hàng</label>
                   <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Đơn vị tiền tệ</label>
-                  <select name="currency" value={form.currency} onChange={onChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors">
-                    <option value="VND">VND</option>
-                    <option value="USD">USD</option>
-                  </select>
                 </div>
               </div>
             </>
@@ -1409,12 +1335,14 @@ const Suminputsection: React.FC = () => {
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">SKU phân loại</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        SKU phân loại
+                      </label>
                       <input
                         type="text"
                         value={bulkSku}
                         onChange={(e) => setBulkSku(e.target.value)}
-                        placeholder="Nhập vào"
+                        placeholder="Nhập vào (không bắt buộc)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
@@ -1436,7 +1364,7 @@ const Suminputsection: React.FC = () => {
                         {classifications.map((c, idx) => (
                           <th key={idx} className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
                             <div className="flex items-center gap-1">
-                              <span className="text-red-500">●</span> {c.name || `Phân loại ${idx + 1}`}
+                              <span className="text-red-500"></span> {c.name || `Phân loại ${idx + 1}`}
                             </div>
                           </th>
                         ))}
@@ -1444,7 +1372,7 @@ const Suminputsection: React.FC = () => {
                           <span className="text-red-500">*</span> Giá
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
-                          <span className="text-red-500">*</span> Kho hàng <span className="text-gray-400 ml-1">❓</span>
+                          <span className="text-red-500">* </span>Kho hàng
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b">
                           SKU phân loại
@@ -1546,7 +1474,6 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
-      )}
 
       {/* BulkDiscounts - Hidden but kept in code */}
       {false && currentStep === 2 && (
@@ -1566,7 +1493,6 @@ const Suminputsection: React.FC = () => {
       </SectionCard>
       )}
 
-      {currentStep === 2 && (
       <SectionCard title="Bảo hành & Nhà sản xuất" description="Thông tin hậu mãi và NSX">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1596,9 +1522,7 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
-      )}
 
-      {currentStep === 2 && (
       <SectionCard title="Kho hàng & Vận chuyển" description="Địa chỉ kho và phương thức giao hàng cho đơn">
         <div className="space-y-5">
           {/* Warehouse & Location */}
@@ -2061,9 +1985,7 @@ const Suminputsection: React.FC = () => {
           </div>
         </div>
       </SectionCard>
-      )}
 
-      {currentStep === 2 && (
       <SectionCard title="Thông số kỹ thuật theo danh mục" description="Các thuộc tính chỉ hiển thị khi đã chọn danh mục">
         {form.category ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2266,13 +2188,13 @@ const Suminputsection: React.FC = () => {
           <p className="text-sm text-gray-500">Hãy chọn danh mục để nhập thông số kỹ thuật phù hợp.</p>
         )}
       </SectionCard>
-      )}
 
-      {currentStep === 2 && (
       <SectionCard title="Thông tin khác" description="">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">SKU (Mã sản phẩm) </label>
+            <label className="block text-sm font-medium text-gray-700">
+              <span className="text-red-500">* </span>SKU (Mã sản phẩm)
+            </label>
             <input 
               name="sku" 
               value={form.sku} 
@@ -2300,50 +2222,7 @@ const Suminputsection: React.FC = () => {
           
         </div>
       </SectionCard>
-      )}
-
-      {currentStep === 3 && (
-      <SectionCard title="Hình ảnh & Video" description="Tải ảnh hoặc nhập link ảnh">
-        <div className="space-y-4">
-          <div className="flex mb-4">
-                <button type="button" onClick={() => setIsUrlMode(false)} className={`px-4 py-2 text-sm font-medium rounded-l-lg border ${!isUrlMode ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>📁 Từ máy tính</button>
-            <button type="button" onClick={() => setIsUrlMode(true)} className={`px-4 py-2 text-sm font-medium rounded-r-lg border-t border-r border-b ${isUrlMode ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>🌐 Từ link</button>
-          </div>
-          {!isUrlMode ? (
-            <div onDragOver={(e) => { e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files) addImageFiles(e.dataTransfer.files); }} className="rounded-xl border-2 border-dashed border-gray-300 p-6 text-center hover:border-orange-400 transition-colors bg-gray-50">
-              <p className="text-sm text-gray-600">Kéo & thả ảnh vào đây hoặc</p>
-              <div className="mt-2">
-                <label className="inline-flex items-center px-3 py-2 bg-orange-600 text-white rounded-lg cursor-pointer hover:bg-orange-700">Chọn ảnh
-                  <input type="file" accept="image/*" multiple onChange={(e) => { if (e.target.files) addImageFiles(e.target.files); }} className="hidden" />
-                </label>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">PNG, JPG, JPEG • Tối đa 10 ảnh</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <input type="url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-                <button type="button" onClick={addImageFromUrl} disabled={!imageUrl.trim()} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">Thêm</button>
-              </div>
-              <p className="text-xs text-gray-500">💡 Nhập link ảnh từ mạng (JPG, PNG, JPEG, WebP)</p>
-            </div>
-          )}
-          {images.length > 0 && (
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {images.map(img => (
-                <div key={img.id} className="relative group">
-                  <img src={img.url} alt="preview" className="w-full h-24 object-cover rounded-lg border border-gray-300 shadow-sm" />
-                  <button type="button" onClick={() => removeImage(img.id)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100" aria-label="remove">×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Video URL</label>
-            <input name="videoUrl" value={form.videoUrl} onChange={onChange} type="url" placeholder="VD: https://youtube.com/watch?v=abc123" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-          </div>
-        </div>
-      </SectionCard>
+      </>
       )}
 
             {/* ============================================================================
@@ -2377,22 +2256,10 @@ const Suminputsection: React.FC = () => {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  {/* Next/Publish Button */}
-                  {currentStep < 3 ? (
+                  {/* Next Button */}
+                  {currentStep < 2 && (
                 <button type="button" onClick={goNext} className="px-5 py-2 rounded-lg text-white bg-orange-600 hover:bg-orange-700">Tiếp tục</button>
-                  ) : (
-                    <button 
-                      type="submit" 
-                      disabled={!canSubmit || submitting} 
-                      className={`px-5 py-2 rounded-lg text-white font-medium transition-colors ${
-                        !canSubmit || submitting 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-orange-600 hover:bg-orange-700'
-                      }`}
-                    >
-                      {submitting ? 'Đang lưu...' : 'Lưu và đăng sản phẩm'}
-                </button>
-              )}
+                  )}
                 </div>
               </div>
             </div>
@@ -2402,116 +2269,35 @@ const Suminputsection: React.FC = () => {
         {/* ============================================================================
             RIGHT SIDEBAR - CONTENT CHECK PANEL
             ============================================================================ */}
-        {/* Right Sidebar - Content Check Panel */}
-        <div className="w-full lg:w-80 flex-shrink-0">
-          <div className="sticky top-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-              <div className="px-4 py-3 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">Kiểm tra nội dung</h3>
-                  <button 
-                    onClick={() => setShowContentCheck(!showContentCheck)}
-                    className="text-gray-400 hover:text-gray-600 text-xs"
-                  >
-                    {showContentCheck ? '−' : '+'}
-                  </button>
-                </div>
-              </div>
-              
-              {showContentCheck && (
-                <div className="p-4 space-y-4">
-                  {/* Basic Info */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-600 mb-2">Thông tin cơ bản</h4>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.name ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.basic.name ? 'text-green-700' : 'text-red-700'}>Tên sản phẩm</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.brandName ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.basic.brandName ? 'text-green-700' : 'text-red-700'}>Thương hiệu</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.category ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.basic.category ? 'text-green-700' : 'text-red-700'}>Danh mục</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.basic.shortDescription ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.basic.shortDescription ? 'text-green-700' : 'text-red-700'}>Mô tả ngắn</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pricing */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-600 mb-2">Giá & Kho</h4>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.price ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.pricing.price ? 'text-green-700' : 'text-red-700'}>Giá sản phẩm</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.sku ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.pricing.sku ? 'text-green-700' : 'text-red-700'}>Mã SKU</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.stockQuantity ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.pricing.stockQuantity ? 'text-green-700' : 'text-red-700'}>Số lượng tồn</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.province ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.pricing.province ? 'text-green-700' : 'text-red-700'}>Tỉnh/Thành phố</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.district ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.pricing.district ? 'text-green-700' : 'text-red-700'}>Quận/Huyện</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.pricing.ward ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.pricing.ward ? 'text-green-700' : 'text-red-700'}>Phường/Xã</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Media */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-600 mb-2">Media</h4>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className={`w-1.5 h-1.5 rounded-full ${contentCheck.checks.media.images ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        <span className={contentCheck.checks.media.images ? 'text-green-700' : 'text-red-700'}>Hình ảnh</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Optional Info */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-600 mb-2">Thông tin bổ sung</h4>
-                    <div className="text-xs text-gray-500">
-                      {contentCheck.optionalCount}/{contentCheck.totalOptional} trường đã nhập
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                      <div 
-                        className="bg-orange-600 h-1.5 rounded-full transition-all duration-300" 
-                        style={{ width: `${(contentCheck.optionalCount / contentCheck.totalOptional) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Publish readiness */}
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-gray-700">Đăng sản phẩm:</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${contentCheck.canSubmit ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {contentCheck.canSubmit ? 'Sẵn sàng' : 'Cần hoàn thiện'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        {/* Right Sidebar - Content Check Panel - Component */}
+        <div className="space-y-4">
+          <ContentCheckPanel
+            contentCheck={contentCheck}
+            showContentCheck={showContentCheck}
+            onToggle={() => setShowContentCheck(!showContentCheck)}
+          />
+          
+          {/* Submit Button - Below Content Check Panel */}
+          {currentStep === 2 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <button 
+                onClick={handleSubmit}
+                disabled={!canSubmit || submitting} 
+                className={`w-full px-4 py-2.5 rounded-lg text-white font-medium transition-colors ${
+                  !canSubmit || submitting 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-orange-600 hover:bg-orange-700'
+                }`}
+              >
+                {submitting ? 'Đang lưu...' : 'Lưu và đăng sản phẩm'}
+              </button>
+              {!canSubmit && (
+                <p className="mt-2 text-xs text-center text-gray-500">
+                  Hoàn thành thông tin bắt buộc
+                </p>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -46,7 +46,19 @@ const CartDropdown: React.FC = () => {
               
               if (voucher && voucher.status === 'ACTIVE') {
                 const now = new Date();
-                const isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+                
+                // Check if voucher is within valid time
+                let isActive = false;
+                if (voucher.slotOpenTime && voucher.slotCloseTime) {
+                  // Flash Sale: check slot time and slot status
+                  isActive = 
+                    now >= new Date(voucher.slotOpenTime) && 
+                    now <= new Date(voucher.slotCloseTime) &&
+                    voucher.slotStatus === 'ACTIVE';
+                } else {
+                  // Regular campaign: check voucher time
+                  isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+                }
                 
                 if (isActive) {
                   if (voucher.type === 'PERCENT' && voucher.discountPercent) {

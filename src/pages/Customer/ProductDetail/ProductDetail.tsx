@@ -170,7 +170,19 @@ const ProductDetail: React.FC = () => {
       
       if (voucher && voucher.status === 'ACTIVE') {
         const now = new Date();
-        const isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+        
+        // For Flash Sale with slot, check slot time instead of voucher time
+        let isActive = false;
+        if (voucher.slotOpenTime && voucher.slotCloseTime) {
+          // Flash Sale: check slot time and slot status
+          isActive = 
+            now >= new Date(voucher.slotOpenTime) && 
+            now <= new Date(voucher.slotCloseTime) &&
+            voucher.slotStatus === 'ACTIVE';
+        } else {
+          // Regular campaign: check voucher time
+          isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+        }
         
         if (isActive) {
           if (voucher.type === 'PERCENT' && voucher.discountPercent) {
@@ -218,15 +230,18 @@ const ProductDetail: React.FC = () => {
           originalPrice = minPrice;
           displayPrice = applyDiscount(minPrice);
         } else {
-          // Calculate discounted price range
-          const minDiscountedPrice = applyDiscount(minPrice);
-          const maxDiscountedPrice = applyDiscount(maxPrice);
-          
+          // Always show original price range
           priceRangeText = `${minPrice.toLocaleString('vi-VN')}₫ - ${maxPrice.toLocaleString('vi-VN')}₫`;
-          discountedPriceRangeText = `${minDiscountedPrice.toLocaleString('vi-VN')}₫ - ${maxDiscountedPrice.toLocaleString('vi-VN')}₫`;
+          
+          // Only calculate discounted price range if there's an active discount
+          if (voucherType) {
+            const minDiscountedPrice = applyDiscount(minPrice);
+            const maxDiscountedPrice = applyDiscount(maxPrice);
+            discountedPriceRangeText = `${minDiscountedPrice.toLocaleString('vi-VN')}₫ - ${maxDiscountedPrice.toLocaleString('vi-VN')}₫`;
+          }
           
           originalPrice = minPrice;
-          displayPrice = minDiscountedPrice;
+          displayPrice = applyDiscount(minPrice);
         }
       }
     } else {
@@ -242,7 +257,7 @@ const ProductDetail: React.FC = () => {
       discountedPriceRangeText,
       discountPercent,
       campaignBadge,
-      hasDiscount: displayPrice < originalPrice || discountPercent > 0
+      hasDiscount: voucherType !== null && (displayPrice < originalPrice || discountPercent > 0)
     };
   };
 

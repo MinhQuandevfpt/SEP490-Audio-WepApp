@@ -55,6 +55,10 @@ export interface ProductVoucherResponse {
           status: string;
           startTime: string;
           endTime: string;
+          flashSlotId?: string;
+          slotOpenTime?: string;
+          slotCloseTime?: string;
+          slotStatus?: string;
         }>;
       }>;
     };
