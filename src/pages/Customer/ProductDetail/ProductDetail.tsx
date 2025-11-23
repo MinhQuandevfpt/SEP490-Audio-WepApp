@@ -303,7 +303,8 @@ const ProductDetail: React.FC = () => {
      
           <div className="lg:col-span-5">
             <ImageGallery 
-              images={images} 
+              images={images}
+              videoUrl={product.videoUrl}
               mainImageOverride={hoveredVariantImage || undefined}
             />
           </div>

@@ -126,14 +126,13 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                 {product.videoUrl && product.videoUrl !== 'string' && (
                   <div className="mt-4">
                     <p className="text-sm text-gray-600 mb-2">Video giới thiệu:</p>
-                    <a
-                      href={product.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm"
+                    <video 
+                      src={product.videoUrl}
+                      controls 
+                      className="w-full rounded-lg max-h-80"
                     >
-                      {product.videoUrl}
-                    </a>
+                      Trình duyệt không hỗ trợ video
+                    </video>
                   </div>
                 )}
               </div>

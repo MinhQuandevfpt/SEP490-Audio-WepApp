@@ -1,5 +1,5 @@
-import React from 'react';
-import { Upload, X, Video } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, X, Video, Loader2 } from 'lucide-react';
 import SectionCard from './SectionCard';
 
 type ProductImage = { id: string; url: string; file?: File };
@@ -9,10 +9,11 @@ interface ImageVideoSectionProps {
   videoUrl: string;
   touchedImages?: boolean;
   onImagesChange: (images: ProductImage[]) => void;
-  onVideoUrlChange: (url: string) => void;
   onAddImageFiles: (files: FileList) => void;
   onRemoveImage: (id: string) => void;
   onImagesTouched?: () => void;
+  onVideoFileUpload?: (file: File) => Promise<void>;
+  onRemoveVideo?: () => void;
 }
 
 const ImageVideoSection: React.FC<ImageVideoSectionProps> = ({
@@ -20,11 +21,14 @@ const ImageVideoSection: React.FC<ImageVideoSectionProps> = ({
   videoUrl,
   touchedImages = false,
   onImagesChange,
-  onVideoUrlChange,
   onAddImageFiles,
   onRemoveImage,
   onImagesTouched,
+  onVideoFileUpload,
+  onRemoveVideo,
 }) => {
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -47,6 +51,38 @@ const ImageVideoSection: React.FC<ImageVideoSectionProps> = ({
       onAddImageFiles(e.target.files);
     }
     // Reset input value để có thể chọn lại cùng file nếu cần
+    e.target.value = '';
+  };
+
+  // Video upload handler - Upload directly
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.includes('video/mp4')) {
+      alert('Chỉ hỗ trợ định dạng video MP4');
+      e.target.value = '';
+      return;
+    }
+
+    const maxSize = 30 * 1024 * 1024; // 30MB
+    if (file.size > maxSize) {
+      alert('Dung lượng video không được vượt quá 30MB');
+      e.target.value = '';
+      return;
+    }
+
+    // Upload video directly
+    if (onVideoFileUpload) {
+      setUploadingVideo(true);
+      try {
+        await onVideoFileUpload(file);
+      } catch (error) {
+        console.error('Upload video error:', error);
+      } finally {
+        setUploadingVideo(false);
+      }
+    }
     e.target.value = '';
   };
 
@@ -98,7 +134,7 @@ const ImageVideoSection: React.FC<ImageVideoSectionProps> = ({
             <label htmlFor="image-upload" className="cursor-pointer">
               <Upload className="mx-auto h-12 w-12 text-gray-400 mb-3" />
               <p className="text-xs text-gray-500">
-                Hỗ trợ: JPG, PNG, WEBP, GIF (tối đa 10MB/ảnh)
+                Định dạng: JPG, PNG, WEBP, GIF (tối đa 10MB/ảnh)
               </p>
               <p className="text-xs text-orange-600 font-medium mt-1">
                 Upload tối đa 9 ảnh sản phẩm
@@ -148,26 +184,74 @@ const ImageVideoSection: React.FC<ImageVideoSectionProps> = ({
           )}
           
           <p className="mt-2 text-xs text-gray-500">
-            💡 Mẹo: Kéo thả ảnh để sắp xếp thứ tự. Ảnh đầu tiên sẽ là ảnh đại diện.
+            <ul className="list-disc list-inside">
+              <li>Kéo thả ảnh để sắp xếp thứ tự. Ảnh đầu tiên sẽ là ảnh đại diện.</li> 
+              <li>Việc sử dụng ảnh đẹp sẽ thu hút thêm lượt truy cập vào sản phẩm của bạn</li>
+            </ul>
           </p>
         </div>
 
-        {/* Video URL Section */}
+        {/* Video Upload Section */}
         <div>
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             <Video className="inline h-4 w-4 mr-1" />
-            Video sản phẩm (URL)
+            Video sản phẩm
           </label>
-          <input
-            type="url"
-            value={videoUrl}
-            onChange={(e) => onVideoUrlChange(e.target.value)}
-            placeholder="https://youtube.com/watch?v=... hoặc URL video khác"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Nhập link YouTube, Vimeo hoặc URL video trực tiếp từ CDN
-          </p>
+          
+          {!videoUrl ? (
+            <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-orange-500 transition-colors bg-gray-50">
+              <input
+                type="file"
+                accept="video/mp4"
+                onChange={handleVideoFileChange}
+                className="hidden"
+                id="video-upload"
+                disabled={uploadingVideo}
+              />
+              <label htmlFor="video-upload" className={`cursor-pointer ${uploadingVideo ? 'opacity-50' : ''}`}>
+                {uploadingVideo ? (
+                  <>
+                    <Loader2 className="mx-auto h-12 w-12 text-orange-500 mb-3 animate-spin" />
+                    <p className="text-sm text-gray-700 font-medium">Đang tải video...</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                    <p className="text-sm text-gray-700 font-medium mb-1">Tải video lên</p>
+                    <p className="text-xs text-gray-500">
+                      Định dạng MP4 (tối đa 30MB)
+                    </p>
+                  </>
+                )}
+              </label>
+            </div>
+          ) : (
+            <div className="relative border-2 border-gray-300 rounded-xl p-4 bg-gray-50">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <Video className="h-10 w-10 text-orange-500 flex-shrink-0" />
+                  <p className="text-sm font-medium text-gray-900">Video sản phẩm</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRemoveVideo}
+                  className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 flex-shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {/* Video preview */}
+              <div className="mt-3">
+                <video 
+                  src={videoUrl} 
+                  controls 
+                  className="w-full rounded-lg max-h-60"
+                >
+                  Trình duyệt không hỗ trợ video
+                </video>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </SectionCard>

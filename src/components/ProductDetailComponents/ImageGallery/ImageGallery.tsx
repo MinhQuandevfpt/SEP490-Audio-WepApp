@@ -1,8 +1,9 @@
 import React from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Video } from 'lucide-react';
 
 interface ImageGalleryProps {
   images: string[];
+  videoUrl?: string | null;
   mainImageOverride?: string; // Override main image display (for variant hover/click)
 }
 
@@ -12,26 +13,41 @@ const fallbackSvg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="100%" height="100%" fill="#f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="16" fill="#9ca3af">No Image</text></svg>`
   );
 
-const ImageGallery: React.FC<ImageGalleryProps> = ({ images, mainImageOverride }) => {
+const ImageGallery: React.FC<ImageGalleryProps> = ({ images, videoUrl, mainImageOverride }) => {
   const validImages = images && images.length > 0 ? images : [fallbackSvg];
+  
+  // Create media items array: images + video (if exists)
+  const mediaItems = React.useMemo(() => {
+    const items = [...validImages];
+    if (videoUrl) {
+      items.push(videoUrl); // Add video URL to the end
+    }
+    return items;
+  }, [validImages, videoUrl]);
+  
   const [active, setActive] = React.useState(0);
   const [showModal, setShowModal] = React.useState(false);
   const [thumbStartIndex, setThumbStartIndex] = React.useState(0);
   const maxVisibleThumbs = 5;
+  
+  // Check if current item is video
+  const isVideo = (index: number) => {
+    return videoUrl && index === validImages.length;
+  };
 
   // keyboard navigation
   const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'ArrowRight') setActive((p) => Math.min(validImages.length - 1, p + 1));
+    if (e.key === 'ArrowRight') setActive((p) => Math.min(mediaItems.length - 1, p + 1));
     if (e.key === 'ArrowLeft') setActive((p) => Math.max(0, p - 1));
     if (e.key === 'Escape') setShowModal(false);
   };
 
   const handlePrev = () => {
-    setActive((p) => (p - 1 + validImages.length) % validImages.length);
+    setActive((p) => (p - 1 + mediaItems.length) % mediaItems.length);
   };
 
   const handleNext = () => {
-    setActive((p) => (p + 1) % validImages.length);
+    setActive((p) => (p + 1) % mediaItems.length);
   };
 
   const handleThumbPrev = () => {
@@ -39,15 +55,16 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images, mainImageOverride }
   };
 
   const handleThumbNext = () => {
-    setThumbStartIndex((prev) => Math.min(validImages.length - maxVisibleThumbs, prev + 1));
+    setThumbStartIndex((prev) => Math.min(mediaItems.length - maxVisibleThumbs, prev + 1));
   };
 
-  const visibleThumbs = validImages.slice(thumbStartIndex, thumbStartIndex + maxVisibleThumbs);
+  const visibleThumbs = mediaItems.slice(thumbStartIndex, thumbStartIndex + maxVisibleThumbs);
   const canScrollLeft = thumbStartIndex > 0;
-  const canScrollRight = thumbStartIndex + maxVisibleThumbs < validImages.length;
+  const canScrollRight = thumbStartIndex + maxVisibleThumbs < mediaItems.length;
 
-  // Display image: Use override if provided, otherwise use selected from thumbnails
-  const displayImage = mainImageOverride || validImages[active];
+  // Display media: Use override if provided, otherwise use selected from thumbnails
+  const displayMedia = mainImageOverride || mediaItems[active];
+  const isActiveVideo = isVideo(active);
 
   // Prevent body scroll when modal is open
   React.useEffect(() => {
@@ -69,21 +86,34 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images, mainImageOverride }
           onClick={() => setShowModal(true)}
         >
           <div className="w-full h-full group relative">
-            <img
-              src={displayImage}
-              alt={`Hình ${active + 1}`}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              onError={(ev) => {
-                const target = ev.currentTarget as HTMLImageElement;
-                target.src = fallbackSvg;
-              }}
-            />
+            {!mainImageOverride && isActiveVideo ? (
+              <video 
+                src={displayMedia}
+                controls 
+                className="w-full h-full object-cover"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Trình duyệt không hỗ trợ video
+              </video>
+            ) : (
+              <img
+                src={displayMedia}
+                alt={`Hình ${active + 1}`}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                onError={(ev) => {
+                  const target = ev.currentTarget as HTMLImageElement;
+                  target.src = fallbackSvg;
+                }}
+              />
+            )}
             {/* Zoom indicator */}
-            <div className="absolute top-3 right-3 bg-black/50 text-white px-3 py-1 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-              Click để phóng to
-            </div>
+            {!isActiveVideo && (
+              <div className="absolute top-3 right-3 bg-black/50 text-white px-3 py-1 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                Click để phóng to
+              </div>
+            )}
             {/* Prev/Next */}
-            {validImages.length > 1 && (
+            {mediaItems.length > 1 && (
               <>
                 <button
                   onClick={(e) => {
@@ -109,7 +139,8 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images, mainImageOverride }
             )}
           </div>
         </div>
-        {validImages.length > 1 && (
+        {/* Show thumbnails if more than 1 image OR if there's a video */}
+        {(mediaItems.length > 1 || (validImages.length === 1 && videoUrl)) && (
           <div className="mt-3 relative">
             {/* Previous button */}
             {canScrollLeft && (
@@ -126,21 +157,34 @@ const ImageGallery: React.FC<ImageGalleryProps> = ({ images, mainImageOverride }
             <div className="grid grid-cols-5 gap-2">
               {visibleThumbs.map((src, idx) => {
                 const actualIndex = thumbStartIndex + idx;
+                const isThumbVideo = isVideo(actualIndex);
                 return (
                   <button
                     key={actualIndex}
                     onClick={() => setActive(actualIndex)}
-                    aria-label={`Ảnh ${actualIndex + 1}`}
-                    className={`aspect-square rounded-xl border overflow-hidden focus:ring-2 focus:ring-orange-500 transition-all ${
+                    aria-label={isThumbVideo ? 'Video' : `Ảnh ${actualIndex + 1}`}
+                    className={`aspect-square rounded-xl border overflow-hidden focus:ring-2 focus:ring-orange-500 transition-all relative ${
                       active === actualIndex ? 'border-orange-500 ring-2 ring-orange-500/50' : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <img
-                      src={src}
-                      alt={`Thumb ${actualIndex + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={(ev) => ((ev.currentTarget as HTMLImageElement).src = fallbackSvg)}
-                    />
+                    {isThumbVideo ? (
+                      <>
+                        <video
+                          src={src}
+                          className="w-full h-full object-cover pointer-events-none"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <Video className="w-6 h-6 text-white" />
+                        </div>
+                      </>
+                    ) : (
+                      <img
+                        src={src}
+                        alt={`Thumb ${actualIndex + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(ev) => ((ev.currentTarget as HTMLImageElement).src = fallbackSvg)}
+                      />
+                    )}
                   </button>
                 );
               })}

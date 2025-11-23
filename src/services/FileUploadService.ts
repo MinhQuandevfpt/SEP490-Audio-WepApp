@@ -269,6 +269,62 @@ export class FileUploadService {
     
     return urlParts.join('/');
   }
+
+  /**
+   * Upload video file (MP4) to Cloudinary via backend
+   * @param file - Video file to upload (MP4 only, max 30MB)
+   * @returns Promise<UploadResponse>
+   */
+  static async uploadVideo(file: File): Promise<UploadResponse> {
+    try {
+      const token = this.getAccessToken();
+      
+      if (!token) {
+        throw new Error('Access token not found. Please login again.');
+      }
+
+      // Validate video file
+      if (!file.type.includes('video/mp4')) {
+        throw new Error('Chỉ hỗ trợ định dạng video MP4');
+      }
+
+      const maxSize = 30 * 1024 * 1024; // 30MB
+      if (file.size > maxSize) {
+        throw new Error('Dung lượng video không được vượt quá 30MB');
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/v1/uploads/video`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload video failed: ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.url) {
+        throw new Error('Invalid response from server: missing URL');
+      }
+
+      return {
+        url: data.url,
+        publicId: data.publicId || null,
+      };
+
+    } catch (error) {
+      console.error('Error uploading video:', error);
+      throw error;
+    }
+  }
 }
 
 export default FileUploadService;

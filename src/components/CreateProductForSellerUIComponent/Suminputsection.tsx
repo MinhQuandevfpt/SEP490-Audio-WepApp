@@ -891,6 +891,24 @@ const Suminputsection: React.FC = () => {
   };
 
   // ============================================================================
+  // VIDEO HANDLERS
+  // ============================================================================
+
+  const handleVideoUpload = async (file: File) => {
+    try {
+      const response = await FileUploadService.uploadVideo(file);
+      setForm(prev => ({ ...prev, videoUrl: response.url }));
+    } catch (error: any) {
+      const errorMsg = error?.message || 'Không thể tải video lên. Vui lòng thử lại.';
+      showCenterError(errorMsg);
+    }
+  };
+
+  const handleRemoveVideo = () => {
+    setForm(prev => ({ ...prev, videoUrl: '' }));
+  };
+
+  // ============================================================================
   // NAVIGATION HANDLERS
   // ============================================================================
 
@@ -1168,10 +1186,11 @@ const Suminputsection: React.FC = () => {
         videoUrl={form.videoUrl}
         touchedImages={touchedFields.images}
         onImagesChange={setImages}
-        onVideoUrlChange={(url) => setForm(prev => ({ ...prev, videoUrl: url }))}
         onAddImageFiles={addImageFiles}
         onRemoveImage={removeImage}
         onImagesTouched={() => setTouchedFields(prev => ({ ...prev, images: true }))}
+        onVideoFileUpload={handleVideoUpload}
+        onRemoveVideo={handleRemoveVideo}
       />
 
       {/* Thông tin chung Section - Component */}
