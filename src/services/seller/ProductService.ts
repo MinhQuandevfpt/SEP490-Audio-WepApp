@@ -1,5 +1,5 @@
 // Product Service for Seller Dashboard
-import type { Product, ProductListResponse, ProductQueryParams } from '../../types/seller';
+import type { Product, ProductListResponse, ProductQueryParams, ProductUpdateRequest } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -266,6 +266,35 @@ export class ProductService {
       return data.data || data;
     } catch (error) {
       console.error('❌ Error fetching product:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing product owned by current seller
+   * PUT /api/products/{productId}
+   */
+  static async updateProduct(productId: string, payload: ProductUpdateRequest): Promise<any> {
+    try {
+      if (!productId) {
+        throw new Error('Thiếu mã sản phẩm để cập nhật');
+      }
+
+      console.log('✏️ Updating product:', productId);
+      console.log('📤 Update payload:', JSON.stringify(payload, null, 2));
+
+      const data = await HttpInterceptor.put<any>(`${API_URL}/products/${productId}`, payload, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        userType: 'seller',
+      });
+
+      console.log('✅ Product update response:', JSON.stringify(data, null, 2));
+      return data;
+    } catch (error) {
+      console.error('❌ Error updating product:', error);
       throw error;
     }
   }

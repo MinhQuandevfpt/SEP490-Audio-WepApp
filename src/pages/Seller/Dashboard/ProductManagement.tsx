@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { Table, Image, Tag, Space, Button, Tooltip, message } from 'antd';
+import { Link, useNavigate } from 'react-router-dom';
+import { Table, Image, Tag, Space, Button, Tooltip } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import {
   Search,
@@ -15,6 +15,7 @@ import type { Product, ProductQueryParams } from '../../../types/seller';
 import ProductDetailDrawer from './ProductDetailDrawer';
 
 const ProductManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -343,7 +344,7 @@ const ProductManagement: React.FC = () => {
                 type="text"
                 size="small"
                 icon={<Edit className="w-4 h-4" />}
-                onClick={() => message.info('Đang phát triển')}
+                onClick={() => navigate(`/seller/dashboard/products/${record.productId}/edit`)}
               />
             </Tooltip>
           </Space>

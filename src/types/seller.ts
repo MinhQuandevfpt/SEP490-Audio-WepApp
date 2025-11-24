@@ -185,6 +185,32 @@ export interface BulkDiscount {
   unitPrice: number;
 }
 
+export interface ProductVariantPayload extends ProductVariant {}
+
+type ImmutableProductFields =
+  | 'productId'
+  | 'storeId'
+  | 'storeName'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'lastUpdatedAt'
+  | 'lastUpdateIntervalDays'
+  | 'createdBy'
+  | 'updatedBy'
+  | 'ratingAverage'
+  | 'reviewCount'
+  | 'viewCount'
+  | 'promotionPercent'
+  | 'priceAfterPromotion'
+  | 'priceBeforeVoucher'
+  | 'voucherAmount'
+  | 'finalPrice'
+  | 'platformFeePercent';
+
+export type ProductUpdateRequest = Partial<Omit<Product, ImmutableProductFields>>;
+
+export interface ProductUpdateResponse extends ApiResponse<Product> {}
+
 export interface Product {
   productId: string;
   storeId: string;
