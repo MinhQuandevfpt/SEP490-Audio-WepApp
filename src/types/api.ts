@@ -373,6 +373,40 @@ export interface CustomerOrder {
   storeOrders: StoreOrder[];
 }
 
+// ==================== REVIEW TYPES ====================
+export type ReviewMediaType = 'image' | 'video';
+
+export interface ReviewMediaPayload {
+  type: ReviewMediaType;
+  url: string;
+}
+
+export interface CreateReviewRequest {
+  customerOrderItemId: string;
+  rating: number;
+  content: string;
+  media?: ReviewMediaPayload[];
+}
+
+export interface ReviewResponse {
+  id: string;
+  rating: number;
+  content: string;
+  createdAt: string;
+  customerId: string;
+  customerName: string;
+  customerAvatarUrl: string | null;
+  productId: string;
+  variantOptionName?: string | null;
+  variantOptionValue?: string | null;
+  media?: ReviewMediaPayload[];
+  replies?: Array<{
+    storeName: string;
+    content: string;
+    createdAt: string;
+  }>;
+}
+
 // Order History Response (paginated)
 export interface OrderHistoryResponse {
   items: CustomerOrder[];

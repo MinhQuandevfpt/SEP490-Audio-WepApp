@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import type { CustomerOrder } from '../../types/api';
+import type { CustomerOrder, ReviewMediaPayload } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
-import { Package, Calendar, MapPin, Phone, Store, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag } from 'lucide-react';
+import { Package, Calendar, MapPin, Phone, Store, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
 import { Card, Button, message } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
+import { ReviewService } from '../../services/customer/ReviewService';
 
 interface Props {
   order: CustomerOrder;
@@ -15,15 +16,80 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [selectedReviewItem, setSelectedReviewItem] = useState<{ id: string; name: string; storeName: string; image?: string } | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewContent, setReviewContent] = useState('');
+  const [reviewMedia, setReviewMedia] = useState<Array<ReviewMediaPayload & { file?: File | null; preview?: string | null }>>([
+    { type: 'image', url: '', file: null, preview: null },
+  ]);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewedItemIds, setReviewedItemIds] = useState<string[]>([]);
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
   const formattedDate = formatDate(order.createdAt);
+  const isDeliverySuccess = order.status === 'DELIVERY_SUCCESS';
 
   const totalItems = useMemo(
     () => order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0),
     [order.storeOrders]
   );
+
+  const reviewableItems = useMemo(() => {
+    return order.storeOrders.flatMap((storeOrder) =>
+      storeOrder.items
+        .filter((item) => item.type === 'PRODUCT')
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          image: item.image,
+          storeName: storeOrder.storeName,
+        }))
+    );
+  }, [order.storeOrders]);
+
+  const resetReviewForm = () => {
+    setSelectedReviewItem(null);
+    setReviewRating(5);
+    setReviewContent('');
+    setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+  };
+
+  const handleSelectReviewItem = (item: { id: string; name: string; storeName: string; image?: string }) => {
+    setSelectedReviewItem(item);
+    setReviewRating(5);
+    setReviewContent('');
+    setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+  };
+
+  const handleMediaChange = (index: number, field: keyof ReviewMediaPayload, value: string) => {
+    setReviewMedia((prev) =>
+      prev.map((media, i) => (i === index ? { ...media, [field]: value } : media))
+    );
+  };
+
+  const handleMediaFileChange = (index: number, file: File | null) => {
+    setReviewMedia((prev) =>
+      prev.map((media, i) =>
+        i === index
+          ? {
+              ...media,
+              file,
+              preview: file ? URL.createObjectURL(file) : null,
+              url: file ? file.name : '',
+            }
+          : media
+      )
+    );
+  };
+
+  const addMediaField = () => {
+    setReviewMedia((prev) => [...prev, { type: 'image', url: '', file: null, preview: null }]);
+  };
+
+  const removeMediaField = (index: number) => {
+    setReviewMedia((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleCancelOrder = async () => {
     try {
@@ -43,6 +109,61 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       message.error(err?.message || 'Hủy đơn hàng thất bại');
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedReviewItem) {
+      message.warning('Vui lòng chọn sản phẩm để đánh giá');
+      return;
+    }
+    if (!reviewRating) {
+      message.warning('Vui lòng chọn số sao đánh giá');
+      return;
+    }
+    if (!reviewContent.trim()) {
+      message.warning('Vui lòng nhập nội dung đánh giá');
+      return;
+    }
+
+    const convertFileToBase64 = (file: File): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+    const mediaPayload = (
+      await Promise.all(
+        reviewMedia.map(async (media) => {
+          if (media.file) {
+            const base64 = await convertFileToBase64(media.file);
+            return { type: media.type, url: base64 };
+          }
+          if (media.url.trim()) {
+            return { type: media.type, url: media.url.trim() };
+          }
+          return null;
+        })
+      )
+    ).filter((m): m is ReviewMediaPayload => Boolean(m));
+
+    try {
+      setIsSubmittingReview(true);
+      await ReviewService.createReview({
+        customerOrderItemId: selectedReviewItem.id,
+        rating: reviewRating,
+        content: reviewContent.trim(),
+        media: mediaPayload.length > 0 ? mediaPayload : undefined,
+      });
+      message.success('Đánh giá sản phẩm thành công');
+      setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.id])));
+      resetReviewForm();
+    } catch (err: any) {
+      message.error(err?.message || 'Không thể gửi đánh giá, vui lòng thử lại');
+    } finally {
+      setIsSubmittingReview(false);
     }
   };
 
@@ -180,6 +301,188 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
               ))}
             </div>
           </div>
+
+          {isDeliverySuccess && reviewableItems.length > 0 && (
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Star className="w-4 h-4 text-[#FF6A00]" />
+                <h4 className="text-sm font-semibold text-gray-900">Đánh giá sản phẩm</h4>
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-[#FF6A00]">
+                  Đơn đã giao thành công
+                </span>
+              </div>
+              <p className="mb-4 text-xs text-gray-500">
+                Gửi đánh giá để nhận thêm ưu đãi và giúp những khách hàng khác lựa chọn tốt hơn.
+              </p>
+
+              <div className="space-y-3">
+                {reviewableItems.map((item) => {
+                  const reviewed = reviewedItemIds.includes(item.id);
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3">
+                      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <Package className="h-full w-full p-2 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-500">{item.storeName}</p>
+                      </div>
+                      <Button
+                        type="primary"
+                        disabled={reviewed}
+                        onClick={() => handleSelectReviewItem(item)}
+                        style={{
+                          backgroundColor: reviewed ? '#D1D5DB' : '#FF6A00',
+                          borderColor: reviewed ? '#D1D5DB' : '#FF6A00',
+                          borderRadius: '999px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {reviewed ? 'Đã đánh giá' : 'Đánh giá'}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedReviewItem && (
+                <div className="mt-5 rounded-2xl border border-orange-100 bg-orange-50/50 p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Đánh giá sản phẩm</p>
+                      <p className="text-xs text-gray-500">{selectedReviewItem.name}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetReviewForm}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      <X className="h-3 w-3" />
+                      Đóng
+                    </button>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-medium text-gray-700">Chọn số sao</p>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const active = star <= reviewRating;
+                        return (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setReviewRating(star)}
+                            className="rounded-full border border-orange-200 bg-white p-1.5"
+                          >
+                            <Star
+                              className="h-5 w-5"
+                              fill={active ? '#FFB703' : 'transparent'}
+                              color={active ? '#FFB703' : '#D1D5DB'}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-medium text-gray-700">Cảm nhận của bạn</p>
+                    <textarea
+                      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                      rows={4}
+                      value={reviewContent}
+                      onChange={(e) => setReviewContent(e.target.value)}
+                      placeholder="Chia sẻ về chất lượng, âm thanh, đóng gói..."
+                    />
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-medium text-gray-700">Hình ảnh / Video (tùy chọn)</p>
+                      <button
+                        type="button"
+                        onClick={addMediaField}
+                        className="flex items-center gap-1 text-xs font-medium text-[#FF6A00]"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Thêm media
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {reviewMedia.map((media, index) => (
+                        <div key={index} className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                            {media.type === 'image' ? <ImageIcon className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+                            <select
+                              value={media.type}
+                              onChange={(e) => handleMediaChange(index, 'type', e.target.value)}
+                              className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:border-orange-400 focus:outline-none"
+                            >
+                              <option value="image">Hình ảnh</option>
+                              <option value="video">Video</option>
+                            </select>
+                            <span className="text-gray-400">•</span>
+                            <span className="text-gray-500">
+                              {media.file ? media.file.name : 'Chưa chọn tệp'}
+                            </span>
+                            {reviewMedia.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeMediaField(index)}
+                                className="ml-auto text-xs text-red-500 hover:text-red-600"
+                              >
+                                Xóa
+                              </button>
+                            )}
+                          </div>
+                          <label className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-3 text-center text-xs text-gray-500 cursor-pointer hover:border-orange-300 hover:text-orange-500 transition-colors">
+                            <input
+                              type="file"
+                              accept={media.type === 'image' ? 'image/*' : 'video/*'}
+                              className="hidden"
+                              onChange={(e) => handleMediaFileChange(index, e.target.files?.[0] || null)}
+                            />
+                            <span className="font-medium">Nhấp để tải {media.type === 'image' ? 'ảnh' : 'video'}</span>
+                            <span className="text-[11px] text-gray-400">Hỗ trợ file tối đa 10MB</span>
+                            {media.preview && media.type === 'image' && (
+                              <img src={media.preview} alt="preview" className="mt-2 h-20 w-auto rounded-lg object-cover" />
+                            )}
+                            {media.preview && media.type === 'video' && (
+                              <video src={media.preview} controls className="mt-2 h-20 rounded-lg" />
+                            )}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-4 space-y-1 text-xs text-gray-500">
+                    <p>• Đánh giá sẽ được kiểm duyệt trước khi hiển thị công khai.</p>
+                    <p>• Link media cần ở chế độ công khai.</p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 md:flex-row">
+                    <Button className="flex-1" onClick={resetReviewForm} disabled={isSubmittingReview}>
+                      Hủy
+                    </Button>
+                    <Button
+                      type="primary"
+                      className="flex-1"
+                      loading={isSubmittingReview}
+                      onClick={handleSubmitReview}
+                      style={{ backgroundColor: '#FF6A00', borderColor: '#FF6A00' }}
+                    >
+                      Gửi đánh giá
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right column */}
@@ -293,7 +596,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <div className="mt-6 flex gap-3">
               <Button className="flex-1" onClick={() => setShowCancelModal(false)} disabled={isCancelling}>
                 Đóng
-              </Button>
+              </Button> 
               <Button danger className="flex-1" loading={isCancelling} onClick={handleCancelOrder}>
                 Xác nhận
               </Button>
