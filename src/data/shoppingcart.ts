@@ -6,6 +6,8 @@ export interface CartItem {
   name: string;
   image: string;
   variant?: string;
+  variantId?: string | null; // Variant ID from API (null if no variant)
+  type?: 'PRODUCT' | 'COMBO'; // Item type from API
   price: number; // unit price
   originalPrice?: number; // for showing discount
   quantity: number;

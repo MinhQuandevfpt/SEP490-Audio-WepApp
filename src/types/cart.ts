@@ -64,8 +64,10 @@ export type AddToCartResponse = CartResponse;
 
 // Checkout COD Request Item
 export interface CheckoutCodItem {
-  productId: string;  // Product ID
-  type: 'PRODUCT' | 'COMBO';  // PRODUCT or COMBO
+  productId?: string;  // Product ID (optional - not used if variantId is provided)
+  variantId?: string;  // Variant ID (optional - used when cart item has variant)
+  comboId?: string;    // Combo ID (optional - for combos)
+  type: 'PRODUCT' | 'COMBO' | string;  // PRODUCT or COMBO
   quantity: number;
 }
 
@@ -127,8 +129,10 @@ export interface CheckoutCodResponse {
 
 // Checkout PayOS Request Item (same structure as COD)
 export interface CheckoutPayOSItem {
-  productId: string;  // Product ID
-  type: 'PRODUCT' | 'COMBO';  // PRODUCT or COMBO
+  productId?: string;  // Product ID (optional - not used if variantId is provided)
+  variantId?: string;  // Variant ID (optional - used when cart item has variant)
+  comboId?: string;    // Combo ID (optional - for combos)
+  type: 'PRODUCT' | 'COMBO' | string;  // PRODUCT or COMBO
   quantity: number;
 }
 

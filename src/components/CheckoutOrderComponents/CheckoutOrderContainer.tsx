@@ -37,6 +37,8 @@ const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem => ({
   quantity: apiItem.quantity,
   isSelected: true,
   variant: apiItem.variantOptionValue || undefined,
+  variantId: apiItem.variantId || null, // Lưu variantId từ API (có thể là null)
+  type: apiItem.type || 'PRODUCT', // Lưu type từ API
 });
 
 const calculateStoreTotal = (
@@ -588,11 +590,40 @@ const CheckoutOrderContainer: React.FC = () => {
 
     const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
     const message = selectedAddress?.note || '';
-    const checkoutItemsPayload = cartItems.map(item => ({
-      productId: item.productId,
-      type: 'PRODUCT' as const,
-      quantity: item.quantity,
-    }));
+    
+    // Build checkout items payload với logic mới:
+    // - Nếu variantId === null → dùng productId (refId), không gửi variantId
+    // - Nếu variantId !== null → để trống productId, dùng variantId
+    // - Nếu type === 'COMBO' → dùng comboId
+    const checkoutItemsPayload = cartItems.map(item => {
+      // Lấy type từ cart item (nếu có), mặc định là 'PRODUCT'
+      const itemType = item.type || 'PRODUCT';
+      
+      // Base payload
+      const basePayload: any = {
+        type: itemType,
+        quantity: item.quantity,
+      };
+      
+      // Xử lý theo type
+      if (itemType === 'COMBO') {
+        // Nếu là COMBO, dùng comboId (refId)
+        basePayload.comboId = item.productId; // refId trong trường hợp COMBO
+        return basePayload;
+      }
+      
+      // Xử lý PRODUCT
+      // Nếu có variantId (không null), dùng variantId và không gửi productId
+      if (item.variantId !== null && item.variantId !== undefined) {
+        basePayload.variantId = item.variantId;
+        // Không gửi productId khi có variantId
+        return basePayload;
+      }
+      
+      // Nếu không có variantId (null), dùng productId (refId) và không gửi variantId
+      basePayload.productId = item.productId;
+      return basePayload;
+    });
 
     const storeVouchers = buildStoreVouchers(appliedStoreVouchers);
     const serviceTypeIds = buildServiceTypeIds(cartItems, productCache);
