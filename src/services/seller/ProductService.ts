@@ -68,8 +68,8 @@ export class ProductService {
           // Pagination structure - already correct
           console.log('📄 Using pagination structure');
         } else if (Array.isArray(data.data)) {
-          // Legacy structure - convert to pagination structure
-          console.log('📄 Converting legacy structure to pagination format');
+          // New API structure - data is array directly, convert to pagination structure
+          console.log('📄 Converting array structure to pagination format');
           data.data = {
             content: data.data,
             totalElements: data.data.length,

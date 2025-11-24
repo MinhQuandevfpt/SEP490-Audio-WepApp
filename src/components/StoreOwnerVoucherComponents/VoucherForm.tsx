@@ -35,6 +35,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
   const [tooltipKey, setTooltipKey] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const tooltips: Record<string, string> = {
     discountValue: 'Số tiền giảm giá cố định (VND). Ví dụ: 20.000đ giảm cho mỗi đơn hàng.',
@@ -90,7 +91,10 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
       setProductsError(null);
       // Load current seller's products, fetch larger page size to cover most cases
       const res: ProductListResponse = await ProductService.getMyProducts({ page: 0, size: 200 });
-      const list = res.data?.content || res.data || [];
+      // Handle both pagination structure (res.data.content) and direct array (res.data)
+      const list = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.content || []);
       setProducts(list);
     } catch (e: any) {
       setProductsError(e?.message || 'Không thể tải danh sách sản phẩm');
@@ -129,13 +133,91 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
     setForm(prev => ({ ...prev, products: prev.products.filter((_, i) => i !== index) }));
   };
 
+  // Validation function
+  const validateForm = (): boolean => {
+    const errors: string[] = [];
+
+    // Validate: Giới hạn sản phẩm áp dụng không được vượt quá số lượng tồn kho
+    form.products.forEach((product) => {
+      if (product.productId) {
+        const selectedProduct = products.find(p => p.productId === product.productId);
+        if (selectedProduct) {
+          const promotionStockLimit = product.promotionStockLimit ?? 0;
+          const stockQuantity = selectedProduct.stockQuantity ?? 0;
+          
+          if (promotionStockLimit > stockQuantity) {
+            errors.push(
+              `Sản phẩm "${selectedProduct.name}": Giới hạn sản phẩm áp dụng (${promotionStockLimit}) không được vượt quá số lượng tồn kho (${stockQuantity})`
+            );
+          }
+        }
+      }
+    });
+
+    // Validate: Tổng giới hạn sản phẩm áp dụng không được lớn hơn tổng số phát hành
+    const totalPromotionStockLimit = form.products.reduce((sum, product) => {
+      return sum + (product.promotionStockLimit ?? 0);
+    }, 0);
+    
+    const totalVoucherIssued = form.totalVoucherIssued ?? 0;
+    
+    if (totalPromotionStockLimit > totalVoucherIssued && totalVoucherIssued > 0) {
+      errors.push(
+        `Tổng giới hạn sản phẩm áp dụng (${totalPromotionStockLimit}) không được lớn hơn tổng số phát hành (${totalVoucherIssued})`
+      );
+    }
+
+    setValidationErrors(errors);
+    return errors.length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!validateForm()) {
+      // Scroll to top to show errors
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Clear errors if validation passes
+    setValidationErrors([]);
     await onSubmit(form);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Validation Errors Display */}
+      {validationErrors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start gap-2">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-red-800 mb-2">Vui lòng sửa các lỗi sau:</h3>
+              <ul className="list-disc list-inside space-y-1">
+                {validationErrors.map((error, index) => (
+                  <li key={index} className="text-sm text-red-700">{error}</li>
+                ))}
+              </ul>
+            </div>
+            <button
+              type="button"
+              onClick={() => setValidationErrors([])}
+              className="flex-shrink-0 text-red-600 hover:text-red-800"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -390,24 +472,68 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               {(products || [])
                 .filter(pr => !productSearch.trim() || pr.name.toLowerCase().includes(productSearch.toLowerCase()))
                 .map(pr => (
-                  <label key={pr.productId} className="flex items-center gap-3 p-2 hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      checked={pickerSelected.has(pr.productId)}
-                      onChange={(e) => {
-                        setPickerSelected(prev => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(pr.productId); else next.delete(pr.productId);
-                          return next;
-                        });
-                      }}
-                    />
-                    <img src={pr.images?.[0]} alt={pr.name} className="w-12 h-12 object-cover rounded border" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate" title={pr.name}>{pr.name}</p>
-                      <p className="text-xs text-gray-500">Tồn kho: {pr.stockQuantity}</p>
-                    </div>
-                  </label>
+                  <div key={pr.productId} className="p-3 hover:bg-gray-50 border-b last:border-b-0">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pickerSelected.has(pr.productId)}
+                        onChange={(e) => {
+                          setPickerSelected(prev => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(pr.productId); else next.delete(pr.productId);
+                            return next;
+                          });
+                        }}
+                        className="mt-1"
+                      />
+                      <img 
+                        src={pr.images?.[0] || 'https://via.placeholder.com/80'} 
+                        alt={pr.name} 
+                        className="w-16 h-16 object-cover rounded border flex-shrink-0" 
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://via.placeholder.com/80';
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate" title={pr.name}>{pr.name}</p>
+                        <div className="mt-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-gray-500">Tồn kho:</p>
+                            <p className="text-xs font-medium text-gray-700">{pr.stockQuantity}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-gray-500">Giá gốc:</p>
+                            <p className="text-xs font-medium text-orange-600">
+                              {formatNumber(pr.price || 0)} đ
+                            </p>
+                          </div>
+                        </div>
+                        {/* Hiển thị biến thể nếu có */}
+                        {pr.variants && pr.variants.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Biến thể ({pr.variants.length}):</p>
+                            <div className="space-y-1 max-h-24 overflow-y-auto">
+                              {pr.variants.map((variant, idx) => (
+                                <div key={idx} className="text-xs bg-gray-50 p-1.5 rounded">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-gray-600">
+                                      {variant.optionName}: <span className="font-medium">{variant.optionValue}</span>
+                                    </span>
+                                    <span className="text-orange-600 font-medium">
+                                      {formatNumber(variant.variantPrice)} đ
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-500 mt-0.5">
+                                    Tồn: {variant.variantStock} | SKU: {variant.variantSku || 'N/A'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
                 ))}
             </div>
             <div className="mt-3 flex justify-end gap-2">
