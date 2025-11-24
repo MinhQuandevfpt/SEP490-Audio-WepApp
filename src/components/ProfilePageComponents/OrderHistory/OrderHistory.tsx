@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Empty, Spin, Typography, Space, Divider, message } from 'antd';
+import { Card, Button, Empty, Spin, Typography, Space, Divider } from 'antd';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
 import type { CustomerOrder } from '../../../types/api';
-import { OrderCard, OrderDetailModal } from '../../OrderHistoryComponents';
+import { OrderCard } from '../../OrderHistoryComponents';
 
 const { Text, Title } = Typography;
 
@@ -13,9 +13,6 @@ const OrderHistory: React.FC = () => {
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [detailOrder, setDetailOrder] = useState<CustomerOrder | null>(null);
-  const [isDetailLoading, setIsDetailLoading] = useState(false);
 
   const loadRecentOrders = useCallback(async () => {
     try {
@@ -38,25 +35,6 @@ const OrderHistory: React.FC = () => {
 
   const handleViewAll = () => {
     navigate('/orders');
-  };
-
-  const handleViewDetail = async (orderId: string) => {
-    setIsDetailModalOpen(true);
-    setIsDetailLoading(true);
-    try {
-      const detail = await OrderHistoryService.getById(orderId);
-      setDetailOrder(detail);
-    } catch (err: any) {
-      message.error(err?.message || 'Không thể tải chi tiết đơn hàng');
-      setDetailOrder(null);
-    } finally {
-      setIsDetailLoading(false);
-    }
-  };
-
-  const closeDetailModal = () => {
-    setIsDetailModalOpen(false);
-    setDetailOrder(null);
   };
 
   return (
@@ -111,7 +89,7 @@ const OrderHistory: React.FC = () => {
       ) : (
         <Space direction="vertical" size="large" className="w-full">
           {orders.map((order) => (
-            <OrderCard key={order.id} order={order} onViewDetail={handleViewDetail} />
+            <OrderCard key={order.id} order={order} />
           ))}
           
           {orders.length > 0 && (
@@ -139,23 +117,6 @@ const OrderHistory: React.FC = () => {
         </Space>
       )}
 
-      {isDetailModalOpen && (
-        <>
-          {isDetailLoading ? (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <Spin size="large" style={{ color: '#f97316' }} />
-            </div>
-          ) : (
-            detailOrder && (
-              <OrderDetailModal
-                order={detailOrder}
-                onClose={closeDetailModal}
-                onOrderCancelled={loadRecentOrders}
-              />
-            )
-          )}
-        </>
-      )}
     </Card>
   );
 };
