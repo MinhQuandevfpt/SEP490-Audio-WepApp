@@ -13,6 +13,7 @@ export interface StatusConfig {
 }
 
 // Use a string index to allow extended internal statuses beyond public API enum
+// Updated with Shopee-style colors
 export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   UNPAID: {
     label: 'Chờ thanh toán',
@@ -31,18 +32,18 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   },
   SHIPPING: {
     label: 'Đang giao hàng',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50 border-purple-200',
+    color: 'text-[#2D9CDB]',
+    bgColor: 'bg-[#E6F4FF] border-[#2D9CDB]',
   },
   COMPLETED: {
-    label: 'Đã giao hàng',
-    color: 'text-green-600',
-    bgColor: 'bg-green-50 border-green-200',
+    label: 'Hoàn thành',
+    color: 'text-[#27AE60]',
+    bgColor: 'bg-[#E6F8F0] border-[#27AE60]',
   },
   CANCELLED: {
     label: 'Đã hủy',
-    color: 'text-red-600',
-    bgColor: 'bg-red-50 border-red-200',
+    color: 'text-[#EB5757]',
+    bgColor: 'bg-[#FFEBEB] border-[#EB5757]',
   },
   RETURN_REQUESTED: {
     label: 'Yêu cầu trả hàng',
@@ -56,39 +57,39 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   },
   PENDING: {
     label: 'Chờ xử lý',
-    color: 'text-gray-600',
-    bgColor: 'bg-gray-50 border-gray-200',
+    color: 'text-[#FFA73A]',
+    bgColor: 'bg-[#FFF4EC] border-[#FFA73A]',
   },
   // ==== Extended internal statuses ====
   READY_FOR_PICKUP: {
     label: 'Kho đang chuẩn bị',
-    color: 'text-cyan-600',
-    bgColor: 'bg-cyan-50 border-cyan-200',
+    color: 'text-[#FFA73A]',
+    bgColor: 'bg-[#FFF4EC] border-[#FFA73A]',
   },
   READY_FOR_DELIVERY: {
     label: 'Chờ giao hàng',
-    color: 'text-cyan-600',
-    bgColor: 'bg-cyan-50 border-cyan-200',
+    color: 'text-[#2D9CDB]',
+    bgColor: 'bg-[#E6F4FF] border-[#2D9CDB]',
   },
   OUT_FOR_DELIVERY: {
     label: 'Đang giao hàng',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50 border-purple-200',
+    color: 'text-[#2D9CDB]',
+    bgColor: 'bg-[#E6F4FF] border-[#2D9CDB]',
   },
   DELIVERED_WAITING_CONFIRM: {
     label: 'Chờ xác nhận giao hàng',
-    color: 'text-yellow-600',
-    bgColor: 'bg-yellow-50 border-yellow-200',
+    color: 'text-[#2D9CDB]',
+    bgColor: 'bg-[#E6F4FF] border-[#2D9CDB]',
   },
   DELIVERY_SUCCESS: {
-    label: 'Giao hàng thành công',
-    color: 'text-green-600',
-    bgColor: 'bg-green-50 border-green-200',
+    label: 'Hoàn thành',
+    color: 'text-[#27AE60]',
+    bgColor: 'bg-[#E6F8F0] border-[#27AE60]',
   },
   DELIVERY_DENIED: {
     label: 'Giao hàng thất bại',
-    color: 'text-red-600',
-    bgColor: 'bg-red-50 border-red-200',
+    color: 'text-[#EB5757]',
+    bgColor: 'bg-[#FFEBEB] border-[#EB5757]',
   },
 };
 
@@ -100,6 +101,36 @@ export const getStatusBadgeClass = (status: OrderStatus | string | undefined | n
   const safeColor = config?.color ?? 'text-gray-600';
   const safeBg = config?.bgColor ?? 'bg-gray-50 border-gray-200';
   return `px-3 py-1.5 text-xs font-medium rounded-full border ${safeColor} ${safeBg}`;
+};
+
+/**
+ * Get status badge style (for inline styles - Shopee style)
+ */
+export const getStatusBadgeStyle = (status: OrderStatus | string | undefined | null): { backgroundColor: string; color: string; padding: string; borderRadius: string; fontSize: string; fontWeight: number; border: string } => {
+  const statusMap: Record<string, { bgColor: string; textColor: string }> = {
+    PENDING: { bgColor: '#FFF4EC', textColor: '#FFA73A' },
+    READY_FOR_PICKUP: { bgColor: '#FFF4EC', textColor: '#FFA73A' },
+    SHIPPING: { bgColor: '#E6F4FF', textColor: '#2D9CDB' },
+    OUT_FOR_DELIVERY: { bgColor: '#E6F4FF', textColor: '#2D9CDB' },
+    READY_FOR_DELIVERY: { bgColor: '#E6F4FF', textColor: '#2D9CDB' },
+    DELIVERED_WAITING_CONFIRM: { bgColor: '#E6F4FF', textColor: '#2D9CDB' },
+    COMPLETED: { bgColor: '#E6F8F0', textColor: '#27AE60' },
+    DELIVERY_SUCCESS: { bgColor: '#E6F8F0', textColor: '#27AE60' },
+    CANCELLED: { bgColor: '#FFEBEB', textColor: '#EB5757' },
+    DELIVERY_DENIED: { bgColor: '#FFEBEB', textColor: '#EB5757' },
+  };
+  
+  const style = statusMap[status as string] || { bgColor: '#F5F5F5', textColor: '#666666' };
+  
+  return {
+    backgroundColor: style.bgColor,
+    color: style.textColor,
+    padding: '6px 12px',
+    borderRadius: '12px',
+    fontSize: '12px',
+    fontWeight: 600,
+    border: 'none',
+  };
 };
 
 /**
@@ -138,15 +169,15 @@ export const formatCurrency = (amount: number): string => {
 };
 
 /**
- * Format date
+ * Format date - Shopee style: "13:20 - 24/11/2025"
  */
 export const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const date = new Date(dateString);
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${hours}:${minutes} - ${day}/${month}/${year}`;
 };
 

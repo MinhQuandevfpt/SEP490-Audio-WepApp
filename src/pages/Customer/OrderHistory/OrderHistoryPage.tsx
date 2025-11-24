@@ -12,12 +12,11 @@ import {
   Row,
   Col,
   Statistic,
-  Divider,
-  List
+  Divider
 } from 'antd';
 import { Home, ShoppingBag, DollarSign, FileText } from 'lucide-react';
 import Layout from '../../../components/Layout';
-import { OrderCard, OrderDetailModal, OrderFilterTabs } from '../../../components/OrderHistoryComponents';
+import { OrderCard, OrderDetailModal, OrderStatusTabs } from '../../../components/OrderHistoryComponents';
 import useOrderHistory from '../../../hooks/useOrderHistory';
 import { formatCurrency } from '../../../utils/orderStatus';
 
@@ -96,67 +95,101 @@ const OrderHistoryPage: React.FC = () => {
               </Text>
             </div>
 
-            {/* Statistics Cards */}
+            {/* Statistics Cards - Shopee Style */}
             {!isLoading && orders.length > 0 && (
               <Row gutter={[16, 16]}>
                 <Col xs={24} sm={8}>
-                  <Card className="border-gray-200 shadow-sm">
+                  <Card 
+                    className="border-gray-200 shadow-sm"
+                    style={{
+                      borderRadius: 12,
+                      borderTop: '3px solid #FF6A00',
+                    }}
+                  >
                     <Statistic
                       title={<><FileText className="w-4 h-4 inline mr-1" />Tổng đơn hàng</>}
                       value={total || 0}
-                      valueStyle={{ color: '#f97316', fontSize: '24px', fontWeight: 700 }}
+                      valueStyle={{ color: '#FF6A00', fontSize: '24px', fontWeight: 700 }}
                     />
                   </Card>
                 </Col>
                 <Col xs={24} sm={8}>
-                  <Card className="border-gray-200 shadow-sm">
+                  <Card 
+                    className="border-gray-200 shadow-sm"
+                    style={{
+                      borderRadius: 12,
+                      borderTop: '3px solid #2D9CDB',
+                    }}
+                  >
                     <Statistic
                       title={<><ShoppingBag className="w-4 h-4 inline mr-1" />Tổng sản phẩm</>}
                       value={totalItems}
                       suffix="sản phẩm"
-                      valueStyle={{ color: '#3b82f6', fontSize: '24px', fontWeight: 700 }}
+                      valueStyle={{ color: '#2D9CDB', fontSize: '24px', fontWeight: 700 }}
                     />
                   </Card>
                 </Col>
                 <Col xs={24} sm={8}>
-                  <Card className="border-gray-200 shadow-sm">
+                  <Card 
+                    className="border-gray-200 shadow-sm"
+                    style={{
+                      borderRadius: 12,
+                      borderTop: '3px solid #27AE60',
+                    }}
+                  >
                     <Statistic
                       title={<><DollarSign className="w-4 h-4 inline mr-1" />Tổng giá trị</>}
                       value={totalAmount}
                       formatter={(value) => formatCurrency(Number(value))}
-                      valueStyle={{ color: '#10b981', fontSize: '24px', fontWeight: 700 }}
+                      valueStyle={{ color: '#27AE60', fontSize: '24px', fontWeight: 700 }}
                     />
                   </Card>
                 </Col>
               </Row>
             )}
 
-            {/* Filter Section */}
-            <Card className="border-gray-200 shadow-sm">
-              <OrderFilterTabs
-                value={status}
-                onChange={setStatus}
-                search={search}
-                onSearchChange={setSearch}
-              />
-            </Card>
+            {/* Status Tabs Section - Horizontal Tabs Style */}
+            <OrderStatusTabs
+              value={status}
+              onChange={setStatus}
+              search={search}
+              onSearchChange={setSearch}
+            />
 
             {/* Orders List */}
             {isLoading ? (
-              <Card className="border-gray-200 shadow-sm">
+              <Card 
+                className="border-gray-200 shadow-sm"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}
+              >
                 <div className="py-16 text-center">
-                  <Spin size="large" style={{ color: '#f97316' }} />
+                  <Spin size="large" style={{ color: '#FF6A00' }} />
                   <p className="mt-4 text-gray-500 text-base">Đang tải đơn hàng...</p>
                 </div>
               </Card>
             ) : error ? (
-              <Card className="border-gray-200 shadow-sm">
+              <Card 
+                className="border-gray-200 shadow-sm"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}
+              >
                 <div className="py-8 text-center">
                   <Text type="danger" className="text-base">{error}</Text>
                 </div>
               </Card>
             ) : orders.length === 0 ? (
-              <Card className="border-gray-200 shadow-sm">
+              <Card 
+                className="border-gray-200 shadow-sm"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}
+              >
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description={
@@ -172,26 +205,26 @@ const OrderHistoryPage: React.FC = () => {
                 />
               </Card>
             ) : (
-              <List
-                dataSource={orders}
-                renderItem={(order) => (
-                  <List.Item style={{ padding: 0, marginBottom: 16, border: 'none' }}>
-                    <div className="w-full">
-                      <OrderCard 
-                        order={order} 
-                        onViewDetail={viewDetail}
-                      />
-                    </div>
-                  </List.Item>
-                )}
-                locale={{ emptyText: null }}
-              />
+              <div className="space-y-4">
+                {orders.map((order) => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    ghnOrderData={ghnOrderData}
+                    onOrderCancelled={reload}
+                  />
+                ))}
+              </div>
             )}
 
             {/* Pagination & Page Size Selector */}
             {orders.length > 0 && (
               <Card 
                 className="border-gray-200 shadow-sm"
+                style={{
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}
                 styles={{ 
                   body: { padding: '20px 24px' }
                 }}
