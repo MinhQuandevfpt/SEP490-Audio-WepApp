@@ -17,7 +17,7 @@
     "@tinymce/tinymce-react": "6.3.0",
     "@types/react-router-dom": "^5.3.3",
     "@types/three": "^0.180.0",
-    "antd": "^5.27.6",
+    "antd": "^5.29.1",
     "lucide-react": "^0.544.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

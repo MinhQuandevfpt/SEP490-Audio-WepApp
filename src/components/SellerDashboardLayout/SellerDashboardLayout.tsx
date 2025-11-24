@@ -83,7 +83,8 @@ const SellerDashboardLayout: React.FC = () => {
         { label: 'Tất cả sản phẩm', path: '/seller/dashboard/products' },
         { label: 'Thêm sản phẩm', path: '/seller/dashboard/products/add' },
         { label: 'Cập nhật sản phẩm', path: '/seller/dashboard/products/update' },
-        { label: 'Sản phẩm hết hàng', path: '/seller/dashboard/products/out-of-stock' }
+        { label: 'Sản phẩm hết hàng', path: '/seller/dashboard/products/out-of-stock' },
+        { label: 'Quản lý Combo', path: '/seller/dashboard/combos' }
       ]
     },
     {

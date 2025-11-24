@@ -64,6 +64,8 @@ import { AdminAuthService } from '../services/admin/AdminAuthService';
 import { StoreService } from '../services/seller/StoreService';
 import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
+import CreateCombo from '../pages/Seller/Combo/CreateCombo';
+import ComboManagement from '../pages/Seller/Combo/ComboManagement';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -405,6 +407,14 @@ export const router = createBrowserRouter([
       {
         path: 'campaigns/:campaignId/products',
         element: <CampaignProductDetails />
+      },
+      {
+        path: 'combos',
+        element: <ComboManagement />
+      },
+      {
+        path: 'combos/create',
+        element: <CreateCombo />
       },
       {
         path: 'messages',

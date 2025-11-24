@@ -966,3 +966,72 @@ export interface CreateStoreAddressRequest {
 }
 
 export interface CreateStoreAddressResponse extends ApiResponse<StoreAddress[]> {}
+
+// ==================== COMBO TYPES ====================
+
+// Combo Item (product in combo)
+export interface ComboItem {
+  productId: string;
+  variantId?: string; // Optional: for products with variants
+  productName?: string; // From API response
+  variantName?: string; // For display purposes
+  quantity: number;
+}
+
+// Create Combo Request
+export interface CreateComboRequest {
+  storeId: string;
+  name: string;
+  shortDescription: string;
+  description: string;
+  images: string[];
+  videoUrl?: string;
+  weight?: number;
+  stockQuantity: number;
+  shippingAddress: string;
+  warehouseLocation: string;
+  provinceCode: string;
+  districtCode: string;
+  wardCode: string;
+  items: ComboItem[];
+  createdBy: string;
+}
+
+// Combo Response (from API)
+export interface Combo {
+  comboId: string;
+  categoryName: string; // Always "COMBO"
+  name: string;
+  shortDescription: string;
+  description: string;
+  images: string[];
+  videoUrl: string | null;
+  provinceCode: string;
+  districtCode: string;
+  wardCode: string;
+  shippingAddress: string;
+  warehouseLocation: string;
+  stockQuantity: number;
+  storeId: string;
+  storeName: string;
+  creatorType: string; // "SHOP_CREATE"
+  creatorId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+  items: ComboItem[];
+}
+
+// Create Combo Response
+export interface CreateComboResponse extends ApiResponse<Combo> {}
+
+// Combo List Query Parameters
+export interface ComboQueryParams {
+  page?: number;
+  size?: number;
+  keyword?: string;
+  isActive?: boolean;
+}
+
+// Combo List Response
+export interface ComboListResponse extends ApiResponse<Combo[]> {}
