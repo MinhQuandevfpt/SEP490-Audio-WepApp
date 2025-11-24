@@ -13,11 +13,26 @@ import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
 import { StoreAddressService } from '../../services/seller/StoreAddressService';
-import type { Category, ShippingMethod, Province, District, Ward, StoreAddress } from '../../types/seller';
+import type { Category, ShippingMethod, Province, District, Ward, StoreAddress, Product } from '../../types/seller';
 import { CATEGORY_SPECS, type CategoryKey, translatePlacementType } from './CategorySpecsSchema';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
 type ProductImage = { id: string; url: string; file?: File };
+
+interface VariantFormState {
+  variantId?: string;
+  optionName: string;
+  optionValue: string;
+  variantPrice: string;
+  variantStock: string;
+  variantUrl: string;
+  variantSku: string;
+}
+
+interface SuminputsectionProps {
+  mode?: 'create' | 'update';
+  productId?: string;
+}
 
 interface FormState {
   // Basic
@@ -99,6 +114,12 @@ const defaultForm: FormState = {
   highlights: '',
 };
 
+const SPEC_KEYS = Array.from(
+  new Set(
+    Object.values(CATEGORY_SPECS).flatMap(specs => specs.map(spec => spec.key))
+  )
+);
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -116,7 +137,7 @@ const parseFormattedNumber = (formattedValue: string): string => formattedValue.
 // MAIN COMPONENT
 // ============================================================================
 
-const Suminputsection: React.FC = () => {
+const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', productId }) => {
   const navigate = useNavigate();
   
   // ============================================================================
@@ -134,14 +155,7 @@ const Suminputsection: React.FC = () => {
   }>>([]);
   
   // Generated variants from classifications
-  const [variants, setVariants] = useState<Array<{ 
-    optionName: string; 
-    optionValue: string; 
-    variantPrice: string;
-    variantStock: string;
-    variantUrl: string;
-    variantSku: string;
-  }>>([]);
+  const [variants, setVariants] = useState<VariantFormState[]>([]);
   
   // Bulk apply values
   const [bulkPrice, setBulkPrice] = useState('');
@@ -157,12 +171,19 @@ const Suminputsection: React.FC = () => {
   const [showContentCheck, setShowContentCheck] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const [productLoading, setProductLoading] = useState(mode === 'update');
+  const [productError, setProductError] = useState<string | null>(null);
   
   // Data loading state
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [shippingLoading, setShippingLoading] = useState(true);
+  const [locationPrefill, setLocationPrefill] = useState<{
+    provinceCode?: string;
+    districtCode?: string;
+    wardCode?: string;
+  } | null>(null);
   
   // ============================================================================
   // LOCATION STATE MANAGEMENT (Province/District/Ward)
@@ -272,7 +293,7 @@ const Suminputsection: React.FC = () => {
   const [defaultAddressLoaded, setDefaultAddressLoaded] = useState(false);
   const [pendingDefaultAddress, setPendingDefaultAddress] = useState<StoreAddress | null>(null);
   const [addressReloading, setAddressReloading] = useState(false);
-  const [hasDefaultStoreAddress, setHasDefaultStoreAddress] = useState(false);
+  const [hasDefaultStoreAddress, setHasDefaultStoreAddress] = useState(mode === 'update');
 
   // Function to load and set default store address
   const loadAndSetDefaultAddress = useCallback(async (forceReload: boolean = false) => {
@@ -343,10 +364,202 @@ const Suminputsection: React.FC = () => {
     }
   }, [provinces, form.provinceCode, defaultAddressLoaded]);
 
-  // Load default store address on mount
+  const normalizeCode = (value?: string | null) => {
+    if (!value) return '';
+    const digits = value.replace(/\D/g, '');
+    return digits || value;
+  };
+
+  const prefillFormFromProduct = useCallback((product: Product) => {
+    const provinceCode = normalizeCode(product.provinceCode);
+    const districtCode = normalizeCode(product.districtCode);
+    const wardCode = product.wardCode || '';
+
+    setForm({
+      ...defaultForm,
+      name: product.name || '',
+      brandName: product.brandName || '',
+      category: product.categoryName || '',
+      shortDescription: product.shortDescription || '',
+      description: product.description || '',
+      model: product.model || '',
+      color: product.color || '',
+      material: product.material || '',
+      dimensions: product.dimensions || '',
+      weight: product.weight != null ? String(product.weight) : '',
+      connectionType: product.connectionType || '',
+      voltageInput: product.voltageInput || '',
+      price: product.price != null ? String(product.price) : '',
+      discountPrice: product.discountPrice != null ? String(product.discountPrice) : '',
+      currency: product.currency || 'VND',
+      stockQuantity: product.stockQuantity != null ? String(product.stockQuantity) : '0',
+      sku: product.sku || '',
+      warrantyPeriod: product.warrantyPeriod || '',
+      warrantyType: product.warrantyType || '',
+      manufacturerName: product.manufacturerName || '',
+      manufacturerAddress: product.manufacturerAddress || '',
+      productCondition: product.productCondition || '',
+      isCustomMade: product.isCustomMade ? 'true' : 'false',
+      warehouseLocation: product.warehouseLocation || '',
+      provinceCode,
+      districtCode,
+      wardCode,
+      shippingAddress: product.shippingAddress || '',
+      shippingFee: product.shippingFee != null ? String(product.shippingFee) : '',
+      selectedShippingMethodIds: product.supportedShippingMethodIds || [],
+      videoUrl: product.videoUrl || '',
+      highlights: '',
+    });
+
+    setImages(
+      (product.images || [])
+        .filter(url => url && url !== 'string')
+        .slice(0, 9)
+        .map((url, idx) => ({ id: `existing-${idx}`, url }))
+    );
+
+    const specMap: Record<string, string> = {};
+    SPEC_KEYS.forEach((key) => {
+      const value = (product as Record<string, any>)[key];
+      if (value === undefined || value === null || value === '') return;
+      specMap[key] = typeof value === 'boolean' ? value.toString() : String(value);
+    });
+    setExtraSpecs(specMap);
+
+    if (product.variants && product.variants.length > 0) {
+      const firstVariant = product.variants[0];
+      const variantNames = firstVariant.optionName
+        ? firstVariant.optionName.split(',').map(name => name.trim()).filter(Boolean)
+        : ['Phân loại'];
+      const limitedNames = variantNames.slice(0, 2);
+
+      const restoredClassifications = limitedNames.map((name, idx) => {
+        const valueSet = new Set<string>();
+        product.variants?.forEach(variant => {
+          const values = (variant.optionValue || '')
+            .split(',')
+            .map(v => v.trim());
+          if (values[idx]) {
+            valueSet.add(values[idx]);
+          }
+        });
+        const uniqueValues = Array.from(valueSet);
+        return {
+          name: name || `Phân loại ${idx + 1}`,
+          values: uniqueValues.length > 0 ? uniqueValues.map(value => ({ value })) : [{ value: '' }],
+        };
+      });
+
+      setClassifications(restoredClassifications);
+      setVariants(product.variants.map(variant => ({
+        variantId: variant.variantId,
+        optionName: variant.optionName || limitedNames.join(', '),
+        optionValue: variant.optionValue || '',
+        variantPrice: variant.variantPrice != null ? String(variant.variantPrice) : '',
+        variantStock: variant.variantStock != null ? String(variant.variantStock) : '',
+        variantUrl: variant.variantUrl || '',
+        variantSku: variant.variantSku || '',
+      })));
+    } else {
+      setClassifications([]);
+      setVariants([]);
+    }
+
+    setBulkDiscounts(
+      (product.bulkDiscounts || []).map(discount => ({
+        fromQuantity: discount.fromQuantity != null ? String(discount.fromQuantity) : '',
+        toQuantity: discount.toQuantity != null ? String(discount.toQuantity) : '',
+        unitPrice: discount.unitPrice != null ? String(discount.unitPrice) : '',
+      }))
+    );
+
+    setHasDefaultStoreAddress(true);
+    setLocationPrefill({
+      provinceCode,
+      districtCode,
+      wardCode,
+    });
+  }, []);
+
+  const fetchProductDetails = useCallback(async () => {
+    if (mode !== 'update' || !productId) {
+      return;
+    }
+    try {
+      setProductLoading(true);
+      const product = await ProductService.getProductById(productId);
+      prefillFormFromProduct(product);
+      setProductError(null);
+    } catch (error: any) {
+      console.error('Error loading product for editing:', error);
+      setProductError(error?.message || 'Không thể tải dữ liệu sản phẩm');
+    } finally {
+      setProductLoading(false);
+    }
+  }, [mode, productId, prefillFormFromProduct]);
+
   useEffect(() => {
+    if (mode !== 'update') {
+      return;
+    }
+    if (!productId) {
+      setProductLoading(false);
+      setProductError('Không tìm thấy sản phẩm cần cập nhật');
+      return;
+    }
+    fetchProductDetails();
+  }, [mode, fetchProductDetails, productId]);
+  // Load default store address on mount (create mode only)
+  useEffect(() => {
+    if (mode !== 'create') {
+      return;
+    }
     loadAndSetDefaultAddress(false);
-  }, [loadAndSetDefaultAddress]);
+  }, [loadAndSetDefaultAddress, mode]);
+
+  useEffect(() => {
+    if (!locationPrefill?.provinceCode || provinces.length === 0) {
+      return;
+    }
+    const target = provinces.find(
+      province =>
+        province.ProvinceID.toString() === locationPrefill.provinceCode ||
+        province.Code === locationPrefill.provinceCode
+    );
+    if (target) {
+      setSelectedProvince(target);
+      setForm(prev => ({ ...prev, provinceCode: target.ProvinceID.toString() }));
+      setLocationPrefill(prev => prev ? { ...prev, provinceCode: undefined } : null);
+    }
+  }, [locationPrefill?.provinceCode, provinces]);
+
+  useEffect(() => {
+    if (!locationPrefill?.districtCode || !selectedProvince || districts.length === 0) {
+      return;
+    }
+    const target = districts.find(
+      district =>
+        district.DistrictID.toString() === locationPrefill.districtCode ||
+        district.Code === locationPrefill.districtCode
+    );
+    if (target) {
+      setSelectedDistrict(target);
+      setForm(prev => ({ ...prev, districtCode: target.DistrictID.toString() }));
+      setLocationPrefill(prev => prev ? { ...prev, districtCode: undefined } : null);
+    }
+  }, [locationPrefill?.districtCode, districts, selectedProvince]);
+
+  useEffect(() => {
+    if (!locationPrefill?.wardCode || !selectedDistrict || wards.length === 0) {
+      return;
+    }
+    const target = wards.find(ward => ward.WardCode === locationPrefill.wardCode);
+    if (target) {
+      setSelectedWard(target);
+      setForm(prev => ({ ...prev, wardCode: target.WardCode }));
+      setLocationPrefill(prev => prev ? { ...prev, wardCode: undefined } : null);
+    }
+  }, [locationPrefill?.wardCode, wards, selectedDistrict]);
 
   // When districts are loaded, find and set district from pending default address
   useEffect(() => {
@@ -759,7 +972,7 @@ const Suminputsection: React.FC = () => {
   };
 
   // Update variant field
-  const updateVariantField = (index: number, field: keyof typeof variants[0], value: string) => {
+  const updateVariantField = (index: number, field: keyof VariantFormState, value: string) => {
     setVariants(prev => prev.map((v, i) => i === index ? { ...v, [field]: value } : v));
   };
 
@@ -829,7 +1042,8 @@ const Suminputsection: React.FC = () => {
         variantPrice: existingVariant?.variantPrice || '',
         variantStock: existingVariant?.variantStock || '',
         variantUrl: existingVariant?.variantUrl || '',
-        variantSku: existingVariant?.variantSku || ''
+        variantSku: existingVariant?.variantSku || '',
+        variantId: existingVariant?.variantId
       };
     });
 
@@ -1023,6 +1237,7 @@ const Suminputsection: React.FC = () => {
         : [],
       variants: variants
         .map(v => ({ 
+          ...(v.variantId ? { variantId: v.variantId } : {}),
           optionName: v.optionName?.trim(), 
           optionValue: v.optionValue?.trim(),
           variantPrice: Number(v.variantPrice) || 0,
@@ -1083,30 +1298,43 @@ const Suminputsection: React.FC = () => {
       setSubmitting(true);
       const payload = await buildPayload();
       console.log('📤 Sending payload to API:', JSON.stringify(payload, null, 2));
-      await ProductService.createActiveProduct(payload);
-      showCenterSuccess('Tạo sản phẩm thành công! Đang chuyển đến trang quản lý...');
-      
-      // Reset form
-      setForm(defaultForm);
-      setImages([]);
-      setExtraSpecs({});
-      setVariants([]);
-      setBulkDiscounts([]);
-      setCurrentStep(1);
-      setSelectedProvince(null);
-      setProvinceSearchQuery('');
-      setSelectedDistrict(null);
-      setDistrictSearchQuery('');
-      setSelectedWard(null);
-      setWardSearchQuery('');
-      
-      // Navigate to seller dashboard after a short delay
-      setTimeout(() => {
-        navigate('/seller/dashboard/products');
-      }, 1000);
+      if (mode === 'update') {
+        if (!productId) {
+          throw new Error('Không xác định được mã sản phẩm để cập nhật');
+        }
+        await ProductService.updateProduct(productId, payload);
+        showCenterSuccess('Cập nhật sản phẩm thành công! Đang quay lại trang quản lý...');
+        setTimeout(() => {
+          navigate('/seller/dashboard/products');
+        }, 1000);
+      } else {
+        await ProductService.createActiveProduct(payload);
+        showCenterSuccess('Tạo sản phẩm thành công! Đang chuyển đến trang quản lý...');
+        
+        // Reset form
+        setForm(defaultForm);
+        setImages([]);
+        setExtraSpecs({});
+        setVariants([]);
+        setBulkDiscounts([]);
+        setCurrentStep(1);
+        setSelectedProvince(null);
+        setProvinceSearchQuery('');
+        setSelectedDistrict(null);
+        setDistrictSearchQuery('');
+        setSelectedWard(null);
+        setWardSearchQuery('');
+        
+        // Navigate to seller dashboard after a short delay
+        setTimeout(() => {
+          navigate('/seller/dashboard/products');
+        }, 1000);
+      }
     } catch (err: any) {
       // Xử lý lỗi từ backend
-      let errorMessage = 'Không thể tạo sản phẩm. Vui lòng thử lại.';
+      let errorMessage = mode === 'update'
+        ? 'Không thể cập nhật sản phẩm. Vui lòng thử lại.'
+        : 'Không thể tạo sản phẩm. Vui lòng thử lại.';
       
       if (err?.message) {
         const msg = String(err.message);
@@ -1135,6 +1363,34 @@ const Suminputsection: React.FC = () => {
   // ============================================================================
   // RENDER
   // ============================================================================
+
+  if (mode === 'update' && productLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto"></div>
+          <p className="text-gray-600">Đang tải dữ liệu sản phẩm...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'update' && productError) {
+    return (
+      <div className="max-w-3xl mx-auto py-16">
+        <div className="bg-white border border-red-200 rounded-xl p-6 text-center space-y-4">
+          <p className="text-red-600 font-medium">{productError}</p>
+          <button
+            type="button"
+            onClick={fetchProductDetails}
+            className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            Thử tải lại
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">

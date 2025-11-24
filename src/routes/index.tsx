@@ -63,6 +63,7 @@ import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
 import { StoreService } from '../services/seller/StoreService';
 import { StoreStaffAuthService } from '../services/staff/AuthStaff';
+import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -292,6 +293,14 @@ export const router = createBrowserRouter([
       {
         path: 'products/add',
         element: <CreateProductPage />
+      },
+      {
+        path: 'products/update',
+        element: <ProductManagement />
+      },
+      {
+        path: 'products/:productId/edit',
+        element: <UpdateProductPage />
       },
       {
         path: 'products/out-of-stock',
