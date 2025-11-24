@@ -379,7 +379,7 @@ const StoreAddressPage: React.FC = () => {
         onCancel={handleCloseModal}
         footer={null}
         width={640}
-        destroyOnClose
+        destroyOnHidden
         styles={{
           content: {
             borderRadius: '16px',

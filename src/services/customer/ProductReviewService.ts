@@ -1,0 +1,56 @@
+import { HttpInterceptor } from '../HttpInterceptor';
+import type { ReviewResponse } from '../../types/api';
+
+export interface ReviewListResponse {
+  content: ReviewResponse[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+export class ProductReviewService {
+  static async getMyReviews(page: number = 0, size: number = 10): Promise<ReviewListResponse> {
+    const query = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    });
+
+    return HttpInterceptor.get<ReviewListResponse>(`/api/reviews/me?${query.toString()}`, {
+      userType: 'customer',
+    });
+  }
+
+  static async updateReview(reviewId: string, payload: { rating: number; content: string; media?: ReviewResponse['media'] | null }): Promise<ReviewResponse> {
+    return HttpInterceptor.put<ReviewResponse>(`/api/reviews/${reviewId}`, payload, {
+      userType: 'customer',
+    });
+  }
+
+  static async deleteReview(reviewId: string): Promise<void> {
+    await HttpInterceptor.delete(`/api/reviews/${reviewId}`, {
+      userType: 'customer',
+    });
+  }
+
+  static async getProductReviews(
+    productId: string,
+    page: number = 0,
+    size: number = 10
+  ): Promise<ReviewListResponse> {
+    const query = new URLSearchParams({
+      page: String(page),
+      size: String(size),
+    });
+
+    return HttpInterceptor.get<ReviewListResponse>(
+      `/api/reviews/product/${productId}?${query.toString()}`,
+      { userType: 'customer' }
+    );
+  }
+}
+
+export default ProductReviewService;
+

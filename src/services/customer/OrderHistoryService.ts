@@ -8,6 +8,8 @@ import type {
   OrderHistoryResponse,
   OrderHistoryRequest,
   CustomerOrder,
+  StoreOrder,
+  OrderItem,
 } from '../../types/api';
 import { getCustomerId } from '../../utils/authHelper';
 
@@ -58,7 +60,9 @@ export class OrderHistoryService {
         { userType: 'customer' }
       );
 
-      let filteredItems = response.items || [];
+      const normalizedItems = (response.items || []).map((order) => this.normalizeOrder(order));
+
+      let filteredItems = normalizedItems;
 
       // Client-side search by order ID or external order code
       if (params?.search) {
@@ -193,6 +197,91 @@ export class OrderHistoryService {
       console.error('Failed to get GHN order:', error);
       return null; // Return null instead of throwing to prevent UI errors
     }
+  }
+
+  /**
+   * Normalize API response to always include storeOrders array
+   * New backend response may return items at root level without storeOrders
+   */
+  private static normalizeOrder(order: CustomerOrder & { items?: any[] }): CustomerOrder {
+    if (Array.isArray(order.storeOrders) && order.storeOrders.length > 0) {
+      return order;
+    }
+
+    const generatedStoreOrders = this.createStoreOrdersFromItems(order);
+
+    return {
+      ...order,
+      storeOrders: generatedStoreOrders,
+    };
+  }
+
+  /**
+   * Convert flat order items into storeOrders to keep UI backward-compatible
+   */
+  private static createStoreOrdersFromItems(order: CustomerOrder & { items?: any[] }): StoreOrder[] {
+    const rawItems = Array.isArray(order.items) ? order.items : [];
+    if (rawItems.length === 0) {
+      return [];
+    }
+
+    const grouped = new Map<string, { storeId: string; storeName: string; items: OrderItem[] }>();
+
+    rawItems.forEach((item: any, index: number) => {
+      const storeId = item.storeId || 'unknown-store';
+      const storeName =
+        item.storeName ||
+        item.storeDisplayName ||
+        (storeId !== 'unknown-store' ? `Cửa hàng ${storeId.slice(0, 6)}` : 'Cửa hàng');
+
+      const normalizedItem: OrderItem = {
+        id: item.id || `${order.id}-item-${index + 1}`,
+        type: item.type || 'PRODUCT',
+        refId: item.refId || item.productId || item.id || `${order.id}-ref-${index + 1}`,
+        name: item.name || 'Sản phẩm',
+        quantity: item.quantity ?? 1,
+        unitPrice: item.unitPrice ?? 0,
+        lineTotal: item.lineTotal ?? (item.unitPrice ?? 0) * (item.quantity ?? 1),
+        image: item.image || item.thumbnail || item.productImage,
+      };
+
+      if (!grouped.has(storeId)) {
+        grouped.set(storeId, { storeId, storeName, items: [] });
+      }
+      grouped.get(storeId)!.items.push(normalizedItem);
+    });
+
+    const totalLineAmount =
+      Array.from(grouped.values()).reduce(
+        (sum, group) => sum + group.items.reduce((sub, item) => sub + (item.lineTotal || 0), 0),
+        0,
+      ) || 0;
+
+    const shippingFeeTotal = order.shippingFeeTotal ?? 0;
+    const discountTotal = order.discountTotal ?? 0;
+
+    return Array.from(grouped.values()).map((group, groupIndex) => {
+      const subtotal = group.items.reduce((sum, item) => sum + (item.lineTotal || 0), 0);
+      const ratio =
+        totalLineAmount > 0 ? subtotal / totalLineAmount : 1 / Math.max(1, grouped.size);
+
+      const storeShippingFee = Math.round(shippingFeeTotal * ratio);
+      const storeDiscount = Math.round(discountTotal * ratio);
+
+      return {
+        id: `${order.id}-store-${groupIndex + 1}`,
+        orderCode: order.orderCode ?? null,
+        storeId: group.storeId,
+        storeName: group.storeName,
+        status: order.status,
+        createdAt: order.createdAt,
+        totalAmount: subtotal,
+        discountTotal: storeDiscount,
+        shippingFee: storeShippingFee,
+        grandTotal: subtotal - storeDiscount + storeShippingFee,
+        items: group.items,
+      };
+    });
   }
 }
 

@@ -405,6 +405,7 @@ export interface ReviewResponse {
     content: string;
     createdAt: string;
   }>;
+  status?: 'VISIBLE' | 'HIDDEN' | 'DELETED';
 }
 
 // Order History Response (paginated)

@@ -6,11 +6,18 @@ import { AddressBook } from '../../../components/ProfilePageComponents/AddressBo
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
+import { ReviewProductPage } from '../ReviewFolder';
 import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned, Lock, CreditCard, Shield } from 'lucide-react';
+import { User, Package, MapPinned, Lock, CreditCard, Shield, Star } from 'lucide-react';
 import { profileCache } from '../../../services/cache/ProfileCache';
 
-const Profile: React.FC = () => {
+type ProfileTab = 'info' | 'orders' | 'addresses' | 'password' | 'bank' | 'warranty' | 'reviews';
+
+interface ProfileProps {
+  initialTab?: ProfileTab;
+}
+
+const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
   const [data, setData] = useState<ProfileData | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [preloadedData, setPreloadedData] = useState<{
@@ -79,13 +86,18 @@ const Profile: React.FC = () => {
     setData(loadProfileData());
   };
 
-  const [active, setActive] = useState<'info' | 'orders' | 'addresses' | 'password' | 'bank' | 'warranty'>('info');
+  const [active, setActive] = useState<ProfileTab>(initialTab);
+
+  useEffect(() => {
+    setActive(initialTab);
+  }, [initialTab]);
 
   const navItems = useMemo(() => ([
     { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
     { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
     { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
     { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
+    { key: 'reviews' as const, label: 'Đánh giá sản phẩm', icon: Star },
     { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
     { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
   ]), []);
@@ -155,6 +167,10 @@ const Profile: React.FC = () => {
                   onDeleteCard={handleDeleteBankCard}
                   onSetDefault={handleSetDefaultBankCard}
                 />
+              </div>
+
+              <div className={active === 'reviews' ? 'block' : 'hidden'}>
+                <ReviewProductPage />
               </div>
             </section>
           </div>

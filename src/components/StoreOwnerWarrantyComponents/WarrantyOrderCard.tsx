@@ -808,7 +808,7 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
         onCancel={handleCloseEditLogModal}
         footer={null}
         width={720}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editLogForm} layout="vertical">
           <Form.Item
