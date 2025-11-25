@@ -1,16 +1,26 @@
 import React, { useMemo, useState } from 'react';
-import type { CustomerOrder, ReviewMediaPayload } from '../../types/api';
+import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
-import { Package, Calendar, MapPin, Phone, Store, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
+import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
 import { Card, Button, message } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { ReviewService } from '../../services/customer/ReviewService';
+import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
 interface Props {
   order: CustomerOrder;
   ghnOrderData?: Record<string, any>;
   onOrderCancelled?: () => void;
 }
+
+const getErrorMessage = (error: any, fallback: string) => {
+  return (
+    error?.message ||
+    error?.data?.message ||
+    (Array.isArray(error?.errors) ? error.errors[0] : null) ||
+    fallback
+  );
+};
 
 const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -30,23 +40,35 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const formattedDate = formatDate(order.createdAt);
   const isDeliverySuccess = order.status === 'DELIVERY_SUCCESS';
 
-  const totalItems = useMemo(
-    () => order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0),
-    [order.storeOrders]
-  );
+  type LegacyOrderWithItems = CustomerOrder & { items?: Array<OrderItem & { storeName?: string | null }> };
+  const storeOrders = order.storeOrders ?? [];
+  const legacyItems = (order as LegacyOrderWithItems).items ?? [];
 
   const reviewableItems = useMemo(() => {
-    return order.storeOrders.flatMap((storeOrder) =>
-      storeOrder.items
-        .filter((item) => item.type === 'PRODUCT')
-        .map((item) => ({
-          id: item.id,
-          name: item.name,
-          image: item.image,
-          storeName: storeOrder.storeName,
-        }))
-    );
-  }, [order.storeOrders]);
+    if (storeOrders.length > 0) {
+      return storeOrders.flatMap((storeOrder) => {
+        const items = storeOrder.items ?? [];
+        return items
+          .filter((item) => item.type === 'PRODUCT')
+          .map((item) => ({
+            id: item.id,
+            name: item.name,
+            image: item.image,
+            storeName: storeOrder.storeName,
+          }));
+      });
+    }
+
+    // Fallback for legacy API response where items exist at root level
+    return legacyItems
+      .filter((item) => item.type === 'PRODUCT')
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        image: item.image,
+        storeName: item.storeName ?? 'Cửa hàng',
+      }));
+  }, [storeOrders, legacyItems]);
 
   const resetReviewForm = () => {
     setSelectedReviewItem(null);
@@ -106,7 +128,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         onOrderCancelled();
       }
     } catch (err: any) {
-      message.error(err?.message || 'Hủy đơn hàng thất bại');
+      message.error(getErrorMessage(err, 'Hủy đơn hàng thất bại'));
     } finally {
       setIsCancelling(false);
     }
@@ -157,11 +179,12 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         content: reviewContent.trim(),
         media: mediaPayload.length > 0 ? mediaPayload : undefined,
       });
-      message.success('Đánh giá sản phẩm thành công');
+      showCenterSuccess('Đánh giá sản phẩm thành công');
       setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.id])));
       resetReviewForm();
     } catch (err: any) {
-      message.error(err?.message || 'Không thể gửi đánh giá, vui lòng thử lại');
+      const errMsg = getErrorMessage(err, 'Không thể gửi đánh giá, vui lòng thử lại');
+      showCenterError(errMsg, 'Gửi đánh giá thất bại');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -213,18 +236,14 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <div className="mb-4 flex items-center gap-2">
               <ShoppingBag className="w-4 h-4 text-[#FF6A00]" />
               <h3 className="text-sm font-semibold text-gray-900">
-                Sản phẩm ({totalItems} món · {order.storeOrders.length} cửa hàng)
+                Sản phẩm
               </h3>
             </div>
 
             <div className="space-y-4">
-              {order.storeOrders.map((storeOrder) => (
+              {storeOrders.map((storeOrder) => (
                 <div key={storeOrder.id} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                      <Store className="w-4 h-4 text-orange-500" />
-                      {storeOrder.storeName}
-                    </div>
+                  <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
                     <span style={getStatusBadgeStyle(storeOrder.status)} className="text-xs">
                       {getStatusLabel(storeOrder.status)}
                     </span>

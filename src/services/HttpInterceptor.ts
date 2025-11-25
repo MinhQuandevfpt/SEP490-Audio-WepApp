@@ -205,14 +205,37 @@ export class HttpInterceptor {
    * Get token for user type
    */
   private static getToken(userType: UserType): string | null {
-    const tokenKeys: Record<UserType, string> = {
-      customer: 'customer_token',
-      seller: 'seller_token',
-      staff: 'staff_token',
-      admin: 'admin_access_token', // Admin sử dụng 'admin_access_token'
+    const tokenKeys: Record<UserType, { primary: string; fallbacks: string[] }> = {
+      customer: {
+        primary: 'CUSTOMER_token',
+        fallbacks: ['customer_token'],
+      },
+      seller: {
+        primary: 'STOREOWNER_token',
+        fallbacks: ['seller_token'],
+      },
+      staff: {
+        primary: 'STAFF_token',
+        fallbacks: ['staff_token'],
+      },
+      admin: {
+        primary: 'admin_access_token',
+        fallbacks: [],
+      },
     };
-    
-    return localStorage.getItem(tokenKeys[userType]);
+
+    const config = tokenKeys[userType];
+    if (!config) return null;
+
+    const allKeys = [config.primary, ...config.fallbacks];
+    for (const key of allKeys) {
+      const token = localStorage.getItem(key);
+      if (token) {
+        return token;
+      }
+    }
+
+    return null;
   }
 
   /**

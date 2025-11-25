@@ -180,6 +180,10 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<Profile />} />
   },
   {
+    path: '/account/reviews',
+    element: <ProtectedRoute element={<Profile initialTab="reviews" />} />
+  },
+  {
     path: '/product/:id',
     element: <ProductDetail />
   },

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Button, Empty, Spin, Typography, Space, Divider } from 'antd';
+import { Card, Button, Empty, Spin, Typography, Divider } from 'antd';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
 import type { CustomerOrder } from '../../../types/api';
@@ -18,7 +18,7 @@ const OrderHistory: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await OrderHistoryService.list({ page: 0, size: 3 });
+      const response = await OrderHistoryService.list({ page: 0, size: 1 });
       setOrders(response.data);
     } catch (err: any) {
       setError(err?.message || 'Không thể tải danh sách đơn hàng');
@@ -43,25 +43,23 @@ const OrderHistory: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <Title level={4} className="!mb-1 !text-gray-900">Đơn hàng gần đây</Title>
-            <Text type="secondary" className="text-sm">3 đơn hàng mới nhất của bạn</Text>
+            <Text type="secondary" className="text-sm">Đơn hàng mới nhất của bạn</Text>
           </div>
-          {orders.length > 0 && (
-            <Button
-              type="default"
-              icon={<ExternalLink className="w-4 h-4 text-orange-500" />}
-              onClick={handleViewAll}
-              style={{ 
-                backgroundColor: 'transparent',
-                borderColor: '#f97316',
-                color: '#f97316',
-                borderRadius: '999px',
-                paddingInline: '20px',
-                fontWeight: 600
-              }}
-            >
-              Xem tất cả
-            </Button>
-          )}
+          <Button
+            type="default"
+            icon={<ExternalLink className="w-4 h-4 text-orange-500" />}
+            onClick={handleViewAll}
+            style={{ 
+              backgroundColor: 'transparent',
+              borderColor: '#f97316',
+              color: '#f97316',
+              borderRadius: '999px',
+              paddingInline: '20px',
+              fontWeight: 600
+            }}
+          >
+            Xem tất cả
+          </Button>
         </div>
       }
       className="shadow-sm border-gray-200"
@@ -87,34 +85,27 @@ const OrderHistory: React.FC = () => {
           }
         />
       ) : (
-        <Space direction="vertical" size="large" className="w-full">
-          {orders.map((order) => (
-            <OrderCard key={order.id} order={order} />
-          ))}
-          
-          {orders.length > 0 && (
-            <>
-              <Divider style={{ margin: '16px 0' }} />
-              <Button
-                type="primary"
-                block
-                size="large"
-                icon={<ArrowRight className="w-4 h-4" />}
-                onClick={handleViewAll}
-                style={{ 
-                  backgroundColor: '#f97316', 
-                  borderColor: '#f97316',
-                  borderRadius: '8px',
-                  height: '48px',
-                  fontSize: '16px',
-                  fontWeight: 500
-                }}
-              >
-                Xem tất cả đơn hàng
-              </Button>
-            </>
-          )}
-        </Space>
+        <>
+          <OrderCard key={orders[0].id} order={orders[0]} />
+          <Divider style={{ margin: '16px 0' }} />
+          <Button
+            type="primary"
+            block
+            size="large"
+            icon={<ArrowRight className="w-4 h-4" />}
+            onClick={handleViewAll}
+            style={{ 
+              backgroundColor: '#f97316', 
+              borderColor: '#f97316',
+              borderRadius: '8px',
+              height: '48px',
+              fontSize: '16px',
+              fontWeight: 500
+            }}
+          >
+            Xem tất cả đơn hàng
+          </Button>
+        </>
       )}
 
     </Card>

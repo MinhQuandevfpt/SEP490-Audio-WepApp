@@ -557,7 +557,7 @@ const handleCloseLogsModal = () => {
         footer={null}
         width={960}
         centered
-        destroyOnClose
+        destroyOnHidden
         title={
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-orange-600" />
@@ -707,7 +707,7 @@ const handleCloseLogsModal = () => {
         onCancel={handleRepairModalCancel}
         footer={null}
         width={700}
-        destroyOnClose
+        destroyOnHidden
       >
         {selectedWarranty && (
           <div className="space-y-4">

@@ -810,7 +810,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
         onCancel={handleClose}
         width={1400}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         style={{ top: 20 }}
       >
       {/* Alert */}
