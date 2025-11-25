@@ -189,7 +189,7 @@ const CreateCombo: React.FC = () => {
     }
   };
 
-  const handleAddProduct = (product: Product, variantId?: string) => {
+  const handleToggleProduct = (product: Product, variantId?: string) => {
     const itemKey = variantId ? `${product.productId}_${variantId}` : product.productId;
     const existingItem = form.items.find(item => {
       if (variantId) {
@@ -199,20 +199,8 @@ const CreateCombo: React.FC = () => {
     });
     
     if (existingItem) {
-      // Increase quantity
-      setForm(prev => ({
-        ...prev,
-        items: prev.items.map(item => {
-          if (variantId) {
-            return item.productId === product.productId && item.variantId === variantId
-              ? { ...item, quantity: item.quantity + 1 }
-              : item;
-          }
-          return item.productId === product.productId && !item.variantId
-            ? { ...item, quantity: item.quantity + 1 }
-            : item;
-        }),
-      }));
+      // Remove product if already selected
+      handleRemoveProduct(product.productId, variantId);
     } else {
       // Add new product/variant
       const variant = variantId ? product.variants.find(v => v.variantId === variantId) : null;
@@ -229,6 +217,16 @@ const CreateCombo: React.FC = () => {
       }));
       setSelectedProductsMap(prev => new Map(prev).set(itemKey, product));
     }
+  };
+
+  const handleIncreaseQuantity = (productId: string, variantId: string | undefined, currentQuantity: number, maxStock: number) => {
+    if (currentQuantity >= maxStock) return;
+    handleUpdateQuantity(productId, variantId, currentQuantity + 1);
+  };
+
+  const handleDecreaseQuantity = (productId: string, variantId: string | undefined, currentQuantity: number) => {
+    if (currentQuantity <= 1) return;
+    handleUpdateQuantity(productId, variantId, currentQuantity - 1);
   };
 
   const handleUpdateQuantity = (productId: string, variantId: string | undefined, quantity: number) => {
@@ -675,43 +673,67 @@ const CreateCombo: React.FC = () => {
                     if (product.variants && product.variants.length > 0) {
                       return product.variants.map((variant) => {
                         const itemKey = `${product.productId}_${variant.variantId}`;
-                        const isSelected = form.items.some(
+                        const selectedItem = form.items.find(
                           item => item.productId === product.productId && item.variantId === variant.variantId
                         );
+                        const isSelected = !!selectedItem;
                         
                         return (
                           <div
                             key={itemKey}
-                            className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
                               isSelected
                                 ? 'border-orange-500 bg-orange-50'
                                 : 'border-gray-200 hover:border-orange-300'
                             }`}
-                            onClick={() => handleAddProduct(product, variant.variantId)}
                           >
-                            <img
-                              src={variant.variantUrl || product.images[0] || '/placeholder.png'}
-                              alt={product.name}
-                              className="w-16 h-16 object-cover rounded-lg"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-gray-900 truncate">{product.name}</h4>
-                              <p className="text-xs text-gray-600">{variant.optionName}: {variant.optionValue}</p>
-                              <p className="text-xs text-gray-500">SKU: {variant.variantSku}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <p className="text-sm text-orange-600 font-semibold">
-                                  {variant.variantPrice.toLocaleString('vi-VN')}đ
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  Kho: {variant.variantStock}
-                                </p>
+                            <div 
+                              className="flex items-center gap-3 flex-1 cursor-pointer"
+                              onClick={() => handleToggleProduct(product, variant.variantId)}
+                            >
+                              <img
+                                src={variant.variantUrl || product.images[0] || '/placeholder.png'}
+                                alt={product.name}
+                                className="w-16 h-16 object-cover rounded-lg"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-gray-900 truncate">{product.name}</h4>
+                                <p className="text-xs text-gray-600">{variant.optionName}: {variant.optionValue}</p>
+                                <p className="text-xs text-gray-500">SKU: {variant.variantSku}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-sm text-orange-600 font-semibold">
+                                    {variant.variantPrice.toLocaleString('vi-VN')}đ
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Kho: {variant.variantStock}
+                                  </p>
+                                </div>
                               </div>
+                              {isSelected && (
+                                <div className="flex-shrink-0 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              )}
                             </div>
-                            {isSelected && (
-                              <div className="flex-shrink-0 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
+                            {isSelected && selectedItem && (
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDecreaseQuantity(product.productId, variant.variantId, selectedItem.quantity)}
+                                  className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors"
+                                >
+                                  -
+                                </button>
+                                <span className="w-10 text-center font-semibold">{selectedItem.quantity}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIncreaseQuantity(product.productId, variant.variantId, selectedItem.quantity, variant.variantStock)}
+                                  className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded text-white transition-colors"
+                                >
+                                  +
+                                </button>
                               </div>
                             )}
                           </div>
@@ -720,42 +742,66 @@ const CreateCombo: React.FC = () => {
                     }
                     
                     // Product without variants - show normally
-                    const isSelected = form.items.some(
+                    const selectedItem = form.items.find(
                       item => item.productId === product.productId && !item.variantId
                     );
+                    const isSelected = !!selectedItem;
                     
                     return (
                       <div
                         key={product.productId}
-                        className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
                           isSelected
                             ? 'border-orange-500 bg-orange-50'
                             : 'border-gray-200 hover:border-orange-300'
                         }`}
-                        onClick={() => handleAddProduct(product)}
                       >
-                        <img
-                          src={product.images[0] || '/placeholder.png'}
-                          alt={product.name}
-                          className="w-16 h-16 object-cover rounded-lg"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-gray-900 truncate">{product.name}</h4>
-                          <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <p className="text-sm text-orange-600 font-semibold">
-                              {product.price.toLocaleString('vi-VN')}đ
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Kho: {product.stockQuantity}
-                            </p>
+                        <div 
+                          className="flex items-center gap-3 flex-1 cursor-pointer"
+                          onClick={() => handleToggleProduct(product)}
+                        >
+                          <img
+                            src={product.images[0] || '/placeholder.png'}
+                            alt={product.name}
+                            className="w-16 h-16 object-cover rounded-lg"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-gray-900 truncate">{product.name}</h4>
+                            <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-sm text-orange-600 font-semibold">
+                                {product.price.toLocaleString('vi-VN')}đ
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Kho: {product.stockQuantity}
+                              </p>
+                            </div>
                           </div>
+                          {isSelected && (
+                            <div className="flex-shrink-0 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
                         </div>
-                        {isSelected && (
-                          <div className="flex-shrink-0 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
+                        {isSelected && selectedItem && (
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleDecreaseQuantity(product.productId, undefined, selectedItem.quantity)}
+                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors"
+                            >
+                              -
+                            </button>
+                            <span className="w-10 text-center font-semibold">{selectedItem.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleIncreaseQuantity(product.productId, undefined, selectedItem.quantity, product.stockQuantity)}
+                              className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded text-white transition-colors"
+                            >
+                              +
+                            </button>
                           </div>
                         )}
                       </div>
