@@ -205,6 +205,7 @@ const StoreOrderCard: React.FC<Props> = ({ order, onView, onStatusUpdate }) => {
       {showGhnModal && (
         <GhnTransferModal
           orderId={order.id}
+          storeOrderTotal={order.grandTotal}
           onClose={() => setShowGhnModal(false)}
           onSubmit={(data) => {
             console.log('GHN Transfer Data:', data);

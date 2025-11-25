@@ -50,6 +50,20 @@ export class ProductReviewService {
       { userType: 'customer' }
     );
   }
+
+  static async getMyReviewForProduct(productId: string): Promise<ReviewResponse | null> {
+    try {
+      return await HttpInterceptor.get<ReviewResponse>(
+        `/api/reviews/product/${productId}/me`,
+        { userType: 'customer' }
+      );
+    } catch (error: any) {
+      if (error?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
 }
 
 export default ProductReviewService;

@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
+import type { CustomerOrder, ReviewMediaPayload, OrderItem, ReviewResponse } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
 import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
 import { Card, Button, message } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
+import { ProductReviewService } from '../../services/customer/ProductReviewService';
 
 interface Props {
   order: CustomerOrder;
@@ -26,7 +27,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [selectedReviewItem, setSelectedReviewItem] = useState<{ id: string; name: string; storeName: string; image?: string } | null>(null);
+  const [selectedReviewItem, setSelectedReviewItem] = useState<ReviewableItem | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewContent, setReviewContent] = useState('');
   const [reviewMedia, setReviewMedia] = useState<Array<ReviewMediaPayload & { file?: File | null; preview?: string | null }>>([
@@ -34,6 +35,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   ]);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedItemIds, setReviewedItemIds] = useState<string[]>([]);
+  const [loadingReviewStatus, setLoadingReviewStatus] = useState<Record<string, boolean>>({});
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -44,7 +46,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const storeOrders = order.storeOrders ?? [];
   const legacyItems = (order as LegacyOrderWithItems).items ?? [];
 
-  const reviewableItems = useMemo(() => {
+  type ReviewableItem = {
+    id: string;
+    name: string;
+    image?: string;
+    storeName: string;
+    productRefId: string;
+  };
+
+  const reviewableItems: ReviewableItem[] = useMemo(() => {
     if (storeOrders.length > 0) {
       return storeOrders.flatMap((storeOrder) => {
         const items = storeOrder.items ?? [];
@@ -55,6 +65,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             name: item.name,
             image: item.image,
             storeName: storeOrder.storeName,
+            productRefId: item.refId || item.id || '',
           }));
       });
     }
@@ -67,6 +78,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         name: item.name,
         image: item.image,
         storeName: item.storeName ?? 'Cửa hàng',
+        productRefId: item.refId || item.id || '',
       }));
   }, [storeOrders, legacyItems]);
 
@@ -77,11 +89,48 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
   };
 
-  const handleSelectReviewItem = (item: { id: string; name: string; storeName: string; image?: string }) => {
-    setSelectedReviewItem(item);
-    setReviewRating(5);
-    setReviewContent('');
-    setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+  const handleSelectReviewItem = (item: ReviewableItem) => {
+    const productId = item.productRefId;
+    if (!productId) {
+      setSelectedReviewItem(item);
+      setReviewRating(5);
+      setReviewContent('');
+      setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+      return;
+    }
+
+    if (reviewedItemIds.includes(productId)) {
+      message.info('Bạn đã đánh giá sản phẩm này rồi.');
+      return;
+    }
+
+    setLoadingReviewStatus((prev) => ({ ...prev, [productId]: true }));
+
+    ProductReviewService.getMyReviewForProduct(productId)
+      .then((review: ReviewResponse | null) => {
+        if (review) {
+          setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
+          message.info('Bạn đã đánh giá sản phẩm này rồi.');
+        } else {
+          setSelectedReviewItem(item);
+          setReviewRating(5);
+          setReviewContent('');
+          setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+        }
+      })
+      .catch((error: any) => {
+        console.error('Error checking existing review:', error);
+        setSelectedReviewItem(item);
+        setReviewRating(5);
+        setReviewContent('');
+        setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+      })
+      .finally(() => {
+        setLoadingReviewStatus((prev) => {
+          const { [productId]: _, ...rest } = prev;
+          return rest;
+        });
+      });
   };
 
   const handleMediaChange = (index: number, field: keyof ReviewMediaPayload, value: string) => {
@@ -180,7 +229,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         media: mediaPayload.length > 0 ? mediaPayload : undefined,
       });
       showCenterSuccess('Đánh giá sản phẩm thành công');
-      setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.id])));
+      if (selectedReviewItem.productRefId) {
+        setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.productRefId])));
+      }
       resetReviewForm();
     } catch (err: any) {
       const errMsg = getErrorMessage(err, 'Không thể gửi đánh giá, vui lòng thử lại');
@@ -336,7 +387,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
 
               <div className="space-y-3">
                 {reviewableItems.map((item) => {
-                  const reviewed = reviewedItemIds.includes(item.id);
+                  const productId = item.productRefId;
+                  const reviewed = reviewedItemIds.includes(productId);
+                  const isChecking = loadingReviewStatus[productId];
                   return (
                     <div key={item.id} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3">
                       <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
@@ -352,8 +405,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                       </div>
                       <Button
                         type="primary"
-                        disabled={reviewed}
+                        disabled={reviewed || isChecking}
                         onClick={() => handleSelectReviewItem(item)}
+                        loading={isChecking}
                         style={{
                           backgroundColor: reviewed ? '#D1D5DB' : '#FF6A00',
                           borderColor: reviewed ? '#D1D5DB' : '#FF6A00',

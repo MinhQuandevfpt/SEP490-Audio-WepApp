@@ -100,11 +100,18 @@ export class OrderHistoryService {
         { userType: 'customer' }
       );
 
+      let order: CustomerOrder | null = null;
       if (response && typeof response === 'object' && 'data' in response) {
-        return (response as { data: CustomerOrder }).data;
+        order = (response as { data: CustomerOrder }).data;
+      } else {
+        order = response as CustomerOrder;
       }
 
-      return response as CustomerOrder;
+      if (!order) {
+        return null;
+      }
+
+      return this.normalizeOrder(order as CustomerOrder & { items?: any[] });
     } catch (error: any) {
       console.error('❌ Error fetching order detail:', error);
       if (error?.status === 404) {

@@ -62,6 +62,7 @@ interface GhnTransferFormData {
 
 interface Props {
   orderId: string;
+  storeOrderTotal?: number;
   onClose: () => void;
   onSubmit?: (data: GhnTransferFormData) => void;
 }
@@ -165,7 +166,7 @@ const parseAddressSegments = (address: string) => {
   return { province, district, ward };
 };
 
-const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
+const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, onSubmit }) => {
   const [formData, setFormData] = useState<GhnTransferFormData>({
     payment_type_id: 0,
     note: '',
@@ -328,6 +329,15 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
           // Map order items to GHN items format
           // For each item, fetch product detail to get SKU
           try {
+            const totalAmount = storeOrderTotal ?? order.grandTotal ?? 0;
+            const totalQuantity = order.items.reduce(
+              (sum, item) => sum + (item.quantity || 0),
+              0
+            );
+
+            const pricePerItem =
+              totalQuantity > 0 ? Math.round(totalAmount / totalQuantity) : 0;
+
             console.log('📦 Loading product details for items...');
             const ghnItemsPromises = order.items.map(async (item) => {
               let productCode = item.refId || item.id || '';
@@ -351,7 +361,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
                 name: item.name || '',
                 code: productCode,
                 quantity: item.quantity || 1,
-                price: item.lineTotal || item.unitPrice || 0,
+                price: pricePerItem,
                 length: 0,
                 width: 0,
                 height: 0,
@@ -377,11 +387,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, onClose, onSubmit }) => {
           } catch (error: any) {
             console.error('❌ Error loading product details:', error);
             // Fallback: use items without SKU
+            const fallbackTotalAmount = storeOrderTotal ?? order.grandTotal ?? 0;
+            const fallbackQuantity = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const fallbackPerItem = fallbackQuantity > 0 ? Math.round(fallbackTotalAmount / fallbackQuantity) : 0;
             const ghnItems: GhnItem[] = order.items.map((item) => ({
               name: item.name || '',
               code: item.refId || item.id || '',
               quantity: item.quantity || 1,
-              price: item.lineTotal || item.unitPrice || 0,
+              price: fallbackPerItem,
               length: 0,
               width: 0,
               height: 0,

@@ -408,6 +408,8 @@ export interface ReviewResponse {
   status?: 'VISIBLE' | 'HIDDEN' | 'DELETED';
 }
 
+export interface ProductReviewForCurrentUserResponse extends ReviewResponse {}
+
 // Order History Response (paginated)
 export interface OrderHistoryResponse {
   items: CustomerOrder[];
