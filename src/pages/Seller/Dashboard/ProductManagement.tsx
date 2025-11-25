@@ -225,7 +225,8 @@ const ProductManagement: React.FC = () => {
       title: 'Sản phẩm',
       dataIndex: 'name',
       key: 'name',
-      width: 300,
+      width: 250,
+      fixed: 'left',
       render: (_, record) => (
         <div className="flex items-start space-x-3">
           <Image
@@ -323,8 +324,9 @@ const ProductManagement: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 120,
+      width: 100,
       align: 'center',
+      fixed: 'right',
       render: (_, record) => {
         // Don't show actions for variant rows
         if (record.isVariant) return null;
@@ -364,7 +366,7 @@ const ProductManagement: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 md:p-6 max-w-full overflow-hidden">
+    <div className="w-full overflow-x-hidden">
       {/* Custom CSS for expand icon alignment */}
       <style>{`
         .ant-table-row-expand-icon {

@@ -70,6 +70,7 @@ const CampaignProductDetails: React.FC = () => {
     startTime: string;
     endTime: string;
     registeredAt: string;
+    badgeIconUrl?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -116,7 +117,8 @@ const CampaignProductDetails: React.FC = () => {
           type: first.campaignType,
           startTime: first.startTime,
           endTime: first.endTime,
-          registeredAt: first.registeredAt
+          registeredAt: first.registeredAt,
+          badgeIconUrl: (first as any).badgeIconUrl
         });
       }
 
@@ -271,7 +273,8 @@ const CampaignProductDetails: React.FC = () => {
     {
       title: 'Sản phẩm',
       key: 'product',
-      width: 320,
+      width: 250,
+      fixed: 'left',
       render: (_, record) => {
         const fullProduct = record.fullProduct || productsMap.get(record.productId);
         const imageUrl = fullProduct?.images?.[0] || `https://via.placeholder.com/80?text=${encodeURIComponent(record.productName.slice(0, 2))}`;
@@ -498,8 +501,9 @@ const CampaignProductDetails: React.FC = () => {
     {
       title: 'Trạng thái',
       key: 'status',
-      width: 130,
+      width: 110,
       align: 'center',
+      fixed: 'right',
       render: (_, record) => (
         <div>
           <Tag
@@ -603,8 +607,8 @@ const CampaignProductDetails: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="w-full overflow-x-hidden">
+      <div className="w-full">
         {/* Header - Back Button */}
         <Button
           type="text"
@@ -658,13 +662,26 @@ const CampaignProductDetails: React.FC = () => {
                   {/* Campaign Header */}
                   <Col span={24}>
                     <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                        {campaignInfo.type === 'MEGA_SALE' ? (
-                          <FireOutlined style={{ fontSize: '24px', color: 'white' }} />
-                        ) : (
-                          <ThunderboltOutlined style={{ fontSize: '24px', color: 'white' }} />
-                        )}
-                      </div>
+                      {campaignInfo.badgeIconUrl ? (
+                        <div className="flex-shrink-0 w-12 h-12">
+                          <Image
+                            src={campaignInfo.badgeIconUrl}
+                            alt={campaignInfo.name}
+                            width={48}
+                            height={48}
+                            className="rounded object-contain"
+                            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                          {campaignInfo.type === 'MEGA_SALE' ? (
+                            <FireOutlined style={{ fontSize: '24px', color: 'white' }} />
+                          ) : (
+                            <ThunderboltOutlined style={{ fontSize: '24px', color: 'white' }} />
+                          )}
+                        </div>
+                      )}
                       <div className="flex-1">
                         <Title level={3} style={{ margin: 0 }}>
                           {campaignInfo.name}
@@ -728,7 +745,7 @@ const CampaignProductDetails: React.FC = () => {
             {/* ============ SECTION 2: PRODUCTS TABLE ============ */}
             <Card
               title={
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <Space>
                     <InboxOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
                     <span className="text-lg font-semibold">
@@ -750,57 +767,59 @@ const CampaignProductDetails: React.FC = () => {
                   </Button>
                 </div>
               }
-              className="shadow-sm"
+              className="shadow-sm overflow-hidden"
               style={{ borderRadius: '12px' }}
             >
-              <Table
-                columns={columns}
-                dataSource={products}
-                rowKey="campaignProductId"
-                scroll={{ x: 'max-content' }}
-                pagination={{
-                  pageSize: 20,
-                  showSizeChanger: true,
-                  pageSizeOptions: ['10', '20', '50', '100'],
-                  showTotal: (total) => `Tổng ${total} sản phẩm`,
-                  position: ['bottomCenter']
-                }}
-                rowClassName={(record) => {
-                  if (record.status === 'REJECTED') return 'bg-red-50';
-                  if (record.status === 'DRAFT') return 'bg-orange-50';
-                  if (record.status === 'ACTIVE') return 'bg-blue-50';
-                  return '';
-                }}
-                expandable={{
-                  expandedRowRender: (record) => {
-                    // Only show expanded view if product has variants
-                    if (!record.variantData || record.variantData.length === 0) {
-                      return null;
-                    }
+              <div className="overflow-x-auto">
+                <Table
+                  columns={columns}
+                  dataSource={products}
+                  rowKey="campaignProductId"
+                  scroll={{ x: 1400 }}
+                  pagination={{
+                    pageSize: 20,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50', '100'],
+                    showTotal: (total) => `Tổng ${total} sản phẩm`,
+                    position: ['bottomCenter']
+                  }}
+                  rowClassName={(record) => {
+                    if (record.status === 'REJECTED') return 'bg-red-50';
+                    if (record.status === 'DRAFT') return 'bg-orange-50';
+                    if (record.status === 'ACTIVE') return 'bg-blue-50';
+                    return '';
+                  }}
+                  expandable={{
+                    expandedRowRender: (record) => {
+                      // Only show expanded view if product has variants
+                      if (!record.variantData || record.variantData.length === 0) {
+                        return null;
+                      }
 
-                    return (
-                      <div className="bg-gray-50 p-4">
-                        <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                          💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình voucher.
+                      return (
+                        <div className="bg-gray-50 p-4">
+                          <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                            💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình voucher.
+                          </div>
+                          <Table
+                            columns={variantColumns}
+                            dataSource={record.variantData}
+                            rowKey="variantId"
+                            pagination={false}
+                            size="small"
+                            showHeader={true}
+                          />
                         </div>
-                        <Table
-                          columns={variantColumns}
-                          dataSource={record.variantData}
-                          rowKey="variantId"
-                          pagination={false}
-                          size="small"
-                          showHeader={true}
-                        />
-                      </div>
-                    );
-                  },
-                  rowExpandable: (record) => {
-                    // Only allow expand if product has variants
-                    return !!(record.variantData && record.variantData.length > 0);
-                  },
-                  columnWidth: 48,
-                }}
-              />
+                      );
+                    },
+                    rowExpandable: (record) => {
+                      // Only allow expand if product has variants
+                      return !!(record.variantData && record.variantData.length > 0);
+                    },
+                    columnWidth: 48,
+                  }}
+                />
+              </div>
             </Card>
           </>
         )}
