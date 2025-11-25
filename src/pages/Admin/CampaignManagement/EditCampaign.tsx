@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Zap, Plus, Trash2, Upload, Loader } from 'lucide-react';
 import { CampaignService } from '../../../services/admin/CampaignService';
 import type { UpdateCampaignRequest, Campaign } from '../../../types/admin';
 import { showTikiNotification } from '../../../utils/notification';
 import { FileUploadService } from '../../../services/FileUploadService';
+import { validateCampaignTimes, validateFlashSlots, hasCampaignStarted, getMinDateTime } from '../../../utils/campaignValidation';
 
 const EditCampaign: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +15,15 @@ const EditCampaign: React.FC = () => {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [badgeImageFile, setBadgeImageFile] = useState<File | null>(null);
   const [badgeImagePreview, setBadgeImagePreview] = useState('');
+
+  // Get minimum datetime for preventing past selection
+  const minDateTime = useMemo(() => getMinDateTime(), []);
+  
+  // Validation errors
+  const [timeErrors, setTimeErrors] = useState({
+    startTime: '',
+    endTime: ''
+  });
 
   const [formData, setFormData] = useState<UpdateCampaignRequest>({
     name: '',
@@ -91,6 +101,51 @@ const EditCampaign: React.FC = () => {
       ...prev,
       [name]: newValue
     }));
+
+    // Validate time fields in real-time (only if campaign hasn't started)
+    if ((name === 'startTime' || name === 'endTime') && campaign && !hasCampaignStarted(campaign.startTime)) {
+      validateTimeFields(name, value);
+    }
+  };
+
+  const validateTimeFields = (fieldName: string, value: string) => {
+    const newErrors = { ...timeErrors };
+    
+    if (fieldName === 'startTime') {
+      const start = new Date(value);
+      const now = new Date();
+      
+      if (value && start < now) {
+        newErrors.startTime = 'Không thể chọn thời gian trong quá khứ';
+      } else {
+        newErrors.startTime = '';
+      }
+      
+      // Also validate endTime if it exists
+      if (formData.endTime) {
+        const end = new Date(formData.endTime);
+        if (value && end <= start) {
+          newErrors.endTime = 'Thời gian kết thúc phải sau thời gian bắt đầu';
+        } else {
+          newErrors.endTime = '';
+        }
+      }
+    }
+    
+    if (fieldName === 'endTime') {
+      const end = new Date(value);
+      
+      if (formData.startTime) {
+        const start = new Date(formData.startTime);
+        if (value && end <= start) {
+          newErrors.endTime = 'Thời gian kết thúc phải sau thời gian bắt đầu';
+        } else {
+          newErrors.endTime = '';
+        }
+      }
+    }
+    
+    setTimeErrors(newErrors);
   };
 
   const handleBadgeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,33 +180,97 @@ const EditCampaign: React.FC = () => {
     ));
   };
 
+  // Check if a slot overlaps with any other slot
+  const checkSlotOverlap = (currentIndex: number, openTime: string, closeTime: string): string | null => {
+    if (!openTime || !closeTime) return null;
+    
+    const currentOpen = new Date(openTime);
+    const currentClose = new Date(closeTime);
+    
+    // Validate within campaign time
+    if (formData.startTime) {
+      const campaignStart = new Date(formData.startTime);
+      if (currentOpen < campaignStart) {
+        return 'Khung giờ bắt đầu trước thời gian chiến dịch';
+      }
+    }
+    
+    if (formData.endTime) {
+      const campaignEnd = new Date(formData.endTime);
+      if (currentClose > campaignEnd) {
+        return 'Khung giờ kết thúc sau thời gian chiến dịch';
+      }
+    }
+    
+    // Check if openTime < closeTime
+    if (currentOpen >= currentClose) {
+      return 'Thời gian mở phải nhỏ hơn thời gian đóng';
+    }
+    
+    // Check overlap with other slots
+    for (let i = 0; i < flashSlots.length; i++) {
+      if (i === currentIndex) continue;
+      
+      const slot = flashSlots[i];
+      if (!slot.openTime || !slot.closeTime) continue;
+      
+      const slotOpen = new Date(slot.openTime);
+      const slotClose = new Date(slot.closeTime);
+      
+      // Check if slots overlap
+      const overlaps = (currentOpen < slotClose && currentClose > slotOpen);
+      
+      if (overlaps) {
+        return `Khung giờ bị trùng với khung giờ ${i + 1}`;
+      }
+    }
+    
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!id) return;
 
-    // Validation
+    // Basic validation
     if (!formData.name || !formData.startTime || !formData.endTime) {
       showTikiNotification('Vui lòng điền đầy đủ thông tin bắt buộc', 'Lỗi', 'error');
       return;
     }
 
-    if (campaign?.type === 'FAST_SALE' && flashSlots.length === 0) {
-      showTikiNotification('Flash Sale cần ít nhất 1 khung giờ', 'Lỗi', 'error');
+    // Validate campaign times (Rule 1, 3)
+    const timeValidation = validateCampaignTimes(
+      formData.startTime,
+      formData.endTime,
+      true, // isEdit = true
+      campaign?.startTime,
+      campaign?.status
+    );
+
+    if (!timeValidation.isValid) {
+      showTikiNotification(timeValidation.error || 'Thời gian không hợp lệ', 'Lỗi', 'error');
       return;
     }
 
-    // Validate flash slots
+    // Validate flash slots for FAST_SALE (Rule 3, 4)
     if (campaign?.type === 'FAST_SALE') {
-      for (const slot of flashSlots) {
-        if (!slot.openTime || !slot.closeTime) {
-          showTikiNotification('Vui lòng điền đầy đủ thời gian cho tất cả khung giờ', 'Lỗi', 'error');
-          return;
-        }
-        if (new Date(slot.openTime) >= new Date(slot.closeTime)) {
-          showTikiNotification('Thời gian mở phải nhỏ hơn thời gian đóng', 'Lỗi', 'error');
-          return;
-        }
+      if (flashSlots.length === 0) {
+        showTikiNotification('Flash Sale cần ít nhất 1 khung giờ', 'Lỗi', 'error');
+        return;
+      }
+
+      const slotsValidation = validateFlashSlots(
+        flashSlots,
+        formData.startTime,
+        formData.endTime,
+        true, // isEdit = true
+        campaign?.status
+      );
+
+      if (!slotsValidation.isValid) {
+        showTikiNotification(slotsValidation.error || 'Khung giờ không hợp lệ', 'Lỗi', 'error');
+        return;
       }
     }
 
@@ -395,6 +514,21 @@ const EditCampaign: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-6 border border-gray-100">
           <h2 className="text-2xl font-bold mb-6 text-gray-900">Thời gian chiến dịch</h2>
           
+          {/* Warning if campaign has started */}
+          {campaign && campaign.startTime && hasCampaignStarted(campaign.startTime) && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-yellow-600 text-xl">⚠️</span>
+                <div>
+                  <p className="font-semibold text-yellow-800">Chiến dịch đã bắt đầu</p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Không thể thay đổi thời gian bắt đầu, kết thúc và khung giờ của chiến dịch đã bắt đầu hoặc kết thúc
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -406,9 +540,16 @@ const EditCampaign: React.FC = () => {
                 name="startTime"
                 value={formData.startTime}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                min={campaign && hasCampaignStarted(campaign.startTime) ? undefined : minDateTime}
+                disabled={campaign && campaign.startTime && hasCampaignStarted(campaign.startTime)}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 transition-all ${
+                  timeErrors.startTime ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-orange-500'
+                } disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500`}
                 required
               />
+              {timeErrors.startTime && (
+                <p className="text-red-500 text-xs mt-1">{timeErrors.startTime}</p>
+              )}
             </div>
 
             <div>
@@ -421,9 +562,16 @@ const EditCampaign: React.FC = () => {
                 name="endTime"
                 value={formData.endTime}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                min={campaign && hasCampaignStarted(campaign.startTime) ? undefined : (formData.startTime || minDateTime)}
+                disabled={campaign && campaign.startTime && hasCampaignStarted(campaign.startTime)}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 transition-all ${
+                  timeErrors.endTime ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-orange-500'
+                } disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500`}
                 required
               />
+              {timeErrors.endTime && (
+                <p className="text-red-500 text-xs mt-1">{timeErrors.endTime}</p>
+              )}
             </div>
           </div>
         </div>
@@ -442,7 +590,8 @@ const EditCampaign: React.FC = () => {
               <button
                 type="button"
                 onClick={addFlashSlot}
-                className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+                disabled={campaign && campaign.startTime && hasCampaignStarted(campaign.startTime)}
+                className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <Plus className="w-5 h-5" />
                 <span className="font-semibold">Thêm khung giờ</span>
@@ -459,41 +608,52 @@ const EditCampaign: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {flashSlots.map((slot, index) => (
-                  <div key={index} className="group relative bg-gradient-to-br from-gray-50 to-gray-100 hover:from-orange-50 hover:to-orange-100 border border-gray-200 hover:border-orange-300 rounded-xl p-6 transition-all">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Thời gian mở
-                              {slot.id && (
-                                <span className="ml-2 text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                                  ID: {slot.id.slice(0, 8)}...
-                                </span>
-                              )}
-                            </label>
-                            <input
-                              type="datetime-local"
-                              step="1"
-                              value={slot.openTime}
-                              onChange={(e) => updateFlashSlot(index, 'openTime', e.target.value)}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                              Thời gian đóng
-                              {slot.status && (
-                                <span className={`ml-2 text-xs font-medium px-2 py-1 rounded ${
-                                  slot.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 
-                                  slot.status === 'ENDED' ? 'bg-gray-100 text-gray-700' : 
-                                  'bg-yellow-100 text-yellow-700'
-                                }`}>
-                                  {slot.status}
+                {flashSlots.map((slot, index) => {
+                  const isLocked = campaign && campaign.startTime && hasCampaignStarted(campaign.startTime);
+                  const slotError = !isLocked && slot.openTime && slot.closeTime 
+                    ? checkSlotOverlap(index, slot.openTime, slot.closeTime)
+                    : null;
+                  
+                  return (
+                    <div key={index} className="group relative bg-gradient-to-br from-gray-50 to-gray-100 hover:from-orange-50 hover:to-orange-100 border border-gray-200 hover:border-orange-300 rounded-xl p-6 transition-all">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Thời gian mở
+                                {slot.id && (
+                                  <span className="ml-2 text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                                    ID: {slot.id.slice(0, 8)}...
+                                  </span>
+                                )}
+                              </label>
+                              <input
+                                type="datetime-local"
+                                step="1"
+                                value={slot.openTime}
+                                onChange={(e) => updateFlashSlot(index, 'openTime', e.target.value)}
+                                min={isLocked ? undefined : (formData.startTime || minDateTime)}
+                                max={isLocked ? undefined : formData.endTime}
+                                disabled={isLocked}
+                                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 transition-all bg-white ${
+                                  slotError ? 'border-red-500' : 'border-gray-300'
+                                } disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500`}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Thời gian đóng
+                                {slot.status && (
+                                  <span className={`ml-2 text-xs font-medium px-2 py-1 rounded ${
+                                    slot.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 
+                                    slot.status === 'CLOSED' ? 'bg-gray-100 text-gray-700' : 
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {slot.status}
                                 </span>
                               )}
                             </label>
@@ -502,22 +662,34 @@ const EditCampaign: React.FC = () => {
                               step="1"
                               value={slot.closeTime}
                               onChange={(e) => updateFlashSlot(index, 'closeTime', e.target.value)}
-                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white"
+                              min={isLocked ? undefined : (slot.openTime || formData.startTime || minDateTime)}
+                              max={isLocked ? undefined : formData.endTime}
+                              disabled={isLocked}
+                              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 transition-all bg-white ${
+                                slotError ? 'border-red-500' : 'border-gray-300'
+                              } disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500`}
                             />
                           </div>
+                          {slotError && (
+                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                              <p className="text-red-600 text-xs font-medium">⚠️ {slotError}</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeFlashSlot(index)}
-                        className="flex-shrink-0 p-3 text-red-600 hover:bg-red-50 rounded-lg transition-all hover:shadow-md"
-                        title="Xóa khung giờ"
+                        disabled={isLocked}
+                        className="flex-shrink-0 p-3 text-red-600 hover:bg-red-50 rounded-lg transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isLocked ? "Không thể xóa khung giờ khi chiến dịch đã bắt đầu" : "Xóa khung giờ"}
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
