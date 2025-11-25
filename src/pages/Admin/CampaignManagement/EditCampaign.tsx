@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Zap, Plus, Trash2, Upload, Loader } from 'lucide-react';
 import { CampaignService } from '../../../services/admin/CampaignService';
-import type { UpdateCampaignRequest, Campaign } from '../../../types/admin';
+import type { UpdateCampaignRequest, Campaign, FlashSlot } from '../../../types/admin';
 import { showTikiNotification } from '../../../utils/notification';
 import { FileUploadService } from '../../../services/FileUploadService';
 import { validateCampaignTimes, validateFlashSlots, hasCampaignStarted, getMinDateTime } from '../../../utils/campaignValidation';
@@ -37,12 +37,9 @@ const EditCampaign: React.FC = () => {
     flashSlots: []
   });
 
-  const [flashSlots, setFlashSlots] = useState<Array<{
-    id?: string;
-    openTime: string;
-    closeTime: string;
-    status?: string;
-  }>>([]);
+  const [flashSlots, setFlashSlots] = useState<FlashSlot[]>([]);
+
+  const campaignHasStarted = Boolean(campaign?.startTime && hasCampaignStarted(campaign.startTime));
 
   // Load campaign data
   useEffect(() => {
@@ -75,7 +72,7 @@ const EditCampaign: React.FC = () => {
         // Populate flash slots if FAST_SALE
         if (data.type === 'FAST_SALE' && data.flashSlots) {
           setFlashSlots(data.flashSlots.map(slot => ({
-            id: slot.slotId,
+            slotId: slot.slotId,
             openTime: slot.openTime ? new Date(slot.openTime).toISOString().slice(0, 19) : '',
             closeTime: slot.closeTime ? new Date(slot.closeTime).toISOString().slice(0, 19) : '',
             status: slot.status
@@ -103,7 +100,7 @@ const EditCampaign: React.FC = () => {
     }));
 
     // Validate time fields in real-time (only if campaign hasn't started)
-    if ((name === 'startTime' || name === 'endTime') && campaign && !hasCampaignStarted(campaign.startTime)) {
+    if ((name === 'startTime' || name === 'endTime') && campaign && !campaignHasStarted) {
       validateTimeFields(name, value);
     }
   };
@@ -289,7 +286,15 @@ const EditCampaign: React.FC = () => {
         ...formData,
         badgeIconUrl,
         // Chỉ gửi flashSlots nếu là FAST_SALE
-        flashSlots: campaign?.type === 'FAST_SALE' ? flashSlots : undefined
+        flashSlots:
+          campaign?.type === 'FAST_SALE'
+            ? flashSlots.map((slot) => ({
+                id: slot.slotId,
+                openTime: slot.openTime,
+                closeTime: slot.closeTime,
+                status: slot.status,
+              }))
+            : undefined,
       };
 
       // Submit
@@ -515,7 +520,7 @@ const EditCampaign: React.FC = () => {
           <h2 className="text-2xl font-bold mb-6 text-gray-900">Thời gian chiến dịch</h2>
           
           {/* Warning if campaign has started */}
-          {campaign && campaign.startTime && hasCampaignStarted(campaign.startTime) && (
+          {campaignHasStarted && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <span className="text-yellow-600 text-xl">⚠️</span>
@@ -540,8 +545,8 @@ const EditCampaign: React.FC = () => {
                 name="startTime"
                 value={formData.startTime}
                 onChange={handleInputChange}
-                min={campaign && hasCampaignStarted(campaign.startTime) ? undefined : minDateTime}
-                disabled={campaign && campaign.startTime && hasCampaignStarted(campaign.startTime)}
+                min={campaignHasStarted ? undefined : minDateTime}
+                disabled={campaignHasStarted}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 transition-all ${
                   timeErrors.startTime ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-orange-500'
                 } disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500`}
@@ -562,8 +567,8 @@ const EditCampaign: React.FC = () => {
                 name="endTime"
                 value={formData.endTime}
                 onChange={handleInputChange}
-                min={campaign && hasCampaignStarted(campaign.startTime) ? undefined : (formData.startTime || minDateTime)}
-                disabled={campaign && campaign.startTime && hasCampaignStarted(campaign.startTime)}
+                min={campaignHasStarted ? undefined : (formData.startTime || minDateTime)}
+                disabled={campaignHasStarted}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 transition-all ${
                   timeErrors.endTime ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-orange-500'
                 } disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500`}
@@ -590,7 +595,7 @@ const EditCampaign: React.FC = () => {
               <button
                 type="button"
                 onClick={addFlashSlot}
-                disabled={campaign && campaign.startTime && hasCampaignStarted(campaign.startTime)}
+                disabled={campaignHasStarted}
                 className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <Plus className="w-5 h-5" />
@@ -609,7 +614,7 @@ const EditCampaign: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {flashSlots.map((slot, index) => {
-                  const isLocked = campaign && campaign.startTime && hasCampaignStarted(campaign.startTime);
+                  const isLocked = campaignHasStarted;
                   const slotError = !isLocked && slot.openTime && slot.closeTime 
                     ? checkSlotOverlap(index, slot.openTime, slot.closeTime)
                     : null;
@@ -625,9 +630,9 @@ const EditCampaign: React.FC = () => {
                             <div>
                               <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Thời gian mở
-                                {slot.id && (
+                                {slot.slotId && (
                                   <span className="ml-2 text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                                    ID: {slot.id.slice(0, 8)}...
+                                    ID: {slot.slotId.slice(0, 8)}...
                                   </span>
                                 )}
                               </label>
@@ -649,11 +654,17 @@ const EditCampaign: React.FC = () => {
                                 Thời gian đóng
                                 {slot.status && (
                                   <span className={`ml-2 text-xs font-medium px-2 py-1 rounded ${
-                                    slot.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 
-                                    slot.status === 'CLOSED' ? 'bg-gray-100 text-gray-700' : 
-                                    'bg-yellow-100 text-yellow-700'
+                                    slot.status === 'ACTIVE'
+                                      ? 'bg-green-100 text-green-700'
+                                      : slot.status === 'ENDED'
+                                      ? 'bg-gray-100 text-gray-700'
+                                      : 'bg-yellow-100 text-yellow-700'
                                   }`}>
-                                    {slot.status}
+                                    {slot.status === 'ACTIVE'
+                                      ? 'Đang chạy'
+                                      : slot.status === 'ENDED'
+                                      ? 'Đã kết thúc'
+                                      : 'Chờ bắt đầu'}
                                 </span>
                               )}
                             </label>
