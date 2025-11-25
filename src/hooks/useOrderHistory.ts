@@ -40,6 +40,9 @@ export const useOrderHistory = () => {
       res.data.forEach((order) => {
         order.storeOrders.forEach((storeOrder) => {
           // Only load if not already loaded
+          if (!storeOrder.id || storeOrder.id.includes('-store-')) {
+            return;
+          }
           if (!ghnOrderData[storeOrder.id]) {
             ghnDataPromises.push(
               OrderHistoryService.getGhnOrderByStoreOrderId(storeOrder.id)

@@ -356,6 +356,7 @@ const ProductDetail: React.FC = () => {
         <ProductTabs 
           description={product.description ? [product.description] : []} 
           specs={specs}
+          productId={product.productId}
         />
       </div>
     </Layout>

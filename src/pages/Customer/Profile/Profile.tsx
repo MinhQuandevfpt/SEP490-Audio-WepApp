@@ -7,11 +7,20 @@ import { ChangePassword } from '../../../components/ProfilePageComponents/Change
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
 import { ReviewProductPage } from '../ReviewFolder';
+import { WalletPage } from '../../../components/CustomerWalletComponents';
 import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned, Lock, CreditCard, Shield, Star } from 'lucide-react';
+import { User, Package, MapPinned, Lock, CreditCard, Shield, Star, Wallet } from 'lucide-react';
 import { profileCache } from '../../../services/cache/ProfileCache';
 
-type ProfileTab = 'info' | 'orders' | 'addresses' | 'password' | 'bank' | 'warranty' | 'reviews';
+type ProfileTab =
+  | 'info'
+  | 'orders'
+  | 'addresses'
+  | 'password'
+  | 'bank'
+  | 'warranty'
+  | 'reviews'
+  | 'wallet';
 
 interface ProfileProps {
   initialTab?: ProfileTab;
@@ -92,15 +101,19 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
     setActive(initialTab);
   }, [initialTab]);
 
-  const navItems = useMemo(() => ([
-    { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
-    { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
-    { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
-    { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
-    { key: 'reviews' as const, label: 'Đánh giá sản phẩm', icon: Star },
-    { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
-    { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
-  ]), []);
+  const navItems = useMemo(
+    () => [
+      { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
+      { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
+      { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
+      { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
+      { key: 'reviews' as const, label: 'Đánh giá sản phẩm', icon: Star },
+      { key: 'wallet' as const, label: 'Ví nền tảng', icon: Wallet },
+      { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
+      { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
+    ],
+    []
+  );
 
   return (
     <Layout>
@@ -171,6 +184,10 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
 
               <div className={active === 'reviews' ? 'block' : 'hidden'}>
                 <ReviewProductPage />
+              </div>
+
+              <div className={active === 'wallet' ? 'block' : 'hidden'}>
+                <WalletPage customerId={customerId} />
               </div>
             </section>
           </div>

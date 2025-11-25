@@ -7,6 +7,7 @@ import { OrderHistoryService } from '../../services/customer/OrderHistoryService
 import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import { ProductReviewService } from '../../services/customer/ProductReviewService';
+import { FileUploadService } from '../../services/FileUploadService';
 
 interface Props {
   order: CustomerOrder;
@@ -108,7 +109,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
 
     ProductReviewService.getMyReviewForProduct(productId)
       .then((review: ReviewResponse | null) => {
-        if (review) {
+        if (review && review.status !== 'DELETED') {
           setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
           message.info('Bạn đã đánh giá sản phẩm này rồi.');
         } else {
@@ -197,20 +198,17 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       return;
     }
 
-    const convertFileToBase64 = (file: File): Promise<string> =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
     const mediaPayload = (
       await Promise.all(
         reviewMedia.map(async (media) => {
           if (media.file) {
-            const base64 = await convertFileToBase64(media.file);
-            return { type: media.type, url: base64 };
+            try {
+              const uploaded = await FileUploadService.uploadImage(media.file);
+              return { type: media.type, url: uploaded.url };
+            } catch (uploadError: any) {
+              message.error(uploadError?.message || 'Tải media thất bại, vui lòng thử lại');
+              throw uploadError;
+            }
           }
           if (media.url.trim()) {
             return { type: media.type, url: media.url.trim() };

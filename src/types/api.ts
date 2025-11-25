@@ -410,6 +410,44 @@ export interface ReviewResponse {
 
 export interface ProductReviewForCurrentUserResponse extends ReviewResponse {}
 
+export interface StoreReviewListResponse {
+  content: ReviewResponse[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+  pageable?: {
+    pageNumber: number;
+    pageSize: number;
+  };
+}
+
+// ==================== WALLET TYPES ====================
+export interface WalletTransaction {
+  id: string;
+  walletId: string;
+  orderId: string | null;
+  type: string;
+  status: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface WalletTransactionPage {
+  content: WalletTransaction[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first?: boolean;
+  last?: boolean;
+}
+
 // Order History Response (paginated)
 export interface OrderHistoryResponse {
   items: CustomerOrder[];

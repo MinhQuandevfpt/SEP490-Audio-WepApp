@@ -58,6 +58,7 @@ import StaffDashboardHome from '../pages/StoreStaff/Dashboard/StaffDashboardHome
 import StaffDashboardLayout from '../components/StaffDashboardLayout';
 import OrderPageStaff from '../pages/StoreStaff/Order/OrderPageStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
+import { ReplyReviewPage } from '../pages/Seller/ReplyPeview';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -180,8 +181,16 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<Profile />} />
   },
   {
+    path: '/login',
+    element: <Navigate to="/auth/login" replace />
+  },
+  {
     path: '/account/reviews',
     element: <ProtectedRoute element={<Profile initialTab="reviews" />} />
+  },
+  {
+    path: '/account/wallet',
+    element: <ProtectedRoute element={<Profile initialTab="wallet" />} />
   },
   {
     path: '/product/:id',
@@ -426,7 +435,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'reviews',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đánh giá sản phẩm</h2><p className="text-gray-600 mt-2">Trang đánh giá đang được phát triển...</p></div>
+        element: <ReplyReviewPage />
       },
       {
         path: 'settings',
