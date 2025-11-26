@@ -457,8 +457,6 @@ const ShoppingCart: React.FC = () => {
 
   const handleDeleteAll = async () => {
     if (items.length === 0) return;
-    const confirm = window.confirm('Bạn có chắc chắn muốn xóa toàn bộ giỏ hàng?');
-    if (!confirm) return;
     try {
       const resp = await CustomerCartService.deleteCart();
       applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
