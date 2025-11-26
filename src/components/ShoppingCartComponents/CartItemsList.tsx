@@ -20,6 +20,7 @@ interface CartItemsListProps {
   storeGroups: StoreGroup[];
   totalItemCount: number;
   productVoucherAvailability: Record<string, boolean>;
+  productVouchersMap?: Map<string, ShopVoucher[]>; // Map: productId -> vouchers[] - mỗi product chỉ có vouchers của chính nó
   showAddress?: boolean;
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
@@ -42,6 +43,7 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
   storeGroups,
   totalItemCount,
   productVoucherAvailability,
+  productVouchersMap = new Map(),
   addresses,
   selectedAddressId,
   addressesLoading,
@@ -98,6 +100,8 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
           <div className="p-4 space-y-4">
             {group.items.map(it => {
               const hasVoucher = productVoucherAvailability[it.productId] ?? false;
+              // Mỗi product chỉ nhận vouchers của chính nó, không phải tất cả vouchers của store
+              const itemVouchers = hasVoucher ? (productVouchersMap.get(it.productId) || []) : [];
               return (
                 <CartItemRow
                   key={it.id}
@@ -109,7 +113,7 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
                   onSetQuantity={onSetQuantity}
                   storeId={group.storeId}
                   storeName={group.storeName}
-                  vouchers={hasVoucher ? group.vouchers : []}
+                  vouchers={itemVouchers}
                   appliedVoucher={group.appliedVoucher}
                   selectedTotal={group.selectedTotal}
                   onApplyVoucher={onApplyVoucher}

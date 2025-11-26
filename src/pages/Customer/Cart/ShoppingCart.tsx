@@ -40,7 +40,7 @@ const ShoppingCart: React.FC = () => {
   // Map API cart items to UI items used by existing components
   const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
     id: apiItem.cartItemId,
-    productId: apiItem.refId,
+    productId: apiItem.refId, // refId is productId for PRODUCT, comboId for COMBO
     name: apiItem.name,
     // Ưu tiên sử dụng variantUrl nếu có, nếu không thì dùng image
     image: apiItem.variantUrl || apiItem.image,
@@ -48,6 +48,7 @@ const ShoppingCart: React.FC = () => {
     quantity: apiItem.quantity,
     isSelected: true,
     variant: apiItem.variantOptionValue || undefined,
+    type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
   });
 
   // Load addresses
@@ -91,7 +92,10 @@ const ShoppingCart: React.FC = () => {
     const loadVouchers = async () => {
       try {
         setVouchersLoading(true);
-        const productIds = Array.from(new Set((cart?.items || []).map(i => i.refId)));
+        // Chỉ lấy PRODUCT items (không phải COMBO) để load voucher
+        // refId của PRODUCT là productId, refId của COMBO là comboId
+        const productItems = (cart?.items || []).filter(item => item.type === 'PRODUCT');
+        const productIds = Array.from(new Set(productItems.map(i => i.refId)));
         if (productIds.length === 0) {
           setAvailableVouchers([]);
           setProductVoucherAvailability({});
@@ -102,19 +106,34 @@ const ShoppingCart: React.FC = () => {
         const responses = await Promise.all(
           productIds.map(async (pid) => {
             try {
+              console.log(`🛒 Loading vouchers for productId: ${pid}`);
               const [voucherRes, productRes] = await Promise.all([
-                ProductVoucherService.getProductVouchers(pid, 'ALL', null).catch(() => null),
-                ProductListService.getProductById(pid).catch(() => null),
+                ProductVoucherService.getProductVouchers(pid, 'ALL', null).catch((err) => {
+                  console.error(`❌ Failed to load vouchers for productId ${pid}:`, err);
+                  return null;
+                }),
+                ProductListService.getProductById(pid).catch((err) => {
+                  console.error(`❌ Failed to load product details for productId ${pid}:`, err);
+                  return null;
+                }),
               ]);
+              if (voucherRes) {
+                console.log(`✅ Loaded vouchers for productId ${pid}:`, {
+                  shopVouchers: voucherRes.data?.vouchers?.shop?.length || 0,
+                  platformCampaigns: voucherRes.data?.vouchers?.platform?.length || 0,
+                });
+              }
               return { productId: pid, voucherRes, productRes };
-            } catch {
+            } catch (err) {
+              console.error(`❌ Error loading vouchers for productId ${pid}:`, err);
               return { productId: pid, voucherRes: null, productRes: null };
             }
           })
         );
 
         // Extract shop vouchers with storeId and calculate platform voucher discounts
-        const shopVouchers: ShopVoucher[] = [];
+        // Map: productId -> vouchers[] để mỗi product chỉ có vouchers của chính nó
+        const productVouchersMap = new Map<string, ShopVoucher[]>();
         const availabilityMap: Record<string, boolean> = {};
         const platformDiscountsMap: Record<string, number> = {};
         
@@ -154,23 +173,34 @@ const ShoppingCart: React.FC = () => {
             platformDiscountsMap[productId] = platformDiscount;
           }
           
+          // Lưu vouchers theo productId (mỗi product chỉ có vouchers của chính nó)
           if (voucherRes && productRes) {
             const storeId = productRes.data?.storeId;
-            vouchers.forEach((v: any) => {
-              shopVouchers.push({
-                ...v,
-                storeId: storeId || undefined,
-              });
-            });
+            const productVouchers: ShopVoucher[] = vouchers.map((v: any) => ({
+              ...v,
+              storeId: storeId || undefined,
+            }));
+            productVouchersMap.set(productId, productVouchers);
+          } else {
+            productVouchersMap.set(productId, []);
           }
         });
         
         setProductVoucherAvailability(availabilityMap);
         setPlatformVoucherDiscounts(platformDiscountsMap);
-
-        // Dedupe by code (keep first occurrence)
+        
+        // Lưu productVouchersMap để sử dụng sau - mỗi product chỉ có vouchers của chính nó
+        setProductVouchersMapState(productVouchersMap);
+        
+        // Lưu allVouchers để tương thích với code cũ (storeVoucherMap)
+        const allVouchers: ShopVoucher[] = [];
+        productVouchersMap.forEach((vouchers) => {
+          allVouchers.push(...vouchers);
+        });
+        
+        // Dedupe by code (keep first occurrence) - chỉ để tương thích
         const deduped = Array.from(
-          new Map(shopVouchers.map(v => [v.code, v])).values()
+          new Map(allVouchers.map(v => [v.code, v])).values()
         );
         setAvailableVouchers(deduped);
       } finally {
@@ -232,6 +262,9 @@ const ShoppingCart: React.FC = () => {
     }
   }, [items, productCache, setProductCache]);
 
+  // Map: productId -> vouchers[] - mỗi product chỉ có vouchers của chính nó
+  const [productVouchersMapState, setProductVouchersMapState] = useState<Map<string, ShopVoucher[]>>(new Map());
+  
   const storeVoucherMap = useMemo(() => {
     const map = new Map<string, ShopVoucher[]>();
     availableVouchers.forEach(voucher => {
@@ -520,6 +553,7 @@ const ShoppingCart: React.FC = () => {
               storeGroups={storeGroups}
               totalItemCount={items.length}
               productVoucherAvailability={productVoucherAvailability}
+              productVouchersMap={productVouchersMapState}
               showAddress={false}
               addresses={addresses}
               selectedAddressId={selectedAddressId}

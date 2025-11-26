@@ -21,6 +21,12 @@ const getSentimentLabel = (rating: number) => {
   return 'Không hài lòng';
 };
 
+const formatCustomerName = (name: string | null | undefined) => {
+  if (!name) return 'Người dùng';
+  if (name.length <= 4) return name;
+  return `${name.substring(0, 2)}...${name.substring(name.length - 2)}`;
+};
+
 const ProductReviewSection: React.FC<ProductReviewSectionProps> = ({ productId }) => {
   const [reviews, setReviews] = useState<ReviewResponse[]>([]);
   const [page, setPage] = useState(1);
@@ -312,7 +318,9 @@ const ProductReviewSection: React.FC<ProductReviewSectionProps> = ({ productId }
                         {review.customerName?.charAt(0) || 'U'}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{review.customerName}</p>
+                        <p className="font-semibold text-gray-900" title={review.customerName || 'Người dùng'}>
+                          {formatCustomerName(review.customerName)}
+                        </p>
                         <p className="text-xs text-gray-400">{formatDate(review.createdAt)}</p>
                         <p className="text-xs text-green-600 font-semibold mt-1">Đã mua hàng</p>
                       </div>
@@ -354,18 +362,6 @@ const ProductReviewSection: React.FC<ProductReviewSectionProps> = ({ productId }
                       ))}
                     </div>
                   )}
-
-                  <div className="flex items-center gap-4 text-sm text-gray-500 border-t border-gray-100 pt-3">
-                    <button className="flex items-center gap-1 text-gray-500 hover:text-orange-500 transition">
-                      👍 Hữu ích
-                    </button>
-                    <button className="flex items-center gap-1 text-gray-500 hover:text-orange-500 transition">
-                      💬 Bình luận
-                    </button>
-                    <button className="flex items-center gap-1 text-gray-500 hover:text-orange-500 transition">
-                      ↗️ Chia sẻ
-                    </button>
-                  </div>
 
                   {review.replies && review.replies.length > 0 && (
                     <div className="space-y-2 border border-orange-100 rounded-lg bg-orange-50 p-3">

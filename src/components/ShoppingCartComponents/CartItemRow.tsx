@@ -49,9 +49,16 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
   // Fetch platform vouchers and calculate discounted price
   useEffect(() => {
     const fetchPlatformVoucher = async () => {
-      if (!it.productId) return;
+      // Chỉ load voucher cho PRODUCT, không load cho COMBO
+      if (!it.productId || it.type === 'COMBO') {
+        if (it.type === 'COMBO') {
+          console.log(`⏭️ Skipping voucher load for COMBO item: ${it.name}`);
+        }
+        return;
+      }
 
       try {
+        console.log(`🛒 Loading platform vouchers for productId: ${it.productId}, product: ${it.name}`);
         const response = await ProductVoucherService.getProductVouchers(it.productId, 'ALL', null);
         
         // Find first active platform campaign with active vouchers
