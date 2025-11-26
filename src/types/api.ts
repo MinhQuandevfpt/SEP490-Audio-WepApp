@@ -1,3 +1,5 @@
+import type { CheckoutPayOSItem, StoreVoucher, PlatformVoucher, ServiceTypeIds } from './cart';
+
 export interface CustomerRegisterRequest {
   name: string;
   password: string;
@@ -491,30 +493,20 @@ export interface CategoryListResponse {
 
 export type PayOSItemType = 'PRODUCT' | 'COMBO';
 
-export interface PayOSCheckoutItem {
-  id: string; // product or combo id
-  type: PayOSItemType; // 'PRODUCT' | 'COMBO'
-  quantity: number;
-}
+export interface PayOSCheckoutItem extends CheckoutPayOSItem {}
 
-export interface PayOSStoreVoucher {
-  storeId: string;
-  codes: string[];
-}
+export interface PayOSStoreVoucher extends StoreVoucher {}
 
-export interface PayOSPlatformVoucher {
-  campaignProductId: string;
-  quantity: number;
-}
+export interface PayOSPlatformVoucher extends PlatformVoucher {}
 
 export interface PayOSCheckoutRequestBody {
   addressId: string;
   message?: string | null;
   description?: string | null;
   items: PayOSCheckoutItem[];
-  storeVouchers?: PayOSStoreVoucher[] | null;
-  platformVouchers?: PayOSPlatformVoucher[] | null;
-  serviceTypeIds: Record<string, number>; // { [storeId]: serviceTypeId }
+  storeVouchers?: PayOSStoreVoucher[];
+  platformVouchers?: PayOSPlatformVoucher[];
+  serviceTypeIds?: ServiceTypeIds;
   returnUrl: string;
   cancelUrl: string;
 }

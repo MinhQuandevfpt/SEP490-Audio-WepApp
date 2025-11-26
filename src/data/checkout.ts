@@ -21,6 +21,9 @@ export interface CheckoutCartItem {
   price: number;
   originalPrice?: number;
   quantity: number;
+  itemType?: 'PRODUCT' | 'COMBO' | string;
+  variantId?: string | null;
+  comboId?: string | null;
 }
 
 export interface CheckoutSummary {
@@ -59,6 +62,7 @@ export const dummyCartItems: CheckoutCartItem[] = [
     price: 6990000,
     originalPrice: 8990000,
     quantity: 1,
+    itemType: 'PRODUCT',
   },
   {
     id: 'ci2',
@@ -68,6 +72,7 @@ export const dummyCartItems: CheckoutCartItem[] = [
     price: 3490000,
     originalPrice: 4590000,
     quantity: 2,
+    itemType: 'PRODUCT',
   },
 ];
 
