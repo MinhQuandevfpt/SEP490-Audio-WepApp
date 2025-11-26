@@ -389,6 +389,8 @@ export interface ProductQueryParams {
   status?: string;
   page?: number;
   size?: number;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 // Product List Response

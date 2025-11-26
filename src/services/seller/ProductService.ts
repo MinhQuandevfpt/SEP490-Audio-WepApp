@@ -31,6 +31,14 @@ export class ProductService {
         queryParams.append('status', params.status);
       }
       
+      if (params.minPrice !== undefined && params.minPrice !== null) {
+        queryParams.append('minPrice', String(params.minPrice));
+      }
+      
+      if (params.maxPrice !== undefined && params.maxPrice !== null) {
+        queryParams.append('maxPrice', String(params.maxPrice));
+      }
+      
       // Pagination
       queryParams.append('page', String(params.page || 0));
       queryParams.append('size', String(params.size || 20));
