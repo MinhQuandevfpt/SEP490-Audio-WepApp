@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReviewResponse } from '../types/api';
 import { SellerReviewService } from '../services/seller/ReviewService';
+import { ProductService } from '../services/seller/ProductService';
 
 interface UseSellerReviewsState {
   reviews: ReviewResponse[];
@@ -10,6 +11,12 @@ interface UseSellerReviewsState {
   pageSize: number;
   total: number;
   keyword: string;
+}
+
+interface ProductInfo {
+  productId: string;
+  name: string;
+  image: string | null;
 }
 
 export const useSellerReviews = () => {
@@ -22,6 +29,9 @@ export const useSellerReviews = () => {
     total: 0,
     keyword: '',
   });
+  const [productsMap, setProductsMap] = useState<Record<string, ProductInfo>>({});
+  const [productsLoading, setProductsLoading] = useState<Record<string, boolean>>({});
+  const fetchingRef = useRef<Set<string>>(new Set());
 
   const fetchReviews = useCallback(async () => {
     try {
@@ -32,9 +42,10 @@ export const useSellerReviews = () => {
         keyword: state.keyword || undefined,
       });
 
+      const reviews = response.content ?? [];
       setState((prev) => ({
         ...prev,
-        reviews: response.content ?? [],
+        reviews,
         total: response.totalElements ?? 0,
         loading: false,
       }));
@@ -47,6 +58,52 @@ export const useSellerReviews = () => {
       }));
     }
   }, [state.page, state.pageSize, state.keyword]);
+
+  // Fetch product info when reviews change
+  useEffect(() => {
+    const uniqueProductIds = Array.from(new Set(state.reviews.map((r) => r.productId).filter(Boolean)));
+    
+    uniqueProductIds.forEach((productId) => {
+      // Skip if already in map or currently fetching
+      if (productsMap[productId] || fetchingRef.current.has(productId)) {
+        return;
+      }
+
+      // Mark as fetching
+      fetchingRef.current.add(productId);
+      setProductsLoading((prev) => ({ ...prev, [productId]: true }));
+
+      ProductService.getProductById(productId)
+        .then((product) => {
+          const productInfo: ProductInfo = {
+            productId: product.productId,
+            name: product.name,
+            image: product.images?.[0] || product.variants?.[0]?.variantUrl || null,
+          };
+          setProductsMap((prev) => ({ ...prev, [productId]: productInfo }));
+        })
+        .catch((error) => {
+          console.error(`Failed to fetch product ${productId}:`, error);
+          // Set a fallback product info
+          setProductsMap((prev) => ({
+            ...prev,
+            [productId]: {
+              productId,
+              name: 'Không tìm thấy sản phẩm',
+              image: null,
+            },
+          }));
+        })
+        .finally(() => {
+          fetchingRef.current.delete(productId);
+          setProductsLoading((prev) => {
+            const next = { ...prev };
+            delete next[productId];
+            return next;
+          });
+        });
+    });
+  }, [state.reviews, productsMap]);
 
   useEffect(() => {
     fetchReviews();
@@ -90,6 +147,8 @@ export const useSellerReviews = () => {
     fetchReviews,
     averageRating,
     ratingBreakdown,
+    productsMap,
+    productsLoading,
   };
 };
 

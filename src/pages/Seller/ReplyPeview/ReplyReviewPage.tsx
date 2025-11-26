@@ -20,6 +20,7 @@ const ReplyReviewPage: React.FC = () => {
     averageRating,
     ratingBreakdown,
     fetchReviews,
+    productsMap,
   } = useSellerReviews();
 
   const [selectedReview, setSelectedReview] = useState<ReviewResponse | null>(null);
@@ -84,6 +85,7 @@ const ReplyReviewPage: React.FC = () => {
           page={page}
           pageSize={pageSize}
           total={total}
+          productsMap={productsMap}
           onPageChange={(nextPage, nextSize) => {
             setPage(nextPage);
             if (nextSize !== pageSize) {

@@ -1,7 +1,13 @@
 import React from 'react';
-import { Table, Tag, Button, Rate, Image, Space } from 'antd';
+import { Table, Tag, Button, Image, Space, Rate } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReviewResponse } from '../../types/api';
+
+interface ProductInfo {
+  productId: string;
+  name: string;
+  image: string | null;
+}
 
 interface ReviewListProps {
   reviews: ReviewResponse[];
@@ -9,6 +15,7 @@ interface ReviewListProps {
   page: number;
   pageSize: number;
   total: number;
+  productsMap?: Record<string, ProductInfo>;
   onPageChange: (page: number, pageSize: number) => void;
   onReply: (review: ReviewResponse) => void;
 }
@@ -19,6 +26,7 @@ const ReviewList: React.FC<ReviewListProps> = ({
   page,
   pageSize,
   total,
+  productsMap = {},
   onPageChange,
   onReply,
 }) => {
@@ -28,18 +36,62 @@ const ReviewList: React.FC<ReviewListProps> = ({
     DELETED: { label: 'Đã xóa', color: 'red' },
   };
 
+  const formatCustomerName = (name: string): string => {
+    if (!name || name.length <= 4) return name;
+    const firstTwo = name.substring(0, 2);
+    const lastTwo = name.substring(name.length - 2);
+    return `${firstTwo}...${lastTwo}`;
+  };
+
   const columns: ColumnsType<ReviewResponse> = [
+    {
+      title: 'Sản phẩm',
+      key: 'product',
+      width: 200,
+      render: (_, record) => {
+        const product = productsMap[record.productId];
+        if (!product) {
+          return <span className="text-gray-400 text-sm">Đang tải...</span>;
+        }
+        return (
+          <div className="flex items-center gap-3">
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">
+                No img
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate" title={product.name}>
+                {product.name}
+              </p>
+            </div>
+          </div>
+        );
+      },
+    },
     {
       title: 'Khách hàng',
       dataIndex: 'customerName',
       key: 'customerName',
+      width: 150,
       render: (text, record) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-sm font-semibold text-orange-600">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-sm font-semibold text-orange-600 flex-shrink-0">
             {text?.charAt(0) ?? 'U'}
           </div>
-          <div>
-            <p className="font-medium text-gray-900">{text}</p>
+          <div className="min-w-0">
+            <p className="font-medium text-gray-900 truncate" title={text}>
+              {formatCustomerName(text || '')}
+            </p>
             <p className="text-xs text-gray-500">{record.createdAt ? new Date(record.createdAt).toLocaleString('vi-VN') : ''}</p>
           </div>
         </div>
@@ -49,8 +101,10 @@ const ReviewList: React.FC<ReviewListProps> = ({
       title: 'Đánh giá',
       dataIndex: 'rating',
       key: 'rating',
-      width: 160,
-      render: (value) => <Rate disabled defaultValue={value} allowHalf={false} style={{ color: '#fa8c16' }} />,
+      width: 175,
+      render: (value) => (
+        <Rate disabled defaultValue={value} allowHalf={false} style={{ color: '#fa8c16' }} />
+      ),
     },
     {
       title: 'Nội dung',
