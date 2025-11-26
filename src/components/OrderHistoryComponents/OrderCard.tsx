@@ -24,6 +24,33 @@ const getErrorMessage = (error: any, fallback: string) => {
   );
 };
 
+const resolveOrderItemImage = (item: Partial<OrderItem>) => {
+  if (item.variantId) {
+    return item.variantUrl || item.image || undefined;
+  }
+  return item.image || item.variantUrl || undefined;
+};
+
+const formatVariantLabel = (item: { variantOptionName?: string | null; variantOptionValue?: string | null }) => {
+  if (!item.variantOptionName || !item.variantOptionValue) return null;
+  return `${item.variantOptionName}: ${item.variantOptionValue}`;
+};
+
+const isAlreadyReviewedError = (error: any): boolean => {
+  const code = error?.data?.code || error?.code;
+  if (code && typeof code === 'string' && code.toUpperCase().includes('REVIEW')) {
+    return true;
+  }
+
+  const message =
+    (error?.message ||
+      error?.data?.message ||
+      (Array.isArray(error?.errors) ? error.errors[0] : '') ||
+      '') as string;
+
+  return typeof message === 'string' && message.toLowerCase().includes('đã review');
+};
+
 const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
@@ -53,6 +80,8 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     image?: string;
     storeName: string;
     productRefId: string;
+  variantOptionName?: string | null;
+  variantOptionValue?: string | null;
   };
 
   const reviewableItems: ReviewableItem[] = useMemo(() => {
@@ -64,9 +93,11 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
           .map((item) => ({
             id: item.id,
             name: item.name,
-            image: item.image,
+            image: resolveOrderItemImage(item),
             storeName: storeOrder.storeName,
             productRefId: item.refId || item.id || '',
+            variantOptionName: item.variantOptionName,
+            variantOptionValue: item.variantOptionValue,
           }));
       });
     }
@@ -77,9 +108,11 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       .map((item) => ({
         id: item.id,
         name: item.name,
-        image: item.image,
+        image: resolveOrderItemImage(item),
         storeName: item.storeName ?? 'Cửa hàng',
         productRefId: item.refId || item.id || '',
+        variantOptionName: item.variantOptionName,
+        variantOptionValue: item.variantOptionValue,
       }));
   }, [storeOrders, legacyItems]);
 
@@ -234,6 +267,13 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     } catch (err: any) {
       const errMsg = getErrorMessage(err, 'Không thể gửi đánh giá, vui lòng thử lại');
       showCenterError(errMsg, 'Gửi đánh giá thất bại');
+
+      if (selectedReviewItem?.productRefId && isAlreadyReviewedError(err)) {
+        setReviewedItemIds((prev) =>
+          Array.from(new Set([...prev, selectedReviewItem.productRefId])),
+        );
+        resetReviewForm();
+      }
     } finally {
       setIsSubmittingReview(false);
     }
@@ -299,38 +339,32 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   </div>
 
                   <div className="space-y-3">
-                    {storeOrder.items.map((item) => (
-                      <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
-                        <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
-                          {item.image ? (
-                            <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <Package className="h-full w-full p-3 text-gray-400" />
+                    {storeOrder.items.map((item) => {
+                      const itemImage = resolveOrderItemImage(item);
+                      return (
+                        <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
+                          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                            {itemImage ? (
+                              <img src={itemImage} alt={item.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <Package className="h-full w-full p-3 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+                          {formatVariantLabel(item) && (
+                            <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
                           )}
+                            <p className="text-xs text-gray-500">
+                              {formatCurrency(item.unitPrice)} · SL {item.quantity}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.lineTotal)}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatCurrency(item.unitPrice)} · SL {item.quantity}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.lineTotal)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs text-gray-500">
-                    <span>Tạm tính: {formatCurrency(storeOrder.totalAmount)}</span>
-                    {storeOrder.discountTotal > 0 && (
-                      <span className="text-green-600">- Giảm: {formatCurrency(storeOrder.discountTotal)}</span>
-                    )}
-                    <span className="hidden sm:inline">·</span>
-                    <span>Phí ship: {formatCurrency(storeOrder.shippingFee)}</span>
-                    <span className="ml-auto font-semibold text-[#FF6A00]">
-                      {formatCurrency(storeOrder.grandTotal)}
-                    </span>
+                      );
+                    })}
                   </div>
 
                   {ghnOrderData[storeOrder.id]?.orderGhn && (
@@ -399,6 +433,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
+                        {formatVariantLabel(item) && (
+                          <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
+                        )}
                         <p className="text-xs text-gray-500">{item.storeName}</p>
                       </div>
                       <Button

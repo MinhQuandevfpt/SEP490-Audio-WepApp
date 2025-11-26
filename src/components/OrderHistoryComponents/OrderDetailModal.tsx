@@ -21,6 +21,18 @@ interface Props {
   onOrderCancelled?: () => void;
 }
 
+const resolveOrderItemImage = (item: { image?: string | null; variantId?: string | null; variantUrl?: string | null }) => {
+  if (item.variantId) {
+    return item.variantUrl || item.image || undefined;
+  }
+  return item.image || item.variantUrl || undefined;
+};
+
+const formatVariantLabel = (item: { variantOptionName?: string | null; variantOptionValue?: string | null }) => {
+  if (!item.variantOptionName || !item.variantOptionValue) return null;
+  return `${item.variantOptionName}: ${item.variantOptionValue}`;
+};
+
 const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, onOrderCancelled }) => {
   if (!order) return null;
 
@@ -161,21 +173,26 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
 
                     {/* Items */}
                     <div className="space-y-3 mb-4">
-                      {storeOrder.items.map((item) => (
-                        <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                          <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                            {item.image ? (
-                              <img 
-                                src={item.image} 
-                                alt={item.name} 
-                                className="w-full h-full object-cover rounded"
-                              />
-                            ) : (
-                              <Package className="w-6 h-6 text-gray-400" />
-                            )}
-                          </div>
+                      {storeOrder.items.map((item) => {
+                        const itemImage = resolveOrderItemImage(item);
+                        return (
+                          <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
+                              {itemImage ? (
+                                <img 
+                                  src={itemImage} 
+                                  alt={item.name} 
+                                  className="w-full h-full object-cover rounded"
+                                />
+                              ) : (
+                                <Package className="w-6 h-6 text-gray-400" />
+                              )}
+                            </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900 text-sm truncate">{item.name}</p>
+                            {formatVariantLabel(item) && (
+                              <p className="text-xs text-gray-500 mt-0.5">{formatVariantLabel(item)}</p>
+                            )}
                             <p className="text-xs text-gray-500 mt-0.5">
                               Loại: {item.type === 'PRODUCT' ? 'Sản phẩm' : 'Combo'} • 
                               SL: {item.quantity}
@@ -190,116 +207,95 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                             </p>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
-                    {/* Store Order Summary */}
-                    <div className="pt-3 border-t space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-600">
-                        <span>Tạm tính:</span>
-                        <span>{formatCurrency(storeOrder.totalAmount)}</span>
-                      </div>
-                      {storeOrder.discountTotal > 0 && (
-                        <div className="flex justify-between text-green-600">
-                          <span>Giảm giá:</span>
-                          <span>-{formatCurrency(storeOrder.discountTotal)}</span>
+                    {/* GHN Order Code */}
+                    {ghnOrderData[storeOrder.id]?.orderGhn && (
+                      <div className="pt-3 mt-2 border-t border-dashed space-y-2 text-sm">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Truck className="w-4 h-4 text-blue-500" />
+                          <span className="text-gray-600">Mã vận đơn GHN:</span>
+                          <span className="font-mono font-semibold text-blue-600">
+                            {ghnOrderData[storeOrder.id].orderGhn}
+                          </span>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(ghnOrderData[storeOrder.id].orderGhn);
+                                setCopiedGhnCode(storeOrder.id);
+                                setTimeout(() => setCopiedGhnCode(null), 2000);
+                              } catch (error) {
+                                console.error('Failed to copy:', error);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
+                            title="Sao chép mã vận đơn"
+                          >
+                            {copiedGhnCode === storeOrder.id ? (
+                              <Check className="w-4 h-4 text-green-500" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowTrackingGuide(prev => ({
+                                ...prev,
+                                [storeOrder.id]: !prev[storeOrder.id]
+                              }));
+                            }}
+                            className="ml-auto flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+                          >
+                            <span>Hướng dẫn theo dõi</span>
+                            {showTrackingGuide[storeOrder.id] ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </button>
                         </div>
-                      )}
-                      <div className="flex justify-between text-gray-600">
-                        <span>Phí vận chuyển:</span>
-                        <span>{formatCurrency(storeOrder.shippingFee)}</span>
-                      </div>
-                      <div className="flex justify-between font-semibold text-gray-900 pt-2 border-t">
-                        <span>Tổng tiền:</span>
-                        <span className="text-orange-600">{formatCurrency(storeOrder.grandTotal)}</span>
-                      </div>
-                      
-                      {/* GHN Order Code */}
-                      {ghnOrderData[storeOrder.id]?.orderGhn && (
-                        <div className="pt-2 mt-2 border-t border-dashed space-y-2">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Truck className="w-4 h-4 text-blue-500" />
-                            <span className="text-gray-600">Mã vận đơn GHN:</span>
-                            <span className="font-mono font-semibold text-blue-600">
-                              {ghnOrderData[storeOrder.id].orderGhn}
-                            </span>
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(ghnOrderData[storeOrder.id].orderGhn);
-                                  setCopiedGhnCode(storeOrder.id);
-                                  setTimeout(() => setCopiedGhnCode(null), 2000);
-                                } catch (error) {
-                                  console.error('Failed to copy:', error);
-                                }
-                              }}
-                              className="p-1 text-gray-400 hover:text-blue-500 transition-colors"
-                              title="Sao chép mã vận đơn"
-                            >
-                              {copiedGhnCode === storeOrder.id ? (
-                                <Check className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <Copy className="w-4 h-4" />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowTrackingGuide(prev => ({
-                                  ...prev,
-                                  [storeOrder.id]: !prev[storeOrder.id]
-                                }));
-                              }}
-                              className="ml-auto flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                            >
-                              <span>Hướng dẫn theo dõi</span>
-                              {showTrackingGuide[storeOrder.id] ? (
-                                <ChevronUp className="w-4 h-4" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                          
-                          {/* Tracking Guide - Collapsible */}
-                          {showTrackingGuide[storeOrder.id] && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 animate-in slide-in-from-top-2 duration-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <HelpCircle className="w-4 h-4 text-blue-600" />
-                                <span className="text-sm font-semibold text-blue-900">Hướng dẫn theo dõi đơn hàng</span>
-                              </div>
-                              <ol className="space-y-1.5 text-sm text-blue-800 ml-5 list-decimal">
-                                <li>Sao chép mã vận đơn GHN ở trên</li>
-                                <li>
-                                  Truy cập{' '}
-                                  <a
-                                    href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 underline font-medium inline-flex items-center gap-1"
-                                  >
-                                    trang theo dõi GHN
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
-                                </li>
-                                <li>Dán mã vận đơn vào khung nhập mã vận đơn</li>
-                                <li>Bấm nút tìm kiếm</li>
-                                <li>Theo dõi tình trạng đơn hàng</li>
-                              </ol>
-                              <a
-                                href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-2 inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                              >
-                                <Truck className="w-4 h-4" />
-                                <span>Theo dõi đơn hàng trên GHN</span>
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
+                        
+                        {/* Tracking Guide - Collapsible */}
+                        {showTrackingGuide[storeOrder.id] && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 animate-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <HelpCircle className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm font-semibold text-blue-900">Hướng dẫn theo dõi đơn hàng</span>
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                            <ol className="space-y-1.5 text-sm text-blue-800 ml-5 list-decimal">
+                              <li>Sao chép mã vận đơn GHN ở trên</li>
+                              <li>
+                                Truy cập{' '}
+                                <a
+                                  href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 underline font-medium inline-flex items-center gap-1"
+                                >
+                                  trang theo dõi GHN
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </li>
+                              <li>Dán mã vận đơn vào khung nhập mã vận đơn</li>
+                              <li>Bấm nút tìm kiếm</li>
+                              <li>Theo dõi tình trạng đơn hàng</li>
+                            </ol>
+                            <a
+                              href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              <Truck className="w-4 h-4" />
+                              <span>Theo dõi đơn hàng trên GHN</span>
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   );
                 })}

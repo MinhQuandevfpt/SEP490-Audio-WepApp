@@ -332,7 +332,13 @@ export interface OrderItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
-  image?: string;  // Optional, might need to fetch from product
+  image?: string | null;  // Base product image
+  storeId?: string | null;
+  storeName?: string | null;
+  variantId?: string | null;
+  variantOptionName?: string | null;
+  variantOptionValue?: string | null;
+  variantUrl?: string | null; // Variant-specific image
 }
 
 // Store Order (sub-order within main order)
@@ -373,6 +379,7 @@ export interface CustomerOrder {
   postalCode: string;
   note: string | null;
   storeOrders: StoreOrder[];
+  items?: OrderItem[];
 }
 
 // ==================== REVIEW TYPES ====================
