@@ -8,8 +8,11 @@ import {
   ProductListPagination,
   ProductListGrid,
   ProductListViewToggle,
+  ProductCompareBar,
+  ProductCompareModal,
 } from '../../../components/ProductListComponents';
 import { useProductList } from '../../../hooks/useProductList';
+import { useProductCompare } from '../../../hooks/useProductCompare';
 import { showError } from '../../../utils/notification';
 
 const ProductListPage: React.FC = () => {
@@ -32,6 +35,18 @@ const ProductListPage: React.FC = () => {
     goToPage,
     changePageSize,
   } = useProductList();
+
+  const {
+    selectedProducts,
+    compareDetails,
+    isModalOpen,
+    isLoadingModal,
+    toggleProduct,
+    removeProduct,
+    clearAll,
+    openCompareModal,
+    closeModal,
+  } = useProductCompare();
 
 
   // Initialize filters from URL params
@@ -173,6 +188,8 @@ const ProductListPage: React.FC = () => {
               products={products}
               loading={loading}
               viewMode={viewMode}
+              selectedProductIds={selectedProducts.map((item) => item.productId)}
+              onToggleCompare={toggleProduct}
             />
 
             {/* Pagination */}
@@ -199,6 +216,21 @@ const ProductListPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ProductCompareBar
+        selected={selectedProducts}
+        onRemove={removeProduct}
+        onClear={clearAll}
+        onCompare={openCompareModal}
+      />
+
+      <ProductCompareModal
+        open={isModalOpen}
+        loading={isLoadingModal}
+        products={compareDetails}
+        onClose={closeModal}
+        onRemove={removeProduct}
+      />
     </Layout>
   );
 };

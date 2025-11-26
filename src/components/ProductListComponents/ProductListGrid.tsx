@@ -4,12 +4,16 @@ interface ProductListGridProps {
   products: any[];
   viewMode: 'grid' | 'list';
   loading?: boolean;
+  selectedProductIds?: string[];
+  onToggleCompare?: (product: any) => void;
 }
 
 export const ProductListGrid: React.FC<ProductListGridProps> = ({
   products,
   viewMode,
   loading = false,
+  selectedProductIds = [],
+  onToggleCompare,
 }) => {
   if (loading) {
     return <div className="text-center py-8">Đang tải sản phẩm...</div>;
@@ -31,9 +35,15 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
         const price = isVariantProduct
           ? product.variants[0]?.variantPrice
           : product.finalPrice ?? product.price;
+        const isSelected = selectedProductIds.includes(product.productId || product.id);
 
         return (
-          <div key={key} className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow">
+          <div
+            key={key}
+            className={`bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow ${
+              isSelected ? 'ring-2 ring-orange-400' : ''
+            }`}
+          >
             <div className="w-full h-48 bg-gray-50 rounded flex items-center justify-center overflow-hidden">
               {firstImage ? (
                 <img src={firstImage} alt={product.name} className="w-full h-full object-cover" />
@@ -45,6 +55,19 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
             <p className="text-orange-600 font-bold mt-1">
               {price ? price.toLocaleString('vi-VN') : '0'}đ
             </p>
+            {onToggleCompare && (
+              <button
+                type="button"
+                onClick={() => onToggleCompare(product)}
+                className={`mt-3 w-full border rounded-full py-1 text-sm ${
+                  isSelected
+                    ? 'border-orange-500 text-orange-600 bg-orange-50'
+                    : 'border-gray-200 text-gray-600 hover:border-orange-300 hover:text-orange-600'
+                }`}
+              >
+                {isSelected ? 'Đã chọn để so sánh' : 'Thêm vào so sánh'}
+              </button>
+            )}
           </div>
         );
       })}
