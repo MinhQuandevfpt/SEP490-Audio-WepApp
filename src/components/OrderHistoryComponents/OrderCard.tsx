@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import type { CustomerOrder, ReviewMediaPayload, OrderItem, ReviewResponse } from '../../types/api';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
 import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
 import { Card, Button, message } from 'antd';
@@ -140,11 +140,11 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
 
     setLoadingReviewStatus((prev) => ({ ...prev, [productId]: true }));
 
-    ProductReviewService.getMyReviewForProduct(productId)
-      .then((review: ReviewResponse | null) => {
-        if (review && review.status !== 'DELETED') {
+    ProductReviewService.getProductReviewStatus(productId, order.id)
+      .then((status) => {
+        if (status.hasReviewed) {
           setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
-          message.info('Bạn đã đánh giá sản phẩm này rồi.');
+          message.info(status.message || 'Sản phẩm trong đơn hàng này đã được đánh giá.');
         } else {
           setSelectedReviewItem(item);
           setReviewRating(5);
@@ -153,7 +153,8 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         }
       })
       .catch((error: any) => {
-        console.error('Error checking existing review:', error);
+        console.error('Error checking existing review status:', error);
+        // Nếu API trạng thái lỗi, vẫn cho phép mở form để tránh chặn người dùng
         setSelectedReviewItem(item);
         setReviewRating(5);
         setReviewContent('');
@@ -166,6 +167,51 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         });
       });
   };
+
+  // Pre-load review status for all items in this order when card is mounted / reloaded
+  useEffect(() => {
+    if (!isDeliverySuccess || reviewableItems.length === 0) return;
+
+    const uncheckedProductIds = Array.from(
+      new Set(
+        reviewableItems
+          .map((item) => item.productRefId)
+          .filter((id): id is string => !!id && !reviewedItemIds.includes(id)),
+      ),
+    );
+
+    if (uncheckedProductIds.length === 0) return;
+
+    const loadStatuses = async () => {
+      try {
+        await Promise.all(
+          uncheckedProductIds.map(async (productId) => {
+            try {
+              const status = await ProductReviewService.getProductReviewStatus(productId, order.id);
+              if (status.hasReviewed) {
+                setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
+              }
+            } catch (error) {
+              console.error('Failed to preload review status for product', productId, error);
+            }
+          }),
+        );
+      } catch (e) {
+        console.error('Error preloading review statuses:', e);
+      }
+    };
+
+    loadStatuses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeliverySuccess, reviewableItems, order.id]);
+
+  const hasPendingReviewItems = useMemo(
+    () =>
+      reviewableItems.some(
+        (item) => item.productRefId && !reviewedItemIds.includes(item.productRefId),
+      ),
+    [reviewableItems, reviewedItemIds],
+  );
 
   const handleMediaChange = (index: number, field: keyof ReviewMediaPayload, value: string) => {
     setReviewMedia((prev) =>
@@ -404,7 +450,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             </div>
           </div>
 
-          {isDeliverySuccess && reviewableItems.length > 0 && (
+          {isDeliverySuccess && reviewableItems.length > 0 && hasPendingReviewItems && (
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <Star className="w-4 h-4 text-[#FF6A00]" />
