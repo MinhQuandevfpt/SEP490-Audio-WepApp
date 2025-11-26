@@ -25,6 +25,7 @@ const ComboManagement: React.FC = () => {
   const [filterActive, setFilterActive] = useState<boolean | undefined>(undefined);
   const [page, setPage] = useState(0);
   const [size] = useState(20);
+  const [expandedCombos, setExpandedCombos] = useState<Set<string>>(new Set());
 
   const loadCombos = async () => {
     try {
@@ -88,6 +89,18 @@ const ComboManagement: React.FC = () => {
           showError(error?.message || 'Có lỗi xảy ra', 'Lỗi');
         }
       },
+    });
+  };
+
+  const toggleComboExpand = (comboId: string) => {
+    setExpandedCombos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(comboId)) {
+        newSet.delete(comboId);
+      } else {
+        newSet.add(comboId);
+      }
+      return newSet;
     });
   };
 
@@ -191,113 +204,209 @@ const ComboManagement: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {combos.map((combo) => (
-                <div
-                  key={combo.comboId}
-                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex gap-4">
-                    {/* Image */}
-                    <img
-                      src={combo.images[0] || '/placeholder.png'}
-                      alt={combo.name}
-                      className="w-32 h-32 object-cover rounded-lg"
-                    />
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900">{combo.name}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{combo.shortDescription}</p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              combo.isActive
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
+              {combos.map((combo) => {
+                const isExpanded = expandedCombos.has(combo.comboId);
+                
+                return (
+                  <div
+                    key={combo.comboId}
+                    className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                  >
+                    <div className="p-4">
+                      <div className="flex gap-4">
+                        {/* Expand button */}
+                        <div className="flex-shrink-0">
+                          <button
+                            onClick={() => toggleComboExpand(combo.comboId)}
+                            className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center hover:bg-orange-200 transition-colors group"
+                            title={isExpanded ? 'Thu gọn chi tiết' : 'Xem chi tiết'}
                           >
-                            {combo.isActive ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
-                          </span>
+                            <span className="text-orange-600 font-bold text-xl leading-none">
+                              {isExpanded ? '−' : '+'}
+                            </span>
+                          </button>
                         </div>
-                      </div>
 
-                      {/* Products in combo */}
-                      <div className="mb-3">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Sản phẩm trong combo ({combo.items.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-3">
-                          {combo.items.map((item, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg p-2"
-                            >
-                              <div className="w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0">
-                                <InboxOutlined className="text-2xl text-orange-500 flex items-center justify-center w-full h-full" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-gray-900 truncate">
-                                  {item.productName}
-                                </p>
-                                <p className="text-xs text-orange-600">
-                                  SL: {item.quantity}
-                                </p>
-                              </div>
+                        {/* Image */}
+                        <img
+                          src={combo.images[0] || '/placeholder.png'}
+                          alt={combo.name}
+                          className="w-32 h-32 object-cover rounded-lg flex-shrink-0"
+                        />
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-semibold text-gray-900">{combo.name}</h3>
+                              <p className="text-sm text-gray-600 mt-1">{combo.shortDescription}</p>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                            <div className="flex items-center gap-2 ml-4">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  combo.isActive
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {combo.isActive ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
+                              </span>
+                            </div>
+                          </div>
 
-                      {/* Stats */}
-                      <div className="flex items-center gap-6 text-sm text-gray-600">
-                        <div>
-                          <span className="font-medium">Ngày tạo:</span>{' '}
-                          {new Date(combo.createdAt).toLocaleString('vi-VN', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
+                          {/* Combo item count */}
+                          <div className="mb-3">
+                            <p className="text-sm font-medium text-gray-700">
+                              Combo hiện có: <span className="text-orange-600 font-semibold">{combo.items.length}</span> mặt hàng
+                            </p>
+                          </div>
+
+                          {/* Stats */}
+                          <div className="flex items-center gap-6 text-sm text-gray-600">
+                            <div>
+                              <span className="font-medium">Ngày tạo:</span>{' '}
+                              {new Date(combo.createdAt).toLocaleString('vi-VN', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => navigate(`/seller/dashboard/combos/${combo.comboId}`)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Xem chi tiết"
+                          >
+                            <EyeOutlined className="text-lg" />
+                          </button>
+                          <button
+                            onClick={() => handleToggleStatus(combo.comboId, combo.isActive)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              combo.isActive
+                                ? 'text-orange-600 hover:bg-orange-50'
+                                : 'text-green-600 hover:bg-green-50'
+                            }`}
+                            title={combo.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                          >
+                            <PoweroffOutlined className="text-lg" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(combo.comboId)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Xóa"
+                          >
+                            <DeleteOutlined className="text-lg" />
+                          </button>
                         </div>
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-col gap-2">
-                      <button
-                        onClick={() => navigate(`/seller/dashboard/combos/${combo.comboId}`)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <EyeOutlined className="text-lg" />
-                      </button>
-                      <button
-                        onClick={() => handleToggleStatus(combo.comboId, combo.isActive)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          combo.isActive
-                            ? 'text-orange-600 hover:bg-orange-50'
-                            : 'text-green-600 hover:bg-green-50'
-                        }`}
-                        title={combo.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                      >
-                        <PoweroffOutlined className="text-lg" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(combo.comboId)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Xóa"
-                      >
-                        <DeleteOutlined className="text-lg" />
-                      </button>
-                    </div>
+                    {/* Expanded Items Section */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-200 bg-gray-50 p-4">
+                        <div className="space-y-3">
+                          {(() => {
+                            // Group items by productId
+                            const groupedItems = combo.items.reduce((acc, item) => {
+                              if (!acc[item.productId]) {
+                                acc[item.productId] = [];
+                              }
+                              acc[item.productId].push(item);
+                              return acc;
+                            }, {} as Record<string, typeof combo.items>);
+
+                            return Object.entries(groupedItems).map(([productId, items]) => (
+                              <div key={productId} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                {/* Product Group Header */}
+                                <div className="bg-gradient-to-r from-orange-50 to-orange-100 px-3 py-2 border-b border-orange-200">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 bg-orange-500 rounded flex items-center justify-center text-white font-bold text-xs">
+                                      {items.length}
+                                    </div>
+                                    <div className="flex-1">
+                                      <h5 className="font-medium text-gray-900 text-sm">{items[0].productName}</h5>
+                                      <p className="text-xs text-gray-600">
+                                        {items.length === 1 ? '1 mặt hàng' : `${items.length} mặt hàng (các phân loại)`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Items List */}
+                                <div className="divide-y divide-gray-100">
+                                  {items.map((item, index) => (
+                                    <div key={index} className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors">
+                                      {/* Item Number */}
+                                      <div className="flex-shrink-0 w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center">
+                                        <span className="text-xs font-semibold text-orange-700">{index + 1}</span>
+                                      </div>
+
+                                      {/* Product Image */}
+                                      <img
+                                        src={item.variantUrl || combo.images[0] || '/placeholder.png'}
+                                        alt={item.productName}
+                                        className="w-12 h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0"
+                                      />
+
+                                      {/* Item Info */}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          {item.variantId ? (
+                                            <p className="text-xs font-medium text-gray-900">
+                                              <span className="text-orange-600">Phân loại:</span> {item.optionName} - {item.optionValue}
+                                            </p>
+                                          ) : (
+                                            <p className="text-xs font-medium text-blue-600">Sản phẩm đơn</p>
+                                          )}
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-3 text-xs">
+                                          {item.variantSku && (
+                                            <>
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-gray-500">SKU:</span>
+                                                <span className="font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                  {item.variantSku}
+                                                </span>
+                                              </div>
+                                              <div className="h-3 w-px bg-gray-300"></div>
+                                            </>
+                                          )}
+                                          {item.variantPrice !== undefined && item.variantPrice > 0 && (
+                                            <>
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-gray-500">Giá:</span>
+                                                <span className="font-semibold text-orange-600">
+                                                  {item.variantPrice.toLocaleString('vi-VN')}đ
+                                                </span>
+                                              </div>
+                                              <div className="h-3 w-px bg-gray-300"></div>
+                                            </>
+                                          )}
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-gray-500">SL:</span>
+                                            <span className="font-semibold text-gray-900">×{item.quantity}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
