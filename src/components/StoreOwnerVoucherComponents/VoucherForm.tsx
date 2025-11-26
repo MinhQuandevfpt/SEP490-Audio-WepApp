@@ -41,7 +41,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
     discountValue: 'Số tiền giảm giá cố định (VND). Ví dụ: 20.000đ giảm cho mỗi đơn hàng.',
     discountPercent: 'Phần trăm giảm giá. Ví dụ: 10% giảm trên tổng giá trị đơn hàng.',
     maxDiscountValue: 'Số tiền giảm tối đa khi áp dụng giảm theo phần trăm. Ví dụ: Giảm 20% nhưng tối đa 50.000đ.',
-    minOrderValue: 'Giá trị đơn hàng tối thiểu để áp dụng voucher. Ví dụ: Đơn từ 100.000đ trở lên.',
+    minOrderValue: 'Giá tối thiểu của sản phẩm để kích hoạt voucher',
     totalVoucherIssued: 'Tổng số lượng voucher được phát hành. Người dùng có thể sử dụng tối đa số lượng này.',
     usagePerUser: 'Số lần tối đa mỗi người dùng có thể sử dụng voucher này. Ví dụ: Mỗi user dùng tối đa 2 lần.',
     promotionStockLimit: 'Số lượng sản phẩm tham gia vào chương trình khuyến mãi. Không được vượt quá số lượng tồn kho.',
@@ -303,7 +303,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
           </div>
           <div>
             <label className="flex items-center text-sm font-medium text-gray-700">
-              Đơn tối thiểu (VND)
+              Giá tối thiểu (VND)
               <InfoTooltip fieldKey="minOrderValue" />
             </label>
             <input 
@@ -468,11 +468,45 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                 className="w-full px-3 py-2 border rounded-lg"
               />
             </div>
-            <div className="max-h-96 overflow-auto divide-y border rounded">
-              {(products || [])
-                .filter(pr => !productSearch.trim() || pr.name.toLowerCase().includes(productSearch.toLowerCase()))
-                .map(pr => (
-                  <div key={pr.productId} className="p-3 hover:bg-gray-50 border-b last:border-b-0">
+            {(() => {
+              const filteredProducts = (products || [])
+                .filter(pr => !productSearch.trim() || pr.name.toLowerCase().includes(productSearch.toLowerCase()));
+              const allSelected = filteredProducts.length > 0 && filteredProducts.every(pr => pickerSelected.has(pr.productId));
+              
+              return (
+                <>
+                  <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            // Chọn tất cả sản phẩm đang hiển thị
+                            setPickerSelected(prev => {
+                              const next = new Set(prev);
+                              filteredProducts.forEach(pr => next.add(pr.productId));
+                              return next;
+                            });
+                          } else {
+                            // Bỏ chọn tất cả sản phẩm đang hiển thị
+                            setPickerSelected(prev => {
+                              const next = new Set(prev);
+                              filteredProducts.forEach(pr => next.delete(pr.productId));
+                              return next;
+                            });
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Chọn tất cả ({filteredProducts.length} sản phẩm)
+                      </span>
+                    </label>
+                  </div>
+                  <div className="max-h-96 overflow-auto divide-y border rounded">
+                    {filteredProducts.map(pr => (
+                      <div key={pr.productId} className="p-3 hover:bg-gray-50 border-b last:border-b-0">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
@@ -533,9 +567,12 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                         )}
                       </div>
                     </label>
+                      </div>
+                    ))}
                   </div>
-                ))}
-            </div>
+                </>
+              );
+            })()}
             <div className="mt-3 flex justify-end gap-2">
               <button className="px-3 py-1.5 border rounded" onClick={() => setShowPicker(false)}>Hủy</button>
               <button
