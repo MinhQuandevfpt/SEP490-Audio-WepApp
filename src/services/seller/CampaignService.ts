@@ -266,7 +266,7 @@ export class SellerCampaignService {
   }
 
   /**
-   * Get detailed remaining time: X ngày Y giờ Z phút
+   * Get detailed remaining time: X ngày Y giờ Z phút AA giây
    */
   static getTimeRemainingDetailed(targetTime: string): string {
     const now = Date.now();
@@ -278,10 +278,13 @@ export class SellerCampaignService {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     diff -= hours * 60 * 60 * 1000;
     const minutes = Math.floor(diff / (1000 * 60));
+    diff -= minutes * 60 * 1000;
+    const seconds = Math.floor(diff / 1000);
     const parts: string[] = [];
     if (days > 0) parts.push(`${days} ngày`);
     if (hours > 0) parts.push(`${hours} giờ`);
-    parts.push(`${minutes} phút`);
+    if (minutes > 0) parts.push(`${minutes} phút`);
+    if (seconds > 0) parts.push(`${seconds} giây`);
     return parts.join(' ');
   }
 

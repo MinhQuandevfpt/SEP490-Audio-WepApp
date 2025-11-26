@@ -975,6 +975,12 @@ export interface ComboItem {
   variantId?: string; // Optional: for products with variants
   productName?: string; // From API response
   variantName?: string; // For display purposes
+  optionName?: string; // e.g., "Màu sắc", "Kích thước"
+  optionValue?: string; // e.g., "Đỏ", "XL"
+  variantPrice?: number;
+  variantStock?: number;
+  variantUrl?: string;
+  variantSku?: string;
   quantity: number;
 }
 
