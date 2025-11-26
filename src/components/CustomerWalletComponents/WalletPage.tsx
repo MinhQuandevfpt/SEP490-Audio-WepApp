@@ -9,6 +9,43 @@ interface WalletPageProps {
   customerId: string | null;
 }
 
+// Mapping transaction types to Vietnamese
+const getTransactionTypeLabel = (type: string): string => {
+  const typeMap: Record<string, string> = {
+    'REFUND': 'Hoàn tiền',
+    'QR': 'Thanh toán QR',
+    'DEPOSIT': 'Nạp tiền',
+    'WITHDRAW': 'Rút tiền',
+    'PENDING_HOLD': 'Giữ tiền chờ',
+    'RELEASE_PENDING': 'Giải phóng tiền chờ',
+    'ADJUSTMENT': 'Điều chỉnh',
+    'PAYMENT': 'Thanh toán',
+    'TRANSFER': 'Chuyển khoản',
+  };
+  return typeMap[type] || type;
+};
+
+// Mapping transaction status to Vietnamese
+const getTransactionStatusLabel = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'SUCCESS': 'Thành công',
+    'COMPLETED': 'Hoàn thành',
+    'PENDING': 'Đang xử lý',
+    'FAILED': 'Thất bại',
+    'CANCELLED': 'Đã hủy',
+    'PROCESSING': 'Đang xử lý',
+  };
+  return statusMap[status] || status;
+};
+
+// Get status color
+const getStatusColor = (status: string): string => {
+  if (status === 'SUCCESS' || status === 'COMPLETED') return 'green';
+  if (status === 'PENDING' || status === 'PROCESSING') return 'orange';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'red';
+  return 'default';
+};
+
 const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
   const { transactions, loading, error, page, pageSize, total, setPage, setPageSize } =
     useWalletTransactions(customerId);
@@ -25,8 +62,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       dataIndex: 'type',
       key: 'type',
       render: (value) => (
-        <Tag color="blue" className="uppercase">
-          {value}
+        <Tag color="blue">
+          {getTransactionTypeLabel(value)}
         </Tag>
       ),
     },
@@ -35,8 +72,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       dataIndex: 'status',
       key: 'status',
       render: (value) => (
-        <Tag color={value === 'COMPLETED' ? 'green' : 'default'} className="uppercase">
-          {value}
+        <Tag color={getStatusColor(value)}>
+          {getTransactionStatusLabel(value)}
         </Tag>
       ),
     },

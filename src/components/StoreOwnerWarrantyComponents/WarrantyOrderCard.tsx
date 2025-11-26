@@ -470,8 +470,12 @@ const WarrantyOrderCard: React.FC<WarrantyOrderCardProps> = ({
               </Tag>
             )}
             {hasPendingWarranties && (
-              <Tag color="orange" icon={<ShieldCheck className="w-3 h-3" />} className="text-sm">
-                Chờ kích hoạt bảo hành
+              <Tag 
+                color="orange" 
+                className="text-sm flex items-center gap-1.5"
+              >
+                <ShieldCheck className="w-3 h-3 flex-shrink-0" />
+                <span>Chờ kích hoạt bảo hành</span>
               </Tag>
             )}
             {hasWarranties && (
