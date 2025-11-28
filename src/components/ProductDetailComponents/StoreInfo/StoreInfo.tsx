@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { MessageCircle, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { CustomerStoreService } from '../../../services/customer/StoreService';
+import { useChatContext } from '../../../contexts/ChatContext';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 
 interface StoreInfoProps {
   storeId: string;
@@ -11,6 +13,7 @@ interface StoreInfoProps {
 
 const StoreInfo: React.FC<StoreInfoProps> = ({ storeId, storeName, storeAvatar }) => {
   const navigate = useNavigate();
+  const chatContext = useChatContext();
   const [storeData, setStoreData] = useState<{
     logoUrl?: string;
     coverImageUrl?: string;
@@ -40,8 +43,15 @@ const StoreInfo: React.FC<StoreInfoProps> = ({ storeId, storeName, storeAvatar }
   }, [storeId]);
   
   const handleChatWithStore = () => {
-    // TODO: Implement chat functionality
-    console.log('Chat with store:', storeId);
+    // Check if user is logged in
+    if (!CustomerAuthService.isAuthenticated()) {
+      // Redirect to login page
+      navigate('/auth/login');
+      return;
+    }
+    
+    // Open chat with this store
+    chatContext.openChat('store', storeId);
   };
 
   const handleVisitStore = () => {

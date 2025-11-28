@@ -1,6 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, Loader2, Trash2 } from 'lucide-react';
+import { Send, Bot, User, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import AIChatService from '../../services/ai/AIChatService';
+import ChatService, { type CustomerConversation } from '../../services/customer/ChatService';
+import { useChatContext } from '../../contexts/ChatContext';
+import { CustomerAuthService } from '../../services/customer/Authcustomer';
+import { CustomerStoreService } from '../../services/customer/StoreService';
+import FirebaseRealtimeChatService from '../../services/FirebaseRealtimeChatService';
 
 interface Message {
   id: string;
@@ -9,8 +15,19 @@ interface Message {
   timestamp: Date;
 }
 
+type ChatMode = 'ai' | 'store' | 'list';
+
+interface ConversationWithStoreInfo extends CustomerConversation {
+  storeName: string;
+  storeAvatar?: string;
+}
+
 const AIChatbot: React.FC = () => {
+  const navigate = useNavigate();
+  const chatContext = useChatContext();
   const [isOpen, setIsOpen] = useState(false);
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
@@ -21,8 +38,69 @@ const AIChatbot: React.FC = () => {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationWithStoreInfo[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [selectedStore, setSelectedStore] = useState<ConversationWithStoreInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = () => {
+      const authenticated = CustomerAuthService.isAuthenticated();
+      setIsAuthenticated(authenticated);
+    };
+    
+    checkAuth();
+    // Check auth when chat opens
+    if (isOpen) {
+      checkAuth();
+    }
+  }, [isOpen]);
+
+  // Listen to context changes
+  useEffect(() => {
+    console.log('🔍 Context changed:', {
+      contextIsOpen: chatContext.isOpen,
+      isOpen,
+      chatMode: chatContext.chatMode,
+      storeId: chatContext.storeId,
+      isAuthenticated
+    });
+    
+    if (chatContext.isOpen && !isOpen) {
+      setIsOpen(true);
+      
+      // If opening chat with a specific store, switch to list mode
+      if (chatContext.chatMode === 'store' && chatContext.storeId) {
+        console.log('✅ Opening chat with store:', chatContext.storeId);
+        setChatMode('list');
+        setStoreId(chatContext.storeId);
+        // Load conversations will happen in next effect
+      } else {
+        setChatMode(chatContext.chatMode);
+        if (chatContext.storeId) {
+          setStoreId(chatContext.storeId);
+        }
+      }
+    }
+  }, [chatContext.isOpen, chatContext.chatMode, chatContext.storeId, isAuthenticated]);
+
+  // Load conversations when switching to list mode
+  useEffect(() => {
+    console.log('📝 Load conversations effect:', {
+      isOpen,
+      chatMode,
+      isAuthenticated,
+      storeId
+    });
+    
+    if (isOpen && chatMode === 'list' && isAuthenticated) {
+      console.log('✅ Calling loadConversationsAndSelectStore...');
+      loadConversationsAndSelectStore();
+    }
+  }, [isOpen, chatMode, isAuthenticated, storeId]);
 
   // Get or generate userId
   const getUserId = () => {
@@ -50,46 +128,330 @@ const AIChatbot: React.FC = () => {
     }
   }, [isOpen]);
 
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+  // Load store messages when switching to store mode
+  useEffect(() => {
+    if (isOpen && chatMode === 'store' && storeId) {
+      loadStoreMessages();
+    }
+  }, [isOpen, chatMode, storeId]);
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: inputMessage,
-      timestamp: new Date(),
-    };
+  // Get store ID from URL or context (for store chat)
+  useEffect(() => {
+    // First check context
+    if (chatContext.storeId) {
+      setStoreId(chatContext.storeId);
+      return;
+    }
+    
+    // Try to get store ID from URL path (e.g., /store/{storeId} or /product/{id})
+    const pathParts = window.location.pathname.split('/');
+    const storeIndex = pathParts.indexOf('store');
+    if (storeIndex !== -1 && pathParts[storeIndex + 1]) {
+      const id = pathParts[storeIndex + 1];
+      setStoreId(id);
+      chatContext.setStoreId(id);
+    }
+  }, [window.location.pathname]);
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputMessage('');
+  // Load messages and setup Firebase listener for store chat
+  useEffect(() => {
+    // Only skip if in AI mode, allow both 'store' and 'list' modes
+    if (!isOpen || chatMode === 'ai' || !selectedStore?.storeId) {
+      return;
+    }
+
+    const customerId = ChatService.getCurrentUserId();
+    if (!customerId) {
+      return;
+    }
+
+    // Clear old messages first
+    setMessages([]);
     setIsLoading(true);
 
-    try {
-      const response = await AIChatService.sendMessage({
-        userId: getUserId(),
-        message: inputMessage,
-        userName: 'Guest', // You can get from auth context if available
-      });
+    // Subscribe to Firebase realtime updates
+    const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
+      customerId,
+      selectedStore.storeId,
+      (firebaseMessages) => {
+        setIsLoading(false);
+        
+        if (firebaseMessages.length === 0) {
+          // No messages in Firebase
+          setMessages([{
+            id: '0',
+            role: 'assistant',
+            content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
+            timestamp: new Date(),
+          }]);
+        } else {
+          // Convert Firebase messages to Message format
+          const formattedMessages: Message[] = firebaseMessages.map((msg) => ({
+            id: msg.id,
+            role: msg.senderType === 'CUSTOMER' ? 'user' : 'assistant',
+            content: msg.content,
+            timestamp: new Date(msg.createdAt),
+          }));
+          setMessages(formattedMessages);
+        }
+      }
+    );
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+    return () => {
+      unsubscribe();
+    };
+  }, [isOpen, chatMode, selectedStore?.storeId]);
+
+  const loadStoreMessages = async () => {
+    if (!storeId) return;
+    
+    const customerId = ChatService.getCurrentUserId();
+    if (!customerId) {
+      setMessages([{
+        id: '0',
         role: 'assistant',
-        content: response.answer,
+        content: 'Vui lòng đăng nhập để chat với cửa hàng.',
         timestamp: new Date(),
-      };
+      }]);
+      return;
+    }
 
-      setMessages((prev) => [...prev, assistantMessage]);
+    try {
+      setIsLoading(true);
+      const response = await ChatService.getMessages(customerId, storeId, 50);
+      
+      const loadedMessages: Message[] = response.data.map((msg) => ({
+        id: msg.id || Date.now().toString(),
+        role: msg.senderType === 'CUSTOMER' ? 'user' : 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.createdAt || msg.timestamp || Date.now()),
+      }));
+
+      if (loadedMessages.length === 0) {
+        setMessages([{
+          id: '0',
+          role: 'assistant',
+          content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
+          timestamp: new Date(),
+        }]);
+      } else {
+        setMessages(loadedMessages);
+      }
     } catch (error) {
+      console.error('Error loading store messages:', error);
+      setMessages([{
+        id: '0',
+        role: 'assistant',
+        content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadConversations = async () => {
+    const customerId = ChatService.getCurrentUserId();
+    if (!customerId) return;
+
+    try {
+      setIsLoading(true);
+      const convList = await ChatService.getCustomerConversations(customerId);
+      
+      // Fetch store info (name + avatar)
+      const conversationsWithStoreInfo = await Promise.all(
+        convList.map(async (conv) => {
+          try {
+            const storeDetail = await CustomerStoreService.getStoreById(conv.storeId);
+            return {
+              ...conv,
+              storeName: storeDetail.storeName || `Shop ${conv.storeId.substring(0, 8)}`,
+              storeAvatar: storeDetail.logoUrl || CustomerStoreService.getDefaultAvatar(storeDetail.storeName),
+            };
+          } catch (error) {
+            console.error(`Failed to fetch store ${conv.storeId}:`, error);
+            return {
+              ...conv,
+              storeName: `Shop ${conv.storeId.substring(0, 8)}`,
+              storeAvatar: CustomerStoreService.getDefaultAvatar(`Shop ${conv.storeId.substring(0, 8)}`),
+            };
+          }
+        })
+      );
+
+      setConversations(conversationsWithStoreInfo);
+      return conversationsWithStoreInfo;
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+      setConversations([]);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadConversationsAndSelectStore = async () => {
+    console.log('🚀 loadConversationsAndSelectStore started, storeId:', storeId);
+    const convList = await loadConversations();
+    console.log('📦 Loaded conversations:', convList?.length, convList);
+    
+    // If we have a storeId from context
+    if (storeId) {
+      // Try to find existing conversation
+      const targetConv = convList?.find(conv => conv.storeId === storeId);
+      console.log('🎯 Target conversation:', targetConv);
+      
+      if (targetConv) {
+        // Found existing conversation, select it
+        console.log('✅ Found existing conversation, selecting it');
+        setSelectedStore(targetConv);
+      } else {
+        // No existing conversation (either convList is empty or store not in list)
+        // Create a new one by fetching store info
+        console.log('⚠️ No existing conversation, creating new one');
+        try {
+          const storeDetail = await CustomerStoreService.getStoreById(storeId);
+          const newConv: ConversationWithStoreInfo = {
+            id: `${ChatService.getCurrentUserId()}_${storeId}`,
+            storeId: storeId,
+            customerId: ChatService.getCurrentUserId() || '',
+            lastMessage: '',
+            lastMessageTime: new Date().toISOString(),
+            storeName: storeDetail.storeName || `Shop ${storeId.substring(0, 8)}`,
+            storeAvatar: storeDetail.logoUrl || CustomerStoreService.getDefaultAvatar(storeDetail.storeName),
+          };
+          console.log('✨ Created new conversation:', newConv);
+          setSelectedStore(newConv);
+          // Add to conversations list
+          setConversations(prev => [newConv, ...prev]);
+        } catch (error) {
+          console.error('❌ Error creating new conversation:', error);
+        }
+      }
+    } else {
+      console.log('⚠️ No storeId');
+    }
+  };
+
+  const switchChatMode = (mode: ChatMode) => {
+    setChatMode(mode);
+    chatContext.openChat(mode === 'store' ? mode : 'ai', storeId || undefined);
+    
+    if (mode === 'ai') {
+      setMessages([{
+        id: '0',
+        role: 'assistant',
+        content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
+        timestamp: new Date(),
+      }]);
+    } else if (mode === 'store') {
+      if (storeId) {
+        loadStoreMessages();
+      } else {
+        setMessages([{
+          id: '0',
+          role: 'assistant',
+          content: 'Vui lòng chọn một cửa hàng để bắt đầu chat.',
+          timestamp: new Date(),
+        }]);
+      }
+    } else if (mode === 'list') {
+      loadConversations();
+    }
+  };
+
+  const handleSelectConversation = (conv: ConversationWithStoreInfo) => {
+    setStoreId(conv.storeId);
+    setSelectedStore(conv);
+    // Firebase listener in useEffect will handle loading messages
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim()) return;
+
+    const messageToSend = inputMessage;
+    setInputMessage('');
+
+    try {
+      if (chatMode === 'ai') {
+        setIsLoading(true);
+        
+        // Add user message immediately for AI chat
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: messageToSend,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+        
+        // AI Chat
+        const response = await AIChatService.sendMessage({
+          userId: getUserId(),
+          message: messageToSend,
+          userName: 'Guest',
+        });
+
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: response.answer,
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+        setIsLoading(false);
+      } else {
+        // Store Chat - NO optimistic update, let Firebase handle it
+        const customerId = ChatService.getCurrentUserId();
+        if (!customerId) {
+          throw new Error('Vui lòng đăng nhập để chat với cửa hàng.');
+        }
+        
+        // Use storeId from state or selectedStore
+        const targetStoreId = storeId || selectedStore?.storeId;
+        if (!targetStoreId) {
+          throw new Error('Không tìm thấy thông tin cửa hàng.');
+        }
+
+        // Send message to both API and Firebase
+        await Promise.all([
+          // Send to API (for backend storage)
+          ChatService.sendMessage(customerId, targetStoreId, {
+            senderId: customerId,
+            senderType: 'CUSTOMER',
+            content: messageToSend,
+            messageType: 'TEXT',
+          }),
+          // Send to Firebase (for realtime sync)
+          FirebaseRealtimeChatService.sendMessage(customerId, targetStoreId, {
+            senderId: customerId,
+            senderType: 'CUSTOMER',
+            content: messageToSend,
+            messageType: 'TEXT',
+          })
+        ]);
+
+        // Message will be updated automatically via Firebase listener
+      }
+    } catch (error: any) {
       console.error('Error sending message:', error);
+      
+      // Restore input on error
+      setInputMessage(messageToSend);
+      
+      // Show error message
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại sau.',
+        content: error.message || 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại sau.',
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+      
+      if (chatMode === 'ai') {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -102,14 +464,49 @@ const AIChatbot: React.FC = () => {
 
   const handleClearChat = () => {
     if (window.confirm('Bạn có chắc muốn xóa toàn bộ cuộc trò chuyện?')) {
-      setMessages([
-        {
+      if (chatMode === 'ai') {
+        setMessages([{
           id: '0',
           role: 'assistant',
           content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
           timestamp: new Date(),
-        },
-      ]);
+        }]);
+      } else {
+        setMessages([{
+          id: '0',
+          role: 'assistant',
+          content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
+          timestamp: new Date(),
+        }]);
+      }
+    }
+  };
+
+  const handleOpenChat = () => {
+    // Check authentication first
+    if (!CustomerAuthService.isAuthenticated()) {
+      navigate('/auth/login');
+      return;
+    }
+    // Toggle mode selector
+    setShowModeSelector((prev) => !prev);
+  };
+
+  const handleSelectMode = (mode: 'ai' | 'store') => {
+    setShowModeSelector(false);
+    if (mode === 'ai') {
+      setChatMode('ai');
+      setMessages([{
+        id: '0',
+        role: 'assistant',
+        content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
+        timestamp: new Date(),
+      }]);
+      setIsOpen(true);
+    } else {
+      setChatMode('list');
+      loadConversations();
+      setIsOpen(true);
     }
   };
 
@@ -117,57 +514,231 @@ const AIChatbot: React.FC = () => {
     <>
       {/* Floating Chat Button */}
       {!isOpen && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+          {/* Mode Selector - Show above button when clicked */}
+          {showModeSelector && (
+            <div className="flex gap-3 animate-scale-in">
+              {/* AI Chat Option */}
+              <button
+                onClick={() => handleSelectMode('ai')}
+                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl px-4 py-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              >
+                <Bot className="w-5 h-5" />
+                <span className="font-semibold text-sm whitespace-nowrap">Chat AI</span>
+              </button>
+
+              {/* Store Chat Option */}
+              <button
+                onClick={() => handleSelectMode('store')}
+                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl px-4 py-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center gap-2"
+              >
+                <Store className="w-5 h-5" />
+                <span className="font-semibold text-sm whitespace-nowrap">Chat Shop</span>
+              </button>
+            </div>
+          )}
+
+          {/* Main Chat Button */}
         <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl shadow-2xl hover:shadow-orange-500/50 hover:scale-105 transition-all duration-300 z-50 group flex flex-col items-center gap-1.5 px-4 py-3"
+            onClick={handleOpenChat}
+            className="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl shadow-2xl hover:shadow-orange-500/50 hover:scale-105 transition-all duration-300 group flex flex-col items-center gap-1.5 px-4 py-3 w-20"
           aria-label="Open chat"
         >
-          <div className="relative">
-            <Bot className="w-7 h-7 group-hover:animate-pulse" />
-            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center animate-pulse font-bold">
-              AI
-            </span>
+            <MessageSquare className="w-7 h-7 group-hover:animate-pulse" />
+            <span className="text-xs font-medium whitespace-nowrap">Chat Ngay</span>
+          </button>
           </div>
-          <span className="text-xs font-medium whitespace-nowrap">Trợ lý AI</span>
-        </button>
       )}
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-[500px] h-[700px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 overflow-hidden">
+        <div className="fixed bottom-6 right-6 w-[900px] h-[700px] bg-white rounded-2xl shadow-2xl flex z-50 border border-gray-200 overflow-hidden">
+          {/* Left Sidebar - Conversations List (only show in list mode) */}
+          {chatMode === 'list' && (
+            <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
           {/* Header */}
-          <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-4 flex items-center justify-between rounded-t-2xl">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
-                <Bot className="w-6 h-6" />
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-lg">Tin nhắn</h3>
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-lg">Trợ lý AI</h3>
-                <p className="text-xs text-white/80">Tech Hub Assistant</p>
+
+              {/* Search */}
+              <div className="p-3 border-b border-gray-200">
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên shop..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+
+              {/* Conversations List */}
+              <div className="flex-1 overflow-y-auto">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                    <MessageCircle className="w-16 h-16 text-gray-300 mb-4" />
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Chưa có tin nhắn</h3>
+                    <p className="text-xs text-gray-500">
+                      Bạn chưa có cuộc trò chuyện nào với cửa hàng
+                    </p>
+                  </div>
+                ) : (
+                  conversations.map((conv) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => handleSelectConversation(conv)}
+                      className={`w-full p-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 ${
+                        storeId === conv.storeId ? 'bg-orange-50' : ''
+                      }`}
+                    >
+                      {/* Store Avatar */}
+                      {conv.storeAvatar ? (
+                        <img
+                          src={conv.storeAvatar}
+                          alt={conv.storeName}
+                          className="w-12 h-12 rounded-full object-cover flex-shrink-0 border-2 border-gray-200"
+                          onError={(e) => {
+                            e.currentTarget.src = CustomerStoreService.getDefaultAvatar(conv.storeName);
+                          }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center flex-shrink-0">
+                          <Store className="w-6 h-6 text-white" />
+                        </div>
+                      )}
+                      
+                      <div className="flex-1 min-w-0 text-left">
+                        <h4 className="font-semibold text-sm text-gray-900 truncate">{conv.storeName}</h4>
+                        <p className="text-xs text-gray-500 truncate">{conv.lastMessage}</p>
+                        <span className="text-xs text-gray-400">
+                          {new Date(conv.lastMessageTime).toLocaleString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Back to AI Chat */}
+              <div className="p-3 border-t border-gray-200">
+                <button
+                  onClick={() => switchChatMode('ai')}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="text-sm font-medium">Chat với AI</span>
+                </button>
               </div>
             </div>
+          )}
+
+          {/* Right Side - Chat Area */}
+          <div className="flex-1 flex flex-col">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {/* Show store avatar and name in list mode if store selected */}
+                  {chatMode === 'list' && selectedStore ? (
+                    <>
+                      {selectedStore.storeAvatar ? (
+                        <img
+                          src={selectedStore.storeAvatar}
+                          alt={selectedStore.storeName}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-white/30"
+                          onError={(e) => {
+                            e.currentTarget.src = CustomerStoreService.getDefaultAvatar(selectedStore.storeName);
+                          }}
+                        />
+                      ) : (
+                        <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
+                          <Store className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-bold text-lg">{selectedStore.storeName}</h3>
+                        <p className="text-xs text-white/80">Cửa hàng</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
+                        {chatMode === 'ai' ? <Bot className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg">
+                          {chatMode === 'ai' ? 'Trợ lý AI' : 'Tin nhắn của bạn'}
+                        </h3>
+                        <p className="text-xs text-white/80">
+                          {chatMode === 'ai' ? 'Tech Hub Assistant' : 'Chọn cửa hàng để chat'}
+                        </p>
+                      </div>
+                    </>
+                  )}
+            </div>
             <div className="flex items-center gap-2">
+                  {/* Clear chat button for AI mode or list mode with selected store */}
+                  {(chatMode === 'ai' || (chatMode === 'list' && selectedStore)) && (
               <button
                 onClick={handleClearChat}
                 className="hover:bg-white/20 p-2 rounded-full transition-colors"
-                aria-label="Clear chat"
                 title="Xóa cuộc trò chuyện"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
+                  )}
+                  {/* Switch to conversations list from AI mode */}
+                  {chatMode === 'ai' && (
+                    <button
+                      onClick={() => switchChatMode('list')}
+                      className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                      title="Xem tin nhắn"
+                    >
+                      <MessageCircle className="w-5 h-5" />
+                    </button>
+                  )}
+                  {/* Close button */}
               <button
                 onClick={() => setIsOpen(false)}
                 className="hover:bg-white/20 p-2 rounded-full transition-colors"
-                aria-label="Close chat"
               >
                 <X className="w-5 h-5" />
               </button>
+                </div>
             </div>
           </div>
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            {messages.map((message) => (
+              {chatMode === 'list' && !selectedStore ? (
+                // Empty state - no store selected yet
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                  <MessageCircle className="w-20 h-20 text-gray-300 mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">Chọn một cuộc trò chuyện</h3>
+                  <p className="text-sm text-gray-500">
+                    Chọn cửa hàng từ danh sách bên trái để bắt đầu chat
+                  </p>
+                </div>
+              ) : (
+                // Show messages (both AI and store messages)
+                messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex gap-3 ${
@@ -212,10 +783,11 @@ const AIChatbot: React.FC = () => {
                   </span>
                 </div>
               </div>
-            ))}
+                ))
+              )}
 
             {/* Loading Indicator */}
-            {isLoading && (
+              {isLoading && chatMode !== 'list' && (
               <div className="flex gap-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-500 to-red-500">
                   <Bot className="w-4 h-4 text-white" />
@@ -230,7 +802,8 @@ const AIChatbot: React.FC = () => {
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-gray-200 p-4 bg-white rounded-b-2xl">
+            {(chatMode === 'ai' || (chatMode === 'list' && selectedStore)) && (
+              <div className="border-t border-gray-200 p-4 bg-white">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -251,7 +824,8 @@ const AIChatbot: React.FC = () => {
                 <Send className="w-5 h-5" />
               </button>
             </div>
-           
+              </div>
+            )}
           </div>
         </div>
       )}

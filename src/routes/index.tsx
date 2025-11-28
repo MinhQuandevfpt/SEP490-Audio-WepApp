@@ -59,6 +59,7 @@ import StaffDashboardLayout from '../components/StaffDashboardLayout';
 import OrderPageStaff from '../pages/StoreStaff/Order/OrderPageStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
 import { ReplyReviewPage } from '../pages/Seller/ReplyPeview';
+import { MessagesPage } from '../pages/Seller/Messages';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -431,7 +432,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'messages',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Tin nhắn</h2><p className="text-gray-600 mt-2">Trang tin nhắn đang được phát triển...</p></div>
+        element: <MessagesPage />
       },
       {
         path: 'reviews',

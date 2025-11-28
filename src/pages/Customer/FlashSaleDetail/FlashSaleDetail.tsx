@@ -89,7 +89,12 @@ const FlashSaleDetail: React.FC = () => {
           selectedSlot.id,
           'ONGOING'
         );
-        setProducts(productList);
+        // Enrich products with images (similar to FlashSaleHome)
+        console.log('📦 Products before enriching:', productList.length);
+        const enrichedProducts = await FlashSaleService.enrichProductsWithImages(productList);
+        console.log('✅ Products after enriching:', enrichedProducts.length);
+        console.log('🖼️ Sample product imageUrl:', enrichedProducts[0]?.imageUrl);
+        setProducts(enrichedProducts);
       } catch (error: any) {
         console.error('Error loading products:', error);
         setProducts([]);
@@ -314,14 +319,19 @@ const FlashSaleDetail: React.FC = () => {
                             src={product.imageUrl}
                             alt={product.productName}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
                           />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            No Image
-                          </div>
-                        )}
+                        ) : null}
+                        <div className={`w-full h-full flex items-center justify-center bg-gray-50 ${product.imageUrl ? 'hidden' : ''}`}>
+                          <span className="text-4xl text-gray-300">🎧</span>
+                        </div>
                         {product.discountPercent > 0 && (
-                          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold">
+                          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold z-10">
                             -{product.discountPercent}%
                           </div>
                         )}

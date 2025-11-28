@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Store, MessageCircle, Search } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import SimpleProductCard from '../../../components/ProductCard/SimpleProductCard';
 import { ProductListService, type Product } from '../../../services/customer/ProductListService';
 import { CustomerStoreService, type StoreDetailResponse } from '../../../services/customer/StoreService';
+import { useChatContext } from '../../../contexts/ChatContext';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 
 const StorePage: React.FC = () => {
   const { storeId } = useParams<{ storeId: string }>();
+  const navigate = useNavigate();
+  const chatContext = useChatContext();
   const [products, setProducts] = useState<Product[]>([]);
   const [storeName, setStoreName] = useState('');
   const [storeData, setStoreData] = useState<StoreDetailResponse | null>(null);
@@ -17,6 +21,49 @@ const StorePage: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // Process product to handle variants and calculate prices (similar to ProductSuggestions)
+  const processProduct = (product: Product): Product => {
+    let originalPrice = product.price || 0;
+    let discountedPrice: number | null = product.discountPrice;
+    
+    // If product has variants, calculate from variants
+    if (product.variants && product.variants.length > 0) {
+      const variantPrices = product.variants
+        .map(v => v.variantPrice)
+        .filter(price => price > 0);
+      
+      if (variantPrices.length > 0) {
+        const minVariantPrice = Math.min(...variantPrices);
+        originalPrice = minVariantPrice;
+      }
+    }
+    
+    // If originalPrice is still 0, try to use discountPrice as fallback
+    if (originalPrice === 0 && discountedPrice && discountedPrice > 0) {
+      originalPrice = discountedPrice;
+      discountedPrice = null;
+    }
+    
+    // Validate discountPrice - must be less than originalPrice
+    let finalDiscountedPrice: number | null = null;
+    let finalDiscountPercent: number | null = null;
+    
+    if (discountedPrice && discountedPrice < originalPrice && originalPrice > 0) {
+      finalDiscountedPrice = discountedPrice;
+      finalDiscountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+    }
+    
+    // Update product with processed prices
+    return {
+      ...product,
+      price: originalPrice,
+      discountPrice: finalDiscountedPrice,
+      promotionPercent: finalDiscountPercent,
+      finalPrice: finalDiscountedPrice || originalPrice,
+      priceAfterPromotion: finalDiscountedPrice || originalPrice,
+    };
+  };
 
   const loadProducts = async (pageNum: number = 0, append: boolean = false) => {
     if (!storeId) return;
@@ -41,10 +88,13 @@ const StorePage: React.FC = () => {
           setStoreName(productsData[0].storeName);
         }
 
+        // Process products to handle variants and calculate prices
+        const processedProducts = productsData.map(processProduct);
+
         if (append) {
-          setProducts(prev => [...prev, ...productsData]);
+          setProducts(prev => [...prev, ...processedProducts]);
         } else {
-          setProducts(productsData);
+          setProducts(processedProducts);
         }
 
         // Check if it's the last page
@@ -96,8 +146,17 @@ const StorePage: React.FC = () => {
   };
 
   const handleChatWithStore = () => {
-    // TODO: Implement chat functionality
-    console.log('Chat with store:', storeId);
+    // Check if user is logged in
+    if (!CustomerAuthService.isAuthenticated()) {
+      // Redirect to login page
+      navigate('/auth/login');
+      return;
+    }
+    
+    // Open chat with this store
+    if (storeId) {
+      chatContext.openChat('store', storeId);
+    }
   };
 
   const defaultAvatar = storeName 
@@ -232,7 +291,7 @@ const StorePage: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          <div className="flex items-center gap-1 md:gap-2 bg-white/20 backdrop-blur-sm px-2 md:px-3 py-1 md:py-1.5 rounded-full hidden md:flex">
+                          <div className="hidden md:flex items-center gap-1 md:gap-2 bg-white/20 backdrop-blur-sm px-2 md:px-3 py-1 md:py-1.5 rounded-full">
                             <span className="text-white font-medium">
                               📅 {storeData?.createdAt ? new Date(storeData.createdAt).toLocaleDateString('vi-VN') : 'N/A'}
                             </span>
