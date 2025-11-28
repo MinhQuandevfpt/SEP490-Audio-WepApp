@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare } from 'lucide-react';
+import { Send, Bot, User, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AIChatService from '../../services/ai/AIChatService';
 import ChatService, { type CustomerConversation } from '../../services/customer/ChatService';
@@ -7,12 +7,15 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerStoreService } from '../../services/customer/StoreService';
 import FirebaseRealtimeChatService from '../../services/FirebaseRealtimeChatService';
+import FileUploadService from '../../services/FileUploadService';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
+  mediaUrl?: string | Array<{ url: string; type?: string }>;
 }
 
 type ChatMode = 'ai' | 'store' | 'list';
@@ -38,12 +41,16 @@ const AIChatbot: React.FC = () => {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ file: File; preview: string; type: 'image' | 'video' }>>([]);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationWithStoreInfo[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedStore, setSelectedStore] = useState<ConversationWithStoreInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Check authentication
   useEffect(() => {
@@ -169,7 +176,41 @@ const AIChatbot: React.FC = () => {
     setMessages([]);
     setIsLoading(true);
 
+    // First, load messages from API (has full mediaUrl array info)
+    const loadInitialMessages = async () => {
+      try {
+        const response = await ChatService.getMessages(customerId, selectedStore.storeId, 100);
+        
+        if (response.data && response.data.length > 0) {
+          const loadedMessages: Message[] = response.data.map((msg) => ({
+            id: msg.id || Date.now().toString(),
+            role: msg.senderType === 'CUSTOMER' ? 'user' : 'assistant',
+            content: msg.content || '',
+            messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
+            mediaUrl: msg.mediaUrl, // Preserve array format from API
+            timestamp: new Date(msg.createdAt || msg.timestamp || Date.now()),
+          }));
+          setMessages(loadedMessages);
+          setIsLoading(false);
+        } else {
+          setMessages([{
+            id: '0',
+            role: 'assistant',
+            content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
+            timestamp: new Date(),
+          }]);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading initial messages:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadInitialMessages();
+
     // Subscribe to Firebase realtime updates
+    // Firebase now supports full mediaUrl array, so we can use it directly
     const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
       customerId,
       selectedStore.storeId,
@@ -186,12 +227,31 @@ const AIChatbot: React.FC = () => {
           }]);
         } else {
           // Convert Firebase messages to Message format
-          const formattedMessages: Message[] = firebaseMessages.map((msg) => ({
-            id: msg.id,
-            role: msg.senderType === 'CUSTOMER' ? 'user' : 'assistant',
-            content: msg.content,
-            timestamp: new Date(msg.createdAt),
-          }));
+          // Firebase now supports both string and array format for mediaUrl
+          const formattedMessages: Message[] = firebaseMessages.map((msg): Message => {
+            const role: 'user' | 'assistant' = msg.senderType === 'CUSTOMER' ? 'user' : 'assistant';
+            const formatted: Message = {
+              id: msg.id,
+              role: role,
+              content: msg.content || '',
+              messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
+              mediaUrl: msg.mediaUrl, // Can be string or array - preserve as is
+              timestamp: new Date(msg.createdAt),
+            };
+            
+            // Debug log for media messages
+            if (formatted.messageType === 'IMAGE' || formatted.messageType === 'MIXED' || formatted.mediaUrl) {
+              console.log('📸 Media message received from Firebase:', {
+                id: formatted.id,
+                messageType: formatted.messageType,
+                mediaUrlType: Array.isArray(formatted.mediaUrl) ? 'array' : typeof formatted.mediaUrl,
+                mediaUrlLength: Array.isArray(formatted.mediaUrl) ? formatted.mediaUrl.length : 1,
+                mediaUrl: formatted.mediaUrl
+              });
+            }
+            
+            return formatted;
+          });
           setMessages(formattedMessages);
         }
       }
@@ -224,6 +284,8 @@ const AIChatbot: React.FC = () => {
         id: msg.id || Date.now().toString(),
         role: msg.senderType === 'CUSTOMER' ? 'user' : 'assistant',
         content: msg.content,
+        messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
+        mediaUrl: msg.mediaUrl,
         timestamp: new Date(msg.createdAt || msg.timestamp || Date.now()),
       }));
 
@@ -367,13 +429,27 @@ const AIChatbot: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    // Check if there's text or files to send
+    const hasText = inputMessage.trim().length > 0;
+    const hasFiles = selectedFiles.length > 0;
 
-    const messageToSend = inputMessage;
+    if (!hasText && !hasFiles) return;
+
+    const messageToSend = inputMessage.trim();
+    const filesToSend = [...selectedFiles];
+
+    // Clear inputs immediately
     setInputMessage('');
+    setSelectedFiles([]);
 
     try {
       if (chatMode === 'ai') {
+        // AI Chat doesn't support media
+        if (hasFiles) {
+          alert('Chỉ có thể gửi ảnh/video khi chat với cửa hàng');
+          return;
+        }
+
         setIsLoading(true);
         
         // Add user message immediately for AI chat
@@ -402,16 +478,68 @@ const AIChatbot: React.FC = () => {
         setMessages((prev) => [...prev, assistantMessage]);
         setIsLoading(false);
       } else {
-        // Store Chat - NO optimistic update, let Firebase handle it
+        // Store Chat
         const customerId = ChatService.getCurrentUserId();
         if (!customerId) {
           throw new Error('Vui lòng đăng nhập để chat với cửa hàng.');
         }
         
-        // Use storeId from state or selectedStore
         const targetStoreId = storeId || selectedStore?.storeId;
         if (!targetStoreId) {
           throw new Error('Không tìm thấy thông tin cửa hàng.');
+        }
+
+        let mediaUrl: string | Array<{ url: string; type: string }> | undefined;
+        let messageType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED' = 'TEXT';
+        let content = messageToSend;
+
+        // Upload files if exists
+        if (filesToSend.length > 0) {
+          setIsUploading(true);
+          
+          try {
+            const uploadedMedia: Array<{ url: string; type: string }> = [];
+            
+            // Upload all files
+            for (const fileItem of filesToSend) {
+              let uploadedUrl: string;
+              if (fileItem.type === 'image') {
+                const uploadResponse = await FileUploadService.uploadImage(fileItem.file);
+                uploadedUrl = uploadResponse.url;
+              } else {
+                const uploadResponse = await FileUploadService.uploadVideo(fileItem.file);
+                uploadedUrl = uploadResponse.url;
+              }
+              
+              uploadedMedia.push({
+                url: uploadedUrl,
+                type: fileItem.type
+              });
+            }
+
+          // Determine message type
+          if (filesToSend.length === 1 && !content.trim()) {
+            // Single file without text - use IMAGE/VIDEO
+            messageType = filesToSend[0].type === 'image' ? 'IMAGE' : 'VIDEO';
+            mediaUrl = uploadedMedia[0].url; // Keep old format for backward compatibility
+            content = ''; // Empty content when only media is sent
+          } else {
+            // Multiple files or has text - use MIXED
+            messageType = 'MIXED';
+            mediaUrl = uploadedMedia;
+            // Keep content as is (empty if no text, or user's text if provided)
+          }
+          } catch (uploadError: any) {
+            console.error('Error uploading files:', uploadError);
+            alert(uploadError.message || 'Không thể tải file lên. Vui lòng thử lại.');
+            setIsUploading(false);
+            // Restore inputs on error
+            setInputMessage(messageToSend);
+            setSelectedFiles(filesToSend);
+            return;
+          } finally {
+            setIsUploading(false);
+          }
         }
 
         // Send message to both API and Firebase
@@ -420,15 +548,17 @@ const AIChatbot: React.FC = () => {
           ChatService.sendMessage(customerId, targetStoreId, {
             senderId: customerId,
             senderType: 'CUSTOMER',
-            content: messageToSend,
-            messageType: 'TEXT',
+            content: content,
+            messageType: messageType,
+            mediaUrl: mediaUrl,
           }),
-          // Send to Firebase (for realtime sync)
+          // Send to Firebase (for realtime sync) - Firebase now supports array format
           FirebaseRealtimeChatService.sendMessage(customerId, targetStoreId, {
             senderId: customerId,
             senderType: 'CUSTOMER',
-            content: messageToSend,
-            messageType: 'TEXT',
+            content: content,
+            messageType: messageType,
+            mediaUrl: mediaUrl, // Send full array or string as is
           })
         ]);
 
@@ -437,8 +567,9 @@ const AIChatbot: React.FC = () => {
     } catch (error: any) {
       console.error('Error sending message:', error);
       
-      // Restore input on error
+      // Restore inputs on error
       setInputMessage(messageToSend);
+      setSelectedFiles(filesToSend);
       
       // Show error message
       const errorMessage: Message = {
@@ -461,6 +592,74 @@ const AIChatbot: React.FC = () => {
       handleSendMessage();
     }
   };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'image' | 'video') => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Only allow in store chat mode
+    if (chatMode === 'ai') {
+      alert(`Chỉ có thể gửi ${fileType === 'image' ? 'ảnh' : 'video'} khi chat với cửa hàng`);
+      return;
+    }
+
+    const validFiles: File[] = [];
+    
+    // Validate all files first
+    Array.from(files).forEach((file) => {
+      if (fileType === 'image') {
+        if (!file.type.startsWith('image/')) {
+          alert('Vui lòng chọn file ảnh hợp lệ');
+          return;
+        }
+      } else {
+        if (!file.type.includes('video/mp4')) {
+          alert('Chỉ hỗ trợ định dạng video MP4');
+          return;
+        }
+        const maxSize = 30 * 1024 * 1024; // 30MB
+        if (file.size > maxSize) {
+          alert('Dung lượng video không được vượt quá 30MB');
+          return;
+        }
+      }
+      validFiles.push(file);
+    });
+
+    if (validFiles.length === 0) return;
+
+    // Create previews for all valid files
+    const newFiles: Array<{ file: File; preview: string; type: 'image' | 'video' }> = [];
+    let loadedCount = 0;
+
+    validFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const preview = e.target?.result as string;
+        newFiles.push({ file, preview, type: fileType });
+        loadedCount++;
+        
+        // Update state when all files are processed
+        if (loadedCount === validFiles.length) {
+          setSelectedFiles(prev => [...prev, ...newFiles]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input
+    if (fileType === 'image' && imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+    if (fileType === 'video' && videoInputRef.current) {
+      videoInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
 
   const handleClearChat = () => {
     if (window.confirm('Bạn có chắc muốn xóa toàn bộ cuộc trò chuyện?')) {
@@ -761,27 +960,178 @@ const AIChatbot: React.FC = () => {
                 </div>
 
                 {/* Message Bubble */}
-                <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
-                      : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
-                  }`}
-                >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {message.content}
-                  </p>
-                  <span
-                    className={`text-xs mt-1 block ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                {message.mediaUrl && (message.messageType === 'IMAGE' || message.messageType === 'VIDEO' || message.messageType === 'MIXED') ? (
+                  // Image/Video/MIXED with optional text
+                  <div className="max-w-[300px] space-y-2">
+                    {/* Handle mediaUrl as array (MIXED) or string (IMAGE/VIDEO) */}
+                    {(() => {
+                      const isArray = Array.isArray(message.mediaUrl);
+                      const isMixed = message.messageType === 'MIXED';
+                      
+                      // Debug log
+                      if (isMixed || isArray) {
+                        console.log('🔍 MIXED message detected:', {
+                          messageType: message.messageType,
+                          isArray,
+                          mediaUrl: message.mediaUrl,
+                          length: isArray ? (message.mediaUrl as any[]).length : 0,
+                          content: message.content
+                        });
+                      }
+                      
+                      // If MIXED type or mediaUrl is an array, display as grid
+                      if (isMixed || isArray) {
+                        // MIXED: Multiple media items
+                        const mediaArray = Array.isArray(message.mediaUrl) ? message.mediaUrl : [];
+                        
+                        // If array is empty but we have a string mediaUrl, convert it
+                        if (mediaArray.length === 0 && typeof message.mediaUrl === 'string' && message.mediaUrl) {
+                          return (
+                            <img
+                              src={message.mediaUrl}
+                              alt=""
+                              className="w-[300px] h-[300px] rounded-lg object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          );
+                        }
+                        
+                        if (mediaArray.length === 0) {
+                          return null;
+                        }
+                        
+                        return (
+                          <div className="grid grid-cols-2 gap-2">
+                            {mediaArray.map((item, index) => {
+                              const mediaUrl: string = typeof item === 'string' ? item : (item?.url || '');
+                              const mediaType = typeof item === 'string' ? 'image' : (item?.type || 'image');
+                              const isVideo = mediaType === 'video' || (mediaUrl && mediaUrl.match(/\.(mp4|webm|ogg)$/i));
+                              
+                              if (!mediaUrl) return null;
+                              
+                              return isVideo ? (
+                                <video
+                                  key={index}
+                                  src={mediaUrl}
+                                  controls
+                                  className="w-full h-[150px] rounded-lg object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                >
+                                  Trình duyệt của bạn không hỗ trợ video.
+                                </video>
+                              ) : (
+                                <img
+                                  key={index}
+                                  src={mediaUrl}
+                                  alt=""
+                                  className="w-full h-[150px] rounded-lg object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        );
+                      } else {
+                        // IMAGE/VIDEO: Single media item (string format)
+                        if (!message.mediaUrl || typeof message.mediaUrl !== 'string') {
+                          return null;
+                        }
+                        
+                        return (
+                          <>
+                            {message.messageType === 'VIDEO' || message.mediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
+                              <video
+                                src={message.mediaUrl}
+                                controls
+                                className="w-[300px] h-[300px] rounded-lg object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              >
+                                Trình duyệt của bạn không hỗ trợ video.
+                              </video>
+                            ) : (
+                              <img
+                                src={message.mediaUrl}
+                                alt=""
+                                className="w-[300px] h-[300px] rounded-lg object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            )}
+                          </>
+                        );
+                      }
+                    })()}
+                    {/* Show text bubble if exists - same style as text message */}
+                    {message.content && message.content.trim() && (
+                      <div
+                        className={`rounded-2xl px-4 py-2 ${
+                          message.role === 'user'
+                            ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
+                            : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
+                        }`}
+                      >
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                          {message.content}
+                        </p>
+                        <span
+                          className={`text-xs mt-1 block ${
+                            message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                          }`}
+                        >
+                          {message.timestamp.toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {/* Show timestamp only if no text */}
+                    {(!message.content || !message.content.trim()) && (
+                      <span
+                        className={`text-xs block ${
+                          message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
+                      >
+                        {message.timestamp.toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  // Text message only - with background bubble
+                  <div
+                    className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
+                        : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
                     }`}
                   >
-                    {message.timestamp.toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                      {message.content}
+                    </p>
+                    <span
+                      className={`text-xs mt-1 block ${
+                        message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                      }`}
+                    >
+                      {message.timestamp.toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                )}
               </div>
                 ))
               )}
@@ -803,8 +1153,103 @@ const AIChatbot: React.FC = () => {
 
           {/* Input Area */}
             {(chatMode === 'ai' || (chatMode === 'list' && selectedStore)) && (
-              <div className="border-t border-gray-200 p-4 bg-white">
-            <div className="flex gap-2">
+              <div className="border-t border-gray-200 bg-white">
+            {/* Preview area */}
+            {selectedFiles.length > 0 && (
+              <div className="p-3 border-b border-gray-200 bg-blue-50">
+                <div className="flex flex-wrap gap-2">
+                  {selectedFiles.map((fileItem, index) => (
+                    <div key={index} className="relative">
+                      {fileItem.type === 'video' ? (
+                        <video
+                          src={fileItem.preview}
+                          className="w-[120px] h-[120px] rounded-lg object-cover"
+                          controls={false}
+                        />
+                      ) : (
+                        <img
+                          src={fileItem.preview}
+                          alt={`Preview ${index + 1}`}
+                          className="w-[120px] h-[120px] rounded-lg object-cover"
+                        />
+                      )}
+                      <button
+                        onClick={() => handleRemoveFile(index)}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                        title="Xóa"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {/* Add more button */}
+                  <button
+                    onClick={() => {
+                      // For simplicity, just add image. User can click video button separately
+                      imageInputRef.current?.click();
+                    }}
+                    className="w-[120px] h-[120px] rounded-lg border-2 border-dashed border-gray-300 hover:border-orange-500 flex items-center justify-center bg-white transition-colors"
+                    title="Thêm ảnh/video"
+                    disabled={isUploading || isLoading}
+                  >
+                    <div className="text-center">
+                      <span className="text-2xl text-gray-400">+</span>
+                      <p className="text-xs text-gray-500 mt-1">Thêm</p>
+                    </div>
+                  </button>
+                </div>
+                {isUploading && (
+                  <div className="flex items-center gap-2 text-blue-600 mt-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Đang tải lên {selectedFiles.length} file...</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="p-3 flex items-center gap-2">
+              {/* Hidden file inputs */}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => handleFileSelect(e, 'image')}
+                className="hidden"
+                disabled={isUploading || isLoading || chatMode === 'ai'}
+              />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/mp4"
+                multiple
+                onChange={(e) => handleFileSelect(e, 'video')}
+                className="hidden"
+                disabled={isUploading || isLoading || chatMode === 'ai'}
+              />
+              
+              {/* Upload buttons - only show in store chat mode */}
+              {chatMode === 'list' && selectedStore && (
+                <>
+                  <button
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={isUploading || isLoading}
+                    className="p-2 text-gray-600 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Gửi ảnh"
+                  >
+                    <Image className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => videoInputRef.current?.click()}
+                    disabled={isUploading || isLoading}
+                    className="p-2 text-gray-600 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Gửi video"
+                  >
+                    <Video className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+              
               <input
                 ref={inputRef}
                 type="text"
@@ -812,16 +1257,20 @@ const AIChatbot: React.FC = () => {
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Nhập tin nhắn..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                disabled={isLoading}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                disabled={isLoading || isUploading}
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isLoading}
-                className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-3 rounded-full hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || isUploading}
+                className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-2.5 rounded-full hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 aria-label="Send message"
               >
-                <Send className="w-5 h-5" />
+                {isLoading || isUploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
               </button>
             </div>
               </div>

@@ -1,13 +1,18 @@
 import HttpInterceptor from '../HttpInterceptor';
 import { getCustomerId } from '../../utils/authHelper';
 
+export interface MediaItem {
+  url: string;
+  type?: string; // 'image' | 'video'
+}
+
 export interface ChatMessage {
   id?: string;
   senderId: string;
   senderType: 'CUSTOMER' | 'STORE';
   content: string;
-  messageType: 'TEXT' | 'IMAGE' | 'FILE';
-  mediaUrl?: string;
+  messageType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
+  mediaUrl?: string | MediaItem[]; // Support both old format (string) and new format (array)
   timestamp?: string;
   createdAt?: string;
 }
@@ -17,7 +22,7 @@ export interface SendMessageRequest {
   senderType: string;
   content: string;
   messageType: string;
-  mediaUrl?: string;
+  mediaUrl?: string | MediaItem[]; // Support both old format (string) and new format (array)
 }
 
 export interface GetMessagesResponse {

@@ -1,12 +1,18 @@
 import { database } from '../config/firebase';
 import { ref, onValue, off, set, push, query, orderByChild, limitToLast, get } from 'firebase/database';
 
+export interface MediaItem {
+  url: string;
+  type?: string; // 'image' | 'video'
+}
+
 export interface FirebaseChatMessage {
   id: string;
   senderId: string;
   senderType: 'CUSTOMER' | 'STORE';
   content: string;
-  messageType: 'TEXT';
+  messageType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
+  mediaUrl?: string | MediaItem[]; // Support both string (old format) and array (new format)
   createdAt: string | number;
   timestamp?: number;
 }
@@ -47,6 +53,7 @@ class FirebaseRealtimeChatService {
             senderType: data.senderType,
             content: data.content,
             messageType: data.messageType || 'TEXT',
+            mediaUrl: data.mediaUrl,
             createdAt: data.createdAt || data.timestamp,
             timestamp: data.timestamp,
           });
@@ -75,14 +82,15 @@ class FirebaseRealtimeChatService {
       senderId: string;
       senderType: 'CUSTOMER' | 'STORE';
       content: string;
-      messageType?: 'TEXT';
+      messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
+      mediaUrl?: string | MediaItem[]; // Support both string and array
     }
   ): Promise<void> {
     const chatPath = this.getChatPath(customerId, storeId);
     const messagesRef = ref(database, chatPath);
     const newMessageRef = push(messagesRef);
 
-    const messageData = {
+    const messageData: any = {
       id: newMessageRef.key,
       senderId: message.senderId,
       senderType: message.senderType,
@@ -91,6 +99,11 @@ class FirebaseRealtimeChatService {
       createdAt: new Date().toISOString(),
       timestamp: Date.now(),
     };
+
+    // Only add mediaUrl if it exists and is not undefined
+    if (message.mediaUrl) {
+      messageData.mediaUrl = message.mediaUrl;
+    }
 
     await set(newMessageRef, messageData);
   }
@@ -120,6 +133,7 @@ class FirebaseRealtimeChatService {
           senderType: data.senderType,
           content: data.content,
           messageType: data.messageType || 'TEXT',
+          mediaUrl: data.mediaUrl,
           createdAt: data.createdAt || data.timestamp,
           timestamp: data.timestamp,
         });
