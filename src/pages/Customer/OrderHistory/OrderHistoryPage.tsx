@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Card, 
   Select, 
@@ -25,6 +25,7 @@ const { Title, Text } = Typography;
 
 const OrderHistoryPage: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     status,
     setStatus,
@@ -53,9 +54,9 @@ const OrderHistoryPage: React.FC = () => {
     if (state?.orderId) {
       viewDetail(state.orderId);
       // Clear the state to avoid reopening on navigation
-      window.history.replaceState({}, document.title);
+      navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, viewDetail]);
+  }, [location.state, location.pathname, viewDetail, navigate]);
 
   // Calculate statistics
   const totalAmount = orders.reduce((sum, order) => sum + order.grandTotal, 0);
