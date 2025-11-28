@@ -213,8 +213,17 @@ const ShoppingCart: React.FC = () => {
   const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
   const summary = useMemo(() => calcCartSummary(items), [items]);
 
-  // Store vouchers
+  // Store vouchers - Track by productId (not storeId) to prevent same voucher code on multiple products
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
+  
+  // Map voucher code to productId to check if voucher is already used by another product
+  const voucherCodeToProductIdMap = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.entries(appliedStoreVouchers).forEach(([productId, voucher]) => {
+      map.set(voucher.code, productId);
+    });
+    return map;
+  }, [appliedStoreVouchers]);
 
   // Platform voucher discounts: Record<productId, discountAmount>
   const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, number>>({});
@@ -311,8 +320,10 @@ const ShoppingCart: React.FC = () => {
       let changed = false;
       const next: Record<string, AppliedStoreVoucher> = {};
 
-      Object.entries(prev).forEach(([storeId, applied]) => {
-        const vouchers = storeVoucherMap.get(storeId) || [];
+      Object.entries(prev).forEach(([productId, applied]) => {
+        const product = productCache.get(productId);
+        const storeId = product?.storeId || `unknown-${productId}`;
+        const vouchers = productVouchersMapState.get(productId) || [];
         const matchedVoucher = vouchers.find(v => v.code === applied.code);
         const storeTotal = calculateSelectedTotalForStore(storeId);
 
@@ -330,7 +341,7 @@ const ShoppingCart: React.FC = () => {
         }
 
         const discountValue = calculateVoucherDiscount(matchedVoucher, storeTotal);
-        next[storeId] = {
+        next[productId] = {
           ...applied,
           discountValue,
         };
@@ -347,7 +358,7 @@ const ShoppingCart: React.FC = () => {
     });
 
     messages.forEach(msg => showCenterError(msg, 'Voucher'));
-  }, [items, productCache, storeVoucherMap]);
+  }, [items, productCache, productVouchersMapState]);
 
   // Calculate subtotal before and after platform discounts
   const subtotalBeforePlatformDiscount = useMemo(() => {
@@ -382,10 +393,22 @@ const ShoppingCart: React.FC = () => {
   }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
 
   // Calculate discount amount for a voucher
-  const handleApplyStoreVoucher = (storeId: string, voucher: ShopVoucher, discountValue: number) => {
+  const handleApplyStoreVoucher = (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => {
+    // Check if this voucher code is already applied to another product
+    const existingProductId = voucherCodeToProductIdMap.get(voucher.code);
+    if (existingProductId && existingProductId !== productId) {
+      const existingProduct = productCache.get(existingProductId);
+      const existingProductName = existingProduct?.name || 'sản phẩm khác';
+      showCenterError(
+        `Voucher ${voucher.code} đã được sử dụng cho ${existingProductName}. Mỗi voucher chỉ có thể áp dụng cho một sản phẩm.`,
+        'Voucher'
+      );
+      return;
+    }
+
     setAppliedStoreVouchers(prev => ({
       ...prev,
-      [storeId]: {
+      [productId]: {
         code: voucher.code,
         type: voucher.type,
         discountValue,
@@ -394,10 +417,10 @@ const ShoppingCart: React.FC = () => {
     }));
   };
 
-  const handleRemoveStoreVoucher = (storeId: string) => {
+  const handleRemoveStoreVoucher = (productId: string) => {
     setAppliedStoreVouchers(prev => {
-      if (!prev[storeId]) return prev;
-      const { [storeId]: _removed, ...rest } = prev;
+      if (!prev[productId]) return prev;
+      const { [productId]: _removed, ...rest } = prev;
       return rest;
     });
   };
@@ -423,7 +446,7 @@ const ShoppingCart: React.FC = () => {
           storeName,
           items: [],
           vouchers: storeVoucherMap.get(storeId) || [],
-          appliedVoucher: appliedStoreVouchers[storeId],
+          appliedVoucher: undefined, // No longer used at store level
           selectedTotal: 0,
         });
       }
@@ -434,11 +457,10 @@ const ShoppingCart: React.FC = () => {
         group.selectedTotal += item.price * item.quantity;
       }
       group.vouchers = storeVoucherMap.get(storeId) || [];
-      group.appliedVoucher = appliedStoreVouchers[storeId];
     });
 
     return Array.from(groups.values());
-  }, [items, productCache, storeVoucherMap, appliedStoreVouchers]);
+  }, [items, productCache, storeVoucherMap]);
 
   const toggleItem = (id: string) => {
     setItems(prev => prev.map(it => it.id === id ? { ...it, isSelected: !it.isSelected } : it));
@@ -509,7 +531,7 @@ const ShoppingCart: React.FC = () => {
 
     const payload = {
       selectedCartItemIds: selectedItems.map(item => item.id),
-      storeVouchers: appliedStoreVouchers,
+      storeVouchers: appliedStoreVouchers, // Still pass for checkout compatibility
       selectedAddressId,
       createdAt: Date.now(),
     };
@@ -554,6 +576,9 @@ const ShoppingCart: React.FC = () => {
               totalItemCount={items.length}
               productVoucherAvailability={productVoucherAvailability}
               productVouchersMap={productVouchersMapState}
+              appliedStoreVouchers={appliedStoreVouchers}
+              voucherCodeToProductIdMap={voucherCodeToProductIdMap}
+              productCache={productCache}
               showAddress={false}
               addresses={addresses}
               selectedAddressId={selectedAddressId}

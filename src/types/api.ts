@@ -457,6 +457,16 @@ export interface WalletTransactionPage {
   last?: boolean;
 }
 
+// Wallet Info (Overview)
+export interface WalletInfo {
+  id: string;
+  customerId: string;
+  balance: number;
+  currency: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  lastTransactionAt: string | null;
+}
+
 // Order History Response (paginated)
 export interface OrderHistoryResponse {
   items: CustomerOrder[];

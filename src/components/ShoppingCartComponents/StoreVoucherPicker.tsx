@@ -11,10 +11,13 @@ export interface AppliedStoreVoucher {
 }
 
 interface StoreVoucherPickerProps {
+  productId: string; // Product ID to track which product this voucher picker belongs to
   storeName: string;
   vouchers: ShopVoucher[];
   selectedTotal: number;
   appliedVoucher?: AppliedStoreVoucher;
+  voucherCodeToProductIdMap?: Map<string, string>; // Map<voucherCode, productId> - to check if voucher is used by another product
+  productCache?: Map<string, any>; // Product cache to get product names
   onApply: (voucher: ShopVoucher, discountValue: number) => void;
   onRemove: () => void;
 }
@@ -56,10 +59,13 @@ const calculateDiscountAmount = (voucher: ShopVoucher, storeTotal: number): numb
 };
 
 const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
+  productId,
   storeName,
   vouchers,
   selectedTotal,
   appliedVoucher,
+  voucherCodeToProductIdMap = new Map(),
+  productCache = new Map(),
   onApply,
   onRemove,
 }) => {
@@ -70,6 +76,19 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
     const unusable: Array<{ voucher: ShopVoucher; reason: string }> = [];
 
     vouchers.forEach(voucher => {
+      // Check if voucher is already used by another product
+      const usedByProductId = voucherCodeToProductIdMap.get(voucher.code);
+      if (usedByProductId && usedByProductId !== productId) {
+        const usedByProduct = productCache.get(usedByProductId);
+        const usedByProductName = usedByProduct?.name || 'sản phẩm khác';
+        unusable.push({
+          voucher,
+          reason: `Đã được sử dụng bởi ${usedByProductName}`,
+        });
+        return;
+      }
+
+      // Check minOrderValue
       if (voucher.minOrderValue && selectedTotal < voucher.minOrderValue) {
         unusable.push({
           voucher,
@@ -81,9 +100,21 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
     });
 
     return { usableVouchers: usable, unusableVouchers: unusable };
-  }, [vouchers, selectedTotal]);
+  }, [vouchers, selectedTotal, productId, voucherCodeToProductIdMap, productCache]);
 
   const handleApply = (voucher: ShopVoucher) => {
+    // Check if voucher is already used by another product
+    const usedByProductId = voucherCodeToProductIdMap.get(voucher.code);
+    if (usedByProductId && usedByProductId !== productId) {
+      const usedByProduct = productCache.get(usedByProductId);
+      const usedByProductName = usedByProduct?.name || 'sản phẩm khác';
+      showCenterError(
+        `Voucher ${voucher.code} đã được sử dụng cho ${usedByProductName}. Mỗi voucher chỉ có thể áp dụng cho một sản phẩm.`,
+        'Voucher'
+      );
+      return;
+    }
+
     if (voucher.minOrderValue && selectedTotal < voucher.minOrderValue) {
       showCenterError(
         `Đơn hàng của cửa hàng ${storeName} chưa đạt tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`,
@@ -144,13 +175,23 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
             {usableVouchers.map(voucher => {
               const discountAmount = calculateDiscountAmount(voucher, selectedTotal);
               const isApplied = appliedVoucher?.code === voucher.code;
+              // Check if voucher is used by another product (should not happen in usable list, but double check)
+              const usedByProductId = voucherCodeToProductIdMap.get(voucher.code);
+              const isUsedByOther = usedByProductId && usedByProductId !== productId;
 
               return (
                 <button
                   key={voucher.code}
                   type="button"
                   onClick={() => handleApply(voucher)}
-                  className={`w-full text-left px-4 py-3 transition-colors ${isApplied ? 'bg-orange-50' : 'hover:bg-gray-50'}`}
+                  disabled={isUsedByOther}
+                  className={`w-full text-left px-4 py-3 transition-colors ${
+                    isApplied 
+                      ? 'bg-orange-50' 
+                      : isUsedByOther
+                      ? 'bg-gray-50 opacity-60 cursor-not-allowed'
+                      : 'hover:bg-gray-50'
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>

@@ -20,8 +20,10 @@ interface CartItemRowProps {
   vouchers?: ShopVoucher[];
   appliedVoucher?: AppliedStoreVoucher;
   selectedTotal?: number;
-  onApplyVoucher?: (storeId: string, voucher: ShopVoucher, discountValue: number) => void;
-  onRemoveVoucher?: (storeId: string) => void;
+  voucherCodeToProductIdMap?: Map<string, string>; // Map<voucherCode, productId> - to check if voucher is used by another product
+  productCache?: Map<string, any>; // Product cache to get product names
+  onApplyVoucher?: (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => void;
+  onRemoveVoucher?: (productId: string) => void;
 }
 
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
@@ -36,6 +38,8 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
   vouchers = [],
   appliedVoucher,
   selectedTotal = 0,
+  voucherCodeToProductIdMap = new Map(),
+  productCache = new Map(),
   onApplyVoucher,
   onRemoveVoucher,
 }) => {
@@ -208,12 +212,15 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
       {showVoucherPicker && storeId && (
         <div className="mt-3 pt-3 border-t border-gray-100">
           <StoreVoucherPicker
+            productId={it.productId}
             storeName={storeName || ''}
             vouchers={vouchers}
             selectedTotal={selectedTotal}
             appliedVoucher={appliedVoucher}
-            onApply={(voucher, discountValue) => onApplyVoucher && onApplyVoucher(storeId, voucher, discountValue)}
-            onRemove={() => onRemoveVoucher && onRemoveVoucher(storeId)}
+            voucherCodeToProductIdMap={voucherCodeToProductIdMap}
+            productCache={productCache}
+            onApply={(voucher, discountValue) => onApplyVoucher && onApplyVoucher(it.productId, storeId, voucher, discountValue)}
+            onRemove={() => onRemoveVoucher && onRemoveVoucher(it.productId)}
           />
         </div>
       )}

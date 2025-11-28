@@ -1,8 +1,10 @@
 import React from 'react';
-import { Card, Table, Tag, Empty, Spin, Alert } from 'antd';
+import { Card, Table, Tag, Empty, Spin, Alert, Row, Col, Statistic } from 'antd';
+import { WalletOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { WalletTransaction } from '../../types/api';
 import { useWalletTransactions } from '../../hooks/useWalletTransactions';
+import { useWalletInfo } from '../../hooks/useWalletInfo';
 import { formatCurrency } from '../../utils/orderStatus';
 
 interface WalletPageProps {
@@ -46,8 +48,27 @@ const getStatusColor = (status: string): string => {
   return 'default';
 };
 
+// Mapping wallet status to Vietnamese
+const getWalletStatusLabel = (status: string): string => {
+  const statusMap: Record<string, string> = {
+    'ACTIVE': 'Đang hoạt động',
+    'INACTIVE': 'Không hoạt động',
+    'SUSPENDED': 'Đã tạm khóa',
+  };
+  return statusMap[status] || status;
+};
+
+// Get wallet status color
+const getWalletStatusColor = (status: string): string => {
+  if (status === 'ACTIVE') return 'green';
+  if (status === 'INACTIVE') return 'default';
+  if (status === 'SUSPENDED') return 'red';
+  return 'default';
+};
+
 const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
-  const { transactions, loading, error, page, pageSize, total, setPage, setPageSize } =
+  const { walletInfo, loading: walletLoading, error: walletError } = useWalletInfo(customerId);
+  const { transactions, loading: transactionsLoading, error: transactionsError, page, pageSize, total, setPage, setPageSize } =
     useWalletTransactions(customerId);
 
   const columns: ColumnsType<WalletTransaction> = [
@@ -100,39 +121,94 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
   ];
 
   return (
-    <Card title="Ví nền tảng" className="shadow-sm border border-gray-200">
-      {!customerId ? (
-        <Empty description="Không tìm thấy thông tin khách hàng" />
-      ) : error ? (
-        <Alert type="error" message={error} showIcon />
-      ) : (
-        <>
-          {loading ? (
-            <div className="py-8 text-center">
-              <Spin size="large" />
-            </div>
+    <div className="space-y-6">
+      {/* Wallet Overview Card */}
+      <Card title="Tổng quan ví" className="shadow-sm border border-gray-200">
+        {!customerId ? (
+          <Empty description="Không tìm thấy thông tin khách hàng" />
+        ) : walletError ? (
+          <Alert type="error" message={walletError} showIcon />
+        ) : walletLoading ? (
+          <div className="py-8 text-center">
+            <Spin size="large" />
+          </div>
+        ) : walletInfo ? (
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={8}>
+              <Statistic
+                title="Số dư hiện tại"
+                value={walletInfo.balance}
+                prefix={<WalletOutlined className="text-blue-500" />}
+                suffix={walletInfo.currency}
+                valueStyle={{ color: '#1890ff', fontSize: '24px', fontWeight: 'bold' }}
+                formatter={(value) => formatCurrency(Number(value))}
+              />
+            </Col>
+            <Col xs={24} sm={12} md={8}>
+              <Statistic
+                title="Trạng thái ví"
+                value={getWalletStatusLabel(walletInfo.status)}
+                prefix={
+                  walletInfo.status === 'ACTIVE' ? (
+                    <CheckCircleOutlined className="text-green-500" />
+                  ) : (
+                    <ClockCircleOutlined className="text-orange-500" />
+                  )
+                }
+                valueStyle={{ fontSize: '18px' }}
+              />
+              <Tag color={getWalletStatusColor(walletInfo.status)} className="mt-2">
+                {getWalletStatusLabel(walletInfo.status)}
+              </Tag>
+            </Col>
+            <Col xs={24} sm={12} md={8}>
+              <Statistic
+                title="Giao dịch cuối"
+                value={walletInfo.lastTransactionAt ? new Date(walletInfo.lastTransactionAt).toLocaleString('vi-VN') : 'Chưa có'}
+                valueStyle={{ fontSize: '14px', color: '#666' }}
+              />
+            </Col>
+          </Row>
+        ) : (
+          <Empty description="Không có thông tin ví" />
+        )}
+      </Card>
+
+      {/* Transaction History Card */}
+      <Card title="Lịch sử giao dịch" className="shadow-sm border border-gray-200">
+        {!customerId ? (
+          <Empty description="Không tìm thấy thông tin khách hàng" />
+        ) : transactionsError ? (
+          <Alert type="error" message={transactionsError} showIcon />
+        ) : (
+          <>
+            {transactionsLoading ? (
+              <div className="py-8 text-center">
+                <Spin size="large" />
+              </div>
             ) : transactions.length === 0 ? (
-            <Empty description="Chưa có giao dịch" />
-          ) : (
-            <Table
-              rowKey="id"
-              columns={columns}
-              dataSource={transactions}
-              pagination={{
-                current: page,
-                pageSize,
-                total,
-                onChange: (p, ps) => {
-                  setPage(p);
-                  setPageSize(ps || pageSize);
-                },
-                showSizeChanger: true,
-              }}
-            />
-          )}
-        </>
-      )}
-    </Card>
+              <Empty description="Chưa có giao dịch" />
+            ) : (
+              <Table
+                rowKey="id"
+                columns={columns}
+                dataSource={transactions}
+                pagination={{
+                  current: page,
+                  pageSize,
+                  total,
+                  onChange: (p, ps) => {
+                    setPage(p);
+                    setPageSize(ps || pageSize);
+                  },
+                  showSizeChanger: true,
+                }}
+              />
+            )}
+          </>
+        )}
+      </Card>
+    </div>
   );
 };
 

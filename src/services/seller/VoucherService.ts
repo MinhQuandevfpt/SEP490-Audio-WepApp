@@ -9,9 +9,9 @@ const API_URL = RESOLVED_BASE.endsWith('/api') ? RESOLVED_BASE : `${RESOLVED_BAS
 export interface VoucherProductItem {
   productId: string;
   productName: string;
-  originalPrice: number;
-  discountedPrice: number | null;
-  discountPercent: number | null;
+  promotionStockLimit: number | null;
+  purchaseLimitPerCustomer: number | null;
+  active: boolean;
 }
 
 export interface StoreVoucher {
@@ -22,10 +22,14 @@ export interface StoreVoucher {
   type: 'FIXED' | 'PERCENT';
   discountValue: number | null;
   discountPercent: number | null;
+  maxDiscountValue: number | null;
   minOrderValue: number | null;
   status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'EXPIRED' | 'DISABLED';
   startTime: string;
   endTime: string;
+  totalVoucherIssued?: number | null;
+  usagePerUser?: number | null;
+  remainingUsage?: number | null;
   products: VoucherProductItem[];
 }
 

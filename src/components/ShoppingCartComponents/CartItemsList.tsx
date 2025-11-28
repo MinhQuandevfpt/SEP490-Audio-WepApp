@@ -21,6 +21,9 @@ interface CartItemsListProps {
   totalItemCount: number;
   productVoucherAvailability: Record<string, boolean>;
   productVouchersMap?: Map<string, ShopVoucher[]>; // Map: productId -> vouchers[] - mỗi product chỉ có vouchers của chính nó
+  appliedStoreVouchers: Record<string, AppliedStoreVoucher>; // Record<productId, AppliedStoreVoucher>
+  voucherCodeToProductIdMap: Map<string, string>; // Map<voucherCode, productId> - track which product uses which voucher
+  productCache: Map<string, any>; // Product cache to get product names
   showAddress?: boolean;
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
@@ -35,8 +38,8 @@ interface CartItemsListProps {
   onDec: (id: string) => void;
   onRemove: (id: string) => void;
   onSetQuantity: (id: string, quantity: number) => void;
-  onApplyVoucher: (storeId: string, voucher: ShopVoucher, discountValue: number) => void;
-  onRemoveVoucher: (storeId: string) => void;
+  onApplyVoucher: (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => void;
+  onRemoveVoucher: (productId: string) => void;
 }
 
 const CartItemsList: React.FC<CartItemsListProps> = ({
@@ -44,6 +47,9 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
   totalItemCount,
   productVoucherAvailability,
   productVouchersMap = new Map(),
+  appliedStoreVouchers,
+  voucherCodeToProductIdMap,
+  productCache,
   addresses,
   selectedAddressId,
   addressesLoading,
@@ -102,6 +108,8 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
               const hasVoucher = productVoucherAvailability[it.productId] ?? false;
               // Mỗi product chỉ nhận vouchers của chính nó, không phải tất cả vouchers của store
               const itemVouchers = hasVoucher ? (productVouchersMap.get(it.productId) || []) : [];
+              // Get applied voucher for this specific product
+              const appliedVoucher = appliedStoreVouchers[it.productId];
               return (
                 <CartItemRow
                   key={it.id}
@@ -114,8 +122,10 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
                   storeId={group.storeId}
                   storeName={group.storeName}
                   vouchers={itemVouchers}
-                  appliedVoucher={group.appliedVoucher}
+                  appliedVoucher={appliedVoucher}
                   selectedTotal={group.selectedTotal}
+                  voucherCodeToProductIdMap={voucherCodeToProductIdMap}
+                  productCache={productCache}
                   onApplyVoucher={onApplyVoucher}
                   onRemoveVoucher={onRemoveVoucher}
                 />
