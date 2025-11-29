@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video } from 'lucide-react';
+import { Send, Bot, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AIChatService from '../../services/ai/AIChatService';
 import ChatService, { type CustomerConversation } from '../../services/customer/ChatService';
@@ -47,10 +47,12 @@ const AIChatbot: React.FC = () => {
   const [conversations, setConversations] = useState<ConversationWithStoreInfo[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedStore, setSelectedStore] = useState<ConversationWithStoreInfo | null>(null);
+  const [zoomMedia, setZoomMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null); // For selecting both image and video
 
   // Check authentication
   useEffect(() => {
@@ -108,6 +110,95 @@ const AIChatbot: React.FC = () => {
       loadConversationsAndSelectStore();
     }
   }, [isOpen, chatMode, isAuthenticated, storeId]);
+
+  // Setup Firebase listeners for all conversations to update lastMessage in realtime
+  useEffect(() => {
+    if (!isOpen || chatMode !== 'list' || !isAuthenticated || conversations.length === 0) {
+      return;
+    }
+
+    const customerId = ChatService.getCurrentUserId();
+    if (!customerId) return;
+
+    // Helper function to format last message text
+    const formatLastMessage = (message: any): string => {
+      if (message.content && message.content.trim()) {
+        return message.content;
+      } else if (message.messageType === 'IMAGE') {
+        return '[Hình ảnh]';
+      } else if (message.messageType === 'VIDEO') {
+        return '[Video]';
+      } else if (message.messageType === 'MIXED') {
+        const mediaCount = Array.isArray(message.mediaUrl) 
+          ? message.mediaUrl.length 
+          : (message.mediaUrl ? 1 : 0);
+        if (mediaCount > 0) {
+          return `[${mediaCount} ảnh/video]`;
+        }
+      }
+      return '[Tin nhắn]';
+    };
+
+    console.log('📡 Setting up Firebase listeners for conversations:', conversations.length);
+
+    // Setup Firebase listener for each conversation
+    const unsubscribes: Array<() => void> = [];
+
+    conversations.forEach((conv) => {
+      const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
+        customerId,
+        conv.storeId,
+        (firebaseMessages) => {
+          if (firebaseMessages.length === 0) return;
+
+          // Get the latest message
+          const latestMessage = firebaseMessages[firebaseMessages.length - 1];
+          
+          // Format lastMessage text
+          const lastMessageText = formatLastMessage(latestMessage);
+          
+          // Update conversation in the list
+          setConversations((prev) => {
+            const updated = prev.map((c) => {
+              if (c.storeId === conv.storeId) {
+                const newLastMessageTime = typeof latestMessage.createdAt === 'string' 
+                  ? latestMessage.createdAt 
+                  : new Date(latestMessage.createdAt).toISOString();
+                
+                // Only update if the new message is more recent
+                const currentTime = new Date(c.lastMessageTime).getTime();
+                const newTime = new Date(newLastMessageTime).getTime();
+                
+                if (newTime > currentTime) {
+                  return {
+                    ...c,
+                    lastMessage: lastMessageText,
+                    lastMessageTime: newLastMessageTime,
+                  };
+                }
+              }
+              return c;
+            });
+            
+            // Sort by lastMessageTime (newest first)
+            return updated.sort((a, b) => {
+              const timeA = new Date(a.lastMessageTime).getTime();
+              const timeB = new Date(b.lastMessageTime).getTime();
+              return timeB - timeA;
+            });
+          });
+        }
+      );
+
+      unsubscribes.push(unsubscribe);
+    });
+
+    // Cleanup: unsubscribe from all listeners
+    return () => {
+      console.log('🧹 Cleaning up conversation Firebase listeners');
+      unsubscribes.forEach((unsub) => unsub());
+    };
+  }, [isOpen, chatMode, isAuthenticated, conversations.map(c => c.storeId).join(',')]);
 
   // Get or generate userId
   const getUserId = () => {
@@ -656,6 +747,74 @@ const AIChatbot: React.FC = () => {
     }
   };
 
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // Only allow in store chat mode
+    if (chatMode === 'ai') {
+      alert('Chỉ có thể gửi ảnh/video khi chat với cửa hàng');
+      return;
+    }
+
+    const validFiles: Array<{ file: File; type: 'image' | 'video' }> = [];
+    
+    // Validate and categorize all files
+    Array.from(files).forEach((file) => {
+      if (file.type.startsWith('image/')) {
+        validFiles.push({ file, type: 'image' });
+      } else if (file.type.startsWith('video/')) {
+        // Check if it's MP4
+        if (file.type.includes('video/mp4') || file.name.toLowerCase().endsWith('.mp4')) {
+          const maxSize = 30 * 1024 * 1024; // 30MB
+          if (file.size > maxSize) {
+            alert(`Video "${file.name}" có dung lượng quá lớn (tối đa 30MB)`);
+            return;
+          }
+          validFiles.push({ file, type: 'video' });
+        } else {
+          alert(`Chỉ hỗ trợ định dạng video MP4. File "${file.name}" không được hỗ trợ.`);
+          return;
+        }
+      } else {
+        alert(`File "${file.name}" không phải là ảnh hoặc video hợp lệ.`);
+        return;
+      }
+    });
+
+    if (validFiles.length === 0) {
+      // Reset input
+      if (mediaInputRef.current) {
+        mediaInputRef.current.value = '';
+      }
+      return;
+    }
+
+    // Create previews for all valid files
+    const newFiles: Array<{ file: File; preview: string; type: 'image' | 'video' }> = [];
+    let loadedCount = 0;
+
+    validFiles.forEach((fileItem) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const preview = e.target?.result as string;
+        newFiles.push({ file: fileItem.file, preview, type: fileItem.type });
+        loadedCount++;
+        
+        // Update state when all files are processed
+        if (loadedCount === validFiles.length) {
+          setSelectedFiles(prev => [...prev, ...newFiles]);
+        }
+      };
+      reader.readAsDataURL(fileItem.file);
+    });
+
+    // Reset input
+    if (mediaInputRef.current) {
+      mediaInputRef.current.value = '';
+    }
+  };
+
   const handleRemoveFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
@@ -944,133 +1103,11 @@ const AIChatbot: React.FC = () => {
                   message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                 }`}
               >
-                {/* Avatar */}
-                <div
-                  className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-                      : 'bg-gradient-to-br from-orange-500 to-red-500'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <User className="w-4 h-4 text-white" />
-                  ) : (
-                    <Bot className="w-4 h-4 text-white" />
-                  )}
-                </div>
-
                 {/* Message Bubble */}
                 {message.mediaUrl && (message.messageType === 'IMAGE' || message.messageType === 'VIDEO' || message.messageType === 'MIXED') ? (
                   // Image/Video/MIXED with optional text
                   <div className="max-w-[300px] space-y-2">
-                    {/* Handle mediaUrl as array (MIXED) or string (IMAGE/VIDEO) */}
-                    {(() => {
-                      const isArray = Array.isArray(message.mediaUrl);
-                      const isMixed = message.messageType === 'MIXED';
-                      
-                      // Debug log
-                      if (isMixed || isArray) {
-                        console.log('🔍 MIXED message detected:', {
-                          messageType: message.messageType,
-                          isArray,
-                          mediaUrl: message.mediaUrl,
-                          length: isArray ? (message.mediaUrl as any[]).length : 0,
-                          content: message.content
-                        });
-                      }
-                      
-                      // If MIXED type or mediaUrl is an array, display as grid
-                      if (isMixed || isArray) {
-                        // MIXED: Multiple media items
-                        const mediaArray = Array.isArray(message.mediaUrl) ? message.mediaUrl : [];
-                        
-                        // If array is empty but we have a string mediaUrl, convert it
-                        if (mediaArray.length === 0 && typeof message.mediaUrl === 'string' && message.mediaUrl) {
-                          return (
-                            <img
-                              src={message.mediaUrl}
-                              alt=""
-                              className="w-[300px] h-[300px] rounded-lg object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          );
-                        }
-                        
-                        if (mediaArray.length === 0) {
-                          return null;
-                        }
-                        
-                        return (
-                          <div className="grid grid-cols-2 gap-2">
-                            {mediaArray.map((item, index) => {
-                              const mediaUrl: string = typeof item === 'string' ? item : (item?.url || '');
-                              const mediaType = typeof item === 'string' ? 'image' : (item?.type || 'image');
-                              const isVideo = mediaType === 'video' || (mediaUrl && mediaUrl.match(/\.(mp4|webm|ogg)$/i));
-                              
-                              if (!mediaUrl) return null;
-                              
-                              return isVideo ? (
-                                <video
-                                  key={index}
-                                  src={mediaUrl}
-                                  controls
-                                  className="w-full h-[150px] rounded-lg object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                >
-                                  Trình duyệt của bạn không hỗ trợ video.
-                                </video>
-                              ) : (
-                                <img
-                                  key={index}
-                                  src={mediaUrl}
-                                  alt=""
-                                  className="w-full h-[150px] rounded-lg object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              );
-                            })}
-                          </div>
-                        );
-                      } else {
-                        // IMAGE/VIDEO: Single media item (string format)
-                        if (!message.mediaUrl || typeof message.mediaUrl !== 'string') {
-                          return null;
-                        }
-                        
-                        return (
-                          <>
-                            {message.messageType === 'VIDEO' || message.mediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
-                              <video
-                                src={message.mediaUrl}
-                                controls
-                                className="w-[300px] h-[300px] rounded-lg object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              >
-                                Trình duyệt của bạn không hỗ trợ video.
-                              </video>
-                            ) : (
-                              <img
-                                src={message.mediaUrl}
-                                alt=""
-                                className="w-[300px] h-[300px] rounded-lg object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            )}
-                          </>
-                        );
-                      }
-                    })()}
-                    {/* Show text bubble if exists - same style as text message */}
+                    {/* Show text bubble first if exists */}
                     {message.content && message.content.trim() && (
                       <div
                         className={`rounded-2xl px-4 py-2 ${
@@ -1094,19 +1131,178 @@ const AIChatbot: React.FC = () => {
                         </span>
                       </div>
                     )}
-                    {/* Show timestamp only if no text */}
-                    {(!message.content || !message.content.trim()) && (
-                      <span
-                        className={`text-xs block ${
-                          message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
-                        }`}
-                      >
-                        {message.timestamp.toLocaleTimeString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    )}
+                    
+                    {/* Handle mediaUrl as array (MIXED) or string (IMAGE/VIDEO) */}
+                    {(() => {
+                      const isArray = Array.isArray(message.mediaUrl);
+                      const isMixed = message.messageType === 'MIXED';
+                      
+                      // Debug log
+                      if (isMixed || isArray) {
+                        console.log('🔍 MIXED message detected:', {
+                          messageType: message.messageType,
+                          isArray,
+                          mediaUrl: message.mediaUrl,
+                          length: isArray ? (message.mediaUrl as any[]).length : 0,
+                          content: message.content
+                        });
+                      }
+                      
+                      // If MIXED type or mediaUrl is an array, display vertically
+                      if (isMixed || isArray) {
+                        // MIXED: Multiple media items
+                        const mediaArray = Array.isArray(message.mediaUrl) ? message.mediaUrl : [];
+                        
+                            // If array is empty but we have a string mediaUrl, convert it
+                            if (mediaArray.length === 0 && typeof message.mediaUrl === 'string' && message.mediaUrl) {
+                              const isVideo = message.messageType === 'VIDEO' || message.mediaUrl.match(/\.(mp4|webm|ogg)$/i);
+                              return (
+                                <>
+                                  {isVideo ? (
+                                    <video
+                                      src={message.mediaUrl}
+                                      controls
+                                      className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                      onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'video' })}
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    >
+                                      Trình duyệt của bạn không hỗ trợ video.
+                                    </video>
+                                  ) : (
+                                    <img
+                                      src={message.mediaUrl}
+                                      alt=""
+                                      className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                      onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'image' })}
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                  )}
+                                  {/* Show timestamp only if no text */}
+                                  {(!message.content || !message.content.trim()) && (
+                                    <span
+                                      className={`text-xs block ${
+                                        message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                                      }`}
+                                    >
+                                      {message.timestamp.toLocaleTimeString('vi-VN', {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            }
+                        
+                        if (mediaArray.length === 0) {
+                          return null;
+                        }
+                        
+                        return (
+                          <>
+                            {/* Display media items vertically */}
+                            <div className="flex flex-col gap-2">
+                              {mediaArray.map((item, index) => {
+                                const mediaUrl: string = typeof item === 'string' ? item : (item?.url || '');
+                                const mediaType = typeof item === 'string' ? 'image' : (item?.type || 'image');
+                                const isVideo = mediaType === 'video' || (mediaUrl && mediaUrl.match(/\.(mp4|webm|ogg)$/i));
+                                
+                                if (!mediaUrl) return null;
+                                
+                                return isVideo ? (
+                                  <video
+                                    key={index}
+                                    src={mediaUrl}
+                                    controls
+                                    className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                    onClick={() => setZoomMedia({ url: mediaUrl, type: 'video' })}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  >
+                                    Trình duyệt của bạn không hỗ trợ video.
+                                  </video>
+                                ) : (
+                                  <img
+                                    key={index}
+                                    src={mediaUrl}
+                                    alt=""
+                                    className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                    onClick={() => setZoomMedia({ url: mediaUrl, type: 'image' })}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                );
+                              })}
+                            </div>
+                            {/* Show timestamp only if no text */}
+                            {(!message.content || !message.content.trim()) && (
+                              <span
+                                className={`text-xs block ${
+                                  message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                                }`}
+                              >
+                                {message.timestamp.toLocaleTimeString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            )}
+                          </>
+                        );
+                      } else {
+                        // IMAGE/VIDEO: Single media item (string format)
+                        if (!message.mediaUrl || typeof message.mediaUrl !== 'string') {
+                          return null;
+                        }
+                        
+                        return (
+                          <>
+                            {message.messageType === 'VIDEO' || message.mediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
+                              <video
+                                src={message.mediaUrl}
+                                controls
+                                className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'video' })}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              >
+                                Trình duyệt của bạn không hỗ trợ video.
+                              </video>
+                            ) : (
+                              <img
+                                src={message.mediaUrl}
+                                alt=""
+                                className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'image' })}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            )}
+                            {/* Show timestamp only if no text */}
+                            {(!message.content || !message.content.trim()) && (
+                              <span
+                                className={`text-xs block ${
+                                  message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                                }`}
+                              >
+                                {message.timestamp.toLocaleTimeString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                            )}
+                          </>
+                        );
+                      }
+                    })()}
                   </div>
                 ) : (
                   // Text message only - with background bubble
@@ -1139,10 +1335,7 @@ const AIChatbot: React.FC = () => {
             {/* Loading Indicator */}
               {isLoading && chatMode !== 'list' && (
               <div className="flex gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-orange-500 to-red-500">
-                  <Bot className="w-4 h-4 text-white" />
-                </div>
-                <div className="bg-white text-gray-800 rounded-2xl rounded-tl-none shadow-md border border-gray-100 px-4 py-3">
+                <div className="bg-white text-gray-800 rounded-2xl shadow-md border border-gray-100 px-4 py-3">
                   <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
                 </div>
               </div>
@@ -1185,8 +1378,8 @@ const AIChatbot: React.FC = () => {
                   {/* Add more button */}
                   <button
                     onClick={() => {
-                      // For simplicity, just add image. User can click video button separately
-                      imageInputRef.current?.click();
+                      // Open file picker that allows both image and video
+                      mediaInputRef.current?.click();
                     }}
                     className="w-[120px] h-[120px] rounded-lg border-2 border-dashed border-gray-300 hover:border-orange-500 flex items-center justify-center bg-white transition-colors"
                     title="Thêm ảnh/video"
@@ -1224,6 +1417,16 @@ const AIChatbot: React.FC = () => {
                 accept="video/mp4"
                 multiple
                 onChange={(e) => handleFileSelect(e, 'video')}
+                className="hidden"
+                disabled={isUploading || isLoading || chatMode === 'ai'}
+              />
+              {/* Input for selecting both image and video */}
+              <input
+                ref={mediaInputRef}
+                type="file"
+                accept="image/*,video/mp4"
+                multiple
+                onChange={handleMediaSelect}
                 className="hidden"
                 disabled={isUploading || isLoading || chatMode === 'ai'}
               />
@@ -1276,6 +1479,39 @@ const AIChatbot: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Zoom Modal for Images and Videos */}
+      {zoomMedia && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setZoomMedia(null)}
+        >
+          <button
+            onClick={() => setZoomMedia(null)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          {zoomMedia.type === 'video' ? (
+            <video
+              src={zoomMedia.url}
+              controls
+              autoPlay
+              className="max-w-full max-h-[90vh] rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Trình duyệt của bạn không hỗ trợ video.
+            </video>
+          ) : (
+            <img
+              src={zoomMedia.url}
+              alt="Zoomed"
+              className="max-w-full max-h-[90vh] rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>
       )}
     </>
