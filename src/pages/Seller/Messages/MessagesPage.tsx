@@ -358,7 +358,11 @@ const MessagesPage: React.FC = () => {
         }
         
         // Mark messages as read when opening conversation (async, doesn't block UI)
-        SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId).catch((error) => {
+        Promise.all([
+          SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId),
+          // Also update read status in Firebase for messages from CUSTOMER
+          FirebaseRealtimeChatService.updateMessagesReadStatus(selectedConversation.customerId, storeId, 'CUSTOMER')
+        ]).catch((error) => {
           console.error('Error marking messages as read:', error);
         });
       } catch (error) {
@@ -596,10 +600,15 @@ const MessagesPage: React.FC = () => {
           return;
         }
       } else {
-        if (!file.type.includes('video/mp4')) {
-          alert('Chỉ hỗ trợ định dạng video MP4');
+        // Check both MIME type and file extension for video
+        const isVideoMimeType = file.type.startsWith('video/');
+        const isVideoExtension = /\.(mp4|webm|ogg|mov|avi)$/i.test(file.name);
+        
+        if (!isVideoMimeType && !isVideoExtension) {
+          alert('Vui lòng chọn file video hợp lệ (MP4, WebM, OGG, MOV, AVI)');
           return;
         }
+        
         const maxSize = 30 * 1024 * 1024; // 30MB
         if (file.size > maxSize) {
           alert('Dung lượng video không được vượt quá 30MB');
@@ -1173,7 +1182,7 @@ const MessagesPage: React.FC = () => {
                 <input
                   ref={videoInputRef}
                   type="file"
-                  accept="video/mp4"
+                  accept="video/*"
                   multiple
                   onChange={(e) => handleFileSelect(e, 'video')}
                   className="hidden"
@@ -1183,7 +1192,7 @@ const MessagesPage: React.FC = () => {
                 <input
                   ref={mediaInputRef}
                   type="file"
-                  accept="image/*,video/mp4"
+                  accept="image/*,video/*"
                   multiple
                   onChange={handleMediaSelect}
                   className="hidden"

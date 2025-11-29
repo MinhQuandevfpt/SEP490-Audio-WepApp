@@ -148,6 +148,42 @@ class FirebaseRealtimeChatService {
   }
 
   /**
+   * Update read status for all messages from a specific sender
+   * @param customerId - Customer ID
+   * @param storeId - Store ID
+   * @param senderType - Sender type to mark as read ('CUSTOMER' or 'STORE')
+   */
+  async updateMessagesReadStatus(
+    customerId: string,
+    storeId: string,
+    senderType: 'CUSTOMER' | 'STORE'
+  ): Promise<void> {
+    const chatPath = this.getChatPath(customerId, storeId);
+    const messagesRef = ref(database, chatPath);
+    const messagesQuery = query(messagesRef, orderByChild('timestamp'));
+
+    const snapshot = await get(messagesQuery);
+    
+    if (snapshot.exists()) {
+      const updatePromises: Promise<void>[] = [];
+      
+      snapshot.forEach((childSnapshot) => {
+        const data = childSnapshot.val();
+        // Update read status for messages from the specified sender that are not yet read
+        if (data.senderType === senderType && data.read !== true) {
+          const messageRef = ref(database, `${chatPath}/${childSnapshot.key}/read`);
+          updatePromises.push(set(messageRef, true));
+        }
+      });
+
+      // Update all messages in parallel
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
+    }
+  }
+
+  /**
    * Unsubscribe from a chat
    */
   unsubscribe(customerId: string, storeId: string): void {

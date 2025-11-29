@@ -352,7 +352,11 @@ const AIChatbot: React.FC = () => {
           
           // Mark messages as read when opening conversation (async, doesn't block UI)
           // unreadCount already updated in handleSelectConversation
-          ChatService.markAsRead(customerId, selectedStore.storeId, customerId).catch((error) => {
+          Promise.all([
+            ChatService.markAsRead(customerId, selectedStore.storeId, customerId),
+            // Also update read status in Firebase for messages from STORE
+            FirebaseRealtimeChatService.updateMessagesReadStatus(customerId, selectedStore.storeId, 'STORE')
+          ]).catch((error) => {
             console.error('Error marking messages as read:', error);
           });
         } else {
@@ -839,10 +843,15 @@ const AIChatbot: React.FC = () => {
           return;
         }
       } else {
-        if (!file.type.includes('video/mp4')) {
-          alert('Chỉ hỗ trợ định dạng video MP4');
+        // Check both MIME type and file extension for video
+        const isVideoMimeType = file.type.startsWith('video/');
+        const isVideoExtension = /\.(mp4|webm|ogg|mov|avi)$/i.test(file.name);
+        
+        if (!isVideoMimeType && !isVideoExtension) {
+          alert('Vui lòng chọn file video hợp lệ (MP4, WebM, OGG, MOV, AVI)');
           return;
         }
+        
         const maxSize = 30 * 1024 * 1024; // 30MB
         if (file.size > maxSize) {
           alert('Dung lượng video không được vượt quá 30MB');
@@ -898,19 +907,14 @@ const AIChatbot: React.FC = () => {
     Array.from(files).forEach((file) => {
       if (file.type.startsWith('image/')) {
         validFiles.push({ file, type: 'image' });
-      } else if (file.type.startsWith('video/')) {
-        // Check if it's MP4
-        if (file.type.includes('video/mp4') || file.name.toLowerCase().endsWith('.mp4')) {
-          const maxSize = 30 * 1024 * 1024; // 30MB
-          if (file.size > maxSize) {
-            alert(`Video "${file.name}" có dung lượng quá lớn (tối đa 30MB)`);
-            return;
-          }
-          validFiles.push({ file, type: 'video' });
-        } else {
-          alert(`Chỉ hỗ trợ định dạng video MP4. File "${file.name}" không được hỗ trợ.`);
+      } else if (file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|avi)$/i.test(file.name)) {
+        // Check video file size
+        const maxSize = 30 * 1024 * 1024; // 30MB
+        if (file.size > maxSize) {
+          alert(`Video "${file.name}" có dung lượng quá lớn (tối đa 30MB)`);
           return;
         }
+        validFiles.push({ file, type: 'video' });
       } else {
         alert(`File "${file.name}" không phải là ảnh hoặc video hợp lệ.`);
         return;
@@ -1344,18 +1348,25 @@ const AIChatbot: React.FC = () => {
                                       }}
                                     />
                                   )}
-                                  {/* Show timestamp only if no text */}
+                                  {/* Show timestamp and read status if no text */}
                                   {(!message.content || !message.content.trim()) && (
-                                    <span
-                                      className={`text-xs block ${
-                                        message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
-                                      }`}
-                                    >
-                                      {message.timestamp.toLocaleTimeString('vi-VN', {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                      })}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className={`text-xs ${
+                                          message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                                        }`}
+                                      >
+                                        {message.timestamp.toLocaleTimeString('vi-VN', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })}
+                                      </span>
+                                      {message.role === 'user' && (
+                                        <span className="text-xs text-blue-600">
+                                          {message.read ? '✓✓' : '✓'}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </>
                               );
@@ -1403,18 +1414,25 @@ const AIChatbot: React.FC = () => {
                                 );
                               })}
                 </div>
-                            {/* Show timestamp only if no text */}
+                            {/* Show timestamp and read status if no text */}
                             {(!message.content || !message.content.trim()) && (
-                              <span
-                                className={`text-xs block ${
-                                  message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
-                                }`}
-                              >
-                                {message.timestamp.toLocaleTimeString('vi-VN', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span
+                                  className={`text-xs ${
+                                    message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                                  }`}
+                                >
+                                  {message.timestamp.toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                                {message.role === 'user' && (
+                                  <span className="text-xs text-blue-600">
+                                    {message.read ? '✓✓' : '✓'}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </>
                         );
@@ -1449,18 +1467,25 @@ const AIChatbot: React.FC = () => {
                                 }}
                               />
                             )}
-                            {/* Show timestamp only if no text */}
+                            {/* Show timestamp and read status if no text */}
                             {(!message.content || !message.content.trim()) && (
-                              <span
-                                className={`text-xs block ${
-                                  message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
-                                }`}
-                              >
-                                {message.timestamp.toLocaleTimeString('vi-VN', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span
+                                  className={`text-xs ${
+                                    message.role === 'user' ? 'text-blue-600' : 'text-gray-400'
+                                  }`}
+                                >
+                                  {message.timestamp.toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                                {message.role === 'user' && (
+                                  <span className="text-xs text-blue-600">
+                                    {message.read ? '✓✓' : '✓'}
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </>
                         );
@@ -1586,7 +1611,7 @@ const AIChatbot: React.FC = () => {
               <input
                 ref={videoInputRef}
                 type="file"
-                accept="video/mp4"
+                accept="video/*"
                 multiple
                 onChange={(e) => handleFileSelect(e, 'video')}
                 className="hidden"
