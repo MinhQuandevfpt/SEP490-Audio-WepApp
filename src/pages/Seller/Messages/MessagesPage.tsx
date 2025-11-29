@@ -10,7 +10,10 @@ interface Conversation {
   customerName: string;
   lastMessage: string;
   lastMessageTime: Date;
-  unreadCount: number;
+  storeUnreadCount?: number;
+  customerUnreadCount?: number;
+  unreadCount?: number; // For backward compatibility
+  lastMessageSenderType?: 'CUSTOMER' | 'STORE'; // Track who sent the last message
 }
 
 interface CustomerInfo {
@@ -36,6 +39,7 @@ const MessagesPage: React.FC = () => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null); // For selecting both image and video
+  const selectedConversationIdRef = useRef<string | null>(null); // Track selected conversation ID
   
   // Cache for customer names to avoid repeated API calls
   const customerNameCache = useRef<Map<string, string>>(new Map());
@@ -103,18 +107,35 @@ const MessagesPage: React.FC = () => {
             customerName,
             lastMessage: conv.lastMessage || '',
             lastMessageTime: new Date(conv.lastMessageTime),
-            unreadCount: 0,
+            storeUnreadCount: conv.storeUnreadCount || 0,
+            customerUnreadCount: conv.customerUnreadCount || 0,
+            unreadCount: conv.storeUnreadCount || 0, // For backward compatibility
+            lastMessageSenderType: undefined, // Will be updated by Firebase listener
           };
         })
       );
 
-      setConversations(conversationsWithNames);
+      // Preserve unreadCount = 0 for selected conversation
+      const selectedCustomerId = selectedConversationIdRef.current;
+      const conversationsWithPreservedUnread = conversationsWithNames.map((conv) => {
+        // If this conversation is currently selected, always set unreadCount = 0
+        if (conv.customerId === selectedCustomerId) {
+          return {
+            ...conv,
+            storeUnreadCount: 0,
+            unreadCount: 0,
+          };
+        }
+        return conv;
+      });
+      
+      setConversations(conversationsWithPreservedUnread);
       
       // Auto-select first conversation if exists (use functional update to avoid dependency)
       setSelectedConversation((prev) => {
-        if (!prev && conversationsWithNames.length > 0) {
-          return conversationsWithNames[0];
-        }
+        if (!prev && conversationsWithPreservedUnread.length > 0) {
+          return conversationsWithPreservedUnread[0];
+      }
         return prev;
       });
     } catch (error) {
@@ -180,6 +201,9 @@ const MessagesPage: React.FC = () => {
           setConversations((prev) => {
             const updated = prev.map((c) => {
               if (c.customerId === conv.customerId) {
+                // ALWAYS check if conversation is selected first (using ref for up-to-date value)
+                const isSelected = selectedConversationIdRef.current === conv.customerId;
+                
                 const newLastMessageTime = typeof latestMessage.createdAt === 'string' 
                   ? latestMessage.createdAt 
                   : new Date(latestMessage.createdAt).toISOString();
@@ -189,10 +213,29 @@ const MessagesPage: React.FC = () => {
                 const newTime = new Date(newLastMessageTime).getTime();
                 
                 if (newTime > currentTime) {
+                  // If new message is from customer and conversation is not selected, increment unreadCount
+                  const isFromCustomer = latestMessage.senderType === 'CUSTOMER';
+                  const shouldIncrementUnread = isFromCustomer && !isSelected;
+                  
                   return {
                     ...c,
                     lastMessage: lastMessageText,
                     lastMessageTime: new Date(newLastMessageTime),
+                    lastMessageSenderType: latestMessage.senderType,
+                    // ALWAYS keep unreadCount = 0 if conversation is selected, regardless of message
+                    storeUnreadCount: isSelected ? 0 : (shouldIncrementUnread 
+                      ? (c.storeUnreadCount || 0) + 1 
+                      : (c.storeUnreadCount || 0)),
+                    unreadCount: isSelected ? 0 : (shouldIncrementUnread 
+                      ? (c.storeUnreadCount || 0) + 1 
+                      : (c.storeUnreadCount || 0)),
+                  };
+                } else {
+                  // Even if not updating time, ALWAYS ensure unreadCount = 0 if selected
+                  return {
+                    ...c,
+                    storeUnreadCount: isSelected ? 0 : (c.storeUnreadCount || 0),
+                    unreadCount: isSelected ? 0 : (c.storeUnreadCount || 0),
                   };
                 }
               }
@@ -200,10 +243,23 @@ const MessagesPage: React.FC = () => {
             });
             
             // Sort by lastMessageTime (newest first)
-            return updated.sort((a, b) => {
+            const sorted = updated.sort((a, b) => {
               const timeA = new Date(a.lastMessageTime).getTime();
               const timeB = new Date(b.lastMessageTime).getTime();
               return timeB - timeA;
+            });
+            
+            // Final check: Ensure unreadCount = 0 for selected conversation after sort
+            const selectedId = selectedConversationIdRef.current;
+            return sorted.map((c) => {
+              if (c.customerId === selectedId) {
+                return {
+                  ...c,
+                  storeUnreadCount: 0,
+                  unreadCount: 0,
+                };
+              }
+              return c;
             });
           });
         }
@@ -219,6 +275,11 @@ const MessagesPage: React.FC = () => {
     };
   }, [storeId, conversations.map(c => c.customerId).join(',')]);
 
+  // Update ref when selectedConversation changes
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversation?.customerId || null;
+  }, [selectedConversation]);
+
   useEffect(() => {
     if (selectedConversation && storeId) {
       loadMessages(selectedConversation.customerId);
@@ -229,10 +290,28 @@ const MessagesPage: React.FC = () => {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
-  
+
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Handle conversation selection - update unreadCount immediately
+  const handleSelectConversation = useCallback((conversation: Conversation) => {
+    // Update ref FIRST to ensure Firebase listener uses correct value
+    selectedConversationIdRef.current = conversation.customerId;
+    
+    // Update unreadCount to 0 immediately when clicking
+    setConversations((prev) => 
+      prev.map((conv) => 
+        conv.customerId === conversation.customerId
+          ? { ...conv, storeUnreadCount: 0, unreadCount: 0 }
+          : conv
+      )
+    );
+    
+    // Set selected conversation
+    setSelectedConversation(conversation);
+  }, []);
 
   // Load messages and setup Firebase listener
   useEffect(() => {
@@ -251,11 +330,37 @@ const MessagesPage: React.FC = () => {
         
         if (response.data && response.data.length > 0) {
           setMessages(response.data);
+          
+          // Update lastMessageSenderType from the last message
+          const lastMessage = response.data[response.data.length - 1];
+          if (lastMessage) {
+            setConversations((prev) => 
+              prev.map((conv) => {
+                if (conv.customerId === selectedConversation.customerId) {
+                  // Always ensure unreadCount = 0 for selected conversation
+                  const isSelected = selectedConversationIdRef.current === conv.customerId;
+                  return { 
+                    ...conv, 
+                    lastMessageSenderType: lastMessage.senderType,
+                    storeUnreadCount: isSelected ? 0 : (conv.storeUnreadCount || 0),
+                    unreadCount: isSelected ? 0 : (conv.unreadCount || 0),
+                  };
+                }
+                return conv;
+              })
+            );
+          }
+          
           setIsLoading(false);
         } else {
           setMessages([]);
           setIsLoading(false);
         }
+        
+        // Mark messages as read when opening conversation (async, doesn't block UI)
+        SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId).catch((error) => {
+          console.error('Error marking messages as read:', error);
+        });
       } catch (error) {
         console.error('Error loading initial messages:', error);
         setMessages([]);
@@ -282,6 +387,7 @@ const MessagesPage: React.FC = () => {
             messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
             mediaUrl: msg.mediaUrl, // Can be string or array - preserve as is
           createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : new Date(msg.createdAt).toISOString(),
+          read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
           };
           // Debug log for media messages
           if (formatted.messageType === 'IMAGE' || formatted.messageType === 'MIXED' || formatted.mediaUrl) {
@@ -372,7 +478,7 @@ const MessagesPage: React.FC = () => {
           if (filesToSend.length === 1 && !content.trim()) {
             // Single file without text - use IMAGE/VIDEO
             messageType = filesToSend[0].type === 'image' ? 'IMAGE' : 'VIDEO';
-            mediaUrl = uploadedMedia[0].url; // Keep old format for backward compatibility
+            mediaUrl = uploadedMedia; // Always use array format for API
             content = ''; // Empty content when only media is sent
           } else {
             // Multiple files or has text - use MIXED
@@ -417,9 +523,45 @@ const MessagesPage: React.FC = () => {
             content: content,
             messageType: messageType,
             mediaUrl: mediaUrl, // Send full array or string as is
+            read: false, // Default to false when sending
           }
         )
       ]);
+      
+      // Update conversation list immediately with the new last message
+      const formatLastMessageText = (): string => {
+        if (content && content.trim()) {
+          return content;
+        } else if (messageType === 'IMAGE') {
+          return '[Hình ảnh]';
+        } else if (messageType === 'VIDEO') {
+          return '[Video]';
+        } else if (messageType === 'MIXED') {
+          const mediaCount = Array.isArray(mediaUrl) ? mediaUrl.length : (mediaUrl ? 1 : 0);
+          if (mediaCount > 0) {
+            return `[${mediaCount} ảnh/video]`;
+          }
+        }
+        return '[Tin nhắn]';
+      };
+      
+      setConversations((prev) => 
+        prev.map((conv) => 
+          conv.customerId === selectedConversation.customerId
+            ? {
+                ...conv,
+                lastMessage: formatLastMessageText(),
+                lastMessageTime: new Date(),
+                lastMessageSenderType: 'STORE' as 'CUSTOMER' | 'STORE',
+              }
+            : conv
+        ).sort((a, b) => {
+          const timeA = new Date(a.lastMessageTime).getTime();
+          const timeB = new Date(b.lastMessageTime).getTime();
+          return timeB - timeA;
+        })
+      );
+      
       // Message will be updated automatically via Firebase listener
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -606,7 +748,7 @@ const MessagesPage: React.FC = () => {
             filteredConversations.map((conversation) => (
               <button
                 key={conversation.customerId}
-                onClick={() => setSelectedConversation(conversation)}
+                onClick={() => handleSelectConversation(conversation)}
                 className={`w-full p-4 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 ${
                   selectedConversation?.customerId === conversation.customerId
                     ? 'bg-orange-50'
@@ -621,13 +763,21 @@ const MessagesPage: React.FC = () => {
                     <h3 className="font-semibold text-sm text-gray-900 truncate">
                       {conversation.customerName}
                     </h3>
-                    {conversation.unreadCount > 0 && (
-                      <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                        {conversation.unreadCount}
+                    {(conversation.storeUnreadCount || conversation.unreadCount || 0) > 0 && (
+                      <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center flex-shrink-0 px-1.5">
+                        {conversation.storeUnreadCount || conversation.unreadCount || 0}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 truncate max-w-full" title={conversation.lastMessage}>
+                  <p 
+                    className={`text-xs truncate max-w-full ${
+                      // If has unread count, show last message in black (assume it's from customer)
+                      (conversation.storeUnreadCount || conversation.unreadCount || 0) > 0
+                        ? 'text-black font-semibold' 
+                        : 'text-gray-500'
+                    }`} 
+                    title={conversation.lastMessage}
+                  >
                     {conversation.lastMessage && conversation.lastMessage.length > 50 
                       ? `${conversation.lastMessage.substring(0, 50)}...` 
                       : conversation.lastMessage}
@@ -694,18 +844,25 @@ const MessagesPage: React.FC = () => {
                       <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                         {message.content}
                       </p>
-                            <span
-                              className={`text-xs mt-1 block ${
-                                message.senderType === 'STORE' ? 'text-orange-100' : 'text-gray-400'
-                              }`}
-                            >
-                              {message.createdAt
-                                ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
-                                : ''}
-                            </span>
+                            <div className="flex items-center gap-1 mt-1">
+                              <span
+                                className={`text-xs ${
+                                  message.senderType === 'STORE' ? 'text-orange-100' : 'text-gray-400'
+                                }`}
+                              >
+                                {message.createdAt
+                                  ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })
+                                  : ''}
+                              </span>
+                              {message.senderType === 'STORE' && (
+                                <span className="text-xs text-orange-100">
+                                  {message.read ? '✓✓' : '✓'}
+                                </span>
+                              )}
+                    </div>
                           </div>
                         )}
                         
@@ -759,18 +916,25 @@ const MessagesPage: React.FC = () => {
                                   )}
                                   {/* Show timestamp only if no text */}
                                   {(!message.content || !message.content.trim()) && (
-                                    <span
-                                      className={`text-xs block ${
-                                        message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
-                                      }`}
-                                    >
-                                      {message.createdAt
-                                        ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                          })
-                                        : ''}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className={`text-xs ${
+                                          message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
+                                        }`}
+                                      >
+                                        {message.createdAt
+                                          ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                            })
+                                          : ''}
+                                      </span>
+                                      {message.senderType === 'STORE' && (
+                                        <span className="text-xs text-orange-600">
+                                          {message.read ? '✓✓' : '✓'}
+                                        </span>
+                                      )}
+                                    </div>
                                   )}
                                 </>
                               );
@@ -820,18 +984,25 @@ const MessagesPage: React.FC = () => {
                                 </div>
                                 {/* Show timestamp only if no text */}
                                 {(!message.content || !message.content.trim()) && (
-                                  <span
-                                    className={`text-xs block ${
-                                      message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
-                                    }`}
-                                  >
-                                    {message.createdAt
-                                      ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                          hour: '2-digit',
-                                          minute: '2-digit',
-                                        })
-                                      : ''}
-                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span
+                                      className={`text-xs ${
+                                        message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
+                                      }`}
+                                    >
+                                      {message.createdAt
+                                        ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })
+                                        : ''}
+                                    </span>
+                                    {message.senderType === 'STORE' && (
+                                      <span className="text-xs text-orange-600">
+                                        {message.read ? '✓✓' : '✓'}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </>
                             );
@@ -868,18 +1039,25 @@ const MessagesPage: React.FC = () => {
                                 )}
                                 {/* Show timestamp only if no text */}
                                 {(!message.content || !message.content.trim()) && (
-                                  <span
-                                    className={`text-xs block ${
+                      <div className="flex items-center gap-1">
+                      <span
+                                    className={`text-xs ${
                                       message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
-                                    }`}
-                                  >
-                                    {message.createdAt
-                                      ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                          hour: '2-digit',
-                                          minute: '2-digit',
-                                        })
-                                      : ''}
-                                  </span>
+                        }`}
+                      >
+                        {message.createdAt
+                          ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : ''}
+                      </span>
+                      {message.senderType === 'STORE' && (
+                        <span className="text-xs text-orange-600">
+                          {message.read ? '✓✓' : '✓'}
+                        </span>
+                      )}
+                      </div>
                                 )}
                               </>
                             );
@@ -890,17 +1068,18 @@ const MessagesPage: React.FC = () => {
                       // Text message only - with background bubble
                       <div
                         className={`max-w-[70%] min-w-0 rounded-2xl px-4 py-2 ${
-                          message.senderType === 'STORE'
-                            ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-tr-none'
-                            : 'bg-white text-gray-800 rounded-tl-none shadow-sm border border-gray-200'
-                        }`}
+                        message.senderType === 'STORE'
+                          ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-tr-none'
+                          : 'bg-white text-gray-800 rounded-tl-none shadow-sm border border-gray-200'
+                      }`}
                         style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                      >
+                    >
                         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                          {message.content}
-                        </p>
+                        {message.content}
+                      </p>
+                      <div className="flex items-center gap-1 mt-1">
                       <span
-                        className={`text-xs mt-1 block ${
+                          className={`text-xs ${
                           message.senderType === 'STORE' ? 'text-orange-100' : 'text-gray-400'
                         }`}
                       >
@@ -911,6 +1090,12 @@ const MessagesPage: React.FC = () => {
                             })
                           : ''}
                       </span>
+                        {message.senderType === 'STORE' && (
+                          <span className="text-xs text-orange-100">
+                            {message.read ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                    </div>
                     </div>
                     )}
                   </div>

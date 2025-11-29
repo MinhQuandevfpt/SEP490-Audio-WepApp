@@ -14,6 +14,7 @@ export interface ChatMessage {
   mediaUrl?: string | MediaItem[]; // Support both old format (string) and new format (array)
   timestamp?: string;
   createdAt?: string;
+  read?: boolean; // Message read status
 }
 
 export interface SendMessageRequest {
@@ -42,7 +43,9 @@ export interface Conversation {
   storeName?: string;
   lastMessage: string;
   lastMessageTime: string;
-  unreadCount?: number;
+  customerUnreadCount?: number;
+  storeUnreadCount?: number;
+  unreadCount?: number; // For backward compatibility
 }
 
 export interface ConversationsResponse {
@@ -122,6 +125,21 @@ export class SellerChatService {
     // Import StoreService dynamically to get storeId
     const { StoreService } = await import('./StoreService');
     return await StoreService.getStoreId();
+  }
+
+  /**
+   * Mark messages as read
+   */
+  static async markAsRead(
+    customerId: string,
+    storeId: string,
+    viewerId: string
+  ): Promise<void> {
+    const endpoint = `${this.BASE_URL}/conversations/${customerId}/${storeId}/read?viewerId=${viewerId}`;
+    
+    await HttpInterceptor.post(endpoint, {}, {
+      userType: 'seller',
+    });
   }
 }
 

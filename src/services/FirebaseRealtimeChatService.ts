@@ -15,6 +15,7 @@ export interface FirebaseChatMessage {
   mediaUrl?: string | MediaItem[]; // Support both string (old format) and array (new format)
   createdAt: string | number;
   timestamp?: number;
+  read?: boolean; // Message read status
 }
 
 class FirebaseRealtimeChatService {
@@ -56,6 +57,7 @@ class FirebaseRealtimeChatService {
             mediaUrl: data.mediaUrl,
             createdAt: data.createdAt || data.timestamp,
             timestamp: data.timestamp,
+            read: data.read !== undefined ? data.read : false, // Default to false if not provided
           });
         });
       }
@@ -84,6 +86,7 @@ class FirebaseRealtimeChatService {
       content: string;
       messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
       mediaUrl?: string | MediaItem[]; // Support both string and array
+      read?: boolean; // Message read status
     }
   ): Promise<void> {
     const chatPath = this.getChatPath(customerId, storeId);
@@ -98,6 +101,7 @@ class FirebaseRealtimeChatService {
       messageType: message.messageType || 'TEXT',
       createdAt: new Date().toISOString(),
       timestamp: Date.now(),
+      read: message.read !== undefined ? message.read : false, // Default to false
     };
 
     // Only add mediaUrl if it exists and is not undefined

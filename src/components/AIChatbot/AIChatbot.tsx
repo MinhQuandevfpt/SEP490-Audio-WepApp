@@ -16,6 +16,7 @@ interface Message {
   timestamp: Date;
   messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
   mediaUrl?: string | Array<{ url: string; type?: string }>;
+  read?: boolean; // Message read status
 }
 
 type ChatMode = 'ai' | 'store' | 'list';
@@ -23,6 +24,7 @@ type ChatMode = 'ai' | 'store' | 'list';
 interface ConversationWithStoreInfo extends CustomerConversation {
   storeName: string;
   storeAvatar?: string;
+  lastMessageSenderType?: 'CUSTOMER' | 'STORE'; // Track who sent the last message
 }
 
 const AIChatbot: React.FC = () => {
@@ -53,6 +55,7 @@ const AIChatbot: React.FC = () => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null); // For selecting both image and video
+  const selectedStoreIdRef = useRef<string | null>(null); // Track selected store ID
 
   // Check authentication
   useEffect(() => {
@@ -161,6 +164,9 @@ const AIChatbot: React.FC = () => {
           setConversations((prev) => {
             const updated = prev.map((c) => {
               if (c.storeId === conv.storeId) {
+                // ALWAYS check if conversation is selected first (using ref for up-to-date value)
+                const isSelected = selectedStoreIdRef.current === conv.storeId;
+                
                 const newLastMessageTime = typeof latestMessage.createdAt === 'string' 
                   ? latestMessage.createdAt 
                   : new Date(latestMessage.createdAt).toISOString();
@@ -170,10 +176,29 @@ const AIChatbot: React.FC = () => {
                 const newTime = new Date(newLastMessageTime).getTime();
                 
                 if (newTime > currentTime) {
+                  // If new message is from store and conversation is not selected, increment unreadCount
+                  const isFromStore = latestMessage.senderType === 'STORE';
+                  const shouldIncrementUnread = isFromStore && !isSelected;
+                  
                   return {
                     ...c,
                     lastMessage: lastMessageText,
                     lastMessageTime: newLastMessageTime,
+                    lastMessageSenderType: latestMessage.senderType,
+                    // ALWAYS keep unreadCount = 0 if conversation is selected, regardless of message
+                    customerUnreadCount: isSelected ? 0 : (shouldIncrementUnread 
+                      ? (c.customerUnreadCount || 0) + 1 
+                      : (c.customerUnreadCount || 0)),
+                    unreadCount: isSelected ? 0 : (shouldIncrementUnread 
+                      ? (c.customerUnreadCount || 0) + 1 
+                      : (c.customerUnreadCount || 0)),
+                  };
+                } else {
+                  // Even if not updating time, ALWAYS ensure unreadCount = 0 if selected
+                  return {
+                    ...c,
+                    customerUnreadCount: isSelected ? 0 : (c.customerUnreadCount || 0),
+                    unreadCount: isSelected ? 0 : (c.customerUnreadCount || 0),
                   };
                 }
               }
@@ -181,10 +206,23 @@ const AIChatbot: React.FC = () => {
             });
             
             // Sort by lastMessageTime (newest first)
-            return updated.sort((a, b) => {
+            const sorted = updated.sort((a, b) => {
               const timeA = new Date(a.lastMessageTime).getTime();
               const timeB = new Date(b.lastMessageTime).getTime();
               return timeB - timeA;
+            });
+            
+            // Final check: Ensure unreadCount = 0 for selected conversation after sort
+            const selectedStoreId = selectedStoreIdRef.current;
+            return sorted.map((c) => {
+              if (c.storeId === selectedStoreId) {
+                return {
+                  ...c,
+                  customerUnreadCount: 0,
+                  unreadCount: 0,
+                };
+              }
+              return c;
             });
           });
         }
@@ -251,6 +289,11 @@ const AIChatbot: React.FC = () => {
     }
   }, [window.location.pathname]);
 
+  // Update ref when selectedStore changes
+  useEffect(() => {
+    selectedStoreIdRef.current = selectedStore?.storeId || null;
+  }, [selectedStore]);
+
   // Load messages and setup Firebase listener for store chat
   useEffect(() => {
     // Only skip if in AI mode, allow both 'store' and 'list' modes
@@ -280,9 +323,38 @@ const AIChatbot: React.FC = () => {
             messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
             mediaUrl: msg.mediaUrl, // Preserve array format from API
             timestamp: new Date(msg.createdAt || msg.timestamp || Date.now()),
+            read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
           }));
           setMessages(loadedMessages);
+          
+          // Update lastMessageSenderType from the last message
+          const lastMessage = loadedMessages[loadedMessages.length - 1];
+          if (lastMessage && response.data && response.data.length > 0) {
+            const lastApiMessage = response.data[response.data.length - 1];
+            setConversations((prev) => 
+              prev.map((conv) => {
+                if (conv.storeId === selectedStore.storeId) {
+                  // Always ensure unreadCount = 0 for selected conversation
+                  const isSelected = selectedStoreIdRef.current === conv.storeId;
+                  return { 
+                    ...conv, 
+                    lastMessageSenderType: lastApiMessage.senderType,
+                    customerUnreadCount: isSelected ? 0 : (conv.customerUnreadCount || 0),
+                    unreadCount: isSelected ? 0 : (conv.unreadCount || 0),
+                  };
+                }
+                return conv;
+              })
+            );
+          }
+          
           setIsLoading(false);
+          
+          // Mark messages as read when opening conversation (async, doesn't block UI)
+          // unreadCount already updated in handleSelectConversation
+          ChatService.markAsRead(customerId, selectedStore.storeId, customerId).catch((error) => {
+            console.error('Error marking messages as read:', error);
+          });
         } else {
           setMessages([{
             id: '0',
@@ -328,6 +400,7 @@ const AIChatbot: React.FC = () => {
               messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
               mediaUrl: msg.mediaUrl, // Can be string or array - preserve as is
             timestamp: new Date(msg.createdAt),
+            read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
             };
             
             // Debug log for media messages
@@ -378,6 +451,7 @@ const AIChatbot: React.FC = () => {
         messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
         mediaUrl: msg.mediaUrl,
         timestamp: new Date(msg.createdAt || msg.timestamp || Date.now()),
+        read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
       }));
 
       if (loadedMessages.length === 0) {
@@ -432,8 +506,22 @@ const AIChatbot: React.FC = () => {
         })
       );
 
-      setConversations(conversationsWithStoreInfo);
-      return conversationsWithStoreInfo;
+      // Preserve unreadCount = 0 for selected conversation
+      const selectedStoreId = selectedStoreIdRef.current;
+      const conversationsWithPreservedUnread = conversationsWithStoreInfo.map((conv) => {
+        // If this conversation is currently selected, always set unreadCount = 0
+        if (conv.storeId === selectedStoreId) {
+          return {
+            ...conv,
+            customerUnreadCount: 0,
+            unreadCount: 0,
+          };
+        }
+        return conv;
+      });
+      
+      setConversations(conversationsWithPreservedUnread);
+      return conversationsWithPreservedUnread;
     } catch (error) {
       console.error('Error loading conversations:', error);
       setConversations([]);
@@ -514,6 +602,18 @@ const AIChatbot: React.FC = () => {
   };
 
   const handleSelectConversation = (conv: ConversationWithStoreInfo) => {
+    // Update ref immediately
+    selectedStoreIdRef.current = conv.storeId;
+    
+    // Update unreadCount to 0 immediately when clicking (optimistic update)
+    setConversations((prev) => 
+      prev.map((c) => 
+        c.storeId === conv.storeId
+          ? { ...c, customerUnreadCount: 0, unreadCount: 0 }
+          : c
+      )
+    );
+    
     setStoreId(conv.storeId);
     setSelectedStore(conv);
     // Firebase listener in useEffect will handle loading messages
@@ -612,7 +712,7 @@ const AIChatbot: React.FC = () => {
           if (filesToSend.length === 1 && !content.trim()) {
             // Single file without text - use IMAGE/VIDEO
             messageType = filesToSend[0].type === 'image' ? 'IMAGE' : 'VIDEO';
-            mediaUrl = uploadedMedia[0].url; // Keep old format for backward compatibility
+            mediaUrl = uploadedMedia; // Always use array format for API
             content = ''; // Empty content when only media is sent
           } else {
             // Multiple files or has text - use MIXED
@@ -650,8 +750,43 @@ const AIChatbot: React.FC = () => {
             content: content,
             messageType: messageType,
             mediaUrl: mediaUrl, // Send full array or string as is
+            read: false, // Default to false when sending
           })
         ]);
+        
+        // Update conversation list immediately with the new last message
+        const formatLastMessageText = (): string => {
+          if (content && content.trim()) {
+            return content;
+          } else if (messageType === 'IMAGE') {
+            return '[Hình ảnh]';
+          } else if (messageType === 'VIDEO') {
+            return '[Video]';
+          } else if (messageType === 'MIXED') {
+            const mediaCount = Array.isArray(mediaUrl) ? mediaUrl.length : (mediaUrl ? 1 : 0);
+            if (mediaCount > 0) {
+              return `[${mediaCount} ảnh/video]`;
+            }
+          }
+          return '[Tin nhắn]';
+        };
+        
+        setConversations((prev) => 
+          prev.map((conv) => 
+            conv.storeId === targetStoreId
+              ? {
+                  ...conv,
+                  lastMessage: formatLastMessageText(),
+                  lastMessageTime: new Date().toISOString(),
+                  lastMessageSenderType: 'CUSTOMER' as 'CUSTOMER' | 'STORE',
+                }
+              : conv
+          ).sort((a, b) => {
+            const timeA = new Date(a.lastMessageTime).getTime();
+            const timeB = new Date(b.lastMessageTime).getTime();
+            return timeB - timeA;
+          })
+        );
 
         // Message will be updated automatically via Firebase listener
       }
@@ -976,8 +1111,23 @@ const AIChatbot: React.FC = () => {
                       )}
                       
                       <div className="flex-1 min-w-0 text-left overflow-hidden">
+                        <div className="flex items-center justify-between mb-1">
                         <h4 className="font-semibold text-sm text-gray-900 truncate">{conv.storeName}</h4>
-                        <p className="text-xs text-gray-500 truncate max-w-full" title={conv.lastMessage}>
+                          {(conv.customerUnreadCount || conv.unreadCount || 0) > 0 && (
+                            <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center flex-shrink-0 px-1.5">
+                              {conv.customerUnreadCount || conv.unreadCount || 0}
+                            </span>
+                          )}
+                        </div>
+                        <p 
+                          className={`text-xs truncate max-w-full ${
+                            // If has unread count, show last message in black (assume it's from store)
+                            (conv.customerUnreadCount || conv.unreadCount || 0) > 0
+                              ? 'text-black font-semibold' 
+                              : 'text-gray-500'
+                          }`} 
+                          title={conv.lastMessage}
+                        >
                           {conv.lastMessage && conv.lastMessage.length > 50 
                             ? `${conv.lastMessage.substring(0, 50)}...` 
                             : conv.lastMessage}
@@ -1100,7 +1250,8 @@ const AIChatbot: React.FC = () => {
                 </div>
               ) : (
                 // Show messages (both AI and store messages)
-                messages.map((message) => (
+                messages.map((message) => {
+                  return (
               <div
                 key={message.id}
                 className={`flex gap-3 min-w-0 ${
@@ -1124,16 +1275,23 @@ const AIChatbot: React.FC = () => {
                         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           {message.content}
                         </p>
-                        <span
-                          className={`text-xs mt-1 block ${
-                            message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                          }`}
-                        >
-                          {message.timestamp.toLocaleTimeString('vi-VN', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span
+                            className={`text-xs ${
+                              message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                            }`}
+                          >
+                            {message.timestamp.toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          {message.role === 'user' && (
+                            <span className="text-xs text-blue-100">
+                              {message.read ? '✓✓' : '✓'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
                     
@@ -1322,8 +1480,9 @@ const AIChatbot: React.FC = () => {
                   <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                     {message.content}
                   </p>
+                  <div className="flex items-center gap-1 mt-1">
                   <span
-                    className={`text-xs mt-1 block ${
+                      className={`text-xs ${
                       message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
                     }`}
                   >
@@ -1332,10 +1491,17 @@ const AIChatbot: React.FC = () => {
                       minute: '2-digit',
                     })}
                   </span>
+                    {message.role === 'user' && (
+                      <span className="text-xs text-blue-100">
+                        {message.read ? '✓✓' : '✓'}
+                      </span>
+                    )}
                 </div>
+              </div>
                 )}
               </div>
-                ))
+                  );
+                })
               )}
 
             {/* Loading Indicator */}
