@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Send, User, Search, Loader2, MessageCircle, Image, Video, X } from 'lucide-react';
 import { SellerChatService, type ChatMessage } from '../../../services/seller/ChatService';
 import HttpInterceptor from '../../../services/HttpInterceptor';
@@ -26,7 +26,6 @@ const MessagesPage: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ file: File; preview: string; type: 'image' | 'video' }>>([]);
   const [storeId, setStoreId] = useState<string | null>(null);
@@ -37,6 +36,92 @@ const MessagesPage: React.FC = () => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null); // For selecting both image and video
+  
+  // Cache for customer names to avoid repeated API calls
+  const customerNameCache = useRef<Map<string, string>>(new Map());
+  
+  // Debounce search term
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const loadStoreId = async () => {
+    try {
+      const id = await SellerChatService.getStoreId();
+      setStoreId(id);
+    } catch (error) {
+      console.error('Error loading store ID:', error);
+    }
+  };
+
+  // Fetch customer name from API with caching
+  const fetchCustomerName = useCallback(async (customerId: string): Promise<string> => {
+    // Check cache first
+    if (customerNameCache.current.has(customerId)) {
+      return customerNameCache.current.get(customerId)!;
+    }
+    
+    try {
+      const response = await HttpInterceptor.get<CustomerInfo>(
+        `/api/customers/${customerId}`,
+        { userType: 'seller' }
+      );
+      const name = response.fullName || `Customer ${customerId.substring(0, 8)}...`;
+      // Cache the result
+      customerNameCache.current.set(customerId, name);
+      return name;
+    } catch (error) {
+      console.warn('⚠️ Could not fetch customer name:', error);
+      const fallbackName = `Customer ${customerId.substring(0, 8)}...`;
+      // Cache fallback to avoid repeated failed requests
+      customerNameCache.current.set(customerId, fallbackName);
+      return fallbackName;
+    }
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    if (!storeId) return;
+
+    try {
+      console.log('📋 Loading conversations for store:', storeId);
+      const conversationsList = await SellerChatService.getConversations(storeId);
+      
+      console.log('✅ Conversations loaded:', conversationsList);
+      
+      // Fetch customer names in parallel (with caching)
+      const conversationsWithNames = await Promise.all(
+        conversationsList.map(async (conv) => {
+          const customerName = await fetchCustomerName(conv.customerId);
+          return {
+            customerId: conv.customerId,
+            customerName,
+            lastMessage: conv.lastMessage || '',
+            lastMessageTime: new Date(conv.lastMessageTime),
+            unreadCount: 0,
+          };
+        })
+      );
+
+      setConversations(conversationsWithNames);
+      
+      // Auto-select first conversation if exists (use functional update to avoid dependency)
+      setSelectedConversation((prev) => {
+        if (!prev && conversationsWithNames.length > 0) {
+          return conversationsWithNames[0];
+        }
+        return prev;
+      });
+    } catch (error) {
+      console.error('❌ Error loading conversations:', error);
+      setConversations([]);
+    }
+  }, [storeId, fetchCustomerName]);
 
   useEffect(() => {
     loadStoreId();
@@ -46,7 +131,7 @@ const MessagesPage: React.FC = () => {
     if (storeId) {
       loadConversations();
     }
-  }, [storeId]);
+  }, [storeId, loadConversations]);
 
   // Setup Firebase listeners for all conversations to update lastMessage in realtime
   useEffect(() => {
@@ -140,9 +225,14 @@ const MessagesPage: React.FC = () => {
     }
   }, [selectedConversation, storeId]);
 
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+  
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
   // Load messages and setup Firebase listener
   useEffect(() => {
@@ -185,13 +275,13 @@ const MessagesPage: React.FC = () => {
         // Firebase now supports both string and array format for mediaUrl
         const formattedMessages: ChatMessage[] = firebaseMessages.map((msg) => {
           const formatted = {
-            id: msg.id,
-            senderId: msg.senderId,
-            senderType: msg.senderType,
+          id: msg.id,
+          senderId: msg.senderId,
+          senderType: msg.senderType,
             content: msg.content || '',
             messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
             mediaUrl: msg.mediaUrl, // Can be string or array - preserve as is
-            createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : new Date(msg.createdAt).toISOString(),
+          createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : new Date(msg.createdAt).toISOString(),
           };
           // Debug log for media messages
           if (formatted.messageType === 'IMAGE' || formatted.messageType === 'MIXED' || formatted.mediaUrl) {
@@ -214,64 +304,6 @@ const MessagesPage: React.FC = () => {
     };
   }, [selectedConversation?.customerId, storeId]);
 
-  const loadStoreId = async () => {
-    try {
-      const id = await SellerChatService.getStoreId();
-      setStoreId(id);
-    } catch (error) {
-      console.error('Error loading store ID:', error);
-    }
-  };
-
-  // Fetch customer name from API
-  const fetchCustomerName = async (customerId: string): Promise<string> => {
-    try {
-      const response = await HttpInterceptor.get<CustomerInfo>(
-        `/api/customers/${customerId}`,
-        { userType: 'seller' }
-      );
-      return response.fullName || `Customer ${customerId.substring(0, 8)}...`;
-    } catch (error) {
-      console.warn('⚠️ Could not fetch customer name:', error);
-      return `Customer ${customerId.substring(0, 8)}...`;
-    }
-  };
-
-  const loadConversations = async () => {
-    if (!storeId) return;
-
-    try {
-      console.log('📋 Loading conversations for store:', storeId);
-      const conversationsList = await SellerChatService.getConversations(storeId);
-      
-      console.log('✅ Conversations loaded:', conversationsList);
-      
-      // Fetch customer names in parallel
-      const conversationsWithNames = await Promise.all(
-        conversationsList.map(async (conv) => {
-          const customerName = await fetchCustomerName(conv.customerId);
-          return {
-            customerId: conv.customerId,
-            customerName,
-            lastMessage: conv.lastMessage || '',
-            lastMessageTime: new Date(conv.lastMessageTime),
-            unreadCount: 0,
-          };
-        })
-      );
-
-      setConversations(conversationsWithNames);
-      
-      // Auto-select first conversation if exists
-      if (conversationsWithNames.length > 0 && !selectedConversation) {
-        setSelectedConversation(conversationsWithNames[0]);
-      }
-    } catch (error) {
-      console.error('❌ Error loading conversations:', error);
-      setConversations([]);
-    }
-  };
-
   const loadMessages = async (customerId: string, showLoading = true) => {
     if (!storeId) return;
 
@@ -291,12 +323,8 @@ const MessagesPage: React.FC = () => {
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   const handleSendMessage = async () => {
-    if (!selectedConversation || !storeId || isSending) return;
+    if (!selectedConversation || !storeId) return;
 
     // Check if there's text or files to send
     const hasText = inputMessage.trim().length > 0;
@@ -312,8 +340,6 @@ const MessagesPage: React.FC = () => {
     setSelectedFiles([]);
 
     try {
-      setIsSending(true);
-
       let mediaUrl: string | Array<{ url: string; type: string }> | undefined;
       let messageType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED' = 'TEXT';
       let content = messageContent;
@@ -358,7 +384,6 @@ const MessagesPage: React.FC = () => {
           console.error('Error uploading files:', uploadError);
           alert(uploadError.message || 'Không thể tải file lên. Vui lòng thử lại.');
           setIsUploading(false);
-          setIsSending(false);
           // Restore inputs on error
           setInputMessage(messageContent);
           setSelectedFiles(filesToSend);
@@ -396,13 +421,15 @@ const MessagesPage: React.FC = () => {
         )
       ]);
       // Message will be updated automatically via Firebase listener
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
+      
       // Restore inputs on error
       setInputMessage(messageContent);
       setSelectedFiles(filesToSend);
-    } finally {
-      setIsSending(false);
+      
+      // Show error message
+      alert(error.message || 'Xin lỗi, đã có lỗi xảy ra. Vui lòng thử lại sau.');
     }
   };
 
@@ -537,12 +564,18 @@ const MessagesPage: React.FC = () => {
   };
 
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.customerName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Memoize filtered conversations to avoid recalculation on every render
+  const filteredConversations = useMemo(() => {
+    if (!debouncedSearchTerm.trim()) return conversations;
+    const searchLower = debouncedSearchTerm.toLowerCase();
+    return conversations.filter((conv) =>
+      conv.customerName.toLowerCase().includes(searchLower)
+    );
+  }, [conversations, debouncedSearchTerm]);
 
   return (
-    <div className="h-[calc(100vh-200px)] flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="-m-6 flex flex-col" style={{ paddingTop: '24px', paddingLeft: '16px', paddingRight: '16px', paddingBottom: '8px', height: 'calc(100vh - 70px)' }}>
+      <div className="flex-1 flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Left Sidebar - Conversations List */}
       <div className="w-80 border-r border-gray-200 flex flex-col">
         {/* Search */}
@@ -583,18 +616,22 @@ const MessagesPage: React.FC = () => {
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
                   <User className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex-1 min-w-0 text-left">
+                <div className="flex-1 min-w-0 text-left overflow-hidden">
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="font-semibold text-sm text-gray-900 truncate">
                       {conversation.customerName}
                     </h3>
                     {conversation.unreadCount > 0 && (
-                      <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                         {conversation.unreadCount}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{conversation.lastMessage}</p>
+                  <p className="text-xs text-gray-500 truncate max-w-full" title={conversation.lastMessage}>
+                    {conversation.lastMessage && conversation.lastMessage.length > 50 
+                      ? `${conversation.lastMessage.substring(0, 50)}...` 
+                      : conversation.lastMessage}
+                  </p>
                   <span className="text-xs text-gray-400 mt-1">
                     {new Date(conversation.lastMessageTime).toLocaleString('vi-VN')}
                   </span>
@@ -623,7 +660,7 @@ const MessagesPage: React.FC = () => {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 min-w-0">
               {isLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -636,26 +673,27 @@ const MessagesPage: React.FC = () => {
                 messages.map((message, index) => (
                   <div
                     key={message.id || index}
-                    className={`flex gap-3 ${
+                    className={`flex gap-3 min-w-0 ${
                       message.senderType === 'STORE' ? 'flex-row-reverse' : 'flex-row'
                     }`}
                   >
                     {/* Message Bubble */}
                     {message.mediaUrl && (message.messageType === 'IMAGE' || message.messageType === 'VIDEO' || message.messageType === 'MIXED' || (typeof message.mediaUrl === 'string' && message.mediaUrl.match(/\.(mp4|webm|ogg|jpg|jpeg|png|gif)$/i))) ? (
                       // Image/Video/MIXED with optional text
-                      <div className="max-w-[300px] space-y-2">
+                      <div className="max-w-[300px] min-w-0 space-y-2">
                         {/* Show text bubble first if exists */}
                         {message.content && message.content.trim() && (
-                          <div
-                            className={`rounded-2xl px-4 py-2 ${
-                              message.senderType === 'STORE'
-                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-tr-none'
-                                : 'bg-white text-gray-800 rounded-tl-none shadow-sm border border-gray-200'
-                            }`}
-                          >
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                              {message.content}
-                            </p>
+                    <div
+                            className={`rounded-2xl px-4 py-2 min-w-0 ${
+                        message.senderType === 'STORE'
+                          ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-tr-none'
+                          : 'bg-white text-gray-800 rounded-tl-none shadow-sm border border-gray-200'
+                      }`}
+                            style={{ wordBreak: 'break-word', overflowWrap: 'break-word', maxWidth: '100%' }}
+                    >
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                        {message.content}
+                      </p>
                             <span
                               className={`text-xs mt-1 block ${
                                 message.senderType === 'STORE' ? 'text-orange-100' : 'text-gray-400'
@@ -818,8 +856,8 @@ const MessagesPage: React.FC = () => {
                                     Trình duyệt của bạn không hỗ trợ video.
                                   </video>
                                 ) : (
-                                  <img
-                                    src={message.mediaUrl}
+                        <img
+                          src={message.mediaUrl}
                                     alt=""
                                     className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
                                     onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'image' })}
@@ -851,28 +889,29 @@ const MessagesPage: React.FC = () => {
                     ) : (
                       // Text message only - with background bubble
                       <div
-                        className={`max-w-[70%] rounded-2xl px-4 py-2 ${
+                        className={`max-w-[70%] min-w-0 rounded-2xl px-4 py-2 ${
                           message.senderType === 'STORE'
                             ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white rounded-tr-none'
                             : 'bg-white text-gray-800 rounded-tl-none shadow-sm border border-gray-200'
                         }`}
+                        style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                       >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           {message.content}
                         </p>
-                        <span
-                          className={`text-xs mt-1 block ${
-                            message.senderType === 'STORE' ? 'text-orange-100' : 'text-gray-400'
-                          }`}
-                        >
-                          {message.createdAt
-                            ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : ''}
-                        </span>
-                      </div>
+                      <span
+                        className={`text-xs mt-1 block ${
+                          message.senderType === 'STORE' ? 'text-orange-100' : 'text-gray-400'
+                        }`}
+                      >
+                        {message.createdAt
+                          ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : ''}
+                      </span>
+                    </div>
                     )}
                   </div>
                 ))
@@ -918,7 +957,7 @@ const MessagesPage: React.FC = () => {
                       }}
                       className="w-[120px] h-[120px] rounded-lg border-2 border-dashed border-gray-300 hover:border-orange-500 flex items-center justify-center bg-white transition-colors"
                       title="Thêm ảnh/video"
-                      disabled={isUploading || isSending}
+                      disabled={isUploading}
                     >
                       <div className="text-center">
                         <span className="text-2xl text-gray-400">+</span>
@@ -944,7 +983,7 @@ const MessagesPage: React.FC = () => {
                   multiple
                   onChange={(e) => handleFileSelect(e, 'image')}
                   className="hidden"
-                  disabled={isUploading || isSending}
+                  disabled={isUploading}
                 />
                 <input
                   ref={videoInputRef}
@@ -953,7 +992,7 @@ const MessagesPage: React.FC = () => {
                   multiple
                   onChange={(e) => handleFileSelect(e, 'video')}
                   className="hidden"
-                  disabled={isUploading || isSending}
+                  disabled={isUploading}
                 />
                 {/* Input for selecting both image and video */}
                 <input
@@ -963,13 +1002,13 @@ const MessagesPage: React.FC = () => {
                   multiple
                   onChange={handleMediaSelect}
                   className="hidden"
-                  disabled={isUploading || isSending}
+                  disabled={isUploading}
                 />
                 
                 {/* Upload buttons */}
                 <button
                   onClick={() => imageInputRef.current?.click()}
-                  disabled={isUploading || isSending}
+                  disabled={isUploading}
                   className="p-2 text-gray-600 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Gửi ảnh"
                 >
@@ -977,7 +1016,7 @@ const MessagesPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => videoInputRef.current?.click()}
-                  disabled={isUploading || isSending}
+                  disabled={isUploading}
                   className="p-2 text-gray-600 hover:text-orange-500 hover:bg-orange-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Gửi video"
                 >
@@ -992,19 +1031,15 @@ const MessagesPage: React.FC = () => {
                   onKeyPress={handleKeyPress}
                   placeholder="Nhập tin nhắn..."
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                  disabled={isSending || isUploading}
+                  disabled={isUploading}
                 />
                 <button
                   onClick={handleSendMessage}
-                  disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isSending || isUploading}
+                  disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isUploading}
                   className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-2.5 rounded-full hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   aria-label="Send message"
                 >
-                  {isSending || isUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
                     <Send className="w-5 h-5" />
-                  )}
                 </button>
               </div>
             </div>
@@ -1052,8 +1087,9 @@ const MessagesPage: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
             />
           )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

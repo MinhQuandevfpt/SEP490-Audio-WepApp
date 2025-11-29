@@ -322,12 +322,12 @@ const AIChatbot: React.FC = () => {
           const formattedMessages: Message[] = firebaseMessages.map((msg): Message => {
             const role: 'user' | 'assistant' = msg.senderType === 'CUSTOMER' ? 'user' : 'assistant';
             const formatted: Message = {
-              id: msg.id,
+            id: msg.id,
               role: role,
               content: msg.content || '',
               messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
               mediaUrl: msg.mediaUrl, // Can be string or array - preserve as is
-              timestamp: new Date(msg.createdAt),
+            timestamp: new Date(msg.createdAt),
             };
             
             // Debug log for media messages
@@ -975,9 +975,13 @@ const AIChatbot: React.FC = () => {
                         </div>
                       )}
                       
-                      <div className="flex-1 min-w-0 text-left">
+                      <div className="flex-1 min-w-0 text-left overflow-hidden">
                         <h4 className="font-semibold text-sm text-gray-900 truncate">{conv.storeName}</h4>
-                        <p className="text-xs text-gray-500 truncate">{conv.lastMessage}</p>
+                        <p className="text-xs text-gray-500 truncate max-w-full" title={conv.lastMessage}>
+                          {conv.lastMessage && conv.lastMessage.length > 50 
+                            ? `${conv.lastMessage.substring(0, 50)}...` 
+                            : conv.lastMessage}
+                        </p>
                         <span className="text-xs text-gray-400">
                           {new Date(conv.lastMessageTime).toLocaleString('vi-VN', {
                             hour: '2-digit',
@@ -1084,7 +1088,7 @@ const AIChatbot: React.FC = () => {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 min-w-0">
               {chatMode === 'list' && !selectedStore ? (
                 // Empty state - no store selected yet
                 <div className="flex flex-col items-center justify-center h-full p-6 text-center">
@@ -1099,24 +1103,25 @@ const AIChatbot: React.FC = () => {
                 messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex gap-3 ${
+                className={`flex gap-3 min-w-0 ${
                   message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                 }`}
               >
                 {/* Message Bubble */}
                 {message.mediaUrl && (message.messageType === 'IMAGE' || message.messageType === 'VIDEO' || message.messageType === 'MIXED') ? (
                   // Image/Video/MIXED with optional text
-                  <div className="max-w-[300px] space-y-2">
+                  <div className="max-w-[300px] min-w-0 space-y-2">
                     {/* Show text bubble first if exists */}
                     {message.content && message.content.trim() && (
                       <div
-                        className={`rounded-2xl px-4 py-2 ${
-                          message.role === 'user'
+                        className={`rounded-2xl px-4 py-2 min-w-0 ${
+                    message.role === 'user'
                             ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
                             : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
                         }`}
+                        style={{ wordBreak: 'break-word', overflowWrap: 'break-word', maxWidth: '100%' }}
                       >
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           {message.content}
                         </p>
                         <span
@@ -1239,7 +1244,7 @@ const AIChatbot: React.FC = () => {
                                   />
                                 );
                               })}
-                            </div>
+                </div>
                             {/* Show timestamp only if no text */}
                             {(!message.content || !message.content.trim()) && (
                               <span
@@ -1306,27 +1311,28 @@ const AIChatbot: React.FC = () => {
                   </div>
                 ) : (
                   // Text message only - with background bubble
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                      message.role === 'user'
-                        ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
-                        : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
+                <div
+                  className={`max-w-[75%] min-w-0 rounded-2xl px-4 py-2 ${
+                    message.role === 'user'
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
+                      : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
+                  }`}
+                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                >
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                    {message.content}
+                  </p>
+                  <span
+                    className={`text-xs mt-1 block ${
+                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
                     }`}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
-                    <span
-                      className={`text-xs mt-1 block ${
-                        message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                      }`}
-                    >
-                      {message.timestamp.toLocaleTimeString('vi-VN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
+                    {message.timestamp.toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
                 )}
               </div>
                 ))
@@ -1465,15 +1471,11 @@ const AIChatbot: React.FC = () => {
               />
               <button
                 onClick={handleSendMessage}
-                disabled={(!inputMessage.trim() && selectedFiles.length === 0) || isLoading || isUploading}
+                disabled={(!inputMessage.trim() && selectedFiles.length === 0) || (chatMode === 'ai' && isLoading) || isUploading}
                 className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-2.5 rounded-full hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 aria-label="Send message"
               >
-                {isLoading || isUploading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
+                <Send className="w-5 h-5" />
               </button>
             </div>
               </div>
