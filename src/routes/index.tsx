@@ -12,6 +12,7 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
+import { ShopWideVoucherPage } from '../pages/Seller/ShopWideVoucher';
 import { CampaignList as SellerCampaignList } from '../pages/Seller/Campaign';
 import CampaignProductDetails from '../pages/Seller/Campaign/CampaignProductDetails';
 import AdminLayout from '../components/AdminLayout';
@@ -413,6 +414,10 @@ export const router = createBrowserRouter([
       {
         path: 'marketing/vouchers/create',
         element: <CreateVoucherPage />
+      },
+      {
+        path: 'shop-wide-voucher',
+        element: <ShopWideVoucherPage />
       },
       {
         path: 'marketing/flash-sale',

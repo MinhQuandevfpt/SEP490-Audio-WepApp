@@ -9,13 +9,15 @@ import { AddressService } from '../../services/customer/AddressService';
 import { CustomerCartService } from '../../services/customer/CartService';
 import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
 import { ProductListService, type Product } from '../../services/customer/ProductListService';
+import { VoucherService, type StoreVoucher } from '../../services/seller/VoucherService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import type { CustomerAddressApiItem } from '../../types/api';
-import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher, ServiceTypeIds, PlatformVoucher } from '../../types/cart';
+import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher as CheckoutStoreVoucher, ServiceTypeIds, PlatformVoucher } from '../../types/cart';
 import type { CartItem } from '../../data/shoppingcart';
 import type { CheckoutCartItem, PaymentMethod } from '../../data/checkout';
 import type { ShopVoucher } from '../ShoppingCartComponents/VoucherSection';
 import type { AppliedStoreVoucher } from '../ShoppingCartComponents/StoreVoucherPicker';
+import type { AppliedStoreWideVoucher } from './StoreWideVoucherSection';
 import { Home, ChevronRight } from 'lucide-react';
 
 const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
@@ -74,12 +76,37 @@ const calculateVoucherDiscountAmount = (voucher: ShopVoucher, storeTotal: number
   return 0;
 };
 
-const buildStoreVouchers = (applied: Record<string, AppliedStoreVoucher>): StoreVoucher[] => {
-  const result = Object.values(applied).map(voucher => ({
-    storeId: voucher.storeId,
-    codes: [voucher.code],
-  }));
-  console.log('🏪 [BUILD STORE VOUCHERS] Input:', applied, 'Output:', result);
+const buildStoreVouchers = (
+  applied: Record<string, AppliedStoreVoucher>,
+  appliedStoreWide: Record<string, AppliedStoreWideVoucher>
+): CheckoutStoreVoucher[] => {
+  const result: CheckoutStoreVoucher[] = [];
+  
+  // Add product-specific vouchers
+  Object.values(applied).forEach(voucher => {
+    result.push({
+      storeId: voucher.storeId,
+      codes: [voucher.code],
+    });
+  });
+  
+  // Add store-wide vouchers
+  Object.values(appliedStoreWide).forEach(voucher => {
+    // Check if store already has vouchers
+    const existingIndex = result.findIndex(v => v.storeId === voucher.storeId);
+    if (existingIndex >= 0) {
+      // Add code to existing store vouchers
+      result[existingIndex].codes.push(voucher.code);
+    } else {
+      // Create new entry for this store
+      result.push({
+        storeId: voucher.storeId,
+        codes: [voucher.code],
+      });
+    }
+  });
+  
+  console.log('🏪 [BUILD STORE VOUCHERS] Input:', { applied, appliedStoreWide }, 'Output:', result);
   return result;
 };
 
@@ -122,6 +149,10 @@ const CheckoutOrderContainer: React.FC = () => {
   const [selectedCartItemIds, setSelectedCartItemIds] = useState<string[]>([]);
   const [availableVouchers, setAvailableVouchers] = useState<ShopVoucher[]>([]);
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
+  // Store-wide vouchers: Record<storeId, StoreVoucher[]>
+  const [storeWideVouchers, setStoreWideVouchers] = useState<Record<string, StoreVoucher[]>>({});
+  // Applied store-wide vouchers: Record<storeId, AppliedStoreWideVoucher>
+  const [appliedStoreWideVouchers, setAppliedStoreWideVouchers] = useState<Record<string, AppliedStoreWideVoucher>>({});
   // Platform voucher info: Record<productId, { discount: number; campaignProductId: string }>
   const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, { discount: number; campaignProductId: string }>>({});
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
@@ -249,10 +280,31 @@ const CheckoutOrderContainer: React.FC = () => {
     return result;
   }, [cartItems, platformVoucherDiscounts]);
 
-  // Store voucher discount
+  // Calculate store totals for each store (after platform discount)
+  const storeTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const storeIds = new Set<string>();
+    
+    cartItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product?.storeId) {
+        storeIds.add(product.storeId);
+      }
+    });
+    
+    storeIds.forEach(storeId => {
+      totals[storeId] = calculateStoreTotal(cartItems, storeId, productCache, platformVoucherDiscounts);
+    });
+    
+    return totals;
+  }, [cartItems, productCache, platformVoucherDiscounts]);
+
+  // Store voucher discount (product-specific + store-wide)
   const voucherDiscount = useMemo(() => {
-    return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
-  }, [appliedStoreVouchers]);
+    const productVoucherDiscount = Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
+    const storeWideVoucherDiscount = Object.values(appliedStoreWideVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
+    return productVoucherDiscount + storeWideVoucherDiscount;
+  }, [appliedStoreVouchers, appliedStoreWideVouchers]);
 
   // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const total = useMemo(() => {
@@ -461,6 +513,51 @@ const CheckoutOrderContainer: React.FC = () => {
     loadVouchers();
   }, [cartItems]);
 
+  // Load store-wide vouchers for each store
+  useEffect(() => {
+    const loadStoreWideVouchers = async () => {
+      try {
+        const storeIds = new Set<string>();
+        cartItems.forEach(item => {
+          const product = productCache.get(item.productId);
+          if (product?.storeId) {
+            storeIds.add(product.storeId);
+          }
+        });
+
+        if (storeIds.size === 0) {
+          setStoreWideVouchers({});
+          return;
+        }
+
+        const voucherPromises = Array.from(storeIds).map(async (storeId) => {
+          try {
+            const response = await VoucherService.getShopVouchersByStore(storeId, 'ACTIVE', 'ALL_SHOP_VOUCHER');
+            return { storeId, vouchers: response.data || [] };
+          } catch (error) {
+            console.error(`Error loading store-wide vouchers for store ${storeId}:`, error);
+            return { storeId, vouchers: [] };
+          }
+        });
+
+        const results = await Promise.all(voucherPromises);
+        const vouchersMap: Record<string, StoreVoucher[]> = {};
+        results.forEach(({ storeId, vouchers }) => {
+          vouchersMap[storeId] = vouchers;
+        });
+
+        setStoreWideVouchers(vouchersMap);
+      } catch (error) {
+        console.error('Error loading store-wide vouchers:', error);
+        setStoreWideVouchers({});
+      }
+    };
+
+    if (cartItems.length > 0 && productCache.size > 0) {
+      loadStoreWideVouchers();
+    }
+  }, [cartItems, productCache]);
+
   useEffect(() => {
     // Chỉ validate khi đã có đủ dữ liệu
     // Nếu availableVouchers đang rỗng (chưa load xong) hoặc cartItems rỗng, giữ nguyên voucher
@@ -625,7 +722,7 @@ const CheckoutOrderContainer: React.FC = () => {
       return basePayload;
     });
 
-    const storeVouchers = buildStoreVouchers(appliedStoreVouchers);
+    const storeVouchers = buildStoreVouchers(appliedStoreVouchers, appliedStoreWideVouchers);
     const serviceTypeIds = buildServiceTypeIds(cartItems, productCache);
     const platformVouchers = buildPlatformVouchers();
 
@@ -754,7 +851,45 @@ const CheckoutOrderContainer: React.FC = () => {
                     <p className="text-base font-semibold text-gray-900">Sản phẩm</p>
                   </div>
                   <div className="px-6 py-4">
-                    <CartItemList groups={groupedCartItems} onRemove={removeItem} />
+                    <CartItemList 
+                      groups={groupedCartItems} 
+                      onRemove={removeItem}
+                      storeWideVouchers={storeWideVouchers}
+                      appliedStoreWideVouchers={appliedStoreWideVouchers}
+                      storeTotals={storeTotals}
+                      onApplyStoreWideVoucher={(storeId, voucher) => {
+                        const storeTotal = storeTotals[storeId] || 0;
+                        let discountValue = 0;
+                        
+                        if (voucher.type === 'FIXED') {
+                          discountValue = voucher.discountValue || 0;
+                        } else if (voucher.type === 'PERCENT') {
+                          const percent = voucher.discountPercent || 0;
+                          const discount = Math.round((storeTotal * percent) / 100);
+                          discountValue = voucher.maxDiscountValue && discount > voucher.maxDiscountValue
+                            ? voucher.maxDiscountValue
+                            : discount;
+                        }
+                        
+                        setAppliedStoreWideVouchers(prev => ({
+                          ...prev,
+                          [storeId]: {
+                            storeId,
+                            code: voucher.code,
+                            voucherId: voucher.id,
+                            discountValue,
+                            type: voucher.type,
+                          },
+                        }));
+                      }}
+                      onRemoveStoreWideVoucher={(storeId) => {
+                        setAppliedStoreWideVouchers(prev => {
+                          const next = { ...prev };
+                          delete next[storeId];
+                          return next;
+                        });
+                      }}
+                    />
                   </div>
                 </section>
 

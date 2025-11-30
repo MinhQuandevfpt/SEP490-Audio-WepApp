@@ -149,7 +149,8 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
-        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' }
+        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
+        { label: 'Voucher toàn shop', path: '/seller/dashboard/shop-wide-voucher' }
       ]
     },
     {

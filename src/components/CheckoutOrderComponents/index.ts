@@ -6,4 +6,6 @@ export { default as OrderSummaryCard } from './OrderSummaryCard';
 export { default as ShippingMethodDropdown } from './ShippingMethodDropdown';
 export { default as PaymentMethodDropdown } from './PaymentMethodDropdown';
 export { default as CheckoutOrderContainer } from './CheckoutOrderContainer';
+export { default as StoreWideVoucherSection } from './StoreWideVoucherSection';
+export type { AppliedStoreWideVoucher } from './StoreWideVoucherSection';
 
