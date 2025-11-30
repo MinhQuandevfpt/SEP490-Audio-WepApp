@@ -73,20 +73,11 @@ const AIChatbot: React.FC = () => {
 
   // Listen to context changes
   useEffect(() => {
-    console.log('🔍 Context changed:', {
-      contextIsOpen: chatContext.isOpen,
-      isOpen,
-      chatMode: chatContext.chatMode,
-      storeId: chatContext.storeId,
-      isAuthenticated
-    });
-    
     if (chatContext.isOpen && !isOpen) {
       setIsOpen(true);
       
       // If opening chat with a specific store, switch to list mode
       if (chatContext.chatMode === 'store' && chatContext.storeId) {
-        console.log('✅ Opening chat with store:', chatContext.storeId);
         setChatMode('list');
         setStoreId(chatContext.storeId);
         // Load conversations will happen in next effect
@@ -101,15 +92,7 @@ const AIChatbot: React.FC = () => {
 
   // Load conversations when switching to list mode
   useEffect(() => {
-    console.log('📝 Load conversations effect:', {
-      isOpen,
-      chatMode,
-      isAuthenticated,
-      storeId
-    });
-    
     if (isOpen && chatMode === 'list' && isAuthenticated) {
-      console.log('✅ Calling loadConversationsAndSelectStore...');
       loadConversationsAndSelectStore();
     }
   }, [isOpen, chatMode, isAuthenticated, storeId]);
@@ -200,8 +183,6 @@ const AIChatbot: React.FC = () => {
     const customerId = ChatService.getCurrentUserId();
     if (!customerId) return;
 
-    console.log('📡 Setting up Firebase listeners for conversations:', conversations.length);
-
     // Setup Firebase listener for each conversation
     const unsubscribes: Array<() => void> = [];
 
@@ -291,7 +272,6 @@ const AIChatbot: React.FC = () => {
 
     // Cleanup: unsubscribe from all listeners
     return () => {
-      console.log('🧹 Cleaning up conversation Firebase listeners');
       unsubscribes.forEach((unsub) => unsub());
     };
     }, [isOpen, chatMode, isAuthenticated, conversations.map(c => c.storeId).join(','), formatLastMessage]);
@@ -374,21 +354,6 @@ const AIChatbot: React.FC = () => {
         const response = await ChatService.getMessages(customerId, selectedStore.storeId, 100);
         
         if (response.data && response.data.length > 0) {
-          // Debug log for messages from API
-          console.log('📥 Messages loaded from API (Customer):', response.data.length);
-          response.data.forEach((msg: any) => {
-            if (msg.messageType === 'VIDEO' || msg.messageType === 'IMAGE' || msg.messageType === 'MIXED') {
-              console.log('📹 Media message from API (Customer):', {
-                id: msg.id,
-                messageType: msg.messageType,
-                mediaUrl: msg.mediaUrl,
-                mediaUrlType: Array.isArray(msg.mediaUrl) ? 'array' : typeof msg.mediaUrl,
-                mediaUrlLength: Array.isArray(msg.mediaUrl) ? msg.mediaUrl.length : (msg.mediaUrl ? 1 : 0),
-                content: msg.content
-              });
-            }
-          });
-          
           const loadedMessages: Message[] = response.data.map((msg) => ({
             id: msg.id || Date.now().toString(),
             role: msg.senderType === 'CUSTOMER' ? 'user' : 'assistant',
@@ -429,8 +394,8 @@ const AIChatbot: React.FC = () => {
             ChatService.markAsRead(customerId, selectedStore.storeId, customerId),
             // Also update read status in Firebase for messages from STORE
             FirebaseRealtimeChatService.updateMessagesReadStatus(customerId, selectedStore.storeId, 'STORE')
-          ]).catch((error) => {
-            console.error('Error marking messages as read:', error);
+          ]).catch(() => {
+            // Silent fail
           });
         } else {
           setMessages([{
@@ -442,7 +407,6 @@ const AIChatbot: React.FC = () => {
           setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error loading initial messages:', error);
         setIsLoading(false);
       }
     };
@@ -479,17 +443,6 @@ const AIChatbot: React.FC = () => {
             timestamp: new Date(msg.createdAt),
             read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
             };
-            
-            // Debug log for media messages
-            if (formatted.messageType === 'IMAGE' || formatted.messageType === 'MIXED' || formatted.mediaUrl) {
-              console.log('📸 Media message received from Firebase:', {
-                id: formatted.id,
-                messageType: formatted.messageType,
-                mediaUrlType: Array.isArray(formatted.mediaUrl) ? 'array' : typeof formatted.mediaUrl,
-                mediaUrlLength: Array.isArray(formatted.mediaUrl) ? formatted.mediaUrl.length : 1,
-                mediaUrl: formatted.mediaUrl
-              });
-            }
             
             return formatted;
           });
@@ -542,7 +495,6 @@ const AIChatbot: React.FC = () => {
         setMessages(loadedMessages);
       }
     } catch (error) {
-      console.error('Error loading store messages:', error);
       setMessages([{
         id: '0',
         role: 'assistant',
@@ -582,7 +534,6 @@ const AIChatbot: React.FC = () => {
                 formattedLastMessage = conv.lastMessage;
               }
             } catch (error) {
-              console.warn('⚠️ Could not fetch last message for formatting, using API lastMessage:', error);
               // Fallback to API's lastMessage
               formattedLastMessage = conv.lastMessage || '';
             }
@@ -594,7 +545,6 @@ const AIChatbot: React.FC = () => {
               lastMessage: formattedLastMessage,
             };
           } catch (error) {
-            console.error(`Failed to fetch store ${conv.storeId}:`, error);
             return {
               ...conv,
               storeName: `Shop ${conv.storeId.substring(0, 8)}`,
@@ -621,7 +571,6 @@ const AIChatbot: React.FC = () => {
       setConversations(conversationsWithPreservedUnread);
       return conversationsWithPreservedUnread;
     } catch (error) {
-      console.error('Error loading conversations:', error);
       setConversations([]);
       return [];
     } finally {
@@ -630,24 +579,19 @@ const AIChatbot: React.FC = () => {
   };
 
   const loadConversationsAndSelectStore = async () => {
-    console.log('🚀 loadConversationsAndSelectStore started, storeId:', storeId);
     const convList = await loadConversations();
-    console.log('📦 Loaded conversations:', convList?.length, convList);
     
     // If we have a storeId from context
     if (storeId) {
       // Try to find existing conversation
       const targetConv = convList?.find(conv => conv.storeId === storeId);
-      console.log('🎯 Target conversation:', targetConv);
       
       if (targetConv) {
         // Found existing conversation, select it
-        console.log('✅ Found existing conversation, selecting it');
         setSelectedStore(targetConv);
       } else {
         // No existing conversation (either convList is empty or store not in list)
         // Create a new one by fetching store info
-        console.log('⚠️ No existing conversation, creating new one');
         try {
           const storeDetail = await CustomerStoreService.getStoreById(storeId);
           const newConv: ConversationWithStoreInfo = {
@@ -659,16 +603,13 @@ const AIChatbot: React.FC = () => {
             storeName: storeDetail.storeName || `Shop ${storeId.substring(0, 8)}`,
             storeAvatar: storeDetail.logoUrl || CustomerStoreService.getDefaultAvatar(storeDetail.storeName),
           };
-          console.log('✨ Created new conversation:', newConv);
           setSelectedStore(newConv);
           // Add to conversations list
           setConversations(prev => [newConv, ...prev]);
         } catch (error) {
-          console.error('❌ Error creating new conversation:', error);
+          // Silent fail
         }
       }
-    } else {
-      console.log('⚠️ No storeId');
     }
   };
 
@@ -819,15 +760,7 @@ const AIChatbot: React.FC = () => {
             // Keep content as is (empty if no text, or user's text if provided)
           }
           
-          // Debug log for video upload
-          console.log('📹 Video upload completed (Customer):', {
-            messageType,
-            mediaUrl,
-            uploadedMedia,
-            filesToSend: filesToSend.map(f => ({ type: f.type, name: f.file.name }))
-          });
           } catch (uploadError: any) {
-            console.error('Error uploading files:', uploadError);
             alert(uploadError.message || 'Không thể tải file lên. Vui lòng thử lại.');
             setIsUploading(false);
             // Restore inputs on error
@@ -839,16 +772,6 @@ const AIChatbot: React.FC = () => {
           }
         }
 
-        // Debug log before sending
-        console.log('📤 Sending message (Customer):', {
-          messageType,
-          mediaUrl,
-          content,
-          hasMediaUrl: !!mediaUrl,
-          mediaUrlType: Array.isArray(mediaUrl) ? 'array' : typeof mediaUrl,
-          mediaUrlLength: Array.isArray(mediaUrl) ? mediaUrl.length : (mediaUrl ? 1 : 0)
-        });
-
         // Send message to both API and Firebase
         await Promise.all([
           // Send to API (for backend storage)
@@ -858,12 +781,6 @@ const AIChatbot: React.FC = () => {
             content: content,
             messageType: messageType,
             mediaUrl: mediaUrl,
-          }).then((response) => {
-            console.log('✅ API response (Customer):', response);
-            return response;
-          }).catch((error) => {
-            console.error('❌ API error (Customer):', error);
-            throw error;
           }),
           // Send to Firebase (for realtime sync) - Firebase now supports array format
           FirebaseRealtimeChatService.sendMessage(customerId, targetStoreId, {
@@ -873,11 +790,6 @@ const AIChatbot: React.FC = () => {
             messageType: messageType,
             mediaUrl: mediaUrl, // Send full array or string as is
             read: false, // Default to false when sending
-          }).then(() => {
-            console.log('✅ Firebase message sent (Customer)');
-          }).catch((error) => {
-            console.error('❌ Firebase error (Customer):', error);
-            throw error;
           })
         ]);
         
@@ -978,8 +890,6 @@ const AIChatbot: React.FC = () => {
         // Message will be updated automatically via Firebase listener
       }
     } catch (error: any) {
-      console.error('Error sending message:', error);
-      
       // Restore inputs on error
       setInputMessage(messageToSend);
       setSelectedFiles(filesToSend);
@@ -1487,17 +1397,6 @@ const AIChatbot: React.FC = () => {
                       const isArray = Array.isArray(message.mediaUrl);
                       const isMixed = message.messageType === 'MIXED';
                       
-                      // Debug log
-                      if (isMixed || isArray) {
-                        console.log('🔍 MIXED message detected:', {
-                          messageType: message.messageType,
-                          isArray,
-                          mediaUrl: message.mediaUrl,
-                          length: isArray ? (message.mediaUrl as any[]).length : 0,
-                          content: message.content
-                        });
-                      }
-                      
                       // If MIXED type or mediaUrl is an array, display vertically
                       if (isMixed || isArray) {
                         // MIXED: Multiple media items
@@ -1636,7 +1535,6 @@ const AIChatbot: React.FC = () => {
                         }
                         
                         if (!mediaUrlString) {
-                          console.warn('⚠️ No valid mediaUrl found for VIDEO/IMAGE message:', message);
                           return null;
                         }
                         
@@ -1648,12 +1546,11 @@ const AIChatbot: React.FC = () => {
                               <video
                                 src={mediaUrlString}
                                 controls
-                                className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
-                                onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'video' })}
-                                onError={(e) => {
-                                  console.error('❌ Video load error:', mediaUrlString);
-                                  e.currentTarget.style.display = 'none';
-                                }}
+                                    className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                    onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'video' })}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
                               >
                                 Trình duyệt của bạn không hỗ trợ video.
                               </video>
@@ -1661,12 +1558,11 @@ const AIChatbot: React.FC = () => {
                               <img
                                 src={mediaUrlString}
                                 alt=""
-                                className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
-                                onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'image' })}
-                                onError={(e) => {
-                                  console.error('❌ Image load error:', mediaUrlString);
-                                  e.currentTarget.style.display = 'none';
-                                }}
+                                    className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
+                                    onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'image' })}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
                               />
                             )}
                             {/* Show timestamp and read status if no text */}
