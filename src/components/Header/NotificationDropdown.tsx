@@ -173,17 +173,16 @@ const NotificationDropdown: React.FC = () => {
             navigate('/auth/login');
           }
         }}
-        className="flex items-center space-x-1 text-gray-700 hover:text-orange-500 transition-colors"
+        className="relative group"
       >
-        <div className="relative">
+        <div className="flex items-center text-blue-600 hover:text-blue-700">
           <Bell className="w-5 h-5" />
-          {isAuthenticated && unreadCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
         </div>
-        <span className="text-sm">Thông báo</span>
+        {isAuthenticated && unreadCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
       </button>
 
       {/* Dropdown Menu */}

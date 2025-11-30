@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import Layout from '../../../components/Layout';
 import { 
   Header, 
   ControlsPanel, 
@@ -115,48 +114,46 @@ const ThreeDRoom: React.FC = () => {
 
   try {
     return (
-      <Layout>
-        <div className="min-h-screen bg-gray-100">
-          <Header />
+      <div className="min-h-screen bg-gray-100">
+        <Header />
 
-          <div className="flex h-[calc(100vh-80px)]">
-            <ControlsPanel
-              dimensions={dimensions}
-              colors={colors}
-              furniture={furniture}
-              onDimensionChange={handleDimensionChange}
-              onColorChange={handleColorChange}
-              onPresetSelect={handlePresetSelect}
-              onReset={resetDimensions}
-              onAddFurniture={handleAddFurniture}
-              onRemoveFurniture={handleRemoveFurniture}
-              onUpdateFurniture={handleUpdateFurniture}
-              listeners={listeners}
-              onAddListener={handleAddListener}
-              onRemoveListener={handleRemoveListener}
-              onUpdateListener={handleUpdateListener}
-              speakers={speakers}
-              onAddSpeaker={handleAddSpeaker}
-              onRemoveSpeaker={handleRemoveSpeaker}
-              onUpdateSpeaker={handleUpdateSpeaker}
-              onTestSpeaker={setTestSpeaker}
-              onTestObjectPositionChange={setTestObjectPosition}
-              onTestingIn3DChange={setIsTestingIn3D}
-            />
+        <div className="flex h-[calc(100vh-80px)]">
+          <ControlsPanel
+            dimensions={dimensions}
+            colors={colors}
+            furniture={furniture}
+            onDimensionChange={handleDimensionChange}
+            onColorChange={handleColorChange}
+            onPresetSelect={handlePresetSelect}
+            onReset={resetDimensions}
+            onAddFurniture={handleAddFurniture}
+            onRemoveFurniture={handleRemoveFurniture}
+            onUpdateFurniture={handleUpdateFurniture}
+            listeners={listeners}
+            onAddListener={handleAddListener}
+            onRemoveListener={handleRemoveListener}
+            onUpdateListener={handleUpdateListener}
+            speakers={speakers}
+            onAddSpeaker={handleAddSpeaker}
+            onRemoveSpeaker={handleRemoveSpeaker}
+            onUpdateSpeaker={handleUpdateSpeaker}
+            onTestSpeaker={setTestSpeaker}
+            onTestObjectPositionChange={setTestObjectPosition}
+            onTestingIn3DChange={setIsTestingIn3D}
+          />
 
-            <Canvas3D 
-              dimensions={dimensions} 
-              colors={colors} 
-              furniture={furniture}
-              listeners={listeners}
-              speakers={speakers}
-              testObjectPosition={testObjectPosition}
-              onUpdateListener={handleUpdateListener}
-              onUpdateFurniture={handleUpdateFurniture}
-            />
-          </div>
+          <Canvas3D 
+            dimensions={dimensions} 
+            colors={colors} 
+            furniture={furniture}
+            listeners={listeners}
+            speakers={speakers}
+            testObjectPosition={testObjectPosition}
+            onUpdateListener={handleUpdateListener}
+            onUpdateFurniture={handleUpdateFurniture}
+          />
         </div>
-      </Layout>
+      </div>
     );
   } catch (error) {
     console.error('Error rendering ThreeDRoom:', error);
