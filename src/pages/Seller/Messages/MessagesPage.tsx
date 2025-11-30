@@ -137,7 +137,7 @@ const MessagesPage: React.FC = () => {
       const id = await SellerChatService.getStoreId();
       setStoreId(id);
     } catch (error) {
-      console.error('Error loading store ID:', error);
+      // Silent fail
     }
   };
 
@@ -158,7 +158,6 @@ const MessagesPage: React.FC = () => {
       customerNameCache.current.set(customerId, name);
       return name;
     } catch (error) {
-      console.warn('⚠️ Could not fetch customer name:', error);
       const fallbackName = `Customer ${customerId.substring(0, 8)}...`;
       // Cache fallback to avoid repeated failed requests
       customerNameCache.current.set(customerId, fallbackName);
@@ -170,10 +169,7 @@ const MessagesPage: React.FC = () => {
     if (!storeId) return;
 
     try {
-      console.log('📋 Loading conversations for store:', storeId);
       const conversationsList = await SellerChatService.getConversations(storeId);
-      
-      console.log('✅ Conversations loaded:', conversationsList);
       
       // Fetch customer names and last messages in parallel (with caching)
       const conversationsWithNames = await Promise.all(
@@ -193,11 +189,10 @@ const MessagesPage: React.FC = () => {
               // This handles case where lastMessage is already formatted text
               formattedLastMessage = conv.lastMessage;
             }
-          } catch (error) {
-            console.warn('⚠️ Could not fetch last message for formatting, using API lastMessage:', error);
-            // Fallback to API's lastMessage
-            formattedLastMessage = conv.lastMessage || '';
-          }
+            } catch (error) {
+              // Fallback to API's lastMessage
+              formattedLastMessage = conv.lastMessage || '';
+            }
           
           return {
             customerId: conv.customerId,
@@ -236,7 +231,6 @@ const MessagesPage: React.FC = () => {
         return prev;
       });
     } catch (error) {
-      console.error('❌ Error loading conversations:', error);
       setConversations([]);
     }
   }, [storeId, fetchCustomerName, formatLastMessage]);
@@ -256,8 +250,6 @@ const MessagesPage: React.FC = () => {
     if (!storeId || conversations.length === 0) {
       return;
     }
-
-    console.log('📡 Setting up Firebase listeners for seller conversations:', conversations.length);
 
     // Setup Firebase listener for each conversation
     const unsubscribes: Array<() => void> = [];
@@ -348,7 +340,6 @@ const MessagesPage: React.FC = () => {
 
     // Cleanup: unsubscribe from all listeners
     return () => {
-      console.log('🧹 Cleaning up seller conversation Firebase listeners');
       unsubscribes.forEach((unsub) => unsub());
     };
     }, [storeId, conversations.map(c => c.customerId).join(','), formatLastMessage]);
@@ -407,21 +398,6 @@ const MessagesPage: React.FC = () => {
         const response = await SellerChatService.getMessages(selectedConversation.customerId, storeId, 100);
         
         if (response.data && response.data.length > 0) {
-          // Debug log for messages from API
-          console.log('📥 Messages loaded from API:', response.data.length);
-          response.data.forEach((msg: any) => {
-            if (msg.messageType === 'VIDEO' || msg.messageType === 'IMAGE' || msg.messageType === 'MIXED') {
-              console.log('📹 Media message from API:', {
-                id: msg.id,
-                messageType: msg.messageType,
-                mediaUrl: msg.mediaUrl,
-                mediaUrlType: Array.isArray(msg.mediaUrl) ? 'array' : typeof msg.mediaUrl,
-                mediaUrlLength: Array.isArray(msg.mediaUrl) ? msg.mediaUrl.length : (msg.mediaUrl ? 1 : 0),
-                content: msg.content
-              });
-            }
-          });
-          
           setMessages(response.data);
           
           // Update lastMessageSenderType from the last message
@@ -450,16 +426,15 @@ const MessagesPage: React.FC = () => {
           setIsLoading(false);
         }
         
-        // Mark messages as read when opening conversation (async, doesn't block UI)
-        Promise.all([
-          SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId),
-          // Also update read status in Firebase for messages from CUSTOMER
-          FirebaseRealtimeChatService.updateMessagesReadStatus(selectedConversation.customerId, storeId, 'CUSTOMER')
-        ]).catch((error) => {
-          console.error('Error marking messages as read:', error);
-        });
+          // Mark messages as read when opening conversation (async, doesn't block UI)
+          Promise.all([
+            SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId),
+            // Also update read status in Firebase for messages from CUSTOMER
+            FirebaseRealtimeChatService.updateMessagesReadStatus(selectedConversation.customerId, storeId, 'CUSTOMER')
+          ]).catch(() => {
+            // Silent fail
+          });
       } catch (error) {
-        console.error('Error loading initial messages:', error);
         setMessages([]);
         setIsLoading(false);
       }
@@ -483,19 +458,9 @@ const MessagesPage: React.FC = () => {
             content: msg.content || '',
             messageType: (msg.messageType || 'TEXT') as 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED',
             mediaUrl: msg.mediaUrl, // Can be string or array - preserve as is
-          createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : new Date(msg.createdAt).toISOString(),
-          read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
+            createdAt: typeof msg.createdAt === 'string' ? msg.createdAt : new Date(msg.createdAt).toISOString(),
+            read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
           };
-          // Debug log for media messages
-          if (formatted.messageType === 'IMAGE' || formatted.messageType === 'MIXED' || formatted.mediaUrl) {
-            console.log('📸 Media message received from Firebase:', {
-              id: formatted.id,
-              messageType: formatted.messageType,
-              mediaUrlType: Array.isArray(formatted.mediaUrl) ? 'array' : typeof formatted.mediaUrl,
-              mediaUrlLength: Array.isArray(formatted.mediaUrl) ? formatted.mediaUrl.length : 1,
-              mediaUrl: formatted.mediaUrl
-            });
-          }
           return formatted;
         });
         setMessages(formattedMessages);
@@ -517,7 +482,6 @@ const MessagesPage: React.FC = () => {
       const response = await SellerChatService.getMessages(customerId, storeId, 100);
       setMessages(response.data || []);
     } catch (error) {
-      console.error('Error loading messages:', error);
       setMessages([]);
     } finally {
       if (showLoading) {
@@ -584,15 +548,7 @@ const MessagesPage: React.FC = () => {
             // Keep content as is (empty if no text, or user's text if provided)
           }
           
-          // Debug log for video upload
-          console.log('📹 Video upload completed:', {
-            messageType,
-            mediaUrl,
-            uploadedMedia,
-            filesToSend: filesToSend.map(f => ({ type: f.type, name: f.file.name }))
-          });
         } catch (uploadError: any) {
-          console.error('Error uploading files:', uploadError);
           alert(uploadError.message || 'Không thể tải file lên. Vui lòng thử lại.');
           setIsUploading(false);
           // Restore inputs on error
@@ -603,16 +559,6 @@ const MessagesPage: React.FC = () => {
             setIsUploading(false);
           }
       }
-
-      // Debug log before sending
-      console.log('📤 Sending message:', {
-        messageType,
-        mediaUrl,
-        content,
-        hasMediaUrl: !!mediaUrl,
-        mediaUrlType: Array.isArray(mediaUrl) ? 'array' : typeof mediaUrl,
-        mediaUrlLength: Array.isArray(mediaUrl) ? mediaUrl.length : (mediaUrl ? 1 : 0)
-      });
 
       // Send message to both API and Firebase
       await Promise.all([
@@ -627,13 +573,7 @@ const MessagesPage: React.FC = () => {
             messageType: messageType,
             mediaUrl: mediaUrl,
           }
-        ).then((response) => {
-          console.log('✅ API response:', response);
-          return response;
-        }).catch((error) => {
-          console.error('❌ API error:', error);
-          throw error;
-        }),
+        ),
         // Send to Firebase (for realtime sync) - Firebase now supports array format
         FirebaseRealtimeChatService.sendMessage(
           selectedConversation.customerId,
@@ -646,12 +586,7 @@ const MessagesPage: React.FC = () => {
             mediaUrl: mediaUrl, // Send full array or string as is
             read: false, // Default to false when sending
           }
-        ).then(() => {
-          console.log('✅ Firebase message sent');
-        }).catch((error) => {
-          console.error('❌ Firebase error:', error);
-          throw error;
-        })
+        )
       ]);
       
       // Helper function to detect media type from URL or type field
@@ -750,8 +685,6 @@ const MessagesPage: React.FC = () => {
       
       // Message will be updated automatically via Firebase listener
     } catch (error: any) {
-      console.error('Error sending message:', error);
-      
       // Restore inputs on error
       setInputMessage(messageContent);
       setSelectedFiles(filesToSend);
@@ -1062,17 +995,6 @@ const MessagesPage: React.FC = () => {
                           const isArray = Array.isArray(message.mediaUrl);
                           const isMixed = message.messageType === 'MIXED';
                           
-                          // Debug log
-                          if (isMixed || isArray) {
-                            console.log('🔍 MIXED message detected (Seller):', {
-                              messageType: message.messageType,
-                              isArray,
-                              mediaUrl: message.mediaUrl,
-                              length: isArray ? (message.mediaUrl as any[]).length : 0,
-                              content: message.content
-                            });
-                          }
-                          
                           // If MIXED type or mediaUrl is an array, display vertically
                           if (isMixed || isArray) {
                             // MIXED: Multiple media items
@@ -1214,7 +1136,6 @@ const MessagesPage: React.FC = () => {
                             }
                             
                             if (!mediaUrlString) {
-                              console.warn('⚠️ No valid mediaUrl found for VIDEO/IMAGE message:', message);
                               return null;
                             }
                             
@@ -1229,7 +1150,6 @@ const MessagesPage: React.FC = () => {
                                     className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
                                     onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'video' })}
                                     onError={(e) => {
-                                      console.error('❌ Video load error:', mediaUrlString);
                                       e.currentTarget.style.display = 'none';
                                     }}
                                   >
@@ -1242,7 +1162,6 @@ const MessagesPage: React.FC = () => {
                                     className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
                                     onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'image' })}
                                     onError={(e) => {
-                                      console.error('❌ Image load error:', mediaUrlString);
                                       e.currentTarget.style.display = 'none';
                                     }}
                                   />
