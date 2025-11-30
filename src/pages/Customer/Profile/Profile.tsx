@@ -8,8 +8,9 @@ import { BankConnect } from '../../../components/ProfilePageComponents/BankConne
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
 import { ReviewProductPage } from '../ReviewFolder';
 import { WalletPage } from '../../../components/CustomerWalletComponents';
+import { NotificationPage } from '../../../components/ProfilePageComponents/Notifications';
 import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned, Lock, CreditCard, Shield, Star, Wallet } from 'lucide-react';
+import { User, Package, MapPinned, Lock, CreditCard, Shield, Star, Wallet, Bell } from 'lucide-react';
 import { profileCache } from '../../../services/cache/ProfileCache';
 
 type ProfileTab =
@@ -20,7 +21,8 @@ type ProfileTab =
   | 'bank'
   | 'warranty'
   | 'reviews'
-  | 'wallet';
+  | 'wallet'
+  | 'notifications';
 
 interface ProfileProps {
   initialTab?: ProfileTab;
@@ -109,6 +111,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
       { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
       { key: 'reviews' as const, label: 'Đánh giá sản phẩm', icon: Star },
       { key: 'wallet' as const, label: 'Ví nền tảng', icon: Wallet },
+      { key: 'notifications' as const, label: 'Thông báo', icon: Bell },
       { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
       { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
     ],
@@ -188,6 +191,10 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
 
               <div className={active === 'wallet' ? 'block' : 'hidden'}>
                 <WalletPage customerId={customerId} />
+              </div>
+
+              <div className={active === 'notifications' ? 'block' : 'hidden'}>
+                <NotificationPage />
               </div>
             </section>
           </div>

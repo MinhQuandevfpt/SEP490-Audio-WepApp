@@ -268,7 +268,7 @@ const NotificationDropdown: React.FC = () => {
           {notifications.length > 0 && (
             <div className="p-3 border-t border-gray-200 bg-gray-50">
               <Link
-                to="/notifications"
+                to="/account/notifications"
                 onClick={() => setIsOpen(false)}
                 className="block w-full bg-orange-500 text-white text-center px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm"
               >

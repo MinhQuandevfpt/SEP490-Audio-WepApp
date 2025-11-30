@@ -194,6 +194,10 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<Profile initialTab="wallet" />} />
   },
   {
+    path: '/account/notifications',
+    element: <ProtectedRoute element={<Profile initialTab="notifications" />} />
+  },
+  {
     path: '/product/:id',
     element: <ProductDetail />
   },
