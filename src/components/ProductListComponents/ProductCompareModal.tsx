@@ -71,17 +71,6 @@ const compareFields: CompareField[] = [
     },
   },
   {
-    key: 'stock',
-    label: 'Số lượng tồn',
-    description: 'Tồn kho cao hơn giảm rủi ro hết hàng',
-    highlight: 'max',
-    extractor: (p) => ({
-      display: p.stockQuantity ?? '-',
-      numericValue: typeof p.stockQuantity === 'number' ? p.stockQuantity : null,
-    }),
-  },
-  { key: 'warehouse', label: 'Kho hàng', extractor: (p) => ({ display: p.warehouseLocation || '-' }) },
-  {
     key: 'warrantyTime',
     label: 'Bảo hành',
     description: 'Thời gian bảo hành dài hơn trấn an khách hàng hơn',
