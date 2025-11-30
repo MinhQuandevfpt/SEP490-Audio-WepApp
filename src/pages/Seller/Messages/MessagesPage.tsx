@@ -47,6 +47,83 @@ const MessagesPage: React.FC = () => {
   // Debounce search term
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
+  // Helper function to detect media type from URL or type field (shared across component)
+  const detectMediaType = useCallback((mediaItem: any): 'image' | 'video' => {
+    // Check if type field exists and is valid
+    if (mediaItem?.type && typeof mediaItem.type === 'string') {
+      const type = mediaItem.type.toLowerCase();
+      if (type === 'image' || type === 'video') {
+        return type;
+      }
+    }
+    
+    // If type is "string" or doesn't exist, detect from URL extension
+    const url = typeof mediaItem === 'string' ? mediaItem : (mediaItem?.url || '');
+    if (!url) return 'image'; // Default to image
+    
+    const urlLower = url.toLowerCase();
+    
+    // Image extensions
+    if (/\.(jpg|jpeg|png|webp|gif)$/i.test(urlLower)) {
+      return 'image';
+    }
+    
+    // Video extensions
+    if (/\.(mp4|mov|avi|mkv|webm|ogg)$/i.test(urlLower)) {
+      return 'video';
+    }
+    
+    // Default to image if cannot determine
+    return 'image';
+  }, []);
+
+  // Helper function to format last message text (shared across component)
+  const formatLastMessage = useCallback((message: any): string => {
+    // If has content, return content (with truncation if needed)
+    if (message.content && message.content.trim()) {
+      const content = message.content.trim();
+      return content.length > 50 ? `${content.substring(0, 50)}...` : content;
+    }
+    
+    // Handle IMAGE type
+    if (message.messageType === 'IMAGE') {
+      return '[Hình ảnh]';
+    }
+    
+    // Handle VIDEO type
+    if (message.messageType === 'VIDEO') {
+      return '[Video]';
+    }
+    
+    // Handle MIXED type
+    if (message.messageType === 'MIXED') {
+      const mediaArray = Array.isArray(message.mediaUrl) ? message.mediaUrl : [];
+      if (mediaArray.length === 0) {
+        return '[Tin nhắn]';
+      }
+      
+      // Detect all media types in the array
+      const mediaTypes = mediaArray.map((item: any) => detectMediaType(item));
+      const hasImage = mediaTypes.includes('image');
+      const hasVideo = mediaTypes.includes('video');
+      
+      // If has both image and video, show both
+      if (hasImage && hasVideo) {
+        return '[Hình ảnh, Video]';
+      }
+      
+      // If only one type, use first item to determine
+      const firstType = detectMediaType(mediaArray[0]);
+      if (firstType === 'image') {
+        return mediaArray.length === 1 ? '[Hình ảnh]' : `[${mediaArray.length} hình ảnh]`;
+      } else {
+        return mediaArray.length === 1 ? '[Video]' : `[${mediaArray.length} video]`;
+      }
+    }
+    
+    return '[Tin nhắn]';
+  }, [detectMediaType]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
@@ -98,14 +175,34 @@ const MessagesPage: React.FC = () => {
       
       console.log('✅ Conversations loaded:', conversationsList);
       
-      // Fetch customer names in parallel (with caching)
+      // Fetch customer names and last messages in parallel (with caching)
       const conversationsWithNames = await Promise.all(
         conversationsList.map(async (conv) => {
           const customerName = await fetchCustomerName(conv.customerId);
+          
+          // Get last message to format it properly
+          let formattedLastMessage = conv.lastMessage || '';
+          try {
+            // Fetch last message to get full message data for formatting
+            const messagesResponse = await SellerChatService.getMessages(conv.customerId, storeId, 1);
+            if (messagesResponse.data && messagesResponse.data.length > 0) {
+              const lastMsg = messagesResponse.data[messagesResponse.data.length - 1];
+              formattedLastMessage = formatLastMessage(lastMsg);
+            } else if (conv.lastMessage) {
+              // If API doesn't return messages but has lastMessage, try to format it
+              // This handles case where lastMessage is already formatted text
+              formattedLastMessage = conv.lastMessage;
+            }
+          } catch (error) {
+            console.warn('⚠️ Could not fetch last message for formatting, using API lastMessage:', error);
+            // Fallback to API's lastMessage
+            formattedLastMessage = conv.lastMessage || '';
+          }
+          
           return {
             customerId: conv.customerId,
             customerName,
-            lastMessage: conv.lastMessage || '',
+            lastMessage: formattedLastMessage,
             lastMessageTime: new Date(conv.lastMessageTime),
             storeUnreadCount: conv.storeUnreadCount || 0,
             customerUnreadCount: conv.customerUnreadCount || 0,
@@ -142,7 +239,7 @@ const MessagesPage: React.FC = () => {
       console.error('❌ Error loading conversations:', error);
       setConversations([]);
     }
-  }, [storeId, fetchCustomerName]);
+  }, [storeId, fetchCustomerName, formatLastMessage]);
 
   useEffect(() => {
     loadStoreId();
@@ -159,25 +256,6 @@ const MessagesPage: React.FC = () => {
     if (!storeId || conversations.length === 0) {
       return;
     }
-
-    // Helper function to format last message text
-    const formatLastMessage = (message: any): string => {
-      if (message.content && message.content.trim()) {
-        return message.content;
-      } else if (message.messageType === 'IMAGE') {
-        return '[Hình ảnh]';
-      } else if (message.messageType === 'VIDEO') {
-        return '[Video]';
-      } else if (message.messageType === 'MIXED') {
-        const mediaCount = Array.isArray(message.mediaUrl) 
-          ? message.mediaUrl.length 
-          : (message.mediaUrl ? 1 : 0);
-        if (mediaCount > 0) {
-          return `[${mediaCount} ảnh/video]`;
-        }
-      }
-      return '[Tin nhắn]';
-    };
 
     console.log('📡 Setting up Firebase listeners for seller conversations:', conversations.length);
 
@@ -273,7 +351,7 @@ const MessagesPage: React.FC = () => {
       console.log('🧹 Cleaning up seller conversation Firebase listeners');
       unsubscribes.forEach((unsub) => unsub());
     };
-  }, [storeId, conversations.map(c => c.customerId).join(',')]);
+    }, [storeId, conversations.map(c => c.customerId).join(','), formatLastMessage]);
 
   // Update ref when selectedConversation changes
   useEffect(() => {
@@ -329,6 +407,21 @@ const MessagesPage: React.FC = () => {
         const response = await SellerChatService.getMessages(selectedConversation.customerId, storeId, 100);
         
         if (response.data && response.data.length > 0) {
+          // Debug log for messages from API
+          console.log('📥 Messages loaded from API:', response.data.length);
+          response.data.forEach((msg: any) => {
+            if (msg.messageType === 'VIDEO' || msg.messageType === 'IMAGE' || msg.messageType === 'MIXED') {
+              console.log('📹 Media message from API:', {
+                id: msg.id,
+                messageType: msg.messageType,
+                mediaUrl: msg.mediaUrl,
+                mediaUrlType: Array.isArray(msg.mediaUrl) ? 'array' : typeof msg.mediaUrl,
+                mediaUrlLength: Array.isArray(msg.mediaUrl) ? msg.mediaUrl.length : (msg.mediaUrl ? 1 : 0),
+                content: msg.content
+              });
+            }
+          });
+          
           setMessages(response.data);
           
           // Update lastMessageSenderType from the last message
@@ -490,6 +583,14 @@ const MessagesPage: React.FC = () => {
             mediaUrl = uploadedMedia;
             // Keep content as is (empty if no text, or user's text if provided)
           }
+          
+          // Debug log for video upload
+          console.log('📹 Video upload completed:', {
+            messageType,
+            mediaUrl,
+            uploadedMedia,
+            filesToSend: filesToSend.map(f => ({ type: f.type, name: f.file.name }))
+          });
         } catch (uploadError: any) {
           console.error('Error uploading files:', uploadError);
           alert(uploadError.message || 'Không thể tải file lên. Vui lòng thử lại.');
@@ -502,6 +603,16 @@ const MessagesPage: React.FC = () => {
             setIsUploading(false);
           }
       }
+
+      // Debug log before sending
+      console.log('📤 Sending message:', {
+        messageType,
+        mediaUrl,
+        content,
+        hasMediaUrl: !!mediaUrl,
+        mediaUrlType: Array.isArray(mediaUrl) ? 'array' : typeof mediaUrl,
+        mediaUrlLength: Array.isArray(mediaUrl) ? mediaUrl.length : (mediaUrl ? 1 : 0)
+      });
 
       // Send message to both API and Firebase
       await Promise.all([
@@ -516,7 +627,13 @@ const MessagesPage: React.FC = () => {
             messageType: messageType,
             mediaUrl: mediaUrl,
           }
-        ),
+        ).then((response) => {
+          console.log('✅ API response:', response);
+          return response;
+        }).catch((error) => {
+          console.error('❌ API error:', error);
+          throw error;
+        }),
         // Send to Firebase (for realtime sync) - Firebase now supports array format
         FirebaseRealtimeChatService.sendMessage(
           selectedConversation.customerId,
@@ -529,23 +646,88 @@ const MessagesPage: React.FC = () => {
             mediaUrl: mediaUrl, // Send full array or string as is
             read: false, // Default to false when sending
           }
-        )
+        ).then(() => {
+          console.log('✅ Firebase message sent');
+        }).catch((error) => {
+          console.error('❌ Firebase error:', error);
+          throw error;
+        })
       ]);
       
-      // Update conversation list immediately with the new last message
-      const formatLastMessageText = (): string => {
-        if (content && content.trim()) {
-          return content;
-        } else if (messageType === 'IMAGE') {
-          return '[Hình ảnh]';
-        } else if (messageType === 'VIDEO') {
-          return '[Video]';
-        } else if (messageType === 'MIXED') {
-          const mediaCount = Array.isArray(mediaUrl) ? mediaUrl.length : (mediaUrl ? 1 : 0);
-          if (mediaCount > 0) {
-            return `[${mediaCount} ảnh/video]`;
+      // Helper function to detect media type from URL or type field
+      const detectMediaTypeForMessage = (mediaItem: any): 'image' | 'video' => {
+        // Check if type field exists and is valid
+        if (mediaItem?.type && typeof mediaItem.type === 'string') {
+          const type = mediaItem.type.toLowerCase();
+          if (type === 'image' || type === 'video') {
+            return type;
           }
         }
+        
+        // If type is "string" or doesn't exist, detect from URL extension
+        const url = typeof mediaItem === 'string' ? mediaItem : (mediaItem?.url || '');
+        if (!url) return 'image'; // Default to image
+        
+        const urlLower = url.toLowerCase();
+        
+        // Image extensions
+        if (/\.(jpg|jpeg|png|webp|gif)$/i.test(urlLower)) {
+          return 'image';
+        }
+        
+        // Video extensions
+        if (/\.(mp4|mov|avi|mkv|webm|ogg)$/i.test(urlLower)) {
+          return 'video';
+        }
+        
+        // Default to image if cannot determine
+        return 'image';
+      };
+
+      // Update conversation list immediately with the new last message
+      const formatLastMessageText = (): string => {
+        // If has content, return content (with truncation if needed)
+        if (content && content.trim()) {
+          const contentText = content.trim();
+          return contentText.length > 50 ? `${contentText.substring(0, 50)}...` : contentText;
+        }
+        
+        // Handle IMAGE type
+        if (messageType === 'IMAGE') {
+          return '[Hình ảnh]';
+        }
+        
+        // Handle VIDEO type
+        if (messageType === 'VIDEO') {
+          return '[Video]';
+        }
+        
+        // Handle MIXED type
+        if (messageType === 'MIXED') {
+          const mediaArray = Array.isArray(mediaUrl) ? mediaUrl : [];
+          if (mediaArray.length === 0) {
+            return '[Tin nhắn]';
+          }
+          
+          // Detect all media types in the array
+          const mediaTypes = mediaArray.map(item => detectMediaTypeForMessage(item));
+          const hasImage = mediaTypes.includes('image');
+          const hasVideo = mediaTypes.includes('video');
+          
+          // If has both image and video, show both
+          if (hasImage && hasVideo) {
+            return '[Hình ảnh, Video]';
+          }
+          
+          // If only one type, use first item to determine
+          const firstType = detectMediaTypeForMessage(mediaArray[0]);
+          if (firstType === 'image') {
+            return mediaArray.length === 1 ? '[Hình ảnh]' : `[${mediaArray.length} hình ảnh]`;
+          } else {
+            return mediaArray.length === 1 ? '[Video]' : `[${mediaArray.length} video]`;
+          }
+        }
+        
         return '[Tin nhắn]';
       };
       
@@ -1016,57 +1198,76 @@ const MessagesPage: React.FC = () => {
                               </>
                             );
                           } else {
-                            // IMAGE/VIDEO: Single media item (string format)
-                            if (!message.mediaUrl || typeof message.mediaUrl !== 'string') {
+                            // IMAGE/VIDEO: Handle both string and array format
+                            // If mediaUrl is array, take first item
+                            let mediaUrlString: string | null = null;
+                            
+                            if (Array.isArray(message.mediaUrl)) {
+                              // Array format - take first item
+                              if (message.mediaUrl.length > 0) {
+                                const firstItem = message.mediaUrl[0];
+                                mediaUrlString = typeof firstItem === 'string' ? firstItem : (firstItem?.url || null);
+                              }
+                            } else if (typeof message.mediaUrl === 'string') {
+                              // String format
+                              mediaUrlString = message.mediaUrl;
+                            }
+                            
+                            if (!mediaUrlString) {
+                              console.warn('⚠️ No valid mediaUrl found for VIDEO/IMAGE message:', message);
                               return null;
                             }
                             
+                            const isVideo = message.messageType === 'VIDEO' || mediaUrlString.match(/\.(mp4|webm|ogg)$/i);
+                            
                             return (
                               <>
-                                {message.messageType === 'VIDEO' || message.mediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
+                                {isVideo ? (
                                   <video
-                                    src={message.mediaUrl}
+                                    src={mediaUrlString}
                                     controls
                                     className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
-                                    onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'video' })}
+                                    onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'video' })}
                                     onError={(e) => {
+                                      console.error('❌ Video load error:', mediaUrlString);
                                       e.currentTarget.style.display = 'none';
                                     }}
                                   >
                                     Trình duyệt của bạn không hỗ trợ video.
                                   </video>
                                 ) : (
-                        <img
-                          src={message.mediaUrl}
+                                  <img
+                                    src={mediaUrlString}
                                     alt=""
                                     className="w-[300px] h-[300px] rounded-lg object-cover cursor-pointer"
-                                    onClick={() => setZoomMedia({ url: message.mediaUrl as string, type: 'image' })}
+                                    onClick={() => setZoomMedia({ url: mediaUrlString!, type: 'image' })}
                                     onError={(e) => {
+                                      console.error('❌ Image load error:', mediaUrlString);
                                       e.currentTarget.style.display = 'none';
                                     }}
                                   />
                                 )}
                                 {/* Show timestamp only if no text */}
                                 {(!message.content || !message.content.trim()) && (
-                      <div className="flex items-center gap-1">
-                      <span
-                                    className={`text-xs ${
-                                      message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
-                        }`}
-                      >
-                        {message.createdAt
-                          ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : ''}
-                      </span>
-                      {message.senderType === 'STORE' && (
-                        <span className="text-xs text-orange-600">
-                          {message.read ? '✓✓' : '✓'}
-                        </span>
-                      )}
-                      </div>
+                                  <div className="flex items-center gap-1">
+                                    <span
+                                      className={`text-xs ${
+                                        message.senderType === 'STORE' ? 'text-orange-600' : 'text-gray-400'
+                                      }`}
+                                    >
+                                      {message.createdAt
+                                        ? new Date(message.createdAt).toLocaleTimeString('vi-VN', {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })
+                                        : ''}
+                                    </span>
+                                    {message.senderType === 'STORE' && (
+                                      <span className="text-xs text-orange-600">
+                                        {message.read ? '✓✓' : '✓'}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </>
                             );
