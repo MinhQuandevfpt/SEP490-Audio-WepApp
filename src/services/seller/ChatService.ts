@@ -64,24 +64,37 @@ export class SellerChatService {
     limit?: number
   ): Promise<GetMessagesResponse> {
     const params = new URLSearchParams();
+    // Required parameter: viewerType must be STORE for seller
+    params.append('viewerType', 'STORE');
     if (limit) {
       params.append('limit', limit.toString());
     }
     
-    const endpoint = `${this.BASE_URL}/conversations/${customerId}/${storeId}/messages${
-      params.toString() ? `?${params.toString()}` : ''
-    }`;
+    const endpoint = `${this.BASE_URL}/conversations/${customerId}/${storeId}/messages?${params.toString()}`;
+    
+    console.log('🔍 Fetching messages from:', endpoint);
     
     const response = await HttpInterceptor.get<any>(endpoint, {
       userType: 'seller',
     });
 
-    // Backend might return data directly or wrapped in data property
+    console.log('📥 Raw messages response:', response);
+
+    // API returns array directly
     if (Array.isArray(response)) {
+      console.log('✅ Response is array, length:', response.length);
       return { data: response };
     }
     
-    return response;
+    // If response has data property (fallback)
+    if (response?.data) {
+      console.log('✅ Response has data property, length:', Array.isArray(response.data) ? response.data.length : 'not array');
+      return response;
+    }
+    
+    // If response structure is different, return empty array
+    console.warn('⚠️ Unexpected response structure, returning empty array');
+    return { data: [] };
   }
 
   /**
@@ -129,6 +142,7 @@ export class SellerChatService {
 
   /**
    * Mark messages as read
+   * POST /api/chat/conversations/{customerId}/{storeId}/read?viewerId={viewerId}
    */
   static async markAsRead(
     customerId: string,
@@ -136,6 +150,8 @@ export class SellerChatService {
     viewerId: string
   ): Promise<void> {
     const endpoint = `${this.BASE_URL}/conversations/${customerId}/${storeId}/read?viewerId=${viewerId}`;
+    
+    console.log('✅ Marking messages as read:', { customerId, storeId, viewerId });
     
     await HttpInterceptor.post(endpoint, {}, {
       userType: 'seller',

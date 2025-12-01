@@ -60,24 +60,29 @@ export class ChatService {
     limit?: number
   ): Promise<GetMessagesResponse> {
     const params = new URLSearchParams();
+    // Required parameter: viewerType must be CUSTOMER for customer
+    params.append('viewerType', 'CUSTOMER');
     if (limit) {
       params.append('limit', limit.toString());
     }
     
-    const endpoint = `${this.BASE_URL}/conversations/${customerId}/${storeId}/messages${
-      params.toString() ? `?${params.toString()}` : ''
-    }`;
+    const endpoint = `${this.BASE_URL}/conversations/${customerId}/${storeId}/messages?${params.toString()}`;
     
     const response = await HttpInterceptor.get<any>(endpoint, {
       userType: 'customer',
     });
 
-    // Backend might return data directly or wrapped in data property
+    // API returns array directly
     if (Array.isArray(response)) {
       return { data: response };
     }
     
-    return response;
+    // If response has data property (fallback)
+    if (response?.data) {
+      return response;
+    }
+    
+    return { data: [] };
   }
 
   /**

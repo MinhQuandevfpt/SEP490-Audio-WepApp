@@ -166,10 +166,15 @@ const MessagesPage: React.FC = () => {
   }, []);
 
   const loadConversations = useCallback(async () => {
-    if (!storeId) return;
+    if (!storeId) {
+      console.log('⚠️ No storeId, skipping loadConversations');
+      return;
+    }
 
     try {
+      console.log('📥 Loading conversations for storeId:', storeId);
       const conversationsList = await SellerChatService.getConversations(storeId);
+      console.log('📨 Conversations response:', conversationsList);
       
       // Fetch customer names and last messages in parallel (with caching)
       const conversationsWithNames = await Promise.all(
@@ -395,13 +400,35 @@ const MessagesPage: React.FC = () => {
     // First, load messages from API (has full mediaUrl array info)
     const loadInitialMessages = async () => {
       try {
+        console.log('📥 Loading messages for:', { customerId: selectedConversation.customerId, storeId });
         const response = await SellerChatService.getMessages(selectedConversation.customerId, storeId, 100);
         
-        if (response.data && response.data.length > 0) {
-          setMessages(response.data);
+        console.log('📨 Messages response:', response);
+        
+        // Handle different response structures
+        let messagesData: ChatMessage[] = [];
+        
+        if (Array.isArray(response)) {
+          // Response is directly an array
+          messagesData = response;
+        } else if (response?.data) {
+          // Response has data property
+          if (Array.isArray(response.data)) {
+            messagesData = response.data;
+          } else {
+            console.warn('⚠️ Response.data is not an array:', response.data);
+          }
+        } else {
+          console.warn('⚠️ Unexpected response structure:', response);
+        }
+        
+        console.log('✅ Parsed messages:', messagesData.length, messagesData);
+        
+        if (messagesData.length > 0) {
+          setMessages(messagesData);
           
           // Update lastMessageSenderType from the last message
-          const lastMessage = response.data[response.data.length - 1];
+          const lastMessage = messagesData[messagesData.length - 1];
           if (lastMessage) {
             setConversations((prev) => 
               prev.map((conv) => {
@@ -422,6 +449,7 @@ const MessagesPage: React.FC = () => {
           
           setIsLoading(false);
         } else {
+          console.log('ℹ️ No messages found');
           setMessages([]);
           setIsLoading(false);
         }
@@ -431,10 +459,11 @@ const MessagesPage: React.FC = () => {
             SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId),
             // Also update read status in Firestore for messages from CUSTOMER
             FirestoreChatService.updateMessagesReadStatus(selectedConversation.customerId, storeId, 'CUSTOMER')
-          ]).catch(() => {
-            // Silent fail
+          ]).catch((error) => {
+            console.error('❌ Error marking messages as read:', error);
           });
       } catch (error) {
+        console.error('❌ Error loading messages:', error);
         setMessages([]);
         setIsLoading(false);
       }
