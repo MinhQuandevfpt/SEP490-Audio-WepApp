@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Send, User, Search, Loader2, MessageCircle, Image, Video, X } from 'lucide-react';
 import { SellerChatService, type ChatMessage } from '../../../services/seller/ChatService';
 import HttpInterceptor from '../../../services/HttpInterceptor';
-import FirebaseRealtimeChatService from '../../../services/FirebaseRealtimeChatService';
+import FirestoreChatService from '../../../services/FirestoreChatService';
 import FileUploadService from '../../../services/FileUploadService';
 
 interface Conversation {
@@ -255,7 +255,7 @@ const MessagesPage: React.FC = () => {
     const unsubscribes: Array<() => void> = [];
 
     conversations.forEach((conv) => {
-      const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
+      const unsubscribe = FirestoreChatService.subscribeToMessages(
         conv.customerId,
         storeId,
         (firebaseMessages) => {
@@ -429,8 +429,8 @@ const MessagesPage: React.FC = () => {
           // Mark messages as read when opening conversation (async, doesn't block UI)
           Promise.all([
             SellerChatService.markAsRead(selectedConversation.customerId, storeId, storeId),
-            // Also update read status in Firebase for messages from CUSTOMER
-            FirebaseRealtimeChatService.updateMessagesReadStatus(selectedConversation.customerId, storeId, 'CUSTOMER')
+            // Also update read status in Firestore for messages from CUSTOMER
+            FirestoreChatService.updateMessagesReadStatus(selectedConversation.customerId, storeId, 'CUSTOMER')
           ]).catch(() => {
             // Silent fail
           });
@@ -442,9 +442,9 @@ const MessagesPage: React.FC = () => {
 
     loadInitialMessages();
 
-    // Subscribe to Firebase realtime updates
-    // Firebase now supports full mediaUrl array, so we can use it directly
-    const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
+    // Subscribe to Firestore realtime updates
+    // Firestore now supports full mediaUrl array, so we can use it directly
+    const unsubscribe = FirestoreChatService.subscribeToMessages(
       selectedConversation.customerId,
       storeId,
       (firebaseMessages) => {
@@ -574,8 +574,8 @@ const MessagesPage: React.FC = () => {
             mediaUrl: mediaUrl,
           }
         ),
-        // Send to Firebase (for realtime sync) - Firebase now supports array format
-        FirebaseRealtimeChatService.sendMessage(
+        // Send to Firestore (for realtime sync) - Firestore now supports array format
+        FirestoreChatService.sendMessage(
           selectedConversation.customerId,
           storeId,
           {

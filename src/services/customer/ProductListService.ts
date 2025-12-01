@@ -84,6 +84,8 @@ export interface ProductListParams {
   storeId?: string;
   keyword?: string;
   status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED';
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export interface ProductVariant {
@@ -275,6 +277,12 @@ export class ProductListService {
       if (params.storeId) queryParams.append('storeId', params.storeId);
       if (params.keyword) queryParams.append('keyword', params.keyword);
       if (params.status) queryParams.append('status', params.status);
+      if (params.minPrice !== undefined && params.minPrice >= 0) {
+        queryParams.append('minPrice', String(params.minPrice));
+      }
+      if (params.maxPrice !== undefined && params.maxPrice >= 0) {
+        queryParams.append('maxPrice', String(params.maxPrice));
+      }
 
       const url = `${this.BASE_URL}?${queryParams.toString()}`;
       const cacheKey = getCacheKey(url);

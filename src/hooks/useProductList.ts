@@ -66,6 +66,9 @@ export const useProductList = () => {
         keyword: state.filters.keyword,
         // Only send status if it's explicitly set and not undefined
         ...(state.filters.status !== undefined && { status: state.filters.status }),
+        // Add price range filters (allow 0)
+        ...(state.filters.minPrice !== undefined && state.filters.minPrice >= 0 && { minPrice: state.filters.minPrice }),
+        ...(state.filters.maxPrice !== undefined && state.filters.maxPrice >= 0 && { maxPrice: state.filters.maxPrice }),
       };
 
       const response: ProductListResponse = await ProductListService.getProducts(params);

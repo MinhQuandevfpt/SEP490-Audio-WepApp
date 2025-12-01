@@ -21,6 +21,7 @@ interface StoreWideVoucherSectionProps {
 }
 
 const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
+  storeId: _storeId,
   storeName,
   vouchers,
   appliedVoucher,

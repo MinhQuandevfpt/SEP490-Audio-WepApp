@@ -6,7 +6,7 @@ import ChatService, { type CustomerConversation } from '../../services/customer/
 import { useChatContext } from '../../contexts/ChatContext';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerStoreService } from '../../services/customer/StoreService';
-import FirebaseRealtimeChatService from '../../services/FirebaseRealtimeChatService';
+import FirestoreChatService from '../../services/FirestoreChatService';
 import FileUploadService from '../../services/FileUploadService';
 
 interface Message {
@@ -187,7 +187,7 @@ const AIChatbot: React.FC = () => {
     const unsubscribes: Array<() => void> = [];
 
     conversations.forEach((conv) => {
-      const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
+      const unsubscribe = FirestoreChatService.subscribeToMessages(
         customerId,
         conv.storeId,
         (firebaseMessages) => {
@@ -392,8 +392,8 @@ const AIChatbot: React.FC = () => {
           // unreadCount already updated in handleSelectConversation
           Promise.all([
             ChatService.markAsRead(customerId, selectedStore.storeId, customerId),
-            // Also update read status in Firebase for messages from STORE
-            FirebaseRealtimeChatService.updateMessagesReadStatus(customerId, selectedStore.storeId, 'STORE')
+            // Also update read status in Firestore for messages from STORE
+            FirestoreChatService.updateMessagesReadStatus(customerId, selectedStore.storeId, 'STORE')
           ]).catch(() => {
             // Silent fail
           });
@@ -413,9 +413,9 @@ const AIChatbot: React.FC = () => {
 
     loadInitialMessages();
 
-    // Subscribe to Firebase realtime updates
-    // Firebase now supports full mediaUrl array, so we can use it directly
-    const unsubscribe = FirebaseRealtimeChatService.subscribeToMessages(
+    // Subscribe to Firestore realtime updates
+    // Firestore now supports full mediaUrl array, so we can use it directly
+    const unsubscribe = FirestoreChatService.subscribeToMessages(
       customerId,
       selectedStore.storeId,
       (firebaseMessages) => {
@@ -782,8 +782,8 @@ const AIChatbot: React.FC = () => {
             messageType: messageType,
             mediaUrl: mediaUrl,
           }),
-          // Send to Firebase (for realtime sync) - Firebase now supports array format
-          FirebaseRealtimeChatService.sendMessage(customerId, targetStoreId, {
+          // Send to Firestore (for realtime sync) - Firestore now supports array format
+          FirestoreChatService.sendMessage(customerId, targetStoreId, {
             senderId: customerId,
             senderType: 'CUSTOMER',
             content: content,

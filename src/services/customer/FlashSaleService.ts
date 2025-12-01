@@ -134,6 +134,17 @@ export class FlashSaleService {
         'ONGOING'
       );
 
+      // Bước 3.5: Chỉ lấy sản phẩm đã được admin duyệt
+      // Status có thể là 'APPROVE' (đã duyệt) hoặc 'ACTIVE' (đã duyệt và đang chạy)
+      products = products.filter(product => 
+        product.status === 'APPROVE' || product.status === 'ACTIVE'
+      );
+      
+      console.log('🔍 Flash Sale Products Filter:', {
+        total: products.length,
+        statuses: products.map(p => ({ id: p.productId, status: p.status }))
+      });
+
       // Bước 4: Enrich products với hình ảnh từ product detail
       products = await this.enrichProductsWithImages(products);
 

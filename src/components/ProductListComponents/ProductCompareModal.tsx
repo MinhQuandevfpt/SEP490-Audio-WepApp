@@ -114,21 +114,10 @@ const compareFields: CompareField[] = [
     label: 'Tính năng sạc',
     extractor: (p) => ({ display: p.hasBuiltInBattery ? 'Có' : 'Không' }),
   },
-  {
-    key: 'others',
-    label: 'Mô tả nhanh',
-    extractor: (p) => ({
-      display:
-        p.shortDescription ||
-        p.description?.replace(/<\/?[^>]+(>|$)/g, '').slice(0, 120) ||
-        '-',
-    }),
-  },
 ];
 
 export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
   open,
-  loading,
   products,
   onClose,
   onRemove,
@@ -170,76 +159,97 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
       title="So sánh sản phẩm"
       width={Math.min(window.innerWidth - 80, 1100)}
     >
-      {loading ? (
-        <div className="py-10 text-center text-gray-500">Đang tải dữ liệu...</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border border-gray-200 text-sm">
-            <thead>
-              <tr>
-                <th className="bg-gray-50 px-4 py-3 text-left font-semibold text-gray-600">Tiêu chí</th>
-                {products.map((product) => (
-                  <th key={product.productId} className="bg-gray-50 px-4 py-3 text-left">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded border border-gray-200 overflow-hidden flex-shrink-0">
-                        {product.images?.[0] ? (
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="text-[11px] text-gray-400 flex items-center justify-center h-full">
-                            No image
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 line-clamp-2">{product.name}</p>
-                        <button
-                          onClick={() => onRemove(product.productId)}
-                          className="text-xs text-red-500 hover:text-red-600"
-                        >
-                          Loại khỏi so sánh
-                        </button>
-                      </div>
-                    </div>
+      <div className="overflow-x-auto">
+          <div className="min-w-full border border-gray-200 rounded-lg overflow-hidden">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="bg-gray-50 px-4 py-4 text-left font-semibold text-gray-700 border-r border-gray-200 sticky left-0 z-10">
+                    Tiêu chí
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {compareFields.map((field) => (
-                <tr key={field.label} className="border-t border-gray-100">
-                  <td className="bg-gray-50 px-4 py-3 font-medium text-gray-700 align-top">
-                    <div>{field.label}</div>
-                    {field.description && (
-                      <p className="text-xs text-gray-500 mt-1 pr-4">{field.description}</p>
-                    )}
-                  </td>
-                  {products.map((product) => {
-                    const { display } = field.extractor(product);
-                    const isBetter = field.highlight && highlightMap[field.key]?.has(product.productId);
-                    return (
-                      <td
-                        key={`${field.label}-${product.productId}`}
-                        className={`px-4 py-3 align-top ${
-                          isBetter ? 'bg-orange-50 text-orange-700 font-semibold rounded' : ''
-                        }`}
-                      >
-                        {display}
-                        {isBetter && (
-                          <div className="text-xs text-orange-600 font-semibold mt-1">Tốt hơn</div>
-                        )}
-                      </td>
-                    );
-                  })}
+                  {products.map((product, index) => (
+                    <th
+                      key={product.productId}
+                      className={`bg-gray-50 px-4 py-4 text-left border-r border-gray-300 ${
+                        index === products.length - 1 ? '' : 'border-r-2'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-3 max-w-[200px]">
+                        <div className="w-20 h-20 rounded-lg border-2 border-gray-300 overflow-hidden flex-shrink-0 bg-white">
+                          {product.images?.[0] ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="text-xs text-gray-400 flex items-center justify-center h-full">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 text-center">
+                          <p className="font-semibold text-gray-900 line-clamp-3 text-sm mb-2">
+                            {product.name}
+                          </p>
+                          <button
+                            onClick={() => onRemove(product.productId)}
+                            className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                          >
+                            Loại khỏi so sánh
+                          </button>
+                        </div>
+                      </div>
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {compareFields.map((field, fieldIndex) => (
+                  <tr
+                    key={field.label}
+                    className={`border-t border-gray-200 ${
+                      fieldIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <td className="bg-gray-100 px-4 py-3 font-medium text-gray-700 align-top border-r border-gray-200 sticky left-0 z-10">
+                      <div className="font-semibold">{field.label}</div>
+                      {field.description && (
+                        <p className="text-xs text-gray-500 mt-1 pr-4">{field.description}</p>
+                      )}
+                    </td>
+                    {products.map((product, productIndex) => {
+                      const { display } = field.extractor(product);
+                      const isBetter = field.highlight && highlightMap[field.key]?.has(product.productId);
+                      return (
+                        <td
+                          key={`${field.label}-${product.productId}`}
+                          className={`px-4 py-3 align-top border-r border-gray-300 ${
+                            productIndex === products.length - 1 ? '' : 'border-r-2'
+                          } ${
+                            isBetter
+                              ? 'bg-orange-50 text-orange-700 font-semibold'
+                              : 'bg-white'
+                          }`}
+                        >
+                          <div className="min-h-[40px]">
+                            {display}
+                            {isBetter && (
+                              <div className="text-xs text-orange-600 font-semibold mt-1 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 bg-orange-500 rounded-full"></span>
+                                Tốt hơn
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      )}
     </Modal>
   );
 };
