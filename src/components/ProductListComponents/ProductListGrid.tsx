@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface ProductListGridProps {
   products: any[];
@@ -15,6 +16,8 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
   selectedProductIds = [],
   onToggleCompare,
 }) => {
+  const navigate = useNavigate();
+
   if (loading) {
     return <div className="text-center py-8">Đang tải sản phẩm...</div>;
   }
@@ -26,7 +29,8 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
   return (
     <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}>
       {products.map((product) => {
-        const key = product.id || product.productId;
+        const productId = product.productId || product.id;
+        const key = productId;
         const firstImage =
           product.image ||
           product.thumbnail ||
@@ -35,12 +39,18 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
         const price = isVariantProduct
           ? product.variants[0]?.variantPrice
           : product.finalPrice ?? product.price;
-        const isSelected = selectedProductIds.includes(product.productId || product.id);
+        const isSelected = selectedProductIds.includes(productId);
+
+        const handleCardClick = () => {
+          if (!productId) return;
+          navigate(`/product/${productId}`);
+        };
 
         return (
           <div
             key={key}
-            className={`bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow ${
+            onClick={handleCardClick}
+            className={`bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer ${
               isSelected ? 'ring-2 ring-orange-400' : ''
             }`}
           >
@@ -58,7 +68,10 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
             {onToggleCompare && (
               <button
                 type="button"
-                onClick={() => onToggleCompare(product)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleCompare(product);
+                }}
                 className={`mt-3 w-full border rounded-full py-1 text-sm ${
                   isSelected
                     ? 'border-orange-500 text-orange-600 bg-orange-50'

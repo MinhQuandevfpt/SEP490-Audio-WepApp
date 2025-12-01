@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { TicketPercent, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { StoreVoucher } from '../../services/seller/VoucherService';
 
@@ -21,7 +21,6 @@ interface StoreWideVoucherSectionProps {
 }
 
 const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
-  storeId,
   storeName,
   vouchers,
   appliedVoucher,
