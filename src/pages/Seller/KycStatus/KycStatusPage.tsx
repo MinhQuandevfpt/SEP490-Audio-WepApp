@@ -215,7 +215,7 @@ const KycStatusPage: React.FC = () => {
                 <h3 className="font-semibold text-gray-800 mb-3">Hướng dẫn khắc phục</h3>
                 <ul className="text-sm text-gray-700 space-y-2">
                   <li>• Kiểm tra lại thông tin đã gửi và lý do từ chối đã được hệ thống gửi về Email</li>
-                  <li>• Chuẩn bị đầy đủ giấy tờ hợp lệ (CCCD/CMND, Giấy phép kinh doanh)</li>
+                  <li>• Chuẩn bị đầy đủ giấy tờ hợp lệ (Căn cước/ CCCD, Giấy phép kinh doanh)</li>
                   <li>• Đảm bảo ảnh chụp rõ ràng, không bị mờ hay che khuất</li>
                   <li>• Thông tin phải khớp với giấy tờ thực tế</li>
                   <li>• Nhấn "Gửi lại KYC" để cập nhật thông tin mới</li>
@@ -281,7 +281,7 @@ const KycStatusPage: React.FC = () => {
               <ul className="text-sm text-gray-700 space-y-2">
                 <li>• Điền đầy đủ thông tin kinh doanh</li>
                 <li>• Cung cấp thông tin thanh toán</li>
-                <li>• Upload giấy tờ định danh (CCCD/CMND, Giấy phép kinh doanh)</li>
+                <li>• Upload giấy tờ định danh (Căn cước/CCCD, Giấy phép kinh doanh) còn hiệu lực</li>
                 <li>• Chờ xét duyệt từ AudioShop (1-3 ngày)</li>
              </ul>
             </div>

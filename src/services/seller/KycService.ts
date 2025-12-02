@@ -16,13 +16,8 @@ export class KycService {
         throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
       }
 
-      // Get store ID
-      console.log('🔍 Getting store ID for KYC submission...');
+      // Get store ID (sử dụng cache nếu có để nhanh hơn)
       const storeId = await this.getCurrentStoreId();
-      console.log('✅ Store ID received:', storeId);
-
-      console.log('📤 Submitting KYC to:', `${API_URL}/stores/${storeId}/kyc`);
-      console.log('📋 KYC Data:', kycData);
 
       const response = await fetch(`${API_URL}/stores/${storeId}/kyc`, {
         method: 'POST',
@@ -34,16 +29,12 @@ export class KycService {
         body: JSON.stringify(kycData),
       });
 
-      console.log('📥 Response status:', response.status);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ KYC Error Response:', errorData);
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       const data: KycResponse = await response.json();
-      console.log('✅ KYC submitted successfully:', data);
       return data;
     } catch (error) {
       console.error('❌ KYC submission error:', error);

@@ -156,6 +156,8 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   
   // Generated variants from classifications
   const [variants, setVariants] = useState<VariantFormState[]>([]);
+  // Track original variants from backend (for update mode)
+  const [originalVariants, setOriginalVariants] = useState<VariantFormState[]>([]);
   
   // Bulk apply values
   const [bulkPrice, setBulkPrice] = useState('');
@@ -451,7 +453,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       });
 
       setClassifications(restoredClassifications);
-      setVariants(product.variants.map(variant => ({
+      const loadedVariants = product.variants.map(variant => ({
         variantId: variant.variantId,
         optionName: variant.optionName || limitedNames.join(', '),
         optionValue: variant.optionValue || '',
@@ -459,10 +461,14 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         variantStock: variant.variantStock != null ? String(variant.variantStock) : '',
         variantUrl: variant.variantUrl || '',
         variantSku: variant.variantSku || '',
-      })));
+      }));
+      setVariants(loadedVariants);
+      // Lưu originalVariants để so sánh khi submit
+      setOriginalVariants(loadedVariants);
     } else {
       setClassifications([]);
       setVariants([]);
+      setOriginalVariants([]);
     }
 
     setBulkDiscounts(
@@ -1206,6 +1212,71 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
 
     const digitsOnly = (s?: string) => (s ? s.replace(/\D/g, '') : undefined);
 
+    // Xử lý variants theo logic Shopee: phân loại variantsToAdd, variantsToUpdate, variantsToDelete
+    let variantsPayload: any = {};
+    
+    if (mode === 'update') {
+      // Mode UPDATE: Phân loại variants
+      const variantsToAdd: any[] = [];
+      const variantsToUpdate: any[] = [];
+      const variantsToDelete: string[] = [];
+      
+      // Tìm các variant bị xóa: có trong originalVariants nhưng không có trong variants hiện tại
+      originalVariants.forEach(originalV => {
+        if (originalV.variantId) {
+          const stillExists = variants.some(v => v.variantId === originalV.variantId);
+          if (!stillExists) {
+            variantsToDelete.push(originalV.variantId);
+          }
+        }
+      });
+      
+      variants.forEach(v => {
+        const variantData = {
+          optionName: v.optionName?.trim(), 
+          optionValue: v.optionValue?.trim(),
+          variantPrice: Number(v.variantPrice) || 0,
+          variantStock: Number(v.variantStock) || 0,
+          variantUrl: v.variantUrl?.trim() || '',
+          variantSku: v.variantSku?.trim() || ''
+        };
+        
+        // Chỉ thêm variant hợp lệ
+        if (!variantData.optionName || !variantData.optionValue) return;
+        
+        if (v.variantId) {
+          // Có variantId => update
+          variantsToUpdate.push({
+            variantId: v.variantId,
+            ...variantData
+          });
+        } else {
+          // Không có variantId => thêm mới
+          variantsToAdd.push(variantData);
+        }
+      });
+      
+      variantsPayload = {
+        variantsToAdd,
+        variantsToUpdate,
+        variantsToDelete
+      };
+    } else {
+      // Mode CREATE: Dùng field variants như cũ
+      variantsPayload = {
+        variants: variants
+          .map(v => ({ 
+            optionName: v.optionName?.trim(), 
+            optionValue: v.optionValue?.trim(),
+            variantPrice: Number(v.variantPrice) || 0,
+            variantStock: Number(v.variantStock) || 0,
+            variantUrl: v.variantUrl?.trim() || '',
+            variantSku: v.variantSku?.trim() || ''
+          }))
+          .filter(v => v.optionName && v.optionValue)
+      };
+    }
+
     const payload: Record<string, any> = {
       categoryName: form.category,
       brandName: form.brandName,
@@ -1222,10 +1293,12 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       voltageInput: form.voltageInput || undefined,
       images: allImageUrls,
       videoUrl: form.videoUrl || undefined,
-      price: Number.isFinite(priceNum) ? priceNum : undefined,
-      discountPrice: null, // Luôn set null theo yêu cầu
+      // Nếu có variants thì price và stockQuantity sẽ null, nếu không có thì lấy từ form
+      price: variants.length > 0 ? undefined : (Number.isFinite(priceNum) ? priceNum : undefined),
+      discountPrice: null,
       currency: form.currency,
-      stockQuantity: Number.isFinite(stockNum) ? stockNum : undefined,
+      // stockQuantity: Nếu có variants thì BE tự tính tổng, không gửi lên
+      stockQuantity: variants.length > 0 ? undefined : (Number.isFinite(stockNum) ? stockNum : undefined),
       warehouseLocation: form.warehouseLocation || undefined,
       provinceCode: digitsOnly(form.provinceCode) || undefined,
       districtCode: digitsOnly(form.districtCode) || undefined,
@@ -1235,17 +1308,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       supportedShippingMethodIds: Array.isArray(form.selectedShippingMethodIds) 
         ? form.selectedShippingMethodIds.filter((id: string) => id && id.trim() && id.length > 0)
         : [],
-      variants: variants
-        .map(v => ({ 
-          ...(v.variantId ? { variantId: v.variantId } : {}),
-          optionName: v.optionName?.trim(), 
-          optionValue: v.optionValue?.trim(),
-          variantPrice: Number(v.variantPrice) || 0,
-          variantStock: Number(v.variantStock) || 0,
-          variantUrl: v.variantUrl?.trim() || '',
-          variantSku: v.variantSku?.trim() || ''
-        }))
-        .filter(v => v.optionName && v.optionValue && v.variantPrice > 0 && v.variantStock >= 0),
+      ...variantsPayload,
       bulkDiscounts: bulkDiscounts
         .map(b => ({
           fromQuantity: Number(b.fromQuantity),

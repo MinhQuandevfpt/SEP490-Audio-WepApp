@@ -49,44 +49,18 @@ const SellerLogin: React.FC = () => {
       const response = await SellerAuthService.login(loginData);
       
       if (response.status === 200) {
-        // Không hiển thị popup ở đây, lưu vào sessionStorage
+        // Login API đã trả về storeId trong response.data.user.storeId
+        // Không cần gọi thêm API để lấy store status hoặc store ID nữa
         
-        // Check store status and redirect accordingly
-        try {
-          // Dynamically import StoreService to avoid circular dependencies
-          const { StoreService } = await import('../../../services/seller/StoreService');
-          
-          // First, ensure we have the store ID
-          try {
-            await StoreService.getStoreId();
-            console.log('✅ Store ID cached after login');
-          } catch (storeIdError) {
-            console.warn('Could not get store ID after login:', storeIdError);
-          }
-          
-          const statusResponse = await StoreService.getStoreStatus();
-          
-          // Lưu message vào sessionStorage để hiển thị khi vào dashboard
-          sessionStorage.setItem('sellerLoginSuccess', JSON.stringify({
-            message: 'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.',
-            timestamp: Date.now()
-          }));
-          
-          // Navigate ngay không cần delay
-          if (statusResponse.status === 'ACTIVE') {
-            navigate('/seller/dashboard');
-          } else {
-            navigate('/seller/kyc-status');
-          }
-          
-        } catch (error) {
-          console.error('Error checking store status:', error);
-          sessionStorage.setItem('sellerLoginSuccess', JSON.stringify({
-            message: 'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.',
-            timestamp: Date.now()
-          }));
-          navigate('/seller/kyc-status');
-        }
+        // Lưu message vào sessionStorage để hiển thị sau
+        sessionStorage.setItem('sellerLoginSuccess', JSON.stringify({
+          message: 'Đăng nhập thành công! Chào mừng bạn đến với AudioShop.',
+          timestamp: Date.now()
+        }));
+        
+        // Navigate trực tiếp đến kyc-status, component đó sẽ tự check status và redirect
+        // Cách này nhanh hơn vì không cần gọi thêm API ở đây
+        navigate('/seller/kyc-status', { replace: true });
       } else {
         throw new Error(response.message || 'Đăng nhập thất bại');
       }
