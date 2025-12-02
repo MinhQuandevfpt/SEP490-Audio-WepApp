@@ -169,31 +169,8 @@ const CheckoutOrderContainer: React.FC = () => {
     [cartItems]
   );
 
-  const selectedAddress = useMemo(
-    () =>
-      selectedAddressId
-        ? addresses.find(addr => addr.id === selectedAddressId) || null
-        : null,
-    [addresses, selectedAddressId]
-  );
-
-  const getAddressDisplay = (addr: CustomerAddressApiItem | null): string => {
-    if (!addr) return '';
-    const line1 = [
-      addr.addressLine, // Số nhà / địa chỉ chi tiết
-      addr.street,      // Đường
-    ]
-      .filter(Boolean)
-      .join(', ');
-    const line2 = [
-      addr.ward,      // Phường / Xã
-      addr.district,  // Quận / Huyện
-      addr.province,  // Tỉnh / Thành
-    ]
-      .filter(Boolean)
-      .join(', ');
-    return [line1, line2].filter(Boolean).join(' - ');
-  };
+  // selectedAddress & formatted address display đã được hiển thị trong AddressForm,
+  // không cần lặp lại ở phần "Đơn hàng" nên không sử dụng tại đây nữa.
 
   const { serviceTypeId, productCache, setProductCache } = useServiceTypeCalculator({
     items: shippingItems,
@@ -961,12 +938,6 @@ const CheckoutOrderContainer: React.FC = () => {
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                       <div>
                         <p className="text-base font-semibold text-gray-900">Đơn hàng</p>
-                        {selectedAddress && (
-                          <p className="mt-1 text-xs text-gray-500">
-                            Giao đến: {selectedAddress.receiverName} ({selectedAddress.phoneNumber}) —{' '}
-                            {getAddressDisplay(selectedAddress)}
-                          </p>
-                        )}
                       </div>
                       {error && (
                         <span className="text-xs text-red-500 font-medium">
