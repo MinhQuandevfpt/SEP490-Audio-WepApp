@@ -80,11 +80,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, showDiscount = false
             <span className="text-base font-bold text-orange-500 truncate">
               {formatPrice(product.price)}
             </span>
-            {product.originalPrice && (
-              <span className="text-xs text-gray-500 line-through truncate">
-                {formatPrice(product.originalPrice)}
-              </span>
-            )}
           </div>
         </div>
 

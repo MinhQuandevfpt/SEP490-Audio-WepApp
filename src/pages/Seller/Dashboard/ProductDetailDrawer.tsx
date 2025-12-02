@@ -272,12 +272,6 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                       </p>
                     </div>
                     <InfoRow label="Giá gốc" value={ProductService.formatCurrency(product.price)} valueClassName="font-semibold" />
-                    {product.discountPrice && product.discountPrice > 0 && (
-                      <InfoRow label="Giá giảm" value={ProductService.formatCurrency(product.discountPrice)} valueClassName="text-red-600 font-semibold" />
-                    )}
-                    {product.promotionPercent && (
-                      <InfoRow label="% Khuyến mãi" value={`${product.promotionPercent}%`} valueClassName="text-green-600" />
-                    )}
                     <InfoRow label="Giá sau khuyến mãi" value={ProductService.formatCurrency(product.priceAfterPromotion)} />
                     <InfoRow label="Giá cuối cùng" value={ProductService.formatCurrency(product.finalPrice)} valueClassName="text-orange-600 font-bold text-lg" />
                   </div>

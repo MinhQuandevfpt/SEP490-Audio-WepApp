@@ -37,6 +37,7 @@ interface CampaignProductWithVariants extends CampaignProduct {
   campaignType: CampaignType;
   fullProduct?: Product;
   variantData?: VariantRow[];
+  discountedPrice?: number; // Add calculated discounted price
 }
 
 interface VariantRow {
@@ -155,27 +156,53 @@ const CampaignProductApproval: React.FC = () => {
           const fullProduct = productMap.get(product.productId);
           const voucher = getProductVoucher(product);
           
+          // Calculate originalPrice and discountedPrice for products WITHOUT variants
+          let originalPrice = product.originalPrice;
+          let discountedPrice: number | undefined = undefined; // BE doesn't return this field
+          
+          // If product doesn't have variants, calculate prices from fullProduct
+          if (fullProduct && (!fullProduct.variants || fullProduct.variants.length === 0)) {
+            originalPrice = fullProduct.finalPrice || fullProduct.price || 0;
+            
+            // Calculate discounted price based on voucher config
+            if (voucher) {
+              if (voucher.type === 'FIXED' && voucher.discountValue) {
+                discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
+              } else if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+                const discount = (originalPrice * voucher.discountPercent) / 100;
+                const maxDiscount = voucher.maxDiscountValue || discount;
+                discountedPrice = Math.max(0, originalPrice - Math.min(discount, maxDiscount));
+              } else {
+                discountedPrice = originalPrice;
+              }
+            } else {
+              discountedPrice = originalPrice;
+            }
+          }
+          
           const enrichedProduct: CampaignProductWithVariants = {
             ...product,
             campaignId: campaign.campaignId,
             campaignName: campaign.campaignName,
             campaignType: campaign.campaignType,
-            fullProduct
+            fullProduct,
+            originalPrice,
+            discountedPrice
           };
 
           // If product has variants, calculate discounted price for each variant
           if (fullProduct?.variants && fullProduct.variants.length > 0 && voucher) {
             enrichedProduct.variantData = fullProduct.variants.map(variant => {
               const variantPrice = variant.variantPrice || 0;
-              let discountedPrice = variantPrice;
+              let variantDiscountedPrice = variantPrice;
 
               // Calculate discounted price based on voucher config
               if (voucher.type === 'FIXED' && voucher.discountValue) {
-                discountedPrice = Math.max(0, variantPrice - voucher.discountValue);
+                variantDiscountedPrice = Math.max(0, variantPrice - voucher.discountValue);
               } else if (voucher.type === 'PERCENT' && voucher.discountPercent) {
                 const discount = (variantPrice * voucher.discountPercent) / 100;
                 const maxDiscount = voucher.maxDiscountValue || discount;
-                discountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+                variantDiscountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
               }
 
               return {
@@ -185,7 +212,7 @@ const CampaignProductApproval: React.FC = () => {
                 variantStock: variant.variantStock || 0,
                 variantImage: variant.variantUrl,
                 variantSku: variant.variantSku,
-                discountedPrice
+                discountedPrice: variantDiscountedPrice
               };
             });
           }
@@ -471,6 +498,11 @@ const CampaignProductApproval: React.FC = () => {
           );
         }
         
+        // Safety check for price
+        if (!price || price === 0) {
+          return <span className="text-gray-400">N/A</span>;
+        }
+        
         return (
           <span className="text-gray-600">{price.toLocaleString('vi-VN')}₫</span>
         );
@@ -508,7 +540,14 @@ const CampaignProductApproval: React.FC = () => {
         
         // If has variants, show range
         if (record.variantData && record.variantData.length > 0) {
-          const prices = record.variantData.map(v => v.discountedPrice);
+          const prices = record.variantData
+            .map(v => v.discountedPrice)
+            .filter(p => p != null && p > 0);
+          
+          if (prices.length === 0) {
+            return <span className="text-gray-400">N/A</span>;
+          }
+          
           const minPrice = Math.min(...prices);
           const maxPrice = Math.max(...prices);
           
@@ -535,9 +574,13 @@ const CampaignProductApproval: React.FC = () => {
         
         // No variants
         if (!voucher) {
+          const price = record.originalPrice;
+          if (!price || price === 0) {
+            return <span className="text-gray-400">N/A</span>;
+          }
           return (
             <span className="text-gray-400">
-              {record.originalPrice.toLocaleString('vi-VN')}₫
+              {price.toLocaleString('vi-VN')}₫
             </span>
           );
         }
@@ -633,11 +676,16 @@ const CampaignProductApproval: React.FC = () => {
       key: 'variantPrice',
       width: 120,
       align: 'right',
-      render: (price: number) => (
-        <span className="font-medium text-orange-600 text-sm">
-          {price.toLocaleString('vi-VN')}₫
-        </span>
-      )
+      render: (price: number) => {
+        if (!price || price === 0) {
+          return <span className="text-gray-400">N/A</span>;
+        }
+        return (
+          <span className="font-medium text-orange-600 text-sm">
+            {price.toLocaleString('vi-VN')}₫
+          </span>
+        );
+      }
     },
     {
       title: 'Kho',
@@ -660,16 +708,23 @@ const CampaignProductApproval: React.FC = () => {
       key: 'discountedPrice',
       width: 120,
       align: 'right',
-      render: (discountedPrice: number, variant) => (
-        <div>
-          <div className="font-semibold text-green-600 text-sm">
-            {discountedPrice.toLocaleString('vi-VN')}₫
+      render: (discountedPrice: number, variant) => {
+        if (!discountedPrice || discountedPrice === 0) {
+          return <span className="text-gray-400">N/A</span>;
+        }
+        return (
+          <div>
+            <div className="font-semibold text-green-600 text-sm">
+              {discountedPrice.toLocaleString('vi-VN')}₫
+            </div>
+            {variant.variantPrice && variant.variantPrice > 0 && (
+              <div className="text-xs text-gray-400 line-through">
+                {variant.variantPrice.toLocaleString('vi-VN')}₫
+              </div>
+            )}
           </div>
-          <div className="text-xs text-gray-400 line-through">
-            {variant.variantPrice.toLocaleString('vi-VN')}₫
-          </div>
-        </div>
-      )
+        );
+      }
     }
   ], []);
 

@@ -178,10 +178,6 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
               {discountedPrice !== null && discountedPrice < it.price && (
                 <span className="text-sm text-gray-400 line-through">{formatCurrency(it.price)}</span>
               )}
-              {/* Show original price with strikethrough if originalPrice prop exists (for other discounts) */}
-              {discountedPrice === null && it.originalPrice && (
-                <span className="text-sm text-gray-400 line-through">{formatCurrency(it.originalPrice)}</span>
-              )}
               {/* Show discounted price if platform voucher exists, otherwise show regular price */}
               <span className="text-lg font-semibold text-orange-600">
                 {formatCurrency(discountedPrice !== null && discountedPrice < it.price ? discountedPrice : it.price)}

@@ -70,11 +70,6 @@ const CartItemList: React.FC<Props> = ({
                         <span>{item.quantity}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        {item.originalPrice && (
-                          <span className="text-xs text-gray-400 line-through">
-                            {new Intl.NumberFormat('vi-VN').format(item.originalPrice)}đ
-                          </span>
-                        )}
                         <span className="text-base font-semibold text-orange-600">
                           {new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ
                         </span>

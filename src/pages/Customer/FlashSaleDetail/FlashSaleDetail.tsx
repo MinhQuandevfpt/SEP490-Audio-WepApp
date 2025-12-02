@@ -356,13 +356,23 @@ const FlashSaleDetail: React.FC = () => {
                     </h3>
                     <p className="text-xs text-gray-500 mb-2">{product.brandName}</p>
                     <div className="space-y-1">
-                      <div className="text-red-600 font-bold text-lg">
-                        {product.discountedPrice.toLocaleString('vi-VN')}₫
-                      </div>
-                      {product.discountedPrice < product.originalPrice && (
-                        <div className="text-gray-400 text-xs line-through">
+                      {product.discountedPrice && product.discountedPrice > 0 ? (
+                        <>
+                          <div className="text-red-600 font-bold text-lg">
+                            {product.discountedPrice.toLocaleString('vi-VN')}₫
+                          </div>
+                          {product.originalPrice && product.originalPrice > 0 && product.discountedPrice < product.originalPrice && (
+                            <div className="text-gray-400 text-xs line-through">
+                              {product.originalPrice.toLocaleString('vi-VN')}₫
+                            </div>
+                          )}
+                        </>
+                      ) : product.originalPrice && product.originalPrice > 0 ? (
+                        <div className="text-red-600 font-bold text-lg">
                           {product.originalPrice.toLocaleString('vi-VN')}₫
                         </div>
+                      ) : (
+                        <div className="text-orange-600 font-bold text-sm">Liên hệ</div>
                       )}
                     </div>
 

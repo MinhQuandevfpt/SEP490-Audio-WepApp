@@ -59,20 +59,17 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
 
         {/* Price Section - Reduced spacing */}
         <div className="mt-1">
-          {product.discountPrice && product.discountPrice < product.price ? (
+          {product.finalPrice && product.finalPrice < product.price ? (
             <div className="space-y-1">
               {/* Discounted Price - Red color when has discount */}
               <div className="text-xl font-bold text-red-600">
-                {formatPrice(product.discountPrice)}
+                {formatPrice(product.finalPrice)}
               </div>
               
-              {/* Original Price with discount % - On same line */}
+              {/* Original Price - On same line */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 line-through">
                   {formatPrice(product.price)}
-                </span>
-                <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium">
-                  -{product.promotionPercent}%
                 </span>
               </div>
             </div>

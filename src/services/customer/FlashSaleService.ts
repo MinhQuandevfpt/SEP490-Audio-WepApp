@@ -217,7 +217,24 @@ export class FlashSaleService {
                 console.log(`✅ Variant product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}, image=${firstImage || 'none'}`);
               }
             } else {
-              // No variants, ensure we have valid prices
+              // No variants - calculate from product's finalPrice or price
+              if (!originalPrice || originalPrice === 0) {
+                originalPrice = productData.finalPrice || productData.price || 0;
+              }
+              
+              // Calculate discounted price if not available from BE
+              if (!discountedPrice || discountedPrice === 0) {
+                if (product.type === 'PERCENT' && product.discountPercent) {
+                  const discount = (originalPrice * product.discountPercent) / 100;
+                  const maxDiscount = product.maxDiscountValue || discount;
+                  discountedPrice = Math.max(0, originalPrice - Math.min(discount, maxDiscount));
+                } else if (product.type === 'FIXED' && product.discountValue) {
+                  discountedPrice = Math.max(0, originalPrice - product.discountValue);
+                } else {
+                  discountedPrice = originalPrice;
+                }
+              }
+              
               console.log(`✅ Single product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}, image=${firstImage || 'none'}`);
             }
 
