@@ -286,10 +286,21 @@ const AddressForm: React.FC<AddressFormProps> = ({
                 </span>
               </p>
               <p className="text-sm text-gray-700 mt-1">
-                {([selectedAddress.street, selectedAddress.addressLine].filter(Boolean) as string[]).join(', ')}
+                {(
+                  [
+                    selectedAddress.addressLine, // Số nhà / địa chỉ chi tiết
+                    selectedAddress.street,      // Đường
+                  ].filter(Boolean) as string[]
+                ).join(', ')}
               </p>
               <p className="text-sm text-gray-700">
-                {([selectedAddress.ward, selectedAddress.district, selectedAddress.province].filter(Boolean) as string[]).join(', ')}
+                {(
+                  [
+                    selectedAddress.ward,      // Phường / Xã
+                    selectedAddress.district,  // Quận / Huyện
+                    selectedAddress.province,  // Tỉnh / Thành
+                  ].filter(Boolean) as string[]
+                ).join(', ')}
               </p>
             </div>
             <div className="flex items-center gap-3 text-sm">
@@ -497,10 +508,21 @@ const AddressForm: React.FC<AddressFormProps> = ({
                     )}
                   </div>
                   <p className="text-sm text-gray-700">
-                    {([address.street, address.addressLine].filter(Boolean) as string[]).join(', ')}
+                    {(
+                      [
+                        address.addressLine, // Số nhà / địa chỉ chi tiết
+                        address.street,      // Đường
+                      ].filter(Boolean) as string[]
+                    ).join(', ')}
                   </p>
                   <p className="text-sm text-gray-700">
-                    {([address.ward, address.district, address.province].filter(Boolean) as string[]).join(', ')}
+                    {(
+                      [
+                        address.ward,      // Phường / Xã
+                        address.district,  // Quận / Huyện
+                        address.province,  // Tỉnh / Thành
+                      ].filter(Boolean) as string[]
+                    ).join(', ')}
                   </p>
                   <div className="mt-2 flex items-center gap-3 text-xs text-blue-600">
                     <button type="button" className="hover:underline" onClick={() => handleEdit(address)}>

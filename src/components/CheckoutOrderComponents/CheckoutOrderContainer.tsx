@@ -148,6 +148,7 @@ const CheckoutOrderContainer: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selectedCartItemIds, setSelectedCartItemIds] = useState<string[]>([]);
   const [availableVouchers, setAvailableVouchers] = useState<ShopVoucher[]>([]);
+  // NOTE: keys = productId (giống ShoppingCart), value = AppliedStoreVoucher có chứa storeId
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
   // Store-wide vouchers: Record<storeId, StoreVoucher[]>
   const [storeWideVouchers, setStoreWideVouchers] = useState<Record<string, StoreVoucher[]>>({});
@@ -160,12 +161,39 @@ const CheckoutOrderContainer: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [shippingFeeError, setShippingFeeError] = useState<string | null>(null);
   const [storeMetadata, setStoreMetadata] = useState<Record<string, { storeName: string }>>({});
 
   const shippingItems = useMemo(
     () => cartItems.map(item => ({ ...item, isSelected: true })),
     [cartItems]
   );
+
+  const selectedAddress = useMemo(
+    () =>
+      selectedAddressId
+        ? addresses.find(addr => addr.id === selectedAddressId) || null
+        : null,
+    [addresses, selectedAddressId]
+  );
+
+  const getAddressDisplay = (addr: CustomerAddressApiItem | null): string => {
+    if (!addr) return '';
+    const line1 = [
+      addr.addressLine, // Số nhà / địa chỉ chi tiết
+      addr.street,      // Đường
+    ]
+      .filter(Boolean)
+      .join(', ');
+    const line2 = [
+      addr.ward,      // Phường / Xã
+      addr.district,  // Quận / Huyện
+      addr.province,  // Tỉnh / Thành
+    ]
+      .filter(Boolean)
+      .join(', ');
+    return [line1, line2].filter(Boolean).join(' - ');
+  };
 
   const { serviceTypeId, productCache, setProductCache } = useServiceTypeCalculator({
     items: shippingItems,
@@ -177,9 +205,19 @@ const CheckoutOrderContainer: React.FC = () => {
     selectedAddressId,
     productCache,
     serviceTypeId,
-    onShippingFeeChange: setShippingFee,
+    onShippingFeeChange: (fee: number) => {
+      setShippingFee(fee);
+      // Xóa lỗi phí vận chuyển nếu tính lại thành công
+      setShippingFeeError(null);
+    },
     onProductCacheUpdate: setProductCache,
     autoCalculate: shippingItems.length > 0 && !!selectedAddressId,
+    onError: (message: string) => {
+      // Lưu lỗi và reset phí ship về 0 để tránh tính sai tổng
+      const trimmed = message.trim();
+      setShippingFeeError(trimmed.length > 0 ? trimmed : null);
+      setShippingFee(0);
+    },
   });
 
   const checkoutCartItems = useMemo<CheckoutCartItem[]>(() => {
@@ -562,10 +600,10 @@ const CheckoutOrderContainer: React.FC = () => {
     // Chỉ validate khi đã có đủ dữ liệu
     // Nếu availableVouchers đang rỗng (chưa load xong) hoặc cartItems rỗng, giữ nguyên voucher
     if (cartItems.length === 0) return;
-    
+
     // Kiểm tra xem productCache đã có đủ data cho tất cả items chưa
     const allProductsCached = cartItems.every(item => productCache.has(item.productId));
-    
+
     // Nếu chưa có đủ data, giữ nguyên voucher (không validate)
     if (!allProductsCached && productCache.size === 0) {
       return;
@@ -578,30 +616,35 @@ const CheckoutOrderContainer: React.FC = () => {
       let changed = false;
       const next: Record<string, AppliedStoreVoucher> = {};
 
-      Object.entries(prev).forEach(([storeId, applied]) => {
+      // Lưu ý: key ở đây là productId (giống ShoppingCart), KHÔNG phải storeId
+      Object.entries(prev).forEach(([productId, applied]) => {
         // Nếu availableVouchers chưa load xong, giữ nguyên voucher với discountValue hiện tại
         if (availableVouchers.length === 0) {
-          next[storeId] = applied;
+          next[productId] = applied;
           return;
         }
 
-        const voucher = availableVouchers.find(v => v.code === applied.code);
+        const product = productCache.get(productId);
+        const storeId = product?.storeId;
+
+        // Nếu chưa xác định được storeId, tạm giữ nguyên để tránh xóa nhầm
+        if (!storeId) {
+          next[productId] = applied;
+          return;
+        }
+
+        // Tìm voucher theo code và (nếu có) đúng storeId
+        const voucher = availableVouchers.find(
+          v => v.code === applied.code && (!v.storeId || v.storeId === storeId)
+        );
         const storeTotal = calculateStoreTotal(cartItems, storeId, productCache, platformVoucherDiscounts);
 
         // Nếu không tìm thấy voucher trong availableVouchers, nhưng availableVouchers đã load xong
         // thì có thể voucher đã hết hạn hoặc không còn hợp lệ
         if (!voucher) {
-          // Chỉ xóa nếu availableVouchers đã load xong (length > 0)
-          // Nếu đang loading (length = 0), giữ nguyên
-          if (availableVouchers.length > 0) {
-            changed = true;
-            messages.push(`Voucher ${applied.code} không còn hợp lệ.`);
-            return;
-          } else {
-            // Đang loading, giữ nguyên
-            next[storeId] = applied;
-            return;
-          }
+          changed = true;
+          messages.push(`Voucher ${applied.code} không còn hợp lệ.`);
+          return;
         }
 
         // Nếu storeTotal = 0, có thể do productCache chưa có đủ data
@@ -613,7 +656,7 @@ const CheckoutOrderContainer: React.FC = () => {
 
         // Nếu storeTotal = 0 nhưng chưa có đủ cache, giữ nguyên voucher
         if (storeTotal <= 0) {
-          next[storeId] = applied;
+          next[productId] = applied;
           return;
         }
 
@@ -626,8 +669,9 @@ const CheckoutOrderContainer: React.FC = () => {
         }
 
         const discountValue = calculateVoucherDiscountAmount(voucher, storeTotal);
-        next[storeId] = {
+        next[productId] = {
           ...applied,
+          storeId,
           discountValue,
         };
         if (discountValue !== applied.discountValue) {
@@ -684,9 +728,13 @@ const CheckoutOrderContainer: React.FC = () => {
       setError('Vui lòng chọn phương thức thanh toán.');
       return;
     }
+    if (shippingFeeError) {
+      setError('Không thể tính phí vận chuyển. Vui lòng kiểm tra lại địa chỉ hoặc thử lại sau.');
+      return;
+    }
 
-    const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
-    const message = selectedAddress?.note || '';
+    const addressForMessage = addresses.find(addr => addr.id === selectedAddressId);
+    const message = addressForMessage?.note || '';
     
     // Build checkout items payload với logic mới:
     // - Nếu variantId === null → dùng productId (refId), không gửi variantId
@@ -911,7 +959,15 @@ const CheckoutOrderContainer: React.FC = () => {
 
                   <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                      <p className="text-base font-semibold text-gray-900">Đơn hàng</p>
+                      <div>
+                        <p className="text-base font-semibold text-gray-900">Đơn hàng</p>
+                        {selectedAddress && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            Giao đến: {selectedAddress.receiverName} ({selectedAddress.phoneNumber}) —{' '}
+                            {getAddressDisplay(selectedAddress)}
+                          </p>
+                        )}
+                      </div>
                       {error && (
                         <span className="text-xs text-red-500 font-medium">
                           {error}
@@ -929,7 +985,8 @@ const CheckoutOrderContainer: React.FC = () => {
                           isSubmitting ||
                           !selectedAddressId ||
                           !paymentMethod ||
-                          cartItems.length === 0
+                          cartItems.length === 0 ||
+                          !!shippingFeeError
                         }
                         onSubmit={handleSubmit}
                       />

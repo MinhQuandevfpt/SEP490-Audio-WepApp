@@ -12,6 +12,7 @@ interface UseAutoShippingFeeProps {
   onShippingFeeChange: (fee: number) => void;
   onProductCacheUpdate: (cache: Map<string, Product>) => void;
   autoCalculate?: boolean; // Enable/disable auto calculation
+  onError?: (message: string) => void; // Optional error handler
 }
 
 export const useAutoShippingFee = ({
@@ -23,6 +24,7 @@ export const useAutoShippingFee = ({
   onShippingFeeChange,
   onProductCacheUpdate,
   autoCalculate = true,
+  onError,
 }: UseAutoShippingFeeProps) => {
   const timeoutRef = useRef<number | null>(null);
   const isCalculatingRef = useRef(false);
@@ -32,13 +34,15 @@ export const useAutoShippingFee = ({
   const productCacheRef = useRef(productCache);
   const onShippingFeeChangeRef = useRef(onShippingFeeChange);
   const onProductCacheUpdateRef = useRef(onProductCacheUpdate);
+  const onErrorRef = useRef(onError);
   
   useEffect(() => {
     addressesRef.current = addresses;
     productCacheRef.current = productCache;
     onShippingFeeChangeRef.current = onShippingFeeChange;
     onProductCacheUpdateRef.current = onProductCacheUpdate;
-  }, [addresses, productCache, onShippingFeeChange, onProductCacheUpdate]);
+    onErrorRef.current = onError;
+  }, [addresses, productCache, onShippingFeeChange, onProductCacheUpdate, onError]);
 
   useEffect(() => {
     // Clear previous timeout
@@ -160,10 +164,21 @@ export const useAutoShippingFee = ({
         const resp = await ShippingService.calculateGhnFee(body);
         if (resp.code === 200 && resp.data?.total) {
           onShippingFeeChangeRef.current(resp.data.total);
+          // Clear previous error on success
+          if (onErrorRef.current) {
+            onErrorRef.current('');
+          }
+        } else {
+          // Non-200 response from GHN
+          if (onErrorRef.current) {
+            onErrorRef.current('Không thể tính phí vận chuyển. Vui lòng thử lại hoặc kiểm tra lại địa chỉ.');
+          }
         }
       } catch (error) {
-        // Silent fail for auto calculation - don't show error to user
         console.error('Auto shipping fee calculation failed:', error);
+        if (onErrorRef.current) {
+          onErrorRef.current('Không thể tính phí vận chuyển. Vui lòng thử lại hoặc kiểm tra lại địa chỉ.');
+        }
       } finally {
         isCalculatingRef.current = false;
       }
