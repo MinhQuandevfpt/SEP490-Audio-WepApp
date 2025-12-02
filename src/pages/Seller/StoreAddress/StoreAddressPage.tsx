@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Typography,
@@ -30,10 +30,12 @@ import { useDistricts } from '../../../hooks/useDistricts';
 import { useWards } from '../../../hooks/useWards';
 import type { CreateStoreAddressRequest } from '../../../types/seller';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
+import { useLocation } from 'react-router-dom';
 
 const { Text, Title } = Typography;
 
 const StoreAddressPage: React.FC = () => {
+  const location = useLocation();
   const {
     addresses,
     isLoading,
@@ -54,6 +56,17 @@ const StoreAddressPage: React.FC = () => {
   const [selectedDistrictName, setSelectedDistrictName] = useState<string>('');
   const { wards, loading: wardsLoading, clearWards } = useWards(selectedDistrictId);
   const [selectedWardName, setSelectedWardName] = useState<string>('');
+
+  // Tự động mở modal tạo địa chỉ nếu được redirect từ luồng tạo sản phẩm
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const from = params.get('from');
+
+    if (from === 'create-product' && !isLoading && addresses.length === 0) {
+      // Mở popup tạo địa chỉ ngay khi vào trang
+      handleOpenModal();
+    }
+  }, [location.search, isLoading, addresses.length]);
 
   const handleOpenModal = () => {
     setIsModalVisible(true);
