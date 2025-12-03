@@ -134,9 +134,8 @@ export const useAutoShippingFee = ({
           const p = productById.get(si.productId);
           const weightKg = (p?.weight && p.weight > 0 ? p.weight : 0.5);
           const weightGr = Math.round(weightKg * 1000);
-          // Use reasonable default dimensions for items (cm)
-          // If product has dimensions, use them; otherwise use defaults based on weight
-          const defaultDim = weightKg > 1 ? 30 : 20; // Larger items get bigger dimensions
+          // Luôn sử dụng kích thước mặc định 1x1x1 (cm) cho mọi sản phẩm
+          const defaultDim = 1;
           return {
             name: si.name,
             quantity: si.quantity,

@@ -25,6 +25,7 @@ interface CartSummarySidebarProps {
   onCheckout: () => void;
   isCheckingOut: boolean;
   disabled: boolean;
+  selectedVoucherCodes?: string[];
 }
 
 const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
@@ -47,6 +48,7 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
   onCheckout,
   isCheckingOut,
   disabled,
+  selectedVoucherCodes,
 }) => {
   return (
     <aside className="lg:col-span-1">
@@ -74,6 +76,7 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
           onCheckout={onCheckout}
           isCheckingOut={isCheckingOut}
           disabled={disabled}
+          selectedVoucherCodes={selectedVoucherCodes}
         />
       </div>
     </aside>

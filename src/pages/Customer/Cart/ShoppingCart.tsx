@@ -75,12 +75,107 @@ const ShoppingCart: React.FC = () => {
     init();
   }, [loadCart]);
 
+  // Load cart items và áp dụng logic giảm giá nền tảng tương tự HomePage
   useEffect(() => {
-    if (cart?.items) {
-      setItems(cart.items.map(mapApiItemToUI));
-    } else {
-      setItems([]);
-    }
+    const enhanceItemsWithPlatformDiscounts = async () => {
+      if (!cart?.items) {
+        setItems([]);
+        return;
+      }
+
+      try {
+        const apiItems = cart.items as unknown as ApiCartItem[];
+
+        const enhanced: UICartItem[] = await Promise.all(
+          apiItems.map(async (apiItem) => {
+            const baseItem: UICartItem = {
+              id: apiItem.cartItemId,
+              productId: apiItem.refId,
+              name: apiItem.name,
+              image: apiItem.variantUrl || apiItem.image,
+              price: apiItem.unitPrice,
+              originalPrice: apiItem.unitPrice,
+              quantity: apiItem.quantity,
+              isSelected: true,
+              variant: apiItem.variantOptionValue || undefined,
+              type: apiItem.type,
+            };
+
+            // Chỉ áp dụng giảm giá nền tảng cho PRODUCT (không áp dụng cho COMBO)
+            if (!apiItem.refId || apiItem.type === 'COMBO') {
+              return baseItem;
+            }
+
+            try {
+              const response = await ProductVoucherService.getProductVouchers(apiItem.refId, 'ALL', null);
+
+              const platformCampaigns = response.data?.vouchers?.platform || [];
+              let activePlatformVoucher: any = null;
+              const now = new Date();
+
+              // Tìm voucher nền tảng đang ACTIVE (giống logic ProductSuggestions)
+              for (const campaign of platformCampaigns) {
+                if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+                  for (const v of campaign.vouchers) {
+                    if (v.status !== 'ACTIVE') continue;
+
+                    let isActive = false;
+                    if (v.slotOpenTime && v.slotCloseTime) {
+                      isActive =
+                        now >= new Date(v.slotOpenTime) &&
+                        now <= new Date(v.slotCloseTime) &&
+                        v.slotStatus === 'ACTIVE';
+                    } else {
+                      isActive =
+                        now >= new Date(v.startTime) &&
+                        now <= new Date(v.endTime) &&
+                        v.status === 'ACTIVE';
+                    }
+
+                    if (isActive) {
+                      activePlatformVoucher = v;
+                      break;
+                    }
+                  }
+
+                  if (activePlatformVoucher) break;
+                }
+              }
+
+              if (activePlatformVoucher) {
+                const originalPrice = baseItem.originalPrice ?? baseItem.price;
+                let discountedPrice = originalPrice;
+
+                if (activePlatformVoucher.type === 'PERCENT' && activePlatformVoucher.discountPercent) {
+                  discountedPrice = originalPrice * (1 - activePlatformVoucher.discountPercent / 100);
+                } else if (activePlatformVoucher.type === 'FIXED' && activePlatformVoucher.discountValue) {
+                  discountedPrice = Math.max(0, originalPrice - activePlatformVoucher.discountValue);
+                }
+
+                // Nếu có giảm giá hợp lệ thì cập nhật price để dùng cho tính toán & hiển thị
+                if (discountedPrice < originalPrice) {
+                  return {
+                    ...baseItem,
+                    price: discountedPrice,
+                    originalPrice,
+                  };
+                }
+              }
+            } catch (err) {
+              console.error('Failed to load platform vouchers for cart item:', err);
+            }
+
+            return baseItem;
+          })
+        );
+
+        setItems(enhanced);
+      } finally {
+        // no-op
+      }
+    };
+
+    enhanceItemsWithPlatformDiscounts();
   }, [cart]);
 
   // Load vouchers for all products in the cart (unique by refId)
@@ -131,47 +226,14 @@ const ShoppingCart: React.FC = () => {
           })
         );
 
-        // Extract shop vouchers with storeId and calculate platform voucher discounts
+        // Extract shop vouchers with storeId
         // Map: productId -> vouchers[] để mỗi product chỉ có vouchers của chính nó
         const productVouchersMap = new Map<string, ShopVoucher[]>();
         const availabilityMap: Record<string, boolean> = {};
-        const platformDiscountsMap: Record<string, number> = {};
         
         responses.forEach(({ productId, voucherRes, productRes }) => {
           const vouchers = voucherRes?.data?.vouchers?.shop || [];
           availabilityMap[productId] = vouchers.length > 0;
-          
-          // Calculate platform voucher discount
-          const platformCampaigns = voucherRes?.data?.vouchers?.platform || [];
-          let platformDiscount = 0;
-          
-          if (voucherRes?.data?.product) {
-            // Use product price from API response
-            const originalPrice = voucherRes.data.product.price;
-            
-            for (const campaign of platformCampaigns) {
-              if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
-                const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
-                if (activeVoucher) {
-                  if (activeVoucher.type === 'FIXED') {
-                    platformDiscount = activeVoucher.discountValue || 0;
-                  } else if (activeVoucher.type === 'PERCENT') {
-                    const percentDiscount = (originalPrice * (activeVoucher.discountPercent || 0)) / 100;
-                    if (activeVoucher.maxDiscountValue !== null && activeVoucher.maxDiscountValue !== undefined) {
-                      platformDiscount = Math.min(percentDiscount, activeVoucher.maxDiscountValue);
-                    } else {
-                      platformDiscount = percentDiscount;
-                    }
-                  }
-                  break; // Use first active voucher found
-                }
-              }
-            }
-          }
-          
-          if (platformDiscount > 0) {
-            platformDiscountsMap[productId] = platformDiscount;
-          }
           
           // Lưu vouchers theo productId (mỗi product chỉ có vouchers của chính nó)
           if (voucherRes && productRes) {
@@ -187,7 +249,6 @@ const ShoppingCart: React.FC = () => {
         });
         
         setProductVoucherAvailability(availabilityMap);
-        setPlatformVoucherDiscounts(platformDiscountsMap);
         
         // Lưu productVouchersMap để sử dụng sau - mỗi product chỉ có vouchers của chính nó
         setProductVouchersMapState(productVouchersMap);
@@ -224,9 +285,6 @@ const ShoppingCart: React.FC = () => {
     });
     return map;
   }, [appliedStoreVouchers]);
-
-  // Platform voucher discounts: Record<productId, discountAmount>
-  const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, number>>({});
 
   // Shipping fee estimation state
   const [shippingFee, setShippingFee] = useState<number>(0);
@@ -360,27 +418,35 @@ const ShoppingCart: React.FC = () => {
     messages.forEach(msg => showCenterError(msg, 'Voucher'));
   }, [items, productCache, productVouchersMapState]);
 
-  // Calculate subtotal before and after platform discounts
+  // Calculate subtotal dựa trên giá gốc (để hiển thị giống HomePage: giá gốc + giảm giá)
   const subtotalBeforePlatformDiscount = useMemo(() => {
     return items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
-      return sum + item.price * item.quantity;
+      const original = item.originalPrice ?? item.price;
+      return sum + original * item.quantity;
     }, 0);
   }, [items]);
-
-  // Calculate total platform voucher discount amount
+  
+  // Tổng giảm giá nền tảng = (giá gốc - giá sau giảm) * quantity
   const totalPlatformDiscount = useMemo(() => {
     return items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
-      const platformDiscount = platformVoucherDiscounts[item.productId] || 0;
-      return sum + platformDiscount * item.quantity;
+      const original = item.originalPrice ?? item.price;
+      const discountPerUnit = Math.max(0, original - item.price);
+      return sum + discountPerUnit * item.quantity;
     }, 0);
-  }, [items, platformVoucherDiscounts]);
+  }, [items]);
 
   // Store voucher discount
   const voucherDiscount = useMemo(() => {
     return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
   }, [appliedStoreVouchers]);
+
+  // Danh sách mã voucher đã áp dụng (chỉ voucher shop, không tính platform)
+  const selectedVoucherCodes = useMemo(
+    () => Array.from(new Set(Object.values(appliedStoreVouchers).map(v => v.code))),
+    [appliedStoreVouchers]
+  );
 
   // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const grandTotal = useMemo(() => {
@@ -618,6 +684,7 @@ const ShoppingCart: React.FC = () => {
               onCheckout={handleProceedToCheckout}
               isCheckingOut={false}
               disabled={false}
+              selectedVoucherCodes={selectedVoucherCodes}
             />
           </div>
         )}

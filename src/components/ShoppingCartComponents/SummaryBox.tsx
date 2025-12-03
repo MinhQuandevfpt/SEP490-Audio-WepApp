@@ -11,6 +11,7 @@ interface SummaryBoxProps {
   onCheckout?: () => void;
   isCheckingOut?: boolean;
   disabled?: boolean;
+  selectedVoucherCodes?: string[];
 }
 
 const SummaryBox: React.FC<SummaryBoxProps> = ({ 
@@ -22,7 +23,8 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
   grandTotal,
   onCheckout,
   isCheckingOut = false,
-  disabled = false
+  disabled = false,
+  selectedVoucherCodes = [],
 }) => {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
@@ -51,6 +53,11 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
         <div className="text-gray-600">
           <p className="text-sm">Tổng cộng</p>
           <p className="text-xs">(Đã chọn {selectedCount} sản phẩm)</p>
+          {selectedVoucherCodes.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Đã áp dụng voucher: {selectedVoucherCodes.join(', ')}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-orange-600">{formatCurrency(grandTotal)}</p>

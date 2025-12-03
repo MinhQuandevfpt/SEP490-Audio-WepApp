@@ -24,6 +24,8 @@ export interface CheckoutCartItem {
   itemType?: 'PRODUCT' | 'COMBO' | string;
   variantId?: string | null;
   comboId?: string | null;
+  // Tên biến thể (màu sắc/kích thước...) – map từ variantOptionValue của cart item
+  variant?: string | null;
 }
 
 export interface CheckoutSummary {

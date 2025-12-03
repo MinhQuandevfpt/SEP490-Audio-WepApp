@@ -20,6 +20,9 @@ interface Props {
   onRemoveStoreWideVoucher?: (storeId: string) => void;
 }
 
+const formatVnd = (value: number) =>
+  new Intl.NumberFormat('vi-VN').format(value) + 'đ';
+
 const CartItemList: React.FC<Props> = ({ 
   groups, 
   onRemove,
@@ -64,15 +67,30 @@ const CartItemList: React.FC<Props> = ({
                     <p className="text-sm font-medium text-gray-900 truncate" title={item.name}>
                       {item.name}
                     </p>
+                    {item.variant && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Phân loại: {item.variant}
+                      </p>
+                    )}
                     <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                       <div className="inline-flex items-center gap-2 px-3 py-1 border border-gray-100 rounded-lg bg-gray-50 text-sm text-gray-700">
                         <span className="font-medium text-gray-900">Số lượng:</span>
                         <span>{item.quantity}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-base font-semibold text-orange-600">
-                          {new Intl.NumberFormat('vi-VN').format(item.price * item.quantity)}đ
-                        </span>
+                        <div className="flex flex-col items-end">
+                          {/* Giá sau giảm (đã áp dụng chiến dịch) */}
+                          <span className="text-base font-semibold text-red-600">
+                            {formatVnd(item.price)}
+                          </span>
+                          {/* Giá gốc gạch ngang nếu có giảm */}
+                          {item.originalPrice !== undefined &&
+                            item.originalPrice > item.price && (
+                              <span className="text-xs text-gray-400 line-through">
+                                {formatVnd(item.originalPrice)}
+                              </span>
+                            )}
+                        </div>
                         <button
                           onClick={() => onRemove(item.id)}
                           className="text-red-500 hover:text-red-600 transition-colors"
