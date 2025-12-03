@@ -192,8 +192,14 @@ const CheckoutOrderContainer: React.FC = () => {
     onError: (message: string) => {
       // Lưu lỗi và reset phí ship về 0 để tránh tính sai tổng
       const trimmed = message.trim();
-      setShippingFeeError(trimmed.length > 0 ? trimmed : null);
-      setShippingFee(0);
+      // Chỉ set error nếu message không rỗng (không phải là clear error signal)
+      if (trimmed.length > 0) {
+        setShippingFeeError(trimmed);
+        setShippingFee(0);
+      } else {
+        // Clear error if message is empty (success case)
+        setShippingFeeError(null);
+      }
     },
   });
 
@@ -761,7 +767,6 @@ const CheckoutOrderContainer: React.FC = () => {
     console.log('📊 Subtotal (after platform discount):', subtotalAfterPlatformDiscount);
     console.log('💵 Total Platform Discount:', totalPlatformDiscount);
     console.log('🎟️ Store Voucher Discount:', voucherDiscount);
-    console.log('🚚 Shipping Fee:', shippingFee);
     console.log('💳 Grand Total:', total);
     console.log('============================================================');
 

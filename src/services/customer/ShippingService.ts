@@ -13,18 +13,18 @@ export interface GhnFeeItem {
 }
 
 export interface GhnFeeRequestBody {
-  service_type_id: 2 | 5;
-  from_district_id: number;
-  from_ward_code: string;
-  to_district_id: number;
-  to_ward_code: string;
-  length: number; // cm (package)
-  width: number;  // cm (package)
-  height: number; // cm (package)
-  weight: number; // grams (package)
-  insurance_value: number; // 0..5_000_000
-  coupon: string; // default ""
-  items: GhnFeeItem[];
+  service_type_id?: 2 | 5; // Optional: 2: Hàng nhẹ, 5: Hàng nặng
+  from_district_id?: number; // Optional: Quận/huyện người gửi
+  from_ward_code?: string; // Optional: Phường/xã người gửi
+  to_district_id: number; // Required: Quận/huyện người nhận
+  to_ward_code: string; // Required: Phường/xã người nhận
+  length?: number; // Optional: Chiều dài (cm)
+  width?: number;  // Optional: Chiều rộng (cm)
+  height?: number; // Optional: Chiều cao (cm)
+  weight: number; // Required: Khối lượng đơn hàng (gram)
+  insurance_value?: number; // Optional: Giá trị bảo hiểm đơn hàng (tối đa 5.000.000)
+  coupon?: string | null; // Optional: Mã giảm giá GHN (null if no coupon)
+  items: GhnFeeItem[]; // Required: Danh sách sản phẩm (bắt buộc với hàng nặng)
 }
 
 export interface GhnFeeResponseData {

@@ -18,7 +18,8 @@ import {
   Tag,
   Users,
   ShieldCheck,
-  Building2
+  Building2,
+  Bell
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -30,9 +31,11 @@ const SellerDashboardLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [storeInfo, setStoreInfo] = useState<StoreInfo | null>(null);
   const [sellerUserName, setSellerUserName] = useState<string>('');
   const [sellerUserEmail, setSellerUserEmail] = useState<string>('');
+  const [notificationCount, setNotificationCount] = useState<number>(0); // Số lượng thông báo chưa đọc
 
   useEffect(() => {
     // Prime UI with seller user info immediately (fallback while store info loads)
@@ -43,6 +46,30 @@ const SellerDashboardLayout: React.FC = () => {
     }
 
     loadStoreInfo();
+    
+    // TODO: Load notification count from API
+    // Example: const count = await NotificationService.getUnreadCount();
+    // setNotificationCount(count);
+    
+    // Mock notification count for now
+    // Remove this when implementing real notification service
+    setNotificationCount(3);
+  }, []);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.notification-menu') && !target.closest('.profile-menu')) {
+        setIsNotificationMenuOpen(false);
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const loadStoreInfo = async () => {
@@ -201,12 +228,75 @@ const SellerDashboardLayout: React.FC = () => {
             </Link>
           </div>
 
-          {/* Right: Profile */}
+          {/* Right: Notifications & Profile */}
           <div className="flex items-center space-x-4">
-            {/* Profile Dropdown */}
-            <div className="relative">
+            {/* Notification Bell */}
+            <div className="relative notification-menu">
               <button
-                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                onClick={() => {
+                  setIsNotificationMenuOpen(!isNotificationMenuOpen);
+                  setIsProfileMenuOpen(false);
+                }}
+                className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition-colors relative"
+              >
+                <Bell className="w-5 h-5 text-gray-600" />
+                <span className="hidden md:block text-sm font-medium text-gray-700">Thông báo</span>
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown Menu */}
+              {isNotificationMenuOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-96 overflow-y-auto">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-800">Thông báo</h3>
+                      {notificationCount > 0 && (
+                        <span className="text-xs text-gray-500">{notificationCount} thông báo mới</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Notification List */}
+                  <div className="py-2">
+                    {notificationCount === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <Bell className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">Không có thông báo mới</p>
+                      </div>
+                    ) : (
+                      <div className="px-4 py-2 text-sm text-gray-500">
+                        {/* TODO: Thêm danh sách thông báo ở đây */}
+                        <p className="text-center text-gray-400">Danh sách thông báo sẽ được hiển thị ở đây</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {notificationCount > 0 && (
+                    <div className="px-4 py-2 border-t border-gray-100">
+                      <Link
+                        to="/seller/dashboard/notifications"
+                        className="block text-center text-sm text-orange-600 hover:text-orange-700 font-medium"
+                        onClick={() => setIsNotificationMenuOpen(false)}
+                      >
+                        Xem tất cả thông báo
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Profile Dropdown */}
+            <div className="relative profile-menu">
+              <button
+                onClick={() => {
+                  setIsProfileMenuOpen(!isProfileMenuOpen);
+                  setIsNotificationMenuOpen(false);
+                }}
                 className="flex items-center space-x-3 p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 {/* Store Logo or Default Icon */}
