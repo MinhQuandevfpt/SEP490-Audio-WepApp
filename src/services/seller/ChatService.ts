@@ -53,7 +53,10 @@ export interface ConversationsResponse {
 }
 
 export class SellerChatService {
-  private static readonly BASE_URL = '/api/chat';
+  private static get BASE_URL() {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    return baseUrl.endsWith('/api') ? `${baseUrl}/chat` : `${baseUrl}/api/chat`;
+  }
 
   /**
    * Get messages between customer and store (seller view)

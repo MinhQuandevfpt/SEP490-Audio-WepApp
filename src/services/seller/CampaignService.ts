@@ -8,7 +8,8 @@ import type {
   CampaignProductStatus
 } from '../../types/seller';
 
-const API_BASE_URL = '/api/campaigns';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = BASE_URL.endsWith('/api') ? `${BASE_URL}/campaigns` : `${BASE_URL}/api/campaigns`;
 
 interface CampaignListResponse {
   status: number;
