@@ -7,7 +7,8 @@ import type {
   ComboQueryParams,
 } from '../../types/seller';
 
-const API_BASE_URL = '/api/v1/combos/shop';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = BASE_URL.endsWith('/api') ? `${BASE_URL}/v1/combos/shop` : `${BASE_URL}/api/v1/combos/shop`;
 
 /**
  * Service for managing shop combos

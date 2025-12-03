@@ -259,7 +259,10 @@ export interface ProductListResponse {
 }
 
 export class ProductListService {
-  private static readonly BASE_URL = '/api/products';
+  private static get BASE_URL() {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    return baseUrl.endsWith('/api') ? `${baseUrl}/products` : `${baseUrl}/api/products`;
+  }
 
   /**
    * Lấy danh sách sản phẩm với các tham số lọc
