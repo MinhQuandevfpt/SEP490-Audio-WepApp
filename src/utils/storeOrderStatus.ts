@@ -12,6 +12,11 @@ export interface StatusConfig {
 }
 
 export const STORE_ORDER_STATUS_CONFIG: Record<StoreOrderStatus, StatusConfig> = {
+  UNPAID: {
+    label: 'Chờ thanh toán',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50 border-orange-200',
+  },
   PENDING: {
     label: 'Chờ xử lý',
     color: 'text-gray-600',
@@ -61,6 +66,16 @@ export const STORE_ORDER_STATUS_CONFIG: Record<StoreOrderStatus, StatusConfig> =
     label: 'Giao hàng thất bại',
     color: 'text-red-600',
     bgColor: 'bg-red-50 border-red-200',
+  },
+  DELIVERY_FAIL: {
+    label: 'Giao hàng thất bại',
+    color: 'text-red-600',
+    bgColor: 'bg-red-50 border-red-200',
+  },
+  EXCEPTION: {
+    label: 'Lỗi xử lý đơn hàng',
+    color: 'text-red-700',
+    bgColor: 'bg-red-100 border-red-300',
   },
   COMPLETED: {
     label: 'Đã giao hàng',

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
+import { NotificationService } from '../../services/seller/NotificationService';
 import type { StoreInfo } from '../../types/seller';
 
 const SellerDashboardLayout: React.FC = () => {
@@ -46,14 +47,7 @@ const SellerDashboardLayout: React.FC = () => {
     }
 
     loadStoreInfo();
-    
-    // TODO: Load notification count from API
-    // Example: const count = await NotificationService.getUnreadCount();
-    // setNotificationCount(count);
-    
-    // Mock notification count for now
-    // Remove this when implementing real notification service
-    setNotificationCount(3);
+    loadNotificationCount();
   }, []);
 
   // Close menus when clicking outside
@@ -85,6 +79,17 @@ const SellerDashboardLayout: React.FC = () => {
       setStoreInfo(info);
     } catch (error) {
       console.error('Error loading store info:', error);
+    }
+  };
+
+  const loadNotificationCount = async () => {
+    try {
+      const count = await NotificationService.getUnreadCount();
+      setNotificationCount(count);
+    } catch (error) {
+      console.error('Error loading notification count:', error);
+      // Set to 0 on error instead of showing incorrect count
+      setNotificationCount(0);
     }
   };
 
@@ -234,8 +239,13 @@ const SellerDashboardLayout: React.FC = () => {
             <div className="relative notification-menu">
               <button
                 onClick={() => {
-                  setIsNotificationMenuOpen(!isNotificationMenuOpen);
+                  const willOpen = !isNotificationMenuOpen;
+                  setIsNotificationMenuOpen(willOpen);
                   setIsProfileMenuOpen(false);
+                  // Refresh notification count when opening dropdown
+                  if (willOpen) {
+                    loadNotificationCount();
+                  }
                 }}
                 className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition-colors relative"
               >
