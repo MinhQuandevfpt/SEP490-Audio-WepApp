@@ -306,22 +306,24 @@ export interface UpdateCustomerStatusResponse {
 
 // Order Status Enum (from backend + extended internal statuses)
 export type OrderStatus = 
-  | 'UNPAID'             // Chờ thanh toán (online)
-  | 'CONFIRMED'          // Đã xác nhận (đã thanh toán / COD)
-  | 'AWAITING_SHIPMENT'  // Chờ lấy hàng (đã thanh toán / COD)
-  | 'SHIPPING'           // Đang giao hàng
-  | 'COMPLETED'          // Đã giao hàng / Hoàn tất
-  | 'CANCELLED'          // Đã hủy
-  | 'RETURN_REQUESTED'   // Yêu cầu trả hàng / hoàn tiền
-  | 'RETURNED'           // Đã trả hàng / hoàn tiền xong
-  | 'PENDING'            // Chờ xử lý
-  // Extended internal statuses
-  | 'READY_FOR_PICKUP'   // Kho đang chuẩn bị
-  | 'READY_FOR_DELIVERY' // Chờ giao hàng
-  | 'OUT_FOR_DELIVERY'   // Đang giao hàng
+  | 'UNPAID'                 // Chờ thanh toán (online)
+  | 'CONFIRMED'              // Đã xác nhận (đã thanh toán / COD)
+  | 'AWAITING_SHIPMENT'      // Chờ lấy hàng (đã thanh toán / COD)
+  | 'SHIPPING'               // Đang giao hàng
+  | 'COMPLETED'              // Đã giao hàng / Hoàn tất
+  | 'CANCELLED'              // Đã hủy
+  | 'RETURN_REQUESTED'       // Yêu cầu trả hàng / hoàn tiền
+  | 'RETURNED'               // Đã trả hàng / hoàn tiền xong
+  | 'PENDING'                // Chờ xử lý
+  // Extended internal statuses (mapping full backend list)
+  | 'READY_FOR_PICKUP'       // Kho đang chuẩn bị
+  | 'READY_FOR_DELIVERY'     // Chờ giao hàng
+  | 'OUT_FOR_DELIVERY'       // Đang giao hàng
   | 'DELIVERED_WAITING_CONFIRM' // Chờ xác nhận giao hàng
-  | 'DELIVERY_SUCCESS'   // Giao hàng thành công
-  | 'DELIVERY_DENIED';   // Giao hàng thất bại
+  | 'DELIVERY_SUCCESS'       // Giao hàng thành công
+  | 'DELIVERY_DENIED'        // Giao hàng bị từ chối
+  | 'DELIVERY_FAIL'          // Giao hàng thất bại / không giao được
+  | 'EXCEPTION';             // Lỗi xử lý đơn hàng
 
 // Order Item (in store order)
 export interface OrderItem {

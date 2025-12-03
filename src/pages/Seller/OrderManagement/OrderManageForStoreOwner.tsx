@@ -256,10 +256,13 @@ const OrderManageForStoreOwner: React.FC = () => {
           RETURNED: 'default',
           PENDING: 'default',
           READY_FOR_PICKUP: 'cyan',
+          READY_FOR_DELIVERY: 'cyan',
           OUT_FOR_DELIVERY: 'processing',
           DELIVERED_WAITING_CONFIRM: 'gold',
           DELIVERY_SUCCESS: 'green',
           DELIVERY_DENIED: 'red',
+          DELIVERY_FAIL: 'red',
+          EXCEPTION: 'volcano',
         };
         return <Tag color={colorMap[status] || 'default'}>{label}</Tag>;
       }

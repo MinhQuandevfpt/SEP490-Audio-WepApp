@@ -427,11 +427,27 @@ export interface ProductListResponse {
   };
 }
 
-// Order Types for Seller
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED';
+// Order Types for Seller (high-level, may be mapped from store order statuses)
+export type OrderStatus =
+  | 'UNPAID'          // Chờ thanh toán
+  | 'PENDING'         // Chờ xử lý
+  | 'CONFIRMED'       // Đã xác nhận
+  | 'PROCESSING'      // Đang xử lý / chuẩn bị
+  | 'SHIPPING'        // Đang giao hàng
+  | 'DELIVERED'       // Đã giao hàng
+  | 'COMPLETED'       // Hoàn tất
+  | 'CANCELLED'       // Đã hủy
+  | 'RETURN_REQUESTED'// Yêu cầu trả hàng
+  | 'RETURNED'        // Đã trả hàng
+  | 'REFUNDED'        // Đã hoàn tiền
+  | 'DELIVERY_FAIL'   // Giao hàng thất bại
+  | 'DELIVERY_DENIED' // Giao hàng bị từ chối
+  | 'DELIVERY_SUCCESS'// Giao hàng thành công
+  | 'EXCEPTION';      // Lỗi xử lý đơn hàng
 
-// Store Order Status (matches backend enum)
+// Store Order Status (matches backend enum, extended to cover all backend statuses)
 export type StoreOrderStatus = 
+  | 'UNPAID'                   // Chờ thanh toán
   | 'PENDING'                  // Chờ xử lý
   | 'CONFIRMED'                // Đã xác nhận
   | 'AWAITING_SHIPMENT'        // Chờ lấy hàng
@@ -441,7 +457,9 @@ export type StoreOrderStatus =
   | 'OUT_FOR_DELIVERY'         // Đang giao hàng
   | 'DELIVERED_WAITING_CONFIRM'// Chờ xác nhận giao hàng
   | 'DELIVERY_SUCCESS'         // Giao hàng thành công
-  | 'DELIVERY_DENIED'          // Giao hàng thất bại
+  | 'DELIVERY_DENIED'          // Giao hàng bị từ chối
+  | 'DELIVERY_FAIL'            // Giao hàng thất bại / không giao được
+  | 'EXCEPTION'                // Lỗi xử lý đơn hàng
   | 'COMPLETED'                // Đã giao hàng
   | 'CANCELLED'                // Đã hủy
   | 'RETURN_REQUESTED'         // Yêu cầu trả hàng

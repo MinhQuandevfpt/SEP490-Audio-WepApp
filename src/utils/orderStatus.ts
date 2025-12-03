@@ -87,9 +87,19 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     bgColor: 'bg-[#E6F8F0] border-[#27AE60]',
   },
   DELIVERY_DENIED: {
-    label: 'Giao hàng thất bại',
+  label: 'Giao hàng bị từ chối',
     color: 'text-[#EB5757]',
     bgColor: 'bg-[#FFEBEB] border-[#EB5757]',
+  },
+  DELIVERY_FAIL: {
+  label: 'Giao hàng thất bại',
+  color: 'text-[#EB5757]',
+  bgColor: 'bg-[#FFEBEB] border-[#EB5757]',
+  },
+  EXCEPTION: {
+  label: 'Lỗi xử lý đơn hàng',
+  color: 'text-red-600',
+  bgColor: 'bg-red-50 border-red-200',
   },
 };
 
@@ -118,6 +128,8 @@ export const getStatusBadgeStyle = (status: OrderStatus | string | undefined | n
     DELIVERY_SUCCESS: { bgColor: '#E6F8F0', textColor: '#27AE60' },
     CANCELLED: { bgColor: '#FFEBEB', textColor: '#EB5757' },
     DELIVERY_DENIED: { bgColor: '#FFEBEB', textColor: '#EB5757' },
+    DELIVERY_FAIL: { bgColor: '#FFEBEB', textColor: '#EB5757' },
+    EXCEPTION: { bgColor: '#FEF3C7', textColor: '#92400E' },
   };
   
   const style = statusMap[status as string] || { bgColor: '#F5F5F5', textColor: '#666666' };
