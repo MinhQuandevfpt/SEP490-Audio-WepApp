@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
 import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
-import { Card, Button, message } from 'antd';
+import { Card, Button, message, Select, Input } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import { ProductReviewService } from '../../services/customer/ProductReviewService';
 import { FileUploadService } from '../../services/FileUploadService';
+
+const { Option } = Select;
+const { TextArea } = Input;
 
 interface Props {
   order: CustomerOrder;
@@ -64,6 +67,8 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedItemIds, setReviewedItemIds] = useState<string[]>([]);
   const [loadingReviewStatus, setLoadingReviewStatus] = useState<Record<string, boolean>>({});
+  const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
+  const [cancelNote, setCancelNote] = useState<string>('');
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -246,13 +251,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     try {
       setIsCancelling(true);
       if (order.status === 'AWAITING_SHIPMENT') {
-        await OrderHistoryService.requestCancel(order.id, 'CHANGE_OF_MIND', '');
+        await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
         message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng.');
       } else {
-        await OrderHistoryService.cancel(order.id, 'CHANGE_OF_MIND', '');
+        await OrderHistoryService.cancel(order.id, cancelReason, cancelNote);
         message.success('Hủy đơn hàng thành công');
       }
       setShowCancelModal(false);
+      setCancelReason('CHANGE_OF_MIND');
+      setCancelNote('');
       if (onOrderCancelled) {
         onOrderCancelled();
       }
@@ -747,12 +754,53 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <p className="mt-3 text-sm text-gray-600">
               Bạn có chắc chắn muốn {order.status === 'AWAITING_SHIPMENT' ? 'gửi yêu cầu hủy' : 'hủy'} đơn hàng này không?
             </p>
+
+            {/* Lý do hủy */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Lý do hủy</p>
+              <Select
+                value={cancelReason}
+                onChange={setCancelReason}
+                className="w-full"
+                size="large"
+                style={{ borderRadius: 8 }}
+              >
+                <Option value="CHANGE_OF_MIND">Đổi ý</Option>
+                <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
+                <Option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</Option>
+                <Option value="ORDERED_BY_ACCIDENT">Đặt nhầm</Option>
+                <Option value="OTHER">Khác</Option>
+              </Select>
+            </div>
+
+            {/* Ghi chú */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Ghi chú</p>
+              <TextArea
+                rows={3}
+                value={cancelNote}
+                onChange={(e) => setCancelNote(e.target.value)}
+                placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
+                style={{ borderRadius: 8 }}
+              />
+            </div>
+
             <div className="mt-6 flex gap-3">
-              <Button className="flex-1" onClick={() => setShowCancelModal(false)} disabled={isCancelling}>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (!isCancelling) {
+                    setShowCancelModal(false);
+                    setCancelReason('CHANGE_OF_MIND');
+                    setCancelNote('');
+                  }
+                }}
+                disabled={isCancelling}
+              >
                 Đóng
-              </Button> 
+              </Button>
               <Button danger className="flex-1" loading={isCancelling} onClick={handleCancelOrder}>
-                Xác nhận
+                {order.status === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy' : 'Xác nhận hủy'}
               </Button>
             </div>
           </div>
