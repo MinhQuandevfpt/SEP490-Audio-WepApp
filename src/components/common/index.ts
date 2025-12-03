@@ -1,4 +1,3 @@
-export { default as AuthDebugger } from './AuthDebugger';
 export { default as GoogleLoginButton } from './GoogleLoginButton';
 export { default as SocialLoginButton } from './SocialLoginButton';
 export { default as AuthStatus } from './AuthStatus';

@@ -48,7 +48,6 @@ import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
-import SellerDebugPage from '../pages/Seller/Debug';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
 import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
@@ -293,10 +292,6 @@ export const router = createBrowserRouter([
   {
     path: '/seller/kyc-status',
     element: <ProtectedSellerRoute element={<KycStatusPage />} />
-  },
-  {
-    path: '/seller/debug',
-    element: <ProtectedSellerRoute element={<SellerDebugPage />} />
   },
   // Seller Dashboard routes (Only for ACTIVE stores)
   {

@@ -171,4 +171,44 @@ export class KycService {
       throw error;
     }
   }
+
+  /**
+   * Check if business license number is already registered
+   * @param businessLicenseNumber - The business license number to check
+   * @returns true if already exists, false if available
+   */
+  static async checkBusinessLicense(businessLicenseNumber: string): Promise<boolean> {
+    try {
+      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      
+      if (!token) {
+        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+      }
+
+      const storeId = await this.getCurrentStoreId();
+
+      const response = await fetch(
+        `${API_URL}/stores/${storeId}/kyc/check-license?businessLicenseNumber=${encodeURIComponent(businessLicenseNumber)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': '*/*',
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error('❌ Error checking business license:', response.status);
+        return false;
+      }
+
+      const result = await response.json();
+      // API returns {status: 200, message: "warning", data: true/false}
+      return result.data === true;
+    } catch (error) {
+      console.error('❌ Error checking business license:', error);
+      return false;
+    }
+  }
 }
