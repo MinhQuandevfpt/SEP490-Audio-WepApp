@@ -111,14 +111,13 @@ const ShippingFeeCalculator: React.FC<ShippingFeeCalculatorProps> = ({
         return;
       }
 
-      // Build GHN items with reasonable default dimensions and weight from products
+      // Build GHN items with default dimensions and weight from products
       const ghnItems = selectedItems.map(si => {
         const p = productById.get(si.productId);
         const weightKg = (p?.weight && p.weight > 0 ? p.weight : 0.5);
         const weightGr = Math.round(weightKg * 1000);
-        // Use reasonable default dimensions for items (cm)
-        // If product has dimensions, use them; otherwise use defaults based on weight
-        const defaultDim = weightKg > 1 ? 30 : 20; // Larger items get bigger dimensions
+        // Default dimensions: always 1cm for all items
+        const defaultDim = 1;
         return {
           name: si.name,
           quantity: si.quantity,
@@ -132,10 +131,10 @@ const ShippingFeeCalculator: React.FC<ShippingFeeCalculatorProps> = ({
       // Aggregate package weight (sum of all item weights)
       const pkgWeight = ghnItems.reduce((sum, it) => sum + it.weight * it.quantity, 0);
 
-      // Default package dimensions (cm)
-      const pkgLength = 30;
-      const pkgWidth = 40;
-      const pkgHeight = 20;
+      // Default package dimensions (cm) - always 1
+      const pkgLength = 1;
+      const pkgWidth = 1;
+      const pkgHeight = 1;
 
       // Ensure all values are correct types
       const body: GhnFeeRequestBody = {
@@ -153,9 +152,9 @@ const ShippingFeeCalculator: React.FC<ShippingFeeCalculatorProps> = ({
         items: ghnItems.map(item => ({
           name: String(item.name),
           quantity: Number(item.quantity),
-          length: Number(item.length),
-          width: Number(item.width),
-          height: Number(item.height),
+          length: 1, // Default 1cm
+          width: 1, // Default 1cm
+          height: 1, // Default 1cm
           weight: Number(item.weight),
         })),
       };

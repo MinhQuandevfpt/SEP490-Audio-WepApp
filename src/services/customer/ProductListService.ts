@@ -10,7 +10,10 @@ class SimpleHttpClient {
   }
 
   async get<T>(endpoint: string): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    // Check if endpoint is already a full URL
+    const url = endpoint.startsWith('http://') || endpoint.startsWith('https://') 
+      ? endpoint 
+      : `${this.baseURL}${endpoint}`;
     const startTime = performance.now();
     
     // Get token from localStorage for authenticated requests

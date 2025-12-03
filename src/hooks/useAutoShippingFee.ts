@@ -165,18 +165,18 @@ export const useAutoShippingFee = ({
           from_ward_code: fromWardCode,
           to_district_id: Number(toDistrictId), // Ensure it's a number
           to_ward_code: String(toWardCode), // Ensure it's a string
-          length: 30, // Default package dimensions (cm)
-          width: 40, // Default package dimensions (cm)
-          height: 20, // Default package dimensions (cm)
+          length: 1, // Default package dimensions (cm)
+          width: 1, // Default package dimensions (cm)
+          height: 1, // Default package dimensions (cm)
           weight: Number(pkgWeight), // Ensure it's a number (grams)
           insurance_value: 0, // Default insurance value
           coupon: '', // Empty string if no coupon
           items: ghnItems.map(item => ({
             name: String(item.name),
             quantity: Number(item.quantity),
-            length: Number(item.length),
-            width: Number(item.width),
-            height: Number(item.height),
+            length: 1, // Default 1cm
+            width: 1, // Default 1cm
+            height: 1, // Default 1cm
             weight: Number(item.weight),
           })),
         };
