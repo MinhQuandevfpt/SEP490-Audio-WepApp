@@ -10,7 +10,8 @@ import {
   ChevronRight,
   LogOut,
   Zap,
-  Image
+  Image,
+  FileText
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -101,6 +102,11 @@ const AdminSidebar: React.FC = () => {
         { name: 'Tất cả banner', href: '/admin/banners', icon: null },
         { name: 'Tạo banner mới', href: '/admin/banners/create', icon: null }
       ]
+    },
+    {
+      name: 'Quản lý Chính Sách',
+      href: '/admin/policies',
+      icon: <FileText className="w-6 h-6" />
     },
     {
       name: 'Báo cáo & Thống kê',
