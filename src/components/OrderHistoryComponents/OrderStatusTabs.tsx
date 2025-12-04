@@ -35,10 +35,10 @@ const OrderStatusTabs: React.FC<Props> = ({ value, onChange, search, onSearchCha
       {/* Status Tabs - Horizontal */}
       <div className="border-b border-gray-200">
         <div 
-          className="flex items-center gap-1 overflow-x-auto px-4 py-0"
+          className="flex items-center gap-1 overflow-x-auto px-4 py-0 [&::-webkit-scrollbar]:hidden"
           style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#e5e7eb transparent',
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE and Edge
           }}
         >
           {mainStatusOptions.map((option) => {
