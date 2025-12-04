@@ -10,6 +10,7 @@ import {
 } from '../../utils/orderStatus';
 import { X, Package, MapPin, Phone, Receipt, Store, Truck, Calendar, Copy, Check, ExternalLink, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
+import ReturnRequestModal from './ReturnRequestModal';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -42,6 +43,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
   const [cancelReason, setCancelReason] = React.useState<string>('CHANGE_OF_MIND');
   const [cancelNote, setCancelNote] = React.useState<string>('');
   const [isCancelling, setIsCancelling] = React.useState(false);
+  const [showReturnModal, setShowReturnModal] = React.useState(false);
   const totalItemsCount = order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0);
 
   const handleCancelOrder = async () => {
@@ -385,6 +387,20 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                       </Button>
                     </>
                   )}
+                  {order.status === 'DELIVERY_SUCCESS' && (
+                    <Button
+                      className="w-full"
+                      style={{
+                        borderColor: '#f97316',
+                        color: '#f97316',
+                        borderRadius: '8px',
+                        height: '40px',
+                      }}
+                      onClick={() => setShowReturnModal(true)}
+                    >
+                      Hoàn trả sản phẩm
+                    </Button>
+                  )}
                   {canCancelOrder(order.status) && (
                     <Button 
                       danger
@@ -517,6 +533,15 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
           </div>
         </Space>
       </Modal>
+      <ReturnRequestModal
+        open={showReturnModal}
+        order={order}
+        onClose={() => setShowReturnModal(false)}
+        onSuccess={() => {
+          onOrderCancelled?.();
+          setShowReturnModal(false);
+        }}
+      />
     </div>
   );
 };

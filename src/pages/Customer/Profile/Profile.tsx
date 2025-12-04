@@ -6,12 +6,15 @@ import { AddressBook } from '../../../components/ProfilePageComponents/AddressBo
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
+import ReturnHistory from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistory';
 import { ReviewProductPage } from '../ReviewFolder';
 import { WalletPage } from '../../../components/CustomerWalletComponents';
 import { NotificationPage } from '../../../components/ProfilePageComponents/Notifications';
 import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
 import { User, Package, MapPinned, Lock, CreditCard, Shield, Star, Wallet, Bell } from 'lucide-react';
 import { profileCache } from '../../../services/cache/ProfileCache';
+import useCustomerReturns from '../../../hooks/useCustomerReturns';
+import { useNavigate } from 'react-router-dom';
 
 type ProfileTab =
   | 'info'
@@ -22,13 +25,15 @@ type ProfileTab =
   | 'warranty'
   | 'reviews'
   | 'wallet'
-  | 'notifications';
+  | 'notifications'
+  | 'returns';
 
 interface ProfileProps {
   initialTab?: ProfileTab;
 }
 
 const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
+  const navigate = useNavigate();
   const [data, setData] = useState<ProfileData | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [preloadedData, setPreloadedData] = useState<{
@@ -36,6 +41,15 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
     addresses?: any[];
     provinces?: any[];
   }>({});
+  const {
+    returns,
+    page,
+    pageSize,
+    total,
+    isLoading: returnsLoading,
+    error: returnsError,
+    onPaginationChange: onReturnsPageChange,
+  } = useCustomerReturns();
 
   useEffect(() => {
     setData(loadProfileData());
@@ -114,6 +128,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
       { key: 'notifications' as const, label: 'Thông báo', icon: Bell },
       { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
       { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
+      { key: 'returns' as const, label: 'Lịch sử hoàn trả', icon: Package },
     ],
     []
   );
@@ -167,6 +182,29 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
 
               <div className={active === 'warranty' ? 'block' : 'hidden'}>
                 <WarrantyComponent />
+              </div>
+
+              <div className={active === 'returns' ? 'block' : 'hidden'}>
+                <div className="space-y-4">
+                  <ReturnHistory
+                    data={returns}
+                    page={page}
+                    pageSize={pageSize}
+                    total={total}
+                    isLoading={returnsLoading}
+                    error={returnsError}
+                    onPageChange={onReturnsPageChange}
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => navigate('/returns')}
+                      className="px-4 py-2 rounded-lg border border-orange-500 text-orange-600 text-sm font-medium hover:bg-orange-50 transition-colors"
+                    >
+                      Xem đầy đủ lịch sử hoàn trả
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className={active === 'password' ? 'block' : 'hidden'}>

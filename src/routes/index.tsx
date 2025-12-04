@@ -26,6 +26,7 @@ import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
 import WarrantyPage from '../pages/Customer/Warranty/WarrantyPage';
+import ReturnHistoryPage from '../pages/Customer/ReturnHistory/ReturnHistoryPage';
 import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
@@ -70,6 +71,7 @@ import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
 import CreateCombo from '../pages/Seller/Combo/CreateCombo';
 import ComboManagement from '../pages/Seller/Combo/ComboManagement';
+import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -216,6 +218,10 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<OrderHistoryPage />} />
   },
   {
+    path: '/returns',
+    element: <ProtectedRoute element={<ReturnHistoryPage />} />
+  },
+  {
     path: '/warranty',
     element: <ProtectedRoute element={<WarrantyPage />} />
   },
@@ -347,6 +353,10 @@ export const router = createBrowserRouter([
       {
         path: 'orders/cancelled',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
+      },
+      {
+        path: 'returns',
+        element: <StoreReturnsPage />
       },
       {
         path: 'warranty',

@@ -276,7 +276,8 @@ const SellerDashboardLayout: React.FC = () => {
         { label: 'Chờ lấy hàng', path: '/seller/dashboard/orders/processing' },
         { label: 'Đang giao', path: '/seller/dashboard/orders/shipping' },
         { label: 'Đã giao', path: '/seller/dashboard/orders/delivered' },
-        { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' }
+        { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' },
+        { label: 'Hoàn trả sản phẩm', path: '/seller/dashboard/returns' }
       ]
     },
     {

@@ -10,6 +10,8 @@ import type {
   CustomerOrder,
   StoreOrder,
   OrderItem,
+  CreateReturnRequest,
+  ReturnRequestResponse,
 } from '../../types/api';
 import { getCustomerId } from '../../utils/authHelper';
 
@@ -55,12 +57,22 @@ export class OrderHistoryService {
 
       const endpoint = `/api/customers/${customerId}/orders?${queryParams.toString()}`;
       
-      const response = await HttpInterceptor.get<OrderHistoryResponse>(
+      // NOTE:
+      // Backend may return either the legacy structure:
+      //  { items: CustomerOrder[], totalElements, totalPages, page, size }
+      // or a standard Spring Page:
+      //  { content: CustomerOrder[], totalElements, totalPages, number, size, ... }
+      const response = await HttpInterceptor.get<OrderHistoryResponse | any>(
         endpoint,
         { userType: 'customer' }
       );
 
-      const normalizedItems = (response.items || []).map((order) => this.normalizeOrder(order));
+      const raw: any = response as any;
+
+      // Prefer "items" (old) then "content" (new)
+      const sourceItems: CustomerOrder[] = (raw.items || raw.content || []) as CustomerOrder[];
+
+      const normalizedItems = sourceItems.map((order) => this.normalizeOrder(order));
 
       let filteredItems = normalizedItems;
 
@@ -73,12 +85,18 @@ export class OrderHistoryService {
         );
       }
 
+      const totalElements: number = raw.totalElements ?? sourceItems.length ?? 0;
+      const totalPages: number = raw.totalPages ?? 0;
+      // Some Spring Page implementations use "number" for current page index
+      const currentPage: number = raw.page ?? raw.number ?? page;
+      const pageSize: number = raw.size ?? size;
+
       return {
         data: filteredItems,
-        total: response.totalElements || 0,
-        totalPages: response.totalPages || 0,
-        page: response.page || 0,
-        size: response.size || size,
+        total: totalElements,
+        totalPages,
+        page: currentPage,
+        size: pageSize,
       };
     } catch (error: any) {
       console.error('❌ Error fetching order history:', error);
@@ -203,6 +221,24 @@ export class OrderHistoryService {
       // Only log unexpected errors (network issues, auth errors, etc.)
       console.error('Failed to get GHN order:', error);
       return null; // Return null instead of throwing to prevent UI errors
+    }
+  }
+
+  /**
+   * Create return request for delivered order item
+   * POST /api/customers/me/returns
+   */
+  static async requestReturn(payload: CreateReturnRequest): Promise<ReturnRequestResponse> {
+    try {
+      const response = await HttpInterceptor.post<ReturnRequestResponse>(
+        '/api/customers/me/returns',
+        payload,
+        { userType: 'customer' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to submit return request:', error);
+      throw new Error(error?.message || 'Không thể gửi yêu cầu hoàn trả sản phẩm');
     }
   }
 

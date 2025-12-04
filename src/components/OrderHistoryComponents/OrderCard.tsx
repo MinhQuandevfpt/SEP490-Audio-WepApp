@@ -8,6 +8,7 @@ import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import { ProductReviewService } from '../../services/customer/ProductReviewService';
 import { FileUploadService } from '../../services/FileUploadService';
+import ReturnRequestModal from './ReturnRequestModal';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -69,6 +70,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [loadingReviewStatus, setLoadingReviewStatus] = useState<Record<string, boolean>>({});
   const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
   const [cancelNote, setCancelNote] = useState<string>('');
+  const [showReturnModal, setShowReturnModal] = useState(false);
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -722,6 +724,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   </Button>
                 </>
               )}
+              {order.status === 'DELIVERY_SUCCESS' && (
+                <Button
+                  className="h-10 w-full"
+                  style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}
+                  onClick={() => setShowReturnModal(true)}
+                >
+                  Hoàn trả sản phẩm
+                </Button>
+              )}
               {canCancelOrder(order.status) && (
                 <Button danger className="h-10 w-full" style={{ borderRadius: '10px' }} onClick={() => setShowCancelModal(true)}>
                   {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
@@ -806,6 +817,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
           </div>
         </div>
       )}
+      <ReturnRequestModal
+        open={showReturnModal}
+        order={order}
+        onClose={() => setShowReturnModal(false)}
+        onSuccess={() => {
+          onOrderCancelled?.();
+          setShowReturnModal(false);
+        }}
+      />
     </Card>
   );
 };

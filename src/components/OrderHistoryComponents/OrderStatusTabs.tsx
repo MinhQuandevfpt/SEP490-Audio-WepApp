@@ -18,7 +18,8 @@ const mainStatusOptions: { key: AllOrStatus; label: string }[] = [
   { key: 'CONFIRMED', label: 'Chờ xác nhận' },
   { key: 'AWAITING_SHIPMENT', label: 'Chờ lấy hàng' },
   { key: 'SHIPPING', label: 'Vận chuyển' },
-  { key: 'COMPLETED', label: 'Hoàn thành' },
+  // Hoàn thành đơn: sử dụng status DELIVERY_SUCCESS từ backend
+  { key: 'DELIVERY_SUCCESS', label: 'Vận chuyển thành công' },
   { key: 'CANCELLED', label: 'Đã hủy' },
   { key: 'RETURN_REQUESTED', label: 'Trả hàng/Hoàn tiền' },
 ];

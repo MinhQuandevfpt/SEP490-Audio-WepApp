@@ -325,6 +325,43 @@ export type OrderStatus =
   | 'DELIVERY_FAIL'          // Giao hàng thất bại / không giao được
   | 'EXCEPTION';             // Lỗi xử lý đơn hàng
 
+export type ReturnReasonType = 'CUSTOMER_FAULT' | 'SHOP_FAULT';
+
+export interface CreateReturnRequest {
+  orderItemId: string;
+  productId: string;
+  itemPrice: number;
+  reasonType: ReturnReasonType;
+  reason: string;
+  customerVideoUrl?: string | null;
+  customerImageUrls?: string[];
+}
+
+export interface ReturnRequestResponse {
+  id: string;
+  customerId: string;
+  shopId: string;
+  orderItemId: string;
+  productId: string;
+  productName: string;
+  itemPrice: number;
+  reasonType: ReturnReasonType;
+  reason: string;
+  customerImageUrls: string[];
+  customerVideoUrl?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  faultType?: string | null;
+  packageWeight?: number | null;
+  packageLength?: number | null;
+  packageWidth?: number | null;
+  packageHeight?: number | null;
+  shippingFee?: number | null;
+  ghnOrderCode?: string | null;
+  trackingStatus?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Order Item (in store order)
 export interface OrderItem {
   id: string;
