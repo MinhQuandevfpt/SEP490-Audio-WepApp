@@ -1,8 +1,12 @@
-import React from 'react';
-import { Card, Table, Tag, Typography, Pagination, Empty, Spin } from 'antd';
+import React, { useState } from 'react';
+import { Card, Table, Tag, Typography, Pagination, Empty, Spin, Button, message, Modal } from 'antd';
+import { ZoomIn, Video as VideoIcon } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReturnRequestResponse } from '../../../types/api';
 import { formatCurrency, formatDate } from '../../../utils/orderStatus';
+import { ReturnPackingModal, type PackingFormValues } from '../../ReturnPackingModal';
+import { ReturnPackingService } from '../../../services/customer/ReturnPackingService';
+import { ProductListService } from '../../../services/customer/ProductListService';
 
 const { Text } = Typography;
 
@@ -14,6 +18,7 @@ export interface ReturnHistoryProps {
   isLoading: boolean;
   error?: string | null;
   onPageChange: (page: number, pageSize?: number) => void;
+  onReload?: () => void;
 }
 
 const statusColorMap: Record<string, string> = {
@@ -30,11 +35,11 @@ const reasonTypeLabel: Record<string, string> = {
 };
 
 const statusLabelMap: Record<string, string> = {
-  PENDING: 'Đang chờ duyệt',
-  APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
+  PENDING: 'Đang chờ duyệt yêu cầu',
+  APPROVED: 'Đã duyệt yêu cầu',
+  REJECTED: 'Từ chối yêu cầu',
   SHIPPING: 'Đang hoàn trả',
-  REFUNDED: 'Đã hoàn tiền',
+  REFUNDED: 'Đã hoàn trả',
 };
 
 const ReturnHistory: React.FC<ReturnHistoryProps> = ({
@@ -45,19 +50,109 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
   isLoading,
   error,
   onPageChange,
+  onReload,
 }) => {
+  const [packingModalOpen, setPackingModalOpen] = useState(false);
+  const [selectedReturn, setSelectedReturn] = useState<ReturnRequestResponse | null>(null);
+  const [packingInitialValues, setPackingInitialValues] = useState<Partial<PackingFormValues>>({});
+  const [packingLoading, setPackingLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [productWeight, setProductWeight] = useState<number | null>(null);
+  const [productDimensions, setProductDimensions] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ visible: boolean; urls: string[]; current: number }>({
+    visible: false,
+    urls: [],
+    current: 0,
+  });
+  const [videoPreview, setVideoPreview] = useState<{ visible: boolean; url: string }>({
+    visible: false,
+    url: '',
+  });
+
+  const handleOpenPackingModal = async (record: ReturnRequestResponse) => {
+    setSelectedReturn(record);
+    setPackingModalOpen(true);
+    setPackingLoading(true);
+    setProductWeight(null);
+    setProductDimensions(null);
+    
+    try {
+      // Fetch addresses và product info song song
+      const [addresses, productInfo] = await Promise.all([
+        ReturnPackingService.getDefaultAddressesForReturn(record),
+        ProductListService.getProductById(record.productId).catch(() => null), // Nếu lỗi thì bỏ qua
+      ]);
+
+      setPackingInitialValues((prev) => ({
+        ...prev,
+        customerAddressId: addresses.customerAddressId || '',
+        storeAddressId: addresses.storeAddressId || '',
+      }));
+
+      // Lấy weight và dimensions từ product info nếu có
+      if (productInfo?.data) {
+        if (productInfo.data.weight) {
+          setProductWeight(productInfo.data.weight);
+        }
+        
+        if (productInfo.data.dimensions) {
+          setProductDimensions(productInfo.data.dimensions);
+        }
+      }
+    } catch (e: any) {
+      message.error(e?.message || 'Không thể tự động lấy địa chỉ mặc định. Vui lòng kiểm tra lại.');
+    } finally {
+      setPackingLoading(false);
+    }
+  };
+
+  const handleSubmitPacking = async (values: PackingFormValues) => {
+    if (!selectedReturn) {
+      message.error('Không tìm thấy thông tin yêu cầu hoàn trả.');
+      return;
+    }
+
+    try {
+      setSubmitLoading(true);
+      const shippingFee = await ReturnPackingService.submitPackageInfo(selectedReturn.id, values);
+
+      if (typeof shippingFee === 'number') {
+        message.success('Xác nhận đóng gói thành công đơn hoàn trả. Phí vận chuyển: ' + formatCurrency(shippingFee));
+      } else {
+        message.success('Xác nhận đóng gói thành công đơn hoàn trả.');
+      }
+
+      setPackingModalOpen(false);
+      onReload?.();
+    } catch (e: any) {
+      message.error(e?.message || 'Không thể xác nhận đóng gói đơn hoàn trả');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   const columns: ColumnsType<ReturnRequestResponse> = [
+    {
+      title: 'STT',
+      key: 'index',
+      width: 70,
+      align: 'center',
+      render: (_: any, __: ReturnRequestResponse, index: number) => (
+        <Text>{(page - 1) * pageSize + index + 1}</Text>
+      ),
+    },
     {
       title: 'Sản phẩm',
       dataIndex: 'productName',
       key: 'productName',
+      width: 220,
       render: (value: string) => <Text strong>{value}</Text>,
     },
     {
       title: 'Giá hoàn trả',
       dataIndex: 'itemPrice',
       key: 'itemPrice',
-      width: 140,
+      width: 160,
       align: 'right',
       render: (value: number) => <Text>{formatCurrency(value)}</Text>,
     },
@@ -65,7 +160,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       title: 'Loại lý do',
       dataIndex: 'reasonType',
       key: 'reasonType',
-      width: 160,
+      width: 180,
       render: (value: string) => (
         <Tag color={value === 'SHOP_FAULT' ? 'red' : 'default'}>
           {reasonTypeLabel[value] || value}
@@ -76,7 +171,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 140,
+      width: 160,
       render: (value: string) => (
         <Tag color={statusColorMap[value] || 'default'}>
           {statusLabelMap[value] || value}
@@ -86,7 +181,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
     {
       title: 'Hình ảnh / Video',
       key: 'media',
-      width: 220,
+      width: 260,
       render: (_: any, record: ReturnRequestResponse) => {
         const rawImages = Array.isArray(record.customerImageUrls)
           ? record.customerImageUrls.filter(Boolean)
@@ -101,13 +196,103 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
         }
 
         return (
-          <div className="space-y-1 text-xs">
+          <div className="space-y-3">
             {hasRealImages && (
-              <div>Ảnh: {filteredImages.join(', ')}</div>
+              <div className="space-y-2">
+                <Text className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                  <ZoomIn className="w-3 h-3" />
+                  Ảnh ({filteredImages.length})
+                </Text>
+                <div className="grid grid-cols-3 gap-2">
+                  {filteredImages.slice(0, 3).map((url, index) => (
+                    <div
+                      key={index}
+                      className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all shadow-sm hover:shadow-md cursor-pointer"
+                      onClick={() => setImagePreview({ visible: true, urls: filteredImages, current: index })}
+                    >
+                      <img
+                        src={url}
+                        alt={`Return image ${index + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                        <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      {index === 2 && filteredImages.length > 3 && (
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                          <Text className="text-white font-semibold text-sm">+{filteredImages.length - 3}</Text>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             {hasRealVideo && (
-              <div>Video: {rawVideo}</div>
+              <div className="space-y-2">
+                <Text className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                  <VideoIcon className="w-3 h-3" />
+                  Video
+                </Text>
+                <div
+                  className="relative rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all shadow-sm hover:shadow-md cursor-pointer group"
+                  onClick={() => setVideoPreview({ visible: true, url: rawVideo })}
+                >
+                  <video
+                    src={rawVideo}
+                    className="w-full h-32 object-cover"
+                    onMouseEnter={(e) => e.currentTarget.play()}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.pause();
+                      e.currentTarget.currentTime = 0;
+                    }}
+                  >
+                    Trình duyệt không hỗ trợ video
+                  </video>
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                    <VideoIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+              </div>
             )}
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Thông tin gói hàng',
+      key: 'packageInfo',
+      width: 280,
+      render: (_: any, record: ReturnRequestResponse) => {
+        const hasPackageInfo =
+          record.packageWeight != null &&
+          record.packageLength != null &&
+          record.packageWidth != null &&
+          record.packageHeight != null &&
+          record.shippingFee != null;
+
+        if (!hasPackageInfo) {
+          return <Text type="secondary">Chưa đóng gói</Text>;
+        }
+
+        return (
+          <div className="space-y-1 text-xs">
+            <div>
+              Khối lượng:{' '}
+              <Text strong>
+                {record.packageWeight} kg
+              </Text>
+            </div>
+            <div>
+              Kích thước:{' '}
+              <Text strong>
+                {record.packageLength} x {record.packageWidth} x {record.packageHeight} cm
+              </Text>
+            </div>
+            <div>
+              Phí vận chuyển:{' '}
+              <Text strong>{formatCurrency(record.shippingFee || 0)}</Text>
+            </div>
           </div>
         );
       },
@@ -116,8 +301,43 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 180,
+      width: 190,
       render: (value: string) => <Text>{formatDate(value)}</Text>,
+    },
+    {
+      title: 'Thao tác',
+      key: 'actions',
+      width: 200,
+      render: (_: any, record: ReturnRequestResponse) => {
+        if (record.status !== 'APPROVED') {
+          return <Text type="secondary">—</Text>;
+        }
+
+        const hasPackageInfo =
+          record.packageWeight != null &&
+          record.packageLength != null &&
+          record.packageWidth != null &&
+          record.packageHeight != null &&
+          record.shippingFee != null;
+
+        if (hasPackageInfo) {
+          return (
+            <Button type="primary" size="small" disabled>
+              Đã đóng gói
+            </Button>
+          );
+        }
+
+        return (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => handleOpenPackingModal(record)}
+          >
+            Thực hiện đóng gói và hoàn đơn
+          </Button>
+        );
+      },
     },
   ];
 
@@ -148,6 +368,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
             columns={columns}
             dataSource={data}
             pagination={false}
+            scroll={{ x: 1200 }}
           />
           <div className="px-4 py-3 flex justify-end">
             <Pagination
@@ -162,6 +383,91 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
           </div>
         </>
       )}
+
+      <ReturnPackingModal
+        open={packingModalOpen}
+        onCancel={() => {
+          setPackingModalOpen(false);
+          setProductWeight(null);
+          setProductDimensions(null);
+        }}
+        onSubmit={handleSubmitPacking}
+        initialValues={packingInitialValues}
+        loading={packingLoading || submitLoading}
+        productWeight={productWeight}
+        productDimensions={productDimensions}
+      />
+
+      {/* Image Preview Modal */}
+      <Modal
+        open={imagePreview.visible}
+        onCancel={() => setImagePreview({ visible: false, urls: [], current: 0 })}
+        footer={null}
+        width="90vw"
+        style={{ maxWidth: '1200px' }}
+        centered
+        className="image-preview-modal"
+      >
+        <div className="relative">
+          <img
+            src={imagePreview.urls[imagePreview.current]}
+            alt={`Image ${imagePreview.current + 1}`}
+            className="w-full rounded-lg"
+            style={{ maxHeight: '80vh', objectFit: 'contain' }}
+          />
+          {imagePreview.urls.length > 1 && (
+            <>
+              <Button
+                type="default"
+                shape="circle"
+                icon={<span>‹</span>}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white shadow-lg"
+                onClick={() =>
+                  setImagePreview((prev) => ({
+                    ...prev,
+                    current: (prev.current - 1 + prev.urls.length) % prev.urls.length,
+                  }))
+                }
+              />
+              <Button
+                type="default"
+                shape="circle"
+                icon={<span>›</span>}
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white shadow-lg"
+                onClick={() =>
+                  setImagePreview((prev) => ({
+                    ...prev,
+                    current: (prev.current + 1) % prev.urls.length,
+                  }))
+                }
+              />
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 text-white px-3 py-1 rounded-full text-sm">
+                {imagePreview.current + 1} / {imagePreview.urls.length}
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Video Preview Modal */}
+      <Modal
+        open={videoPreview.visible}
+        onCancel={() => setVideoPreview({ visible: false, url: '' })}
+        footer={null}
+        width="90vw"
+        style={{ maxWidth: '800px' }}
+        centered
+      >
+        <video
+          src={videoPreview.url}
+          controls
+          autoPlay
+          className="w-full rounded-lg"
+          style={{ maxHeight: '70vh' }}
+        >
+          Trình duyệt không hỗ trợ video
+        </video>
+      </Modal>
     </Card>
   );
 };

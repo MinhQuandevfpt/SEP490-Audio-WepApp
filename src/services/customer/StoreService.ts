@@ -1,5 +1,6 @@
 // Store Service for customer to get store information
 import { HttpInterceptor } from '../HttpInterceptor';
+import type { StoreDetail, StoreDetailResponse as SellerStoreDetailResponse } from '../../types/seller';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
@@ -45,6 +46,25 @@ export class CustomerStoreService {
       console.error('❌ Error getting store detail:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get full store detail including addresses (using seller StoreDetail type)
+   * This reuses the same /stores/{storeId} endpoint but exposes storeAddresses.
+   */
+  static async getStoreDetailWithAddresses(storeId: string): Promise<StoreDetail> {
+    const response = await HttpInterceptor.get<SellerStoreDetailResponse>(
+      `${API_URL}/stores/${storeId}`,
+      {
+        userType: 'customer',
+      }
+    );
+
+    if (!response.data) {
+      throw new Error('Store data not found');
+    }
+
+    return response.data;
   }
 
   /**

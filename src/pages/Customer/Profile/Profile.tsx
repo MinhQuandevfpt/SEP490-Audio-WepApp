@@ -6,7 +6,7 @@ import { AddressBook } from '../../../components/ProfilePageComponents/AddressBo
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
-import ReturnHistory from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistory';
+import ReturnHistoryCard from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistoryCard';
 import { ReviewProductPage } from '../ReviewFolder';
 import { WalletPage } from '../../../components/CustomerWalletComponents';
 import { NotificationPage } from '../../../components/ProfilePageComponents/Notifications';
@@ -43,13 +43,25 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
   }>({});
   const {
     returns,
-    page,
-    pageSize,
     total,
     isLoading: returnsLoading,
     error: returnsError,
-    onPaginationChange: onReturnsPageChange,
+    reload: reloadReturns,
   } = useCustomerReturns();
+
+  // Chỉ lấy 1 return order mới nhất dựa theo ngày tạo
+  const latestReturn = useMemo(() => {
+    if (!returns || returns.length === 0) return [];
+    
+    // Sort theo createdAt desc và lấy phần tử đầu tiên
+    const sorted = [...returns].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA; // Descending order (mới nhất trước)
+    });
+    
+    return sorted.slice(0, 1); // Chỉ lấy 1 item đầu tiên
+  }, [returns]);
 
   useEffect(() => {
     setData(loadProfileData());
@@ -186,24 +198,23 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
 
               <div className={active === 'returns' ? 'block' : 'hidden'}>
                 <div className="space-y-4">
-                  <ReturnHistory
-                    data={returns}
-                    page={page}
-                    pageSize={pageSize}
-                    total={total}
+                  <ReturnHistoryCard
+                    data={latestReturn[0] || null}
                     isLoading={returnsLoading}
                     error={returnsError}
-                    onPageChange={onReturnsPageChange}
+                    onReload={reloadReturns}
                   />
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/returns')}
-                      className="px-4 py-2 rounded-lg border border-orange-500 text-orange-600 text-sm font-medium hover:bg-orange-50 transition-colors"
-                    >
-                      Xem đầy đủ lịch sử hoàn trả
-                    </button>
-                  </div>
+                  {total > 1 && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/returns')}
+                        className="px-4 py-2 rounded-lg border border-orange-500 text-orange-600 text-sm font-medium hover:bg-orange-50 transition-colors"
+                      >
+                        Xem đầy đủ lịch sử hoàn trả ({total} yêu cầu)
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

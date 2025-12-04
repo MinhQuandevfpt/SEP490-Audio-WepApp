@@ -47,6 +47,33 @@ export class StoreReturnService {
       throw new Error(error?.message || 'Không thể duyệt yêu cầu hoàn trả');
     }
   }
+
+  static async createGhnOrder(id: string, pickShiftId: number): Promise<ReturnRequestResponse> {
+    try {
+      const endpoint = `/api/store/returns/${id}/create-ghn-order`;
+      const response = await HttpInterceptor.post<ReturnRequestResponse>(
+        endpoint,
+        { pickShiftId },
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      throw new Error(error?.message || 'Không thể tạo đơn GHN');
+    }
+  }
+
+  static async reject(id: string, shopRejectReason: string): Promise<void> {
+    try {
+      const endpoint = `/api/store/returns/${id}/reject`;
+      await HttpInterceptor.post<void>(
+        endpoint,
+        { shopRejectReason },
+        { userType: 'seller' }
+      );
+    } catch (error: any) {
+      throw new Error(error?.message || 'Không thể từ chối yêu cầu hoàn trả');
+    }
+  }
 }
 
 export default StoreReturnService;
