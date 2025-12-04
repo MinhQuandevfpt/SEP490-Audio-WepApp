@@ -60,6 +60,7 @@ import OrderPageStaff from '../pages/StoreStaff/Order/OrderPageStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
 import { ReplyReviewPage } from '../pages/Seller/ReplyPeview';
 import { MessagesPage } from '../pages/Seller/Messages';
+import NotificationPage from '../pages/Seller/NotificationFolder/NotificationPage';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -441,6 +442,10 @@ export const router = createBrowserRouter([
       {
         path: 'reviews',
         element: <ReplyReviewPage />
+      },
+      {
+        path: 'notifications',
+        element: <NotificationPage />
       },
       {
         path: 'settings',

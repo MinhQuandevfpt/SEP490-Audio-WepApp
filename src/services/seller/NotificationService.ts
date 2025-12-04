@@ -49,23 +49,37 @@ export interface UnreadCountResponse {
 
 export class NotificationService {
   /**
-   * Get store notifications with pagination
-   * GET /api/store/notifications?page=0&size=20
+   * Get store notifications with pagination and search
+   * GET /api/store/notifications?keyword=a&page=0&size=20
    */
-  static async getNotifications(page: number = 0, size: number = 20): Promise<StoreNotificationPageResponse> {
+  static async getNotifications(
+    page: number = 0, 
+    size: number = 20, 
+    keyword?: string
+  ): Promise<StoreNotificationPageResponse> {
     try {
       const queryParams = new URLSearchParams({
         page: String(page),
         size: String(size),
       });
 
+      // Add keyword if provided
+      if (keyword && keyword.trim()) {
+        queryParams.append('keyword', keyword.trim());
+      }
+
       const url = `${API_URL}/store/notifications?${queryParams.toString()}`;
-      const data = await HttpInterceptor.get<StoreNotificationPageResponse>(url, {
+      const response = await HttpInterceptor.get<StoreNotificationPageResponse | { data: StoreNotificationPageResponse }>(url, {
         headers: { 'Accept': '*/*' },
         userType: 'seller',
       });
 
-      return data;
+      // Handle both wrapped and unwrapped responses
+      if (response && 'data' in response && response.data) {
+        return response.data;
+      }
+      
+      return response as StoreNotificationPageResponse;
     } catch (error) {
       console.error('❌ Error fetching store notifications:', error);
       throw error;
@@ -79,15 +93,21 @@ export class NotificationService {
   static async getUnreadCount(): Promise<number> {
     try {
       const url = `${API_URL}/store/notifications/unread-count`;
-      const data = await HttpInterceptor.get<UnreadCountResponse>(url, {
+      const response = await HttpInterceptor.get<UnreadCountResponse | { data: UnreadCountResponse }>(url, {
         headers: { 'Accept': '*/*' },
         userType: 'seller',
       });
 
-      return data.unreadCount || 0;
+      // Handle both wrapped and unwrapped responses
+      if (response && 'data' in response && response.data) {
+        return response.data.unreadCount || 0;
+      }
+      
+      return (response as UnreadCountResponse).unreadCount || 0;
     } catch (error) {
       console.error('❌ Error fetching unread notification count:', error);
-      throw error;
+      // Return 0 on error instead of throwing
+      return 0;
     }
   }
 
