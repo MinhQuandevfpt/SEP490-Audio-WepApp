@@ -168,7 +168,7 @@ const parseAddressSegments = (address: string) => {
 
 const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, onSubmit }) => {
   const [formData, setFormData] = useState<GhnTransferFormData>({
-    payment_type_id: 0,
+    payment_type_id: 1, // Mặc định: Shop trả phí ship
     note: '',
     required_note: '',
     from_name: '',
@@ -367,7 +367,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                 height: 0,
                 weight: 0,
                 category: {
-                  level1: '',
+                  level1: 'PRODUCT', // Mặc định: PRODUCT
                   level2: '',
                   level3: '',
                 },
@@ -378,11 +378,15 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             const ghnItems = await Promise.all(ghnItemsPromises);
             console.log('📦 Mapped GHN items:', ghnItems);
 
-            // Set all to address fields and items at once
+            // Calculate total product value for COD amount
+            const totalProductValue = ghnItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+
+            // Set all to address fields and items at once, auto-set COD amount
             setFormData(prev => ({
               ...prev,
               ...toAddressData,
               items: ghnItems,
+              cod_amount: totalProductValue, // Tự động set COD = tổng giá trị sản phẩm
             }));
           } catch (error: any) {
             console.error('❌ Error loading product details:', error);
@@ -400,16 +404,20 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
               height: 0,
               weight: 0,
               category: {
-                level1: '',
+                level1: 'PRODUCT', // Mặc định: PRODUCT
                 level2: '',
                 level3: '',
               },
             }));
             
+            // Calculate total product value for COD amount
+            const totalProductValue = ghnItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+
             setFormData(prev => ({
               ...prev,
               ...toAddressData,
               items: ghnItems,
+              cod_amount: totalProductValue, // Tự động set COD = tổng giá trị sản phẩm
             }));
           }
         } else {
@@ -510,12 +518,20 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
   };
 
   const handleItemChange = (index: number, field: keyof GhnItem, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) =>
+    setFormData(prev => {
+      const updatedItems = prev.items.map((item, i) =>
         i === index ? { ...item, [field]: value } : item
-      ),
-    }));
+      );
+      
+      // Auto-update COD amount when item price or quantity changes
+      const totalProductValue = updatedItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+      
+      return {
+        ...prev,
+        items: updatedItems,
+        cod_amount: totalProductValue,
+      };
+    });
   };
 
   const handleCategoryChange = (index: number, level: 'level1' | 'level2' | 'level3', value: string) => {
@@ -565,14 +581,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
-  // Helper function to parse number from formatted string (1.000.000 -> 1000000)
-  const parseCurrency = (value: string): number => {
-    if (!value || value.trim() === '') return 0;
-    // Remove all dots and parse
-    const cleaned = value.replace(/\./g, '');
-    const parsed = parseInt(cleaned, 10);
-    return isNaN(parsed) ? 0 : parsed;
-  };
 
 
   const handlePickShiftChange = (shiftId: number) => {
@@ -1176,16 +1184,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
               <h3 className="text-sm font-semibold text-gray-900 mb-4">Thông tin cơ bản</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Loại thanh toán phí ship *</label>
-                  <select
-                    value={formData.payment_type_id || ''}
-                    onChange={(e) => handleInputChange('payment_type_id', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
-                  >
-                    <option value="">-- Chọn loại thanh toán --</option>
-                    <option value="1">1: Shop trả phí ship</option>
-                    <option value="2">2: Người nhận trả</option>
-                  </select>
+                  <label className="block text-xs text-gray-600 mb-1">Loại thanh toán phí ship</label>
+                  <input
+                    type="text"
+                    value="Shop trả phí ship"
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Loại dịch vụ *</label>
@@ -1512,10 +1518,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                         <label className="block text-xs text-gray-600 mb-1">Danh mục Level 1 *</label>
                         <input
                           type="text"
-                          value={item.category.level1}
-                          required
-                          onChange={(e) => handleCategoryChange(index, 'level1', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          value="Sản phẩm"
+                          disabled
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                         />
                       </div>
                       {itemCategoryLevels[index]?.level2 && (
@@ -1648,24 +1654,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   <input
                     type="text"
                     value={formatCurrency(formData.cod_amount)}
-                    onChange={(e) => {
-                      const inputValue = e.target.value;
-                      // Allow empty input
-                      if (inputValue === '') {
-                        handleInputChange('cod_amount', 0);
-                        return;
-                      }
-                      // Parse the formatted value
-                      const parsedValue = parseCurrency(inputValue);
-                      // Validate max value
-                      if (parsedValue <= 10000000) {
-                        handleInputChange('cod_amount', parsedValue);
-                      }
-                    }}
-                    placeholder="≤ 10.000.000 VND"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    disabled
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 10.000.000 VND</p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Giá trị bảo hiểm (VND)</label>
