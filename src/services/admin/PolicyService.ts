@@ -30,7 +30,6 @@ export class PolicyService {
           headers: {
             'Content-Type': 'application/json',
           },
-          userType: 'admin',
         }
       );
       return response;
@@ -54,7 +53,6 @@ export class PolicyService {
           headers: {
             'Content-Type': 'application/json',
           },
-          userType: 'admin',
         }
       );
       return response;
@@ -154,7 +152,6 @@ export class PolicyService {
           headers: {
             'Content-Type': 'application/json',
           },
-          userType: 'admin',
         }
       );
       return response;
@@ -178,7 +175,6 @@ export class PolicyService {
           headers: {
             'Content-Type': 'application/json',
           },
-          userType: 'admin',
         }
       );
       return response;

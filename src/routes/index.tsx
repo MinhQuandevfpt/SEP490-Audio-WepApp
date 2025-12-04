@@ -72,6 +72,7 @@ import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
 import CreateCombo from '../pages/Seller/Combo/CreateCombo';
 import ComboManagement from '../pages/Seller/Combo/ComboManagement';
 import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
+import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -260,6 +261,14 @@ export const router = createBrowserRouter([
   {
     path: '/flash-sale/:campaignId',
     element: <FlashSaleDetail />
+  },
+  {
+    path: '/policies',
+    element: <PoliciesPage />
+  },
+  {
+    path: '/policies/:categoryId',
+    element: <PolicyCategoryDetailPage />
   },
   {
     path: '/auth',

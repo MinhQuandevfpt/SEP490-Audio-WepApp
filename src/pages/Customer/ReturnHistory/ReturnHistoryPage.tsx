@@ -1,6 +1,6 @@
 import React from 'react';
 import { Breadcrumb, Space, Typography } from 'antd';
-import { Home, Package } from 'lucide-react';
+import { Home } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import useCustomerReturns from '../../../hooks/useCustomerReturns';
 import ReturnHistory from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistory';

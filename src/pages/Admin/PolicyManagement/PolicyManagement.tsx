@@ -87,6 +87,7 @@ const PolicyManagement: React.FC = () => {
     createCategory,
     updateCategory,
     deleteCategory,
+    refetch: refetchCategories,
   } = usePolicyCategories();
 
   const {
@@ -95,6 +96,7 @@ const PolicyManagement: React.FC = () => {
     createItem,
     updateItem,
     deleteItem,
+    refetch: refetchItems,
   } = usePolicyItems(selectedCategory?.id);
 
   // Stats
@@ -162,13 +164,15 @@ const PolicyManagement: React.FC = () => {
         try {
           await deleteCategory(categoryId);
           message.success('Xóa danh mục thành công!');
+          // Force refresh to ensure UI updates
+          await refetchCategories();
         } catch (error) {
           message.error('Không thể xóa danh mục. Vui lòng thử lại.');
           console.error('Delete category error:', error);
         }
       },
     });
-  }, [deleteCategory]);
+  }, [deleteCategory, refetchCategories]);
 
   const handleCategorySubmit = useCallback(async (values: any) => {
     try {
@@ -181,10 +185,12 @@ const PolicyManagement: React.FC = () => {
       }
       setCategoryModalVisible(false);
       categoryForm.resetFields();
+      // Force refresh to ensure UI updates
+      await refetchCategories();
     } catch (error) {
       message.error(editingCategory ? 'Không thể cập nhật danh mục' : 'Không thể tạo danh mục');
     }
-  }, [editingCategory, createCategory, updateCategory, categoryForm]);
+  }, [editingCategory, createCategory, updateCategory, categoryForm, refetchCategories]);
 
   // Item handlers
   const handleViewItems = useCallback((category: PolicyCategory) => {
@@ -229,13 +235,19 @@ const PolicyManagement: React.FC = () => {
         try {
           await deleteItem(itemId);
           message.success('Xóa mục thành công!');
+          // Force refresh to ensure UI updates
+          if (selectedCategory?.id) {
+            await refetchItems(selectedCategory.id);
+          }
+          // Also refresh categories to update item count
+          await refetchCategories();
         } catch (error) {
           message.error('Không thể xóa mục. Vui lòng thử lại.');
           console.error('Delete item error:', error);
         }
       },
     });
-  }, [deleteItem]);
+  }, [deleteItem, selectedCategory, refetchItems, refetchCategories]);
 
   const handleItemSubmit = useCallback(async (values: any) => {
     try {
@@ -253,10 +265,16 @@ const PolicyManagement: React.FC = () => {
       }
       setItemModalVisible(false);
       itemForm.resetFields();
+      // Force refresh to ensure UI updates
+      if (selectedCategory?.id) {
+        await refetchItems(selectedCategory.id);
+      }
+      // Also refresh categories to update item count
+      await refetchCategories();
     } catch (error) {
       message.error(editingItem ? 'Không thể cập nhật mục' : 'Không thể tạo mục');
     }
-  }, [editingItem, selectedCategory, createItem, updateItem, itemForm]);
+  }, [editingItem, selectedCategory, createItem, updateItem, itemForm, refetchItems, refetchCategories]);
 
   // Category columns
   const categoryColumns: ColumnsType<PolicyCategory> = useMemo(() => [
