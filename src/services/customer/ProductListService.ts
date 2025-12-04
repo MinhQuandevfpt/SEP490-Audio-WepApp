@@ -1,6 +1,6 @@
 // Import HttpClient from Authcustomer.ts since it's already defined there
 // We'll create a simple HTTP client for this service
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 
 class SimpleHttpClient {
   private baseURL: string;

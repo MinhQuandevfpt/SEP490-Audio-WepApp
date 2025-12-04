@@ -15,7 +15,7 @@ export interface AIChatResponse {
 
 export class AIChatService {
   private static get BASE_URL() {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
     return baseUrl.endsWith('/api') ? `${baseUrl}/ai` : `${baseUrl}/api/ai`;
   }
 

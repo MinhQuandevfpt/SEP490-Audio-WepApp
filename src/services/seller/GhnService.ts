@@ -1,7 +1,7 @@
 import type { Province, ProvinceListResponse, District, DistrictListResponse, DistrictRequest, Ward, WardListResponse, WardRequest } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 
 class HttpClient {
