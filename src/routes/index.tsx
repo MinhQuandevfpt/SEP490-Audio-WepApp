@@ -12,6 +12,7 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
+import { ShopWideVoucherPage } from '../pages/Seller/ShopWideVoucher';
 import { CampaignList as SellerCampaignList } from '../pages/Seller/Campaign';
 import CampaignProductDetails from '../pages/Seller/Campaign/CampaignProductDetails';
 import AdminLayout from '../components/AdminLayout';
@@ -47,7 +48,6 @@ import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
 import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
-import SellerDebugPage from '../pages/Seller/Debug';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
 import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
@@ -58,6 +58,9 @@ import StaffDashboardHome from '../pages/StoreStaff/Dashboard/StaffDashboardHome
 import StaffDashboardLayout from '../components/StaffDashboardLayout';
 import OrderPageStaff from '../pages/StoreStaff/Order/OrderPageStaff';
 import { StaffLoginLayout } from '../components/Loginforstorestaffcomponents';
+import { ReplyReviewPage } from '../pages/Seller/ReplyPeview';
+import { MessagesPage } from '../pages/Seller/Messages';
+import NotificationPage from '../pages/Seller/NotificationFolder/NotificationPage';
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
@@ -180,8 +183,20 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<Profile />} />
   },
   {
+    path: '/login',
+    element: <Navigate to="/auth/login" replace />
+  },
+  {
     path: '/account/reviews',
     element: <ProtectedRoute element={<Profile initialTab="reviews" />} />
+  },
+  {
+    path: '/account/wallet',
+    element: <ProtectedRoute element={<Profile initialTab="wallet" />} />
+  },
+  {
+    path: '/account/notifications',
+    element: <ProtectedRoute element={<Profile initialTab="notifications" />} />
   },
   {
     path: '/product/:id',
@@ -278,10 +293,6 @@ export const router = createBrowserRouter([
   {
     path: '/seller/kyc-status',
     element: <ProtectedSellerRoute element={<KycStatusPage />} />
-  },
-  {
-    path: '/seller/debug',
-    element: <ProtectedSellerRoute element={<SellerDebugPage />} />
   },
   // Seller Dashboard routes (Only for ACTIVE stores)
   {
@@ -401,6 +412,10 @@ export const router = createBrowserRouter([
         element: <CreateVoucherPage />
       },
       {
+        path: 'shop-wide-voucher',
+        element: <ShopWideVoucherPage />
+      },
+      {
         path: 'marketing/flash-sale',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Flash Sale</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
       },
@@ -422,11 +437,15 @@ export const router = createBrowserRouter([
       },
       {
         path: 'messages',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Tin nhắn</h2><p className="text-gray-600 mt-2">Trang tin nhắn đang được phát triển...</p></div>
+        element: <MessagesPage />
       },
       {
         path: 'reviews',
-        element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đánh giá sản phẩm</h2><p className="text-gray-600 mt-2">Trang đánh giá đang được phát triển...</p></div>
+        element: <ReplyReviewPage />
+      },
+      {
+        path: 'notifications',
+        element: <NotificationPage />
       },
       {
         path: 'settings',

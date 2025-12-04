@@ -44,6 +44,18 @@ const ReviewItemCard: React.FC<ReviewItemCardProps> = ({ review, onEdit, onDelet
           )}
         </div>
 
+        {review.replies && review.replies.length > 0 && (
+          <div className="mt-3 space-y-2 bg-gray-50 border border-gray-100 rounded-lg p-3">
+            {review.replies.map((reply, index) => (
+              <div key={`${review.id}-reply-${index}`}>
+                <p className="text-xs font-semibold text-gray-700">{reply.storeName || 'Cửa hàng phản hồi'}</p>
+                <p className="text-[11px] text-gray-500 mb-1">{formatDate(reply.createdAt)}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{reply.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         {(onEdit || onDelete) && (
           <div className="flex justify-end gap-2">
             {onDelete && (

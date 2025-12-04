@@ -1,6 +1,6 @@
 // Import HttpClient from Authcustomer.ts since it's already defined there
 // We'll create a simple HTTP client for this service
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 
 class SimpleHttpClient {
   private baseURL: string;
@@ -10,7 +10,10 @@ class SimpleHttpClient {
   }
 
   async get<T>(endpoint: string): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    // Check if endpoint is already a full URL
+    const url = endpoint.startsWith('http://') || endpoint.startsWith('https://') 
+      ? endpoint 
+      : `${this.baseURL}${endpoint}`;
     const startTime = performance.now();
     
     // Get token from localStorage for authenticated requests
@@ -84,6 +87,8 @@ export interface ProductListParams {
   storeId?: string;
   keyword?: string;
   status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED';
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export interface ProductVariant {
@@ -257,7 +262,10 @@ export interface ProductListResponse {
 }
 
 export class ProductListService {
-  private static readonly BASE_URL = '/api/products';
+  private static get BASE_URL() {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    return baseUrl.endsWith('/api') ? `${baseUrl}/products` : `${baseUrl}/api/products`;
+  }
 
   /**
    * Lấy danh sách sản phẩm với các tham số lọc
@@ -275,6 +283,12 @@ export class ProductListService {
       if (params.storeId) queryParams.append('storeId', params.storeId);
       if (params.keyword) queryParams.append('keyword', params.keyword);
       if (params.status) queryParams.append('status', params.status);
+      if (params.minPrice !== undefined && params.minPrice >= 0) {
+        queryParams.append('minPrice', String(params.minPrice));
+      }
+      if (params.maxPrice !== undefined && params.maxPrice >= 0) {
+        queryParams.append('maxPrice', String(params.maxPrice));
+      }
 
       const url = `${this.BASE_URL}?${queryParams.toString()}`;
       const cacheKey = getCacheKey(url);

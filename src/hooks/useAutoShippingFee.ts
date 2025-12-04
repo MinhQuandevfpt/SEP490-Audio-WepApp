@@ -12,6 +12,7 @@ interface UseAutoShippingFeeProps {
   onShippingFeeChange: (fee: number) => void;
   onProductCacheUpdate: (cache: Map<string, Product>) => void;
   autoCalculate?: boolean; // Enable/disable auto calculation
+  onError?: (message: string) => void; // Optional error handler
 }
 
 export const useAutoShippingFee = ({
@@ -23,6 +24,7 @@ export const useAutoShippingFee = ({
   onShippingFeeChange,
   onProductCacheUpdate,
   autoCalculate = true,
+  onError,
 }: UseAutoShippingFeeProps) => {
   const timeoutRef = useRef<number | null>(null);
   const isCalculatingRef = useRef(false);
@@ -32,13 +34,15 @@ export const useAutoShippingFee = ({
   const productCacheRef = useRef(productCache);
   const onShippingFeeChangeRef = useRef(onShippingFeeChange);
   const onProductCacheUpdateRef = useRef(onProductCacheUpdate);
+  const onErrorRef = useRef(onError);
   
   useEffect(() => {
     addressesRef.current = addresses;
     productCacheRef.current = productCache;
     onShippingFeeChangeRef.current = onShippingFeeChange;
     onProductCacheUpdateRef.current = onProductCacheUpdate;
-  }, [addresses, productCache, onShippingFeeChange, onProductCacheUpdate]);
+    onErrorRef.current = onError;
+  }, [addresses, productCache, onShippingFeeChange, onProductCacheUpdate, onError]);
 
   useEffect(() => {
     // Clear previous timeout
@@ -130,40 +134,99 @@ export const useAutoShippingFee = ({
           const p = productById.get(si.productId);
           const weightKg = (p?.weight && p.weight > 0 ? p.weight : 0.5);
           const weightGr = Math.round(weightKg * 1000);
+          // Luôn sử dụng kích thước mặc định 1x1x1 (cm) cho mọi sản phẩm
+          const defaultDim = 1;
           return {
             name: si.name,
             quantity: si.quantity,
-            length: 1,
-            width: 1,
-            height: 1,
+            length: defaultDim,
+            width: defaultDim,
+            height: defaultDim,
             weight: weightGr,
           };
         });
 
         const pkgWeight = ghnItems.reduce((sum, it) => sum + it.weight * it.quantity, 0);
 
+        // Ensure to_district_id and to_ward_code are valid
+        const toDistrictId = currentAddress.districtId;
+        const toWardCode = currentAddress.wardCode;
+        if (!toDistrictId || !toWardCode) {
+          if (onErrorRef.current) {
+            onErrorRef.current('Địa chỉ nhận hàng không đầy đủ thông tin quận/huyện hoặc phường/xã.');
+          }
+          return;
+        }
+
+        // Build request body with all required fields
         const body = {
           service_type_id: serviceTypeId,
           from_district_id: fromDistrictId,
           from_ward_code: fromWardCode,
-          to_district_id: currentAddress.districtId!,
-          to_ward_code: currentAddress.wardCode!,
-          length: 1,
-          width: 1,
-          height: 1,
-          weight: pkgWeight,
-          insurance_value: 0,
-          coupon: '',
-          items: ghnItems,
+          to_district_id: Number(toDistrictId), // Ensure it's a number
+          to_ward_code: String(toWardCode), // Ensure it's a string
+          length: 1, // Default package dimensions (cm)
+          width: 1, // Default package dimensions (cm)
+          height: 1, // Default package dimensions (cm)
+          weight: Number(pkgWeight), // Ensure it's a number (grams)
+          insurance_value: 0, // Default insurance value
+          coupon: '', // Empty string if no coupon
+          items: ghnItems.map(item => ({
+            name: String(item.name),
+            quantity: Number(item.quantity),
+            length: 1, // Default 1cm
+            width: 1, // Default 1cm
+            height: 1, // Default 1cm
+            weight: Number(item.weight),
+          })),
         };
 
         const resp = await ShippingService.calculateGhnFee(body);
-        if (resp.code === 200 && resp.data?.total) {
-          onShippingFeeChangeRef.current(resp.data.total);
+
+        // Check if response is valid
+        if (!resp) {
+          if (onErrorRef.current) {
+            onErrorRef.current('Không nhận được phản hồi từ API. Vui lòng thử lại.');
+          }
+          return;
+        }
+
+        // Check if response code is 200
+        if (resp.code !== 200) {
+          if (onErrorRef.current) {
+            onErrorRef.current(resp.message || 'Không thể tính phí vận chuyển. Vui lòng thử lại hoặc kiểm tra lại địa chỉ.');
+          }
+          return;
+        }
+
+        // Check if data exists
+        if (!resp.data) {
+          if (onErrorRef.current) {
+            onErrorRef.current('Phản hồi từ API không hợp lệ. Vui lòng thử lại.');
+          }
+          return;
+        }
+
+        // Check if service_fee exists (can be 0, so check for undefined/null)
+        if (resp.data.service_fee === undefined || resp.data.service_fee === null) {
+          if (onErrorRef.current) {
+            onErrorRef.current('Không tìm thấy phí vận chuyển trong phản hồi. Vui lòng thử lại.');
+          }
+          return;
+        }
+
+        // Use service_fee from response for shipping fee
+        const serviceFee = Number(resp.data.service_fee) || 0;
+        onShippingFeeChangeRef.current(serviceFee);
+        // Clear previous error on success
+        if (onErrorRef.current) {
+          onErrorRef.current('');
         }
       } catch (error) {
-        // Silent fail for auto calculation - don't show error to user
         console.error('Auto shipping fee calculation failed:', error);
+        if (onErrorRef.current) {
+          onErrorRef.current('Không thể tính phí vận chuyển. Vui lòng thử lại hoặc kiểm tra lại địa chỉ.');
+        }
       } finally {
         isCalculatingRef.current = false;
       }

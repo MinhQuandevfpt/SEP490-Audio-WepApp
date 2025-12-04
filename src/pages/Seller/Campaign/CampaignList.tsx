@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Card, Tag, Button, Tabs, Input, Empty, Spin, Badge, Space
+  Card, Tag, Button, Tabs, Input, Empty, Spin, Space, Row, Col, Statistic
 } from 'antd';
 import {
   FireOutlined,
@@ -15,9 +15,6 @@ import { StoreService } from '../../../services/seller/StoreService';
 import type { CampaignForSeller } from '../../../types/seller';
 import { showTikiNotification } from '../../../utils/notification';
 import JoinCampaignModal from './JoinCampaignModal';
-
-const { TabPane } = Tabs;
-const { Search } = Input;
 
 const SellerCampaignList: React.FC = () => {
   const navigate = useNavigate();
@@ -394,129 +391,130 @@ const SellerCampaignList: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pb-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm opacity-90 mb-1">Tổng chiến dịch mở</div>
-                <div className="text-4xl font-bold">{stats.total}</div>
-                <div className="text-xs opacity-75 mt-1">Đang mở đăng ký</div>
-              </div>
-              <div className="bg-white bg-opacity-20 p-4 rounded-lg">
-                <FireOutlined className="text-4xl" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm opacity-90 mb-1">Mega Sale</div>
-                <div className="text-4xl font-bold">{stats.mega}</div>
-                <div className="text-xs opacity-75 mt-1">Chiến dịch lớn</div>
-              </div>
-              <div className="bg-white bg-opacity-20 p-4 rounded-lg">
-                <FireOutlined className="text-4xl" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm opacity-90 mb-1">Flash Sale</div>
-                <div className="text-4xl font-bold">{stats.flash}</div>
-                <div className="text-xs opacity-75 mt-1">Giờ vàng giá sốc</div>
-              </div>
-              <div className="bg-white bg-opacity-20 p-4 rounded-lg">
-                <ThunderboltOutlined className="text-4xl animate-pulse" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm opacity-90 mb-1">Đã đăng ký</div>
-                <div className="text-4xl font-bold">{stats.joined}</div>
-                <div className="text-xs opacity-75 mt-1">Chương trình tham gia</div>
-              </div>
-              <div className="bg-white bg-opacity-20 p-4 rounded-lg">
-                <CheckCircleOutlined className="text-4xl" />
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Stats Cards - Ant Design Style like KYC */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic 
+                title="Tổng chiến dịch mở" 
+                value={stats.total} 
+                valueStyle={{ color: '#f97316' }}
+                prefix={<FireOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic 
+                title="Mega Sale" 
+                value={stats.mega} 
+                valueStyle={{ color: '#f97316' }}
+                prefix={<FireOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic 
+                title="Flash Sale" 
+                value={stats.flash} 
+                valueStyle={{ color: '#f97316' }}
+                prefix={<ThunderboltOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic 
+                title="Đã đăng ký" 
+                value={stats.joined} 
+                valueStyle={{ color: '#52c41a' }}
+                prefix={<CheckCircleOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
 
         {/* Search & Filter */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <Search
+          <Input
             placeholder="Tìm kiếm chiến dịch theo tên, mã hoặc mô tả..."
             size="large"
             prefix={<SearchOutlined />}
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
             allowClear
-            className="text-lg"
           />
         </div>
 
-        {/* Tabs - Only Type filter needed */}
+        {/* Tabs - Ant Design Style like KYC */}
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
-          size="large"
-          className="bg-white rounded-xl shadow-sm px-4"
-        >
-          <TabPane
-            tab={
-              <Space>
-                <span>Tất cả</span>
-                <Badge
-                  count={stats.total}
-                  showZero
-                  style={{ backgroundColor: '#52c41a' }}
-                />
-              </Space>
-            }
-            key="all"
-          />
-          <TabPane
-            tab={
-              <Space>
-                <FireOutlined />
-                <span>Mega Sale</span>
-                <Badge count={stats.mega} />
-              </Space>
-            }
-            key="mega"
-          />
-          <TabPane
-            tab={
-              <Space>
-                <ThunderboltOutlined />
-                <span>Flash Sale</span>
-                <Badge count={stats.flash} />
-              </Space>
-            }
-            key="flash"
-          />
-          <TabPane
-            tab={
-              <Space>
-                <CheckCircleOutlined />
-                <span>Chương trình đã đăng ký</span>
-                <Badge 
-                  count={stats.joined} 
-                  showZero
-                  style={{ backgroundColor: '#1890ff' }}
-                />
-              </Space>
-            }
-            key="joined"
-          />
-        </Tabs>
+          style={{
+            '--ant-primary-color': '#f97316',
+          } as React.CSSProperties}
+          className="campaign-tabs"
+          items={[
+            {
+              key: 'all',
+              label: (
+                <Space>
+                  <span>Tất cả</span>
+                  <Tag color="orange">{stats.total}</Tag>
+                </Space>
+              ),
+            },
+            {
+              key: 'mega',
+              label: (
+                <Space>
+                  <FireOutlined />
+                  <span>Mega Sale</span>
+                  <Tag color="orange">{stats.mega}</Tag>
+                </Space>
+              ),
+            },
+            {
+              key: 'flash',
+              label: (
+                <Space>
+                  <ThunderboltOutlined />
+                  <span>Flash Sale</span>
+                  <Tag color="orange">{stats.flash}</Tag>
+                </Space>
+              ),
+            },
+            {
+              key: 'joined',
+              label: (
+                <Space>
+                  <CheckCircleOutlined />
+                  <span>Chương trình đã đăng ký</span>
+                  <Tag color="orange">{stats.joined}</Tag>
+                </Space>
+              ),
+            },
+          ]}
+        />
+        
+        <style>{`
+          .campaign-tabs .ant-tabs-tab {
+            color: #1f2937 !important;
+          }
+          .campaign-tabs .ant-tabs-tab:hover {
+            color: #f97316 !important;
+          }
+          .campaign-tabs .ant-tabs-tab.ant-tabs-tab-active {
+            color: #f97316 !important;
+          }
+          .campaign-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+            color: #f97316 !important;
+          }
+          .campaign-tabs .ant-tabs-ink-bar {
+            background: #f97316 !important;
+          }
+        `}</style>
 
         {/* Campaign List */}
         <div className="mt-6">

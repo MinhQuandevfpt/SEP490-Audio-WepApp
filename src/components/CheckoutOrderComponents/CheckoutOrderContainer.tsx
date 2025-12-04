@@ -9,13 +9,15 @@ import { AddressService } from '../../services/customer/AddressService';
 import { CustomerCartService } from '../../services/customer/CartService';
 import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
 import { ProductListService, type Product } from '../../services/customer/ProductListService';
+import { VoucherService, type StoreVoucher } from '../../services/seller/VoucherService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import type { CustomerAddressApiItem } from '../../types/api';
-import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher, ServiceTypeIds, PlatformVoucher } from '../../types/cart';
+import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher as CheckoutStoreVoucher, ServiceTypeIds, PlatformVoucher } from '../../types/cart';
 import type { CartItem } from '../../data/shoppingcart';
 import type { CheckoutCartItem, PaymentMethod } from '../../data/checkout';
 import type { ShopVoucher } from '../ShoppingCartComponents/VoucherSection';
 import type { AppliedStoreVoucher } from '../ShoppingCartComponents/StoreVoucherPicker';
+import type { AppliedStoreWideVoucher } from './StoreWideVoucherSection';
 import { Home, ChevronRight } from 'lucide-react';
 
 const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
@@ -41,21 +43,112 @@ const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem => ({
   type: apiItem.type || 'PRODUCT', // Lưu type từ API
 });
 
+/**
+ * Áp dụng giảm giá nền tảng cho từng cart item dựa trên unitPrice (giống ShoppingCart)
+ * - Chỉ áp dụng cho PRODUCT, không áp dụng cho COMBO
+ * - Trả về CartItem với price (sau giảm) và originalPrice (giá gốc)
+ */
+const enhanceApiItemsWithPlatformDiscounts = async (
+  apiItems: ApiCartItem[]
+): Promise<CartItem[]> => {
+  return Promise.all(
+    apiItems.map(async (apiItem) => {
+      const baseItem: CartItem = {
+        id: apiItem.cartItemId,
+        productId: apiItem.refId,
+        name: apiItem.name,
+        image: apiItem.variantUrl || apiItem.image,
+        price: apiItem.unitPrice,
+        originalPrice: apiItem.unitPrice,
+        quantity: apiItem.quantity,
+        isSelected: true,
+        variant: apiItem.variantOptionValue || undefined,
+        variantId: apiItem.variantId || null,
+        type: apiItem.type || 'PRODUCT',
+      };
+
+      // Chỉ áp dụng giảm giá nền tảng cho PRODUCT
+      if (!apiItem.refId || apiItem.type === 'COMBO') {
+        return baseItem;
+      }
+
+      try {
+        const response = await ProductVoucherService.getProductVouchers(
+          apiItem.refId,
+          'ALL',
+          null
+        );
+
+        const platformCampaigns = response.data?.vouchers?.platform || [];
+        let activePlatformVoucher: any = null;
+        const now = new Date();
+
+        // Tìm voucher nền tảng đang ACTIVE (giống logic ShoppingCart/ProductSuggestions)
+        for (const campaign of platformCampaigns) {
+          if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+            for (const v of campaign.vouchers) {
+              if (v.status !== 'ACTIVE') continue;
+
+              let isActive = false;
+              if (v.slotOpenTime && v.slotCloseTime) {
+                isActive =
+                  now >= new Date(v.slotOpenTime) &&
+                  now <= new Date(v.slotCloseTime) &&
+                  v.slotStatus === 'ACTIVE';
+              } else {
+                isActive =
+                  now >= new Date(v.startTime) &&
+                  now <= new Date(v.endTime) &&
+                  v.status === 'ACTIVE';
+              }
+
+              if (isActive) {
+                activePlatformVoucher = v;
+                break;
+              }
+            }
+
+            if (activePlatformVoucher) break;
+          }
+        }
+
+        if (activePlatformVoucher) {
+          const originalPrice = baseItem.originalPrice ?? baseItem.price;
+          let discountedPrice = originalPrice;
+
+          if (activePlatformVoucher.type === 'PERCENT' && activePlatformVoucher.discountPercent) {
+            discountedPrice = originalPrice * (1 - activePlatformVoucher.discountPercent / 100);
+          } else if (activePlatformVoucher.type === 'FIXED' && activePlatformVoucher.discountValue) {
+            discountedPrice = Math.max(0, originalPrice - activePlatformVoucher.discountValue);
+          }
+
+          if (discountedPrice < originalPrice) {
+            return {
+              ...baseItem,
+              price: discountedPrice,
+              originalPrice,
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load platform vouchers for checkout item:', err);
+      }
+
+      return baseItem;
+    })
+  );
+};
+
 const calculateStoreTotal = (
   items: CartItem[],
   storeId: string,
-  productCache: Map<string, Product>,
-  platformVoucherDiscounts: Record<string, { discount: number; campaignProductId: string }> = {}
+  productCache: Map<string, Product>
 ): number => {
+  // Tính tổng tiền theo giá đã áp dụng giảm giá nền tảng (item.price)
   return items.reduce((sum, item) => {
     const product = productCache.get(item.productId);
     if (!product || product.storeId !== storeId) return sum;
-    // Use price after platform discount
-    const platformVoucherInfo = platformVoucherDiscounts[item.productId];
-    const platformDiscount = platformVoucherInfo?.discount || 0;
-    const itemPriceAfterDiscount = item.price - platformDiscount;
-    const finalPrice = Math.max(0, itemPriceAfterDiscount);
-    return sum + finalPrice * item.quantity;
+    return sum + item.price * item.quantity;
   }, 0);
 };
 
@@ -74,12 +167,37 @@ const calculateVoucherDiscountAmount = (voucher: ShopVoucher, storeTotal: number
   return 0;
 };
 
-const buildStoreVouchers = (applied: Record<string, AppliedStoreVoucher>): StoreVoucher[] => {
-  const result = Object.values(applied).map(voucher => ({
-    storeId: voucher.storeId,
-    codes: [voucher.code],
-  }));
-  console.log('🏪 [BUILD STORE VOUCHERS] Input:', applied, 'Output:', result);
+const buildStoreVouchers = (
+  applied: Record<string, AppliedStoreVoucher>,
+  appliedStoreWide: Record<string, AppliedStoreWideVoucher>
+): CheckoutStoreVoucher[] => {
+  const result: CheckoutStoreVoucher[] = [];
+  
+  // Add product-specific vouchers
+  Object.values(applied).forEach(voucher => {
+    result.push({
+      storeId: voucher.storeId,
+      codes: [voucher.code],
+    });
+  });
+  
+  // Add store-wide vouchers
+  Object.values(appliedStoreWide).forEach(voucher => {
+    // Check if store already has vouchers
+    const existingIndex = result.findIndex(v => v.storeId === voucher.storeId);
+    if (existingIndex >= 0) {
+      // Add code to existing store vouchers
+      result[existingIndex].codes.push(voucher.code);
+    } else {
+      // Create new entry for this store
+      result.push({
+        storeId: voucher.storeId,
+        codes: [voucher.code],
+      });
+    }
+  });
+  
+  console.log('🏪 [BUILD STORE VOUCHERS] Input:', { applied, appliedStoreWide }, 'Output:', result);
   return result;
 };
 
@@ -121,7 +239,12 @@ const CheckoutOrderContainer: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [selectedCartItemIds, setSelectedCartItemIds] = useState<string[]>([]);
   const [availableVouchers, setAvailableVouchers] = useState<ShopVoucher[]>([]);
+  // NOTE: keys = productId (giống ShoppingCart), value = AppliedStoreVoucher có chứa storeId
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
+  // Store-wide vouchers: Record<storeId, StoreVoucher[]>
+  const [storeWideVouchers, setStoreWideVouchers] = useState<Record<string, StoreVoucher[]>>({});
+  // Applied store-wide vouchers: Record<storeId, AppliedStoreWideVoucher>
+  const [appliedStoreWideVouchers, setAppliedStoreWideVouchers] = useState<Record<string, AppliedStoreWideVoucher>>({});
   // Platform voucher info: Record<productId, { discount: number; campaignProductId: string }>
   const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, { discount: number; campaignProductId: string }>>({});
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
@@ -129,12 +252,16 @@ const CheckoutOrderContainer: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [shippingFeeError, setShippingFeeError] = useState<string | null>(null);
   const [storeMetadata, setStoreMetadata] = useState<Record<string, { storeName: string }>>({});
 
   const shippingItems = useMemo(
     () => cartItems.map(item => ({ ...item, isSelected: true })),
     [cartItems]
   );
+
+  // selectedAddress & formatted address display đã được hiển thị trong AddressForm,
+  // không cần lặp lại ở phần "Đơn hàng" nên không sử dụng tại đây nữa.
 
   const { serviceTypeId, productCache, setProductCache } = useServiceTypeCalculator({
     items: shippingItems,
@@ -146,9 +273,25 @@ const CheckoutOrderContainer: React.FC = () => {
     selectedAddressId,
     productCache,
     serviceTypeId,
-    onShippingFeeChange: setShippingFee,
+    onShippingFeeChange: (fee: number) => {
+      setShippingFee(fee);
+      // Xóa lỗi phí vận chuyển nếu tính lại thành công
+      setShippingFeeError(null);
+    },
     onProductCacheUpdate: setProductCache,
     autoCalculate: shippingItems.length > 0 && !!selectedAddressId,
+    onError: (message: string) => {
+      // Lưu lỗi và reset phí ship về 0 để tránh tính sai tổng
+      const trimmed = message.trim();
+      // Chỉ set error nếu message không rỗng (không phải là clear error signal)
+      if (trimmed.length > 0) {
+        setShippingFeeError(trimmed);
+        setShippingFee(0);
+      } else {
+        // Clear error if message is empty (success case)
+        setShippingFeeError(null);
+      }
+    },
   });
 
   const checkoutCartItems = useMemo<CheckoutCartItem[]>(() => {
@@ -160,6 +303,9 @@ const CheckoutOrderContainer: React.FC = () => {
       price: item.price,
       originalPrice: item.originalPrice,
       quantity: item.quantity,
+      itemType: item.type,
+      variantId: item.variantId ?? undefined,
+      variant: item.variant ?? null,
     }));
   }, [cartItems]);
 
@@ -190,31 +336,29 @@ const CheckoutOrderContainer: React.FC = () => {
     return Array.from(groups.values());
   }, [checkoutCartItems, productCache, storeMetadata]);
 
-  // Calculate subtotal before and after platform voucher discounts
+  // Calculate subtotal dựa trên giá gốc (giống Cart/HomePage)
   const subtotalBeforePlatformDiscount = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
+      const original = item.originalPrice ?? item.price;
+      return sum + original * item.quantity;
+    }, 0);
+  }, [cartItems]);
+
+  // Subtotal sau khi áp dụng giảm giá nền tảng (dùng giá hiện tại)
+  const subtotalAfterPlatformDiscount = useMemo(() => {
     return cartItems.reduce((sum, item) => {
       return sum + item.price * item.quantity;
     }, 0);
   }, [cartItems]);
 
-  const subtotalAfterPlatformDiscount = useMemo(() => {
-    return cartItems.reduce((sum, item) => {
-      const platformVoucherInfo = platformVoucherDiscounts[item.productId];
-      const platformDiscount = platformVoucherInfo?.discount || 0;
-      const itemPriceAfterDiscount = item.price - platformDiscount;
-      const finalPrice = Math.max(0, itemPriceAfterDiscount);
-      return sum + finalPrice * item.quantity;
-    }, 0);
-  }, [cartItems, platformVoucherDiscounts]);
-
-  // Calculate total platform voucher discount amount
+  // Tổng giảm giá nền tảng = chênh lệch giữa giá gốc và giá sau giảm
   const totalPlatformDiscount = useMemo(() => {
     return cartItems.reduce((sum, item) => {
-      const platformVoucherInfo = platformVoucherDiscounts[item.productId];
-      const platformDiscount = platformVoucherInfo?.discount || 0;
-      return sum + platformDiscount * item.quantity;
+      const original = item.originalPrice ?? item.price;
+      const discountPerUnit = Math.max(0, original - item.price);
+      return sum + discountPerUnit * item.quantity;
     }, 0);
-  }, [cartItems, platformVoucherDiscounts]);
+  }, [cartItems]);
 
   // Build platform vouchers array for checkout request
   const buildPlatformVouchers = useCallback((): PlatformVoucher[] => {
@@ -249,10 +393,38 @@ const CheckoutOrderContainer: React.FC = () => {
     return result;
   }, [cartItems, platformVoucherDiscounts]);
 
-  // Store voucher discount
+  // Calculate store totals for each store (after platform discount)
+  const storeTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    const storeIds = new Set<string>();
+    
+    cartItems.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product?.storeId) {
+        storeIds.add(product.storeId);
+      }
+    });
+    
+    storeIds.forEach(storeId => {
+      totals[storeId] = calculateStoreTotal(cartItems, storeId, productCache);
+    });
+    
+    return totals;
+  }, [cartItems, productCache, platformVoucherDiscounts]);
+
+  // Store voucher discount (product-specific + store-wide)
   const voucherDiscount = useMemo(() => {
-    return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
-  }, [appliedStoreVouchers]);
+    const productVoucherDiscount = Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
+    const storeWideVoucherDiscount = Object.values(appliedStoreWideVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
+    return productVoucherDiscount + storeWideVoucherDiscount;
+  }, [appliedStoreVouchers, appliedStoreWideVouchers]);
+
+  // Danh sách mã voucher đã áp dụng (voucher sản phẩm + voucher toàn shop)
+  const selectedVoucherCodes = useMemo(() => {
+    const productCodes = Object.values(appliedStoreVouchers).map(v => v.code);
+    const storeWideCodes = Object.values(appliedStoreWideVouchers).map(v => v.code);
+    return Array.from(new Set([...productCodes, ...storeWideCodes]));
+  }, [appliedStoreVouchers, appliedStoreWideVouchers]);
 
   // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const total = useMemo(() => {
@@ -326,7 +498,7 @@ const CheckoutOrderContainer: React.FC = () => {
 
         const selectedCartItems = cartResponse.items.filter(item =>
           payload.selectedCartItemIds.includes(item.cartItemId)
-        );
+        ) as ApiCartItem[];
 
         if (selectedCartItems.length === 0) {
           showCenterError('Không tìm thấy sản phẩm đã chọn. Vui lòng kiểm tra lại giỏ hàng.', 'Thông báo');
@@ -334,7 +506,9 @@ const CheckoutOrderContainer: React.FC = () => {
           return;
         }
 
-        setCartItems(selectedCartItems.map(mapApiItemToCartItem));
+        // Áp dụng giảm giá nền tảng cho từng item dựa trên unitPrice (giống trang Cart)
+        const enhancedItems = await enhanceApiItemsWithPlatformDiscounts(selectedCartItems);
+        setCartItems(enhancedItems);
       } catch (err: any) {
         setError(err?.message || 'Không thể tải dữ liệu thanh toán. Vui lòng thử lại.');
       } finally {
@@ -453,6 +627,36 @@ const CheckoutOrderContainer: React.FC = () => {
         const deduped = Array.from(new Map(shopVouchers.map(v => [v.code, v])).values());
         setAvailableVouchers(deduped);
         setPlatformVoucherDiscounts(platformDiscountsMap);
+
+        // Áp dụng giảm giá nền tảng vào cartItems (giá hiển thị + tính toán)
+        if (Object.keys(platformDiscountsMap).length > 0) {
+          setCartItems(prev =>
+            prev.map(item => {
+              const info = platformDiscountsMap[item.productId];
+              const original = item.originalPrice ?? item.price;
+              if (!info || !info.discount || info.discount <= 0) {
+                return {
+                  ...item,
+                  originalPrice: original,
+                };
+              }
+
+              const discounted = Math.max(0, original - info.discount);
+              if (discounted >= original) {
+                return {
+                  ...item,
+                  originalPrice: original,
+                };
+              }
+
+              return {
+                ...item,
+                price: discounted,
+                originalPrice: original,
+              };
+            })
+          );
+        }
       } catch {
         setAvailableVouchers([]);
       }
@@ -461,14 +665,59 @@ const CheckoutOrderContainer: React.FC = () => {
     loadVouchers();
   }, [cartItems]);
 
+  // Load store-wide vouchers for each store
+  useEffect(() => {
+    const loadStoreWideVouchers = async () => {
+      try {
+        const storeIds = new Set<string>();
+        cartItems.forEach(item => {
+          const product = productCache.get(item.productId);
+          if (product?.storeId) {
+            storeIds.add(product.storeId);
+          }
+        });
+
+        if (storeIds.size === 0) {
+          setStoreWideVouchers({});
+          return;
+        }
+
+        const voucherPromises = Array.from(storeIds).map(async (storeId) => {
+          try {
+            const response = await VoucherService.getShopVouchersByStore(storeId, 'ACTIVE', 'ALL_SHOP_VOUCHER');
+            return { storeId, vouchers: response.data || [] };
+          } catch (error) {
+            console.error(`Error loading store-wide vouchers for store ${storeId}:`, error);
+            return { storeId, vouchers: [] };
+          }
+        });
+
+        const results = await Promise.all(voucherPromises);
+        const vouchersMap: Record<string, StoreVoucher[]> = {};
+        results.forEach(({ storeId, vouchers }) => {
+          vouchersMap[storeId] = vouchers;
+        });
+
+        setStoreWideVouchers(vouchersMap);
+      } catch (error) {
+        console.error('Error loading store-wide vouchers:', error);
+        setStoreWideVouchers({});
+      }
+    };
+
+    if (cartItems.length > 0 && productCache.size > 0) {
+      loadStoreWideVouchers();
+    }
+  }, [cartItems, productCache]);
+
   useEffect(() => {
     // Chỉ validate khi đã có đủ dữ liệu
     // Nếu availableVouchers đang rỗng (chưa load xong) hoặc cartItems rỗng, giữ nguyên voucher
     if (cartItems.length === 0) return;
-    
+
     // Kiểm tra xem productCache đã có đủ data cho tất cả items chưa
     const allProductsCached = cartItems.every(item => productCache.has(item.productId));
-    
+
     // Nếu chưa có đủ data, giữ nguyên voucher (không validate)
     if (!allProductsCached && productCache.size === 0) {
       return;
@@ -481,30 +730,35 @@ const CheckoutOrderContainer: React.FC = () => {
       let changed = false;
       const next: Record<string, AppliedStoreVoucher> = {};
 
-      Object.entries(prev).forEach(([storeId, applied]) => {
+      // Lưu ý: key ở đây là productId (giống ShoppingCart), KHÔNG phải storeId
+      Object.entries(prev).forEach(([productId, applied]) => {
         // Nếu availableVouchers chưa load xong, giữ nguyên voucher với discountValue hiện tại
         if (availableVouchers.length === 0) {
-          next[storeId] = applied;
+          next[productId] = applied;
           return;
         }
 
-        const voucher = availableVouchers.find(v => v.code === applied.code);
-        const storeTotal = calculateStoreTotal(cartItems, storeId, productCache, platformVoucherDiscounts);
+        const product = productCache.get(productId);
+        const storeId = product?.storeId;
+
+        // Nếu chưa xác định được storeId, tạm giữ nguyên để tránh xóa nhầm
+        if (!storeId) {
+          next[productId] = applied;
+          return;
+        }
+
+        // Tìm voucher theo code và (nếu có) đúng storeId
+        const voucher = availableVouchers.find(
+          v => v.code === applied.code && (!v.storeId || v.storeId === storeId)
+        );
+        const storeTotal = calculateStoreTotal(cartItems, storeId, productCache);
 
         // Nếu không tìm thấy voucher trong availableVouchers, nhưng availableVouchers đã load xong
         // thì có thể voucher đã hết hạn hoặc không còn hợp lệ
         if (!voucher) {
-          // Chỉ xóa nếu availableVouchers đã load xong (length > 0)
-          // Nếu đang loading (length = 0), giữ nguyên
-          if (availableVouchers.length > 0) {
-            changed = true;
-            messages.push(`Voucher ${applied.code} không còn hợp lệ.`);
-            return;
-          } else {
-            // Đang loading, giữ nguyên
-            next[storeId] = applied;
-            return;
-          }
+          changed = true;
+          messages.push(`Voucher ${applied.code} không còn hợp lệ.`);
+          return;
         }
 
         // Nếu storeTotal = 0, có thể do productCache chưa có đủ data
@@ -516,7 +770,7 @@ const CheckoutOrderContainer: React.FC = () => {
 
         // Nếu storeTotal = 0 nhưng chưa có đủ cache, giữ nguyên voucher
         if (storeTotal <= 0) {
-          next[storeId] = applied;
+          next[productId] = applied;
           return;
         }
 
@@ -529,8 +783,9 @@ const CheckoutOrderContainer: React.FC = () => {
         }
 
         const discountValue = calculateVoucherDiscountAmount(voucher, storeTotal);
-        next[storeId] = {
+        next[productId] = {
           ...applied,
+          storeId,
           discountValue,
         };
         if (discountValue !== applied.discountValue) {
@@ -587,9 +842,13 @@ const CheckoutOrderContainer: React.FC = () => {
       setError('Vui lòng chọn phương thức thanh toán.');
       return;
     }
+    if (shippingFeeError) {
+      setError('Không thể tính phí vận chuyển. Vui lòng kiểm tra lại địa chỉ hoặc thử lại sau.');
+      return;
+    }
 
-    const selectedAddress = addresses.find(addr => addr.id === selectedAddressId);
-    const message = selectedAddress?.note || '';
+    const addressForMessage = addresses.find(addr => addr.id === selectedAddressId);
+    const message = addressForMessage?.note || '';
     
     // Build checkout items payload với logic mới:
     // - Nếu variantId === null → dùng productId (refId), không gửi variantId
@@ -625,7 +884,7 @@ const CheckoutOrderContainer: React.FC = () => {
       return basePayload;
     });
 
-    const storeVouchers = buildStoreVouchers(appliedStoreVouchers);
+    const storeVouchers = buildStoreVouchers(appliedStoreVouchers, appliedStoreWideVouchers);
     const serviceTypeIds = buildServiceTypeIds(cartItems, productCache);
     const platformVouchers = buildPlatformVouchers();
 
@@ -639,7 +898,6 @@ const CheckoutOrderContainer: React.FC = () => {
     console.log('📊 Subtotal (after platform discount):', subtotalAfterPlatformDiscount);
     console.log('💵 Total Platform Discount:', totalPlatformDiscount);
     console.log('🎟️ Store Voucher Discount:', voucherDiscount);
-    console.log('🚚 Shipping Fee:', shippingFee);
     console.log('💳 Grand Total:', total);
     console.log('============================================================');
 
@@ -754,7 +1012,45 @@ const CheckoutOrderContainer: React.FC = () => {
                     <p className="text-base font-semibold text-gray-900">Sản phẩm</p>
                   </div>
                   <div className="px-6 py-4">
-                    <CartItemList groups={groupedCartItems} onRemove={removeItem} />
+                    <CartItemList 
+                      groups={groupedCartItems} 
+                      onRemove={removeItem}
+                      storeWideVouchers={storeWideVouchers}
+                      appliedStoreWideVouchers={appliedStoreWideVouchers}
+                      storeTotals={storeTotals}
+                      onApplyStoreWideVoucher={(storeId, voucher) => {
+                        const storeTotal = storeTotals[storeId] || 0;
+                        let discountValue = 0;
+                        
+                        if (voucher.type === 'FIXED') {
+                          discountValue = voucher.discountValue || 0;
+                        } else if (voucher.type === 'PERCENT') {
+                          const percent = voucher.discountPercent || 0;
+                          const discount = Math.round((storeTotal * percent) / 100);
+                          discountValue = voucher.maxDiscountValue && discount > voucher.maxDiscountValue
+                            ? voucher.maxDiscountValue
+                            : discount;
+                        }
+                        
+                        setAppliedStoreWideVouchers(prev => ({
+                          ...prev,
+                          [storeId]: {
+                            storeId,
+                            code: voucher.code,
+                            voucherId: voucher.id,
+                            discountValue,
+                            type: voucher.type,
+                          },
+                        }));
+                      }}
+                      onRemoveStoreWideVoucher={(storeId) => {
+                        setAppliedStoreWideVouchers(prev => {
+                          const next = { ...prev };
+                          delete next[storeId];
+                          return next;
+                        });
+                      }}
+                    />
                   </div>
                 </section>
 
@@ -776,7 +1072,9 @@ const CheckoutOrderContainer: React.FC = () => {
 
                   <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                      <p className="text-base font-semibold text-gray-900">Đơn hàng</p>
+                      <div>
+                        <p className="text-base font-semibold text-gray-900">Đơn hàng</p>
+                      </div>
                       {error && (
                         <span className="text-xs text-red-500 font-medium">
                           {error}
@@ -794,9 +1092,11 @@ const CheckoutOrderContainer: React.FC = () => {
                           isSubmitting ||
                           !selectedAddressId ||
                           !paymentMethod ||
-                          cartItems.length === 0
+                          cartItems.length === 0 ||
+                          !!shippingFeeError
                         }
                         onSubmit={handleSubmit}
+                        selectedVoucherCodes={selectedVoucherCodes}
                       />
                       {isSubmitting && (
                         <p className="text-xs text-gray-500 text-center mt-3">Đang gửi đơn hàng...</p>

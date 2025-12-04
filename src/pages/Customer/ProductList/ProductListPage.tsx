@@ -8,8 +8,11 @@ import {
   ProductListPagination,
   ProductListGrid,
   ProductListViewToggle,
+  ProductCompareBar,
+  ProductCompareModal,
 } from '../../../components/ProductListComponents';
 import { useProductList } from '../../../hooks/useProductList';
+import { useProductCompare } from '../../../hooks/useProductCompare';
 import { showError } from '../../../utils/notification';
 
 const ProductListPage: React.FC = () => {
@@ -32,6 +35,18 @@ const ProductListPage: React.FC = () => {
     goToPage,
     changePageSize,
   } = useProductList();
+
+  const {
+    selectedProducts,
+    compareDetails,
+    isModalOpen,
+    isLoadingModal,
+    toggleProduct,
+    removeProduct,
+    clearAll,
+    openCompareModal,
+    closeModal,
+  } = useProductCompare();
 
 
   // Initialize filters from URL params
@@ -106,25 +121,24 @@ const ProductListPage: React.FC = () => {
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Danh sách sản phẩm
+        {/* Page Header - simple and consistent with other pages */}
+        <div className="mb-8 flex items-center justify-between">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">
+            {filters.categoryName || 'Sản phẩm'}
           </h1>
-          <p className="text-gray-600 text-lg">
-            Tìm kiếm và lọc sản phẩm theo nhu cầu của bạn
-          </p>
         </div>
 
         {/* Search Bar */}
-        <ProductListSearchBar
-          onSearch={(keyword) => {
-            setSearchKeyword(keyword);
-            setFilters({ keyword: keyword || undefined });
-          }}
-          loading={loading}
-          initialKeyword={searchKeyword || filters.keyword || ''}
-        />
+        <div className="mb-8">
+          <ProductListSearchBar
+            onSearch={(keyword) => {
+              setSearchKeyword(keyword);
+              setFilters({ keyword: keyword || undefined });
+            }}
+            loading={loading}
+            initialKeyword={searchKeyword || filters.keyword || ''}
+          />
+        </div>
 
         {/* Main Content Layout */}
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
@@ -143,7 +157,7 @@ const ProductListPage: React.FC = () => {
           {/* Right Content - Products */}
           <main className="flex-1 min-w-0 order-1 lg:order-2">
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
               {/* Results Count */}
               <div className="text-sm text-gray-600">
                 {loading ? (
@@ -173,6 +187,8 @@ const ProductListPage: React.FC = () => {
               products={products}
               loading={loading}
               viewMode={viewMode}
+              selectedProductIds={selectedProducts.map((item) => item.productId)}
+              onToggleCompare={toggleProduct}
             />
 
             {/* Pagination */}
@@ -188,17 +204,22 @@ const ProductListPage: React.FC = () => {
             )}
           </main>
         </div>
-
-        {/* Loading Overlay */}
-        {loading && (
-          <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 flex items-center gap-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-              <span className="text-gray-700">Đang tải sản phẩm...</span>
-            </div>
-          </div>
-        )}
       </div>
+
+      <ProductCompareBar
+        selected={selectedProducts}
+        onRemove={removeProduct}
+        onClear={clearAll}
+        onCompare={openCompareModal}
+      />
+
+      <ProductCompareModal
+        open={isModalOpen}
+        loading={isLoadingModal}
+        products={compareDetails}
+        onClose={closeModal}
+        onRemove={removeProduct}
+      />
     </Layout>
   );
 };

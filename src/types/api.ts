@@ -1,3 +1,5 @@
+import type { CheckoutPayOSItem, StoreVoucher, PlatformVoucher, ServiceTypeIds } from './cart';
+
 export interface CustomerRegisterRequest {
   name: string;
   password: string;
@@ -304,22 +306,24 @@ export interface UpdateCustomerStatusResponse {
 
 // Order Status Enum (from backend + extended internal statuses)
 export type OrderStatus = 
-  | 'UNPAID'             // Chờ thanh toán (online)
-  | 'CONFIRMED'          // Đã xác nhận (đã thanh toán / COD)
-  | 'AWAITING_SHIPMENT'  // Chờ lấy hàng (đã thanh toán / COD)
-  | 'SHIPPING'           // Đang giao hàng
-  | 'COMPLETED'          // Đã giao hàng / Hoàn tất
-  | 'CANCELLED'          // Đã hủy
-  | 'RETURN_REQUESTED'   // Yêu cầu trả hàng / hoàn tiền
-  | 'RETURNED'           // Đã trả hàng / hoàn tiền xong
-  | 'PENDING'            // Chờ xử lý
-  // Extended internal statuses
-  | 'READY_FOR_PICKUP'   // Kho đang chuẩn bị
-  | 'READY_FOR_DELIVERY' // Chờ giao hàng
-  | 'OUT_FOR_DELIVERY'   // Đang giao hàng
+  | 'UNPAID'                 // Chờ thanh toán (online)
+  | 'CONFIRMED'              // Đã xác nhận (đã thanh toán / COD)
+  | 'AWAITING_SHIPMENT'      // Chờ lấy hàng (đã thanh toán / COD)
+  | 'SHIPPING'               // Đang giao hàng
+  | 'COMPLETED'              // Đã giao hàng / Hoàn tất
+  | 'CANCELLED'              // Đã hủy
+  | 'RETURN_REQUESTED'       // Yêu cầu trả hàng / hoàn tiền
+  | 'RETURNED'               // Đã trả hàng / hoàn tiền xong
+  | 'PENDING'                // Chờ xử lý
+  // Extended internal statuses (mapping full backend list)
+  | 'READY_FOR_PICKUP'       // Kho đang chuẩn bị
+  | 'READY_FOR_DELIVERY'     // Chờ giao hàng
+  | 'OUT_FOR_DELIVERY'       // Đang giao hàng
   | 'DELIVERED_WAITING_CONFIRM' // Chờ xác nhận giao hàng
-  | 'DELIVERY_SUCCESS'   // Giao hàng thành công
-  | 'DELIVERY_DENIED';   // Giao hàng thất bại
+  | 'DELIVERY_SUCCESS'       // Giao hàng thành công
+  | 'DELIVERY_DENIED'        // Giao hàng bị từ chối
+  | 'DELIVERY_FAIL'          // Giao hàng thất bại / không giao được
+  | 'EXCEPTION';             // Lỗi xử lý đơn hàng
 
 // Order Item (in store order)
 export interface OrderItem {
@@ -330,7 +334,13 @@ export interface OrderItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
-  image?: string;  // Optional, might need to fetch from product
+  image?: string | null;  // Base product image
+  storeId?: string | null;
+  storeName?: string | null;
+  variantId?: string | null;
+  variantOptionName?: string | null;
+  variantOptionValue?: string | null;
+  variantUrl?: string | null; // Variant-specific image
 }
 
 // Store Order (sub-order within main order)
@@ -371,6 +381,7 @@ export interface CustomerOrder {
   postalCode: string;
   note: string | null;
   storeOrders: StoreOrder[];
+  items?: OrderItem[];
 }
 
 // ==================== REVIEW TYPES ====================
@@ -406,6 +417,56 @@ export interface ReviewResponse {
     createdAt: string;
   }>;
   status?: 'VISIBLE' | 'HIDDEN' | 'DELETED';
+}
+
+export interface ProductReviewForCurrentUserResponse extends ReviewResponse {}
+
+export interface StoreReviewListResponse {
+  content: ReviewResponse[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+  pageable?: {
+    pageNumber: number;
+    pageSize: number;
+  };
+}
+
+// ==================== WALLET TYPES ====================
+export interface WalletTransaction {
+  id: string;
+  walletId: string;
+  orderId: string | null;
+  type: string;
+  status: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface WalletTransactionPage {
+  content: WalletTransaction[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first?: boolean;
+  last?: boolean;
+}
+
+// Wallet Info (Overview)
+export interface WalletInfo {
+  id: string;
+  customerId: string;
+  balance: number;
+  currency: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  lastTransactionAt: string | null;
 }
 
 // Order History Response (paginated)
@@ -451,30 +512,20 @@ export interface CategoryListResponse {
 
 export type PayOSItemType = 'PRODUCT' | 'COMBO';
 
-export interface PayOSCheckoutItem {
-  id: string; // product or combo id
-  type: PayOSItemType; // 'PRODUCT' | 'COMBO'
-  quantity: number;
-}
+export interface PayOSCheckoutItem extends CheckoutPayOSItem {}
 
-export interface PayOSStoreVoucher {
-  storeId: string;
-  codes: string[];
-}
+export interface PayOSStoreVoucher extends StoreVoucher {}
 
-export interface PayOSPlatformVoucher {
-  campaignProductId: string;
-  quantity: number;
-}
+export interface PayOSPlatformVoucher extends PlatformVoucher {}
 
 export interface PayOSCheckoutRequestBody {
   addressId: string;
   message?: string | null;
   description?: string | null;
   items: PayOSCheckoutItem[];
-  storeVouchers?: PayOSStoreVoucher[] | null;
-  platformVouchers?: PayOSPlatformVoucher[] | null;
-  serviceTypeIds: Record<string, number>; // { [storeId]: serviceTypeId }
+  storeVouchers?: PayOSStoreVoucher[];
+  platformVouchers?: PayOSPlatformVoucher[];
+  serviceTypeIds?: ServiceTypeIds;
   returnUrl: string;
   cancelUrl: string;
 }

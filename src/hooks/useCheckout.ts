@@ -113,13 +113,40 @@ export const useCheckout = () => {
     try {
       setIsSubmitting(true);
       setError(null);
+      const mapItemToPayOS = (item: CheckoutCartItem): PayOSCheckoutRequestBody['items'][number] => {
+        const normalizedType = item.itemType && item.itemType.toUpperCase() === 'COMBO' ? 'COMBO' : 'PRODUCT';
+        const payloadBase = {
+          type: normalizedType,
+          quantity: item.quantity,
+        } as PayOSCheckoutRequestBody['items'][number];
+
+        if (normalizedType === 'COMBO' || item.comboId) {
+          return {
+            ...payloadBase,
+            comboId: item.comboId ?? item.productId ?? item.id,
+          };
+        }
+
+        if (item.variantId) {
+          return {
+            ...payloadBase,
+            variantId: item.variantId,
+          };
+        }
+
+        return {
+          ...payloadBase,
+          productId: item.productId ?? item.id,
+        };
+      };
+
       const body: PayOSCheckoutRequestBody = {
         addressId: selectedAddressId!,
         message: args.message ?? null,
         description: args.description ?? null,
-        items: items.map(it => ({ id: it.productId ?? it.id, type: 'PRODUCT', quantity: it.quantity })),
-        storeVouchers: args.storeVouchers ?? null,
-        platformVouchers: args.platformVouchers ?? null,
+        items: items.map(mapItemToPayOS),
+        storeVouchers: args.storeVouchers && args.storeVouchers.length > 0 ? args.storeVouchers : undefined,
+        platformVouchers: args.platformVouchers && args.platformVouchers.length > 0 ? args.platformVouchers : undefined,
         serviceTypeIds: args.serviceTypeIds,
         returnUrl: args.returnUrl,
         cancelUrl: args.cancelUrl,

@@ -2,7 +2,7 @@
 import type { Product, ProductListResponse, ProductQueryParams, ProductUpdateRequest } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 
 export class ProductService {
@@ -29,6 +29,14 @@ export class ProductService {
       
       if (params.status) {
         queryParams.append('status', params.status);
+      }
+      
+      if (params.minPrice !== undefined && params.minPrice !== null) {
+        queryParams.append('minPrice', String(params.minPrice));
+      }
+      
+      if (params.maxPrice !== undefined && params.maxPrice !== null) {
+        queryParams.append('maxPrice', String(params.maxPrice));
       }
       
       // Pagination

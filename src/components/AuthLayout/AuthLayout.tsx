@@ -1,22 +1,20 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { ArrowLeft, Headphones, Volume2, Mic2, Radio, Speaker, Music, Shield, Truck, Award } from 'lucide-react';
+import { Headphones, Volume2, Mic2, Radio, Speaker, Music, Shield, Truck, Award } from 'lucide-react';
 
 const AuthLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100">
-      {/* Header với nút quay lại */}
+      {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
-          <Link 
-            to="/" 
-            className="flex items-center text-gray-600 hover:text-orange-500 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 mr-2" />
-            <span>Quay lại trang chủ</span>
+          <Link to="/" className="flex items-center">
+            <h1 className="text-2xl font-bold">
+              <span className="text-orange-500">Audio</span>
+              <span className="text-blue-600">Shop</span>
+            </h1>
           </Link>
-          <div className="ml-8">
-            <h1 className="text-2xl font-bold text-orange-500">AudioShop</h1>
+          <div className="ml-4">
             <p className="text-sm text-gray-600">Thiên đường âm thanh chất lượng cao</p>
           </div>
         </div>

@@ -162,13 +162,23 @@ const FlashSaleHome: React.FC = () => {
                     <div className="p-3">
                       {/* Price */}
                       <div className="mb-2">
-                        <div className="text-red-600 font-bold text-lg">
-                          {product.discountedPrice.toLocaleString('vi-VN')}₫
-                        </div>
-                        {product.discountedPrice < product.originalPrice && (
-                          <div className="text-gray-400 text-xs line-through">
+                        {product.discountedPrice && product.discountedPrice > 0 ? (
+                          <>
+                            <div className="text-red-600 font-bold text-lg">
+                              {product.discountedPrice.toLocaleString('vi-VN')}₫
+                            </div>
+                            {product.originalPrice && product.originalPrice > 0 && product.discountedPrice < product.originalPrice && (
+                              <div className="text-gray-400 text-xs line-through">
+                                {product.originalPrice.toLocaleString('vi-VN')}₫
+                              </div>
+                            )}
+                          </>
+                        ) : product.originalPrice && product.originalPrice > 0 ? (
+                          <div className="text-red-600 font-bold text-lg">
                             {product.originalPrice.toLocaleString('vi-VN')}₫
                           </div>
+                        ) : (
+                          <div className="text-orange-600 font-bold text-sm">Liên hệ</div>
                         )}
                       </div>
                     </div>

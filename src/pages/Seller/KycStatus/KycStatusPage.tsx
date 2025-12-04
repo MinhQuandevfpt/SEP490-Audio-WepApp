@@ -27,7 +27,6 @@ const KycStatusPage: React.FC = () => {
   const loadStoreInfo = async () => {
     try {
       const info = await StoreService.getStoreInfo();
-      setStoreInfo(info);
       
       console.log('📊 Store Info loaded:', info);
       
@@ -42,10 +41,14 @@ const KycStatusPage: React.FC = () => {
       
       console.log('📊 Current Status:', currentStatus);
       
-      // If status is ACTIVE, redirect to dashboard
+      // If status is ACTIVE, redirect to dashboard IMMEDIATELY (không set storeInfo để tránh render UI)
       if (currentStatus === 'ACTIVE') {
-        navigate('/seller/dashboard');
+        navigate('/seller/dashboard', { replace: true });
+        return; // Dừng ngay, không set storeInfo
       }
+      
+      // Chỉ set storeInfo nếu không phải ACTIVE
+      setStoreInfo(info);
     } catch (error) {
       console.error('Error loading store info:', error);
     } finally {
@@ -62,12 +65,13 @@ const KycStatusPage: React.FC = () => {
     loadStoreInfo();
   };
 
+  // Hiển thị loading khi đang check status (để tránh nháy UI)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải thông tin...</p>
+          <p className="mt-4 text-gray-600">Đang kiểm tra thông tin cửa hàng...</p>
         </div>
       </div>
     );
@@ -215,7 +219,7 @@ const KycStatusPage: React.FC = () => {
                 <h3 className="font-semibold text-gray-800 mb-3">Hướng dẫn khắc phục</h3>
                 <ul className="text-sm text-gray-700 space-y-2">
                   <li>• Kiểm tra lại thông tin đã gửi và lý do từ chối đã được hệ thống gửi về Email</li>
-                  <li>• Chuẩn bị đầy đủ giấy tờ hợp lệ (CCCD/CMND, Giấy phép kinh doanh)</li>
+                  <li>• Chuẩn bị đầy đủ giấy tờ hợp lệ (Căn cước/ CCCD, Giấy phép kinh doanh)</li>
                   <li>• Đảm bảo ảnh chụp rõ ràng, không bị mờ hay che khuất</li>
                   <li>• Thông tin phải khớp với giấy tờ thực tế</li>
                   <li>• Nhấn "Gửi lại KYC" để cập nhật thông tin mới</li>
@@ -281,7 +285,7 @@ const KycStatusPage: React.FC = () => {
               <ul className="text-sm text-gray-700 space-y-2">
                 <li>• Điền đầy đủ thông tin kinh doanh</li>
                 <li>• Cung cấp thông tin thanh toán</li>
-                <li>• Upload giấy tờ định danh (CCCD/CMND, Giấy phép kinh doanh)</li>
+                <li>• Upload giấy tờ định danh (Căn cước/CCCD, Giấy phép kinh doanh) còn hiệu lực</li>
                 <li>• Chờ xét duyệt từ AudioShop (1-3 ngày)</li>
              </ul>
             </div>

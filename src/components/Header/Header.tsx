@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { User, Bell, Home, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
+import { User, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
 import CartDropdown from './CartDropdown';
+import NotificationDropdown from './NotificationDropdown';
 import type { CategoryItem } from '../../types/api';
 
 const Header: React.FC = () => {
@@ -12,8 +13,7 @@ const Header: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
 
-  // Check if current page is homepage or account page
-  const isHomePage = location.pathname === '/';
+  // Check if current page is account page
   const isAccountPage = location.pathname.startsWith('/account');
 
   useEffect(() => {
@@ -107,10 +107,6 @@ const Header: React.FC = () => {
               </Link>
             </div>
             <div className="flex space-x-6">
-              <a href="/notifications" className="text-gray-600 hover:text-gray-900 flex items-center space-x-1">
-                <Bell className="w-4 h-4" />
-                <span>Thông báo</span>
-              </a>
               <a href="/support" className="text-gray-600 hover:text-gray-900">
                 Hỗ trợ
               </a>
@@ -197,22 +193,6 @@ const Header: React.FC = () => {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-4">
-            {/* Trang chủ */}
-            <Link 
-              to="/" 
-              className={`flex items-center space-x-1 transition-colors ${
-                isHomePage 
-                  ? 'text-orange-500 font-semibold' 
-                  : 'text-gray-700 hover:text-orange-500'
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span className="text-sm">Trang chủ</span>
-            </Link>
-
-            {/* Divider */}
-            <span className="text-gray-300">|</span>
-
             {/* User Account */}
             <Link 
               to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
@@ -226,8 +206,14 @@ const Header: React.FC = () => {
               <span className="text-sm">Tài khoản</span>
             </Link>
 
+            {/* Divider */}
+            <span className="text-gray-300">|</span>
+
             {/* Shopping Cart with Dropdown */}
             <CartDropdown />
+
+            {/* Notifications Dropdown */}
+            <NotificationDropdown />
           </div>
         </div>
       </div>

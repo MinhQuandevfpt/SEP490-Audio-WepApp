@@ -100,11 +100,18 @@ export class OrderHistoryService {
         { userType: 'customer' }
       );
 
+      let order: CustomerOrder | null = null;
       if (response && typeof response === 'object' && 'data' in response) {
-        return (response as { data: CustomerOrder }).data;
+        order = (response as { data: CustomerOrder }).data;
+      } else {
+        order = response as CustomerOrder;
       }
 
-      return response as CustomerOrder;
+      if (!order) {
+        return null;
+      }
+
+      return this.normalizeOrder(order as CustomerOrder & { items?: any[] });
     } catch (error: any) {
       console.error('❌ Error fetching order detail:', error);
       if (error?.status === 404) {
@@ -234,6 +241,8 @@ export class OrderHistoryService {
         item.storeDisplayName ||
         (storeId !== 'unknown-store' ? `Cửa hàng ${storeId.slice(0, 6)}` : 'Cửa hàng');
 
+      const displayImage = this.getPreferredItemImage(item);
+
       const normalizedItem: OrderItem = {
         id: item.id || `${order.id}-item-${index + 1}`,
         type: item.type || 'PRODUCT',
@@ -242,7 +251,13 @@ export class OrderHistoryService {
         quantity: item.quantity ?? 1,
         unitPrice: item.unitPrice ?? 0,
         lineTotal: item.lineTotal ?? (item.unitPrice ?? 0) * (item.quantity ?? 1),
-        image: item.image || item.thumbnail || item.productImage,
+        image: displayImage,
+        storeId,
+        storeName,
+        variantId: item.variantId ?? null,
+        variantOptionName: item.variantOptionName ?? null,
+        variantOptionValue: item.variantOptionValue ?? null,
+        variantUrl: item.variantUrl ?? null,
       };
 
       if (!grouped.has(storeId)) {
@@ -282,6 +297,27 @@ export class OrderHistoryService {
         items: group.items,
       };
     });
+  }
+
+  /**
+   * Determine which image to display for an order item
+   * - If variantId exists, prefer variantUrl
+   * - Otherwise fallback to base product image
+   */
+  private static getPreferredItemImage(item: any): string | undefined {
+    const variantImage =
+      item.variantUrl ||
+      item.variantThumbnail ||
+      item.variantImage ||
+      item.variantPicture ||
+      null;
+    const baseImage = item.image || item.thumbnail || item.productImage || item.picture || null;
+
+    if (item.variantId) {
+      return variantImage || baseImage || undefined;
+    }
+
+    return baseImage || variantImage || undefined;
   }
 }
 

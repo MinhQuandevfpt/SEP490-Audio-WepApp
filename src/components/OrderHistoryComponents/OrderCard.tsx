@@ -1,11 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
 import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
-import { Card, Button, message } from 'antd';
+import { Card, Button, message, Select, Input } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
+import { ProductReviewService } from '../../services/customer/ProductReviewService';
+import { FileUploadService } from '../../services/FileUploadService';
+
+const { Option } = Select;
+const { TextArea } = Input;
 
 interface Props {
   order: CustomerOrder;
@@ -22,11 +27,38 @@ const getErrorMessage = (error: any, fallback: string) => {
   );
 };
 
+const resolveOrderItemImage = (item: Partial<OrderItem>) => {
+  if (item.variantId) {
+    return item.variantUrl || item.image || undefined;
+  }
+  return item.image || item.variantUrl || undefined;
+};
+
+const formatVariantLabel = (item: { variantOptionName?: string | null; variantOptionValue?: string | null }) => {
+  if (!item.variantOptionName || !item.variantOptionValue) return null;
+  return `${item.variantOptionName}: ${item.variantOptionValue}`;
+};
+
+const isAlreadyReviewedError = (error: any): boolean => {
+  const code = error?.data?.code || error?.code;
+  if (code && typeof code === 'string' && code.toUpperCase().includes('REVIEW')) {
+    return true;
+  }
+
+  const message =
+    (error?.message ||
+      error?.data?.message ||
+      (Array.isArray(error?.errors) ? error.errors[0] : '') ||
+      '') as string;
+
+  return typeof message === 'string' && message.toLowerCase().includes('đã review');
+};
+
 const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled }) => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [selectedReviewItem, setSelectedReviewItem] = useState<{ id: string; name: string; storeName: string; image?: string } | null>(null);
+  const [selectedReviewItem, setSelectedReviewItem] = useState<ReviewableItem | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewContent, setReviewContent] = useState('');
   const [reviewMedia, setReviewMedia] = useState<Array<ReviewMediaPayload & { file?: File | null; preview?: string | null }>>([
@@ -34,6 +66,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   ]);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewedItemIds, setReviewedItemIds] = useState<string[]>([]);
+  const [loadingReviewStatus, setLoadingReviewStatus] = useState<Record<string, boolean>>({});
+  const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
+  const [cancelNote, setCancelNote] = useState<string>('');
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -44,7 +79,17 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const storeOrders = order.storeOrders ?? [];
   const legacyItems = (order as LegacyOrderWithItems).items ?? [];
 
-  const reviewableItems = useMemo(() => {
+  type ReviewableItem = {
+    id: string;
+    name: string;
+    image?: string;
+    storeName: string;
+    productRefId: string;
+  variantOptionName?: string | null;
+  variantOptionValue?: string | null;
+  };
+
+  const reviewableItems: ReviewableItem[] = useMemo(() => {
     if (storeOrders.length > 0) {
       return storeOrders.flatMap((storeOrder) => {
         const items = storeOrder.items ?? [];
@@ -53,8 +98,11 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
           .map((item) => ({
             id: item.id,
             name: item.name,
-            image: item.image,
+            image: resolveOrderItemImage(item),
             storeName: storeOrder.storeName,
+            productRefId: item.refId || item.id || '',
+            variantOptionName: item.variantOptionName,
+            variantOptionValue: item.variantOptionValue,
           }));
       });
     }
@@ -65,8 +113,11 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       .map((item) => ({
         id: item.id,
         name: item.name,
-        image: item.image,
+        image: resolveOrderItemImage(item),
         storeName: item.storeName ?? 'Cửa hàng',
+        productRefId: item.refId || item.id || '',
+        variantOptionName: item.variantOptionName,
+        variantOptionValue: item.variantOptionValue,
       }));
   }, [storeOrders, legacyItems]);
 
@@ -77,12 +128,95 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
   };
 
-  const handleSelectReviewItem = (item: { id: string; name: string; storeName: string; image?: string }) => {
-    setSelectedReviewItem(item);
-    setReviewRating(5);
-    setReviewContent('');
-    setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+  const handleSelectReviewItem = (item: ReviewableItem) => {
+    const productId = item.productRefId;
+    if (!productId) {
+      setSelectedReviewItem(item);
+      setReviewRating(5);
+      setReviewContent('');
+      setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+      return;
+    }
+
+    if (reviewedItemIds.includes(productId)) {
+      message.info('Bạn đã đánh giá sản phẩm này rồi.');
+      return;
+    }
+
+    setLoadingReviewStatus((prev) => ({ ...prev, [productId]: true }));
+
+    ProductReviewService.getProductReviewStatus(productId, order.id)
+      .then((status) => {
+        if (status.hasReviewed) {
+          setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
+          message.info(status.message || 'Sản phẩm trong đơn hàng này đã được đánh giá.');
+        } else {
+          setSelectedReviewItem(item);
+          setReviewRating(5);
+          setReviewContent('');
+          setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+        }
+      })
+      .catch((error: any) => {
+        console.error('Error checking existing review status:', error);
+        // Nếu API trạng thái lỗi, vẫn cho phép mở form để tránh chặn người dùng
+        setSelectedReviewItem(item);
+        setReviewRating(5);
+        setReviewContent('');
+        setReviewMedia([{ type: 'image', url: '', file: null, preview: null }]);
+      })
+      .finally(() => {
+        setLoadingReviewStatus((prev) => {
+          const { [productId]: _, ...rest } = prev;
+          return rest;
+        });
+      });
   };
+
+  // Pre-load review status for all items in this order when card is mounted / reloaded
+  useEffect(() => {
+    if (!isDeliverySuccess || reviewableItems.length === 0) return;
+
+    const uncheckedProductIds = Array.from(
+      new Set(
+        reviewableItems
+          .map((item) => item.productRefId)
+          .filter((id): id is string => !!id && !reviewedItemIds.includes(id)),
+      ),
+    );
+
+    if (uncheckedProductIds.length === 0) return;
+
+    const loadStatuses = async () => {
+      try {
+        await Promise.all(
+          uncheckedProductIds.map(async (productId) => {
+            try {
+              const status = await ProductReviewService.getProductReviewStatus(productId, order.id);
+              if (status.hasReviewed) {
+                setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
+              }
+            } catch (error) {
+              console.error('Failed to preload review status for product', productId, error);
+            }
+          }),
+        );
+      } catch (e) {
+        console.error('Error preloading review statuses:', e);
+      }
+    };
+
+    loadStatuses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeliverySuccess, reviewableItems, order.id]);
+
+  const hasPendingReviewItems = useMemo(
+    () =>
+      reviewableItems.some(
+        (item) => item.productRefId && !reviewedItemIds.includes(item.productRefId),
+      ),
+    [reviewableItems, reviewedItemIds],
+  );
 
   const handleMediaChange = (index: number, field: keyof ReviewMediaPayload, value: string) => {
     setReviewMedia((prev) =>
@@ -117,13 +251,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     try {
       setIsCancelling(true);
       if (order.status === 'AWAITING_SHIPMENT') {
-        await OrderHistoryService.requestCancel(order.id, 'CHANGE_OF_MIND', '');
+        await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
         message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng.');
       } else {
-        await OrderHistoryService.cancel(order.id, 'CHANGE_OF_MIND', '');
+        await OrderHistoryService.cancel(order.id, cancelReason, cancelNote);
         message.success('Hủy đơn hàng thành công');
       }
       setShowCancelModal(false);
+      setCancelReason('CHANGE_OF_MIND');
+      setCancelNote('');
       if (onOrderCancelled) {
         onOrderCancelled();
       }
@@ -148,20 +284,17 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       return;
     }
 
-    const convertFileToBase64 = (file: File): Promise<string> =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
     const mediaPayload = (
       await Promise.all(
         reviewMedia.map(async (media) => {
           if (media.file) {
-            const base64 = await convertFileToBase64(media.file);
-            return { type: media.type, url: base64 };
+            try {
+              const uploaded = await FileUploadService.uploadImage(media.file);
+              return { type: media.type, url: uploaded.url };
+            } catch (uploadError: any) {
+              message.error(uploadError?.message || 'Tải media thất bại, vui lòng thử lại');
+              throw uploadError;
+            }
           }
           if (media.url.trim()) {
             return { type: media.type, url: media.url.trim() };
@@ -180,11 +313,20 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         media: mediaPayload.length > 0 ? mediaPayload : undefined,
       });
       showCenterSuccess('Đánh giá sản phẩm thành công');
-      setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.id])));
+      if (selectedReviewItem.productRefId) {
+        setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.productRefId])));
+      }
       resetReviewForm();
     } catch (err: any) {
       const errMsg = getErrorMessage(err, 'Không thể gửi đánh giá, vui lòng thử lại');
       showCenterError(errMsg, 'Gửi đánh giá thất bại');
+
+      if (selectedReviewItem?.productRefId && isAlreadyReviewedError(err)) {
+        setReviewedItemIds((prev) =>
+          Array.from(new Set([...prev, selectedReviewItem.productRefId])),
+        );
+        resetReviewForm();
+      }
     } finally {
       setIsSubmittingReview(false);
     }
@@ -250,38 +392,32 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   </div>
 
                   <div className="space-y-3">
-                    {storeOrder.items.map((item) => (
-                      <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
-                        <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
-                          {item.image ? (
-                            <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <Package className="h-full w-full p-3 text-gray-400" />
+                    {storeOrder.items.map((item) => {
+                      const itemImage = resolveOrderItemImage(item);
+                      return (
+                        <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
+                          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                            {itemImage ? (
+                              <img src={itemImage} alt={item.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <Package className="h-full w-full p-3 text-gray-400" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+                          {formatVariantLabel(item) && (
+                            <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
                           )}
+                            <p className="text-xs text-gray-500">
+                              {formatCurrency(item.unitPrice)} · SL {item.quantity}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.lineTotal)}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatCurrency(item.unitPrice)} · SL {item.quantity}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.lineTotal)}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs text-gray-500">
-                    <span>Tạm tính: {formatCurrency(storeOrder.totalAmount)}</span>
-                    {storeOrder.discountTotal > 0 && (
-                      <span className="text-green-600">- Giảm: {formatCurrency(storeOrder.discountTotal)}</span>
-                    )}
-                    <span className="hidden sm:inline">·</span>
-                    <span>Phí ship: {formatCurrency(storeOrder.shippingFee)}</span>
-                    <span className="ml-auto font-semibold text-[#FF6A00]">
-                      {formatCurrency(storeOrder.grandTotal)}
-                    </span>
+                      );
+                    })}
                   </div>
 
                   {ghnOrderData[storeOrder.id]?.orderGhn && (
@@ -321,7 +457,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             </div>
           </div>
 
-          {isDeliverySuccess && reviewableItems.length > 0 && (
+          {isDeliverySuccess && reviewableItems.length > 0 && hasPendingReviewItems && (
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <Star className="w-4 h-4 text-[#FF6A00]" />
@@ -336,7 +472,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
 
               <div className="space-y-3">
                 {reviewableItems.map((item) => {
-                  const reviewed = reviewedItemIds.includes(item.id);
+                  const productId = item.productRefId;
+                  const reviewed = reviewedItemIds.includes(productId);
+                  const isChecking = loadingReviewStatus[productId];
                   return (
                     <div key={item.id} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3">
                       <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
@@ -348,12 +486,16 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
+                        {formatVariantLabel(item) && (
+                          <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
+                        )}
                         <p className="text-xs text-gray-500">{item.storeName}</p>
                       </div>
                       <Button
                         type="primary"
-                        disabled={reviewed}
+                        disabled={reviewed || isChecking}
                         onClick={() => handleSelectReviewItem(item)}
+                        loading={isChecking}
                         style={{
                           backgroundColor: reviewed ? '#D1D5DB' : '#FF6A00',
                           borderColor: reviewed ? '#D1D5DB' : '#FF6A00',
@@ -612,12 +754,53 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <p className="mt-3 text-sm text-gray-600">
               Bạn có chắc chắn muốn {order.status === 'AWAITING_SHIPMENT' ? 'gửi yêu cầu hủy' : 'hủy'} đơn hàng này không?
             </p>
+
+            {/* Lý do hủy */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Lý do hủy</p>
+              <Select
+                value={cancelReason}
+                onChange={setCancelReason}
+                className="w-full"
+                size="large"
+                style={{ borderRadius: 8 }}
+              >
+                <Option value="CHANGE_OF_MIND">Đổi ý</Option>
+                <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
+                <Option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</Option>
+                <Option value="ORDERED_BY_ACCIDENT">Đặt nhầm</Option>
+                <Option value="OTHER">Khác</Option>
+              </Select>
+            </div>
+
+            {/* Ghi chú */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Ghi chú</p>
+              <TextArea
+                rows={3}
+                value={cancelNote}
+                onChange={(e) => setCancelNote(e.target.value)}
+                placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
+                style={{ borderRadius: 8 }}
+              />
+            </div>
+
             <div className="mt-6 flex gap-3">
-              <Button className="flex-1" onClick={() => setShowCancelModal(false)} disabled={isCancelling}>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (!isCancelling) {
+                    setShowCancelModal(false);
+                    setCancelReason('CHANGE_OF_MIND');
+                    setCancelNote('');
+                  }
+                }}
+                disabled={isCancelling}
+              >
                 Đóng
-              </Button> 
+              </Button>
               <Button danger className="flex-1" loading={isCancelling} onClick={handleCancelOrder}>
-                Xác nhận
+                {order.status === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy' : 'Xác nhận hủy'}
               </Button>
             </div>
           </div>

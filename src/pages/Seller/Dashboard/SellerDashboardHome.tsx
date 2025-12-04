@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -10,13 +10,42 @@ import {
   Star,
   ArrowUpRight
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { DashboardStats } from '../../../types/seller';
-import { showCenterSuccess } from '../../../utils/notification';
+import { showCenterSuccess, showCenterError } from '../../../utils/notification';
+import { StoreAddressService } from '../../../services/seller/StoreAddressService';
 
 const SellerDashboardHome: React.FC = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Check store address before navigating to add product
+  const handleAddProductClick = useCallback(async () => {
+    try {
+      const addresses = await StoreAddressService.getStoreAddresses();
+      const addressList = Array.isArray(addresses) ? addresses : (addresses || []);
+
+      if (!addressList || addressList.length === 0) {
+        // Thông báo và chuyển sang trang tạo địa chỉ cửa hàng
+        showCenterError(
+          'Bạn cần tạo ít nhất một địa chỉ cửa hàng trước khi thêm sản phẩm.',
+          'Chưa có địa chỉ cửa hàng'
+        );
+        navigate('/seller/dashboard/store-address?from=create-product');
+        return;
+      }
+
+      // Nếu đã có địa chỉ, cho phép vào trang thêm sản phẩm
+      navigate('/seller/dashboard/products/add');
+    } catch (error) {
+      console.error('Error checking store addresses:', error);
+      showCenterError(
+        'Không thể kiểm tra địa chỉ cửa hàng. Vui lòng thử lại.',
+        'Lỗi'
+      );
+    }
+  }, [navigate]);
 
   useEffect(() => {
     // Check for login success message
@@ -257,13 +286,13 @@ const SellerDashboardHome: React.FC = () => {
         <div className="bg-white p-6 rounded-xl border border-gray-200">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Thao tác nhanh</h2>
           <div className="grid grid-cols-2 gap-3">
-            <Link
-              to="/seller/dashboard/products/add"
-              className="p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all group"
+            <button
+              onClick={handleAddProductClick}
+              className="p-4 border-2 border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all group w-full text-left"
             >
               <Package className="w-6 h-6 text-gray-600 group-hover:text-orange-600 mb-2" />
               <p className="text-sm font-medium text-gray-800">Thêm sản phẩm</p>
-            </Link>
+            </button>
             
             <Link
               to="/seller/dashboard/orders"

@@ -111,17 +111,19 @@ const ShippingFeeCalculator: React.FC<ShippingFeeCalculatorProps> = ({
         return;
       }
 
-      // Build GHN items with fixed dimensions 1x1x1 and weight from products
+      // Build GHN items with default dimensions and weight from products
       const ghnItems = selectedItems.map(si => {
         const p = productById.get(si.productId);
         const weightKg = (p?.weight && p.weight > 0 ? p.weight : 0.5);
         const weightGr = Math.round(weightKg * 1000);
+        // Default dimensions: always 1cm for all items
+        const defaultDim = 1;
         return {
           name: si.name,
           quantity: si.quantity,
-          length: 1, // Fixed value
-          width: 1,  // Fixed value
-          height: 1, // Fixed value
+          length: defaultDim,
+          width: defaultDim,
+          height: defaultDim,
           weight: weightGr,
         };
       });
@@ -129,29 +131,39 @@ const ShippingFeeCalculator: React.FC<ShippingFeeCalculatorProps> = ({
       // Aggregate package weight (sum of all item weights)
       const pkgWeight = ghnItems.reduce((sum, it) => sum + it.weight * it.quantity, 0);
 
-      // Fixed package dimensions: 1x1x1 cm
+      // Default package dimensions (cm) - always 1
       const pkgLength = 1;
       const pkgWidth = 1;
       const pkgHeight = 1;
 
+      // Ensure all values are correct types
       const body: GhnFeeRequestBody = {
         service_type_id: serviceTypeId,
-        from_district_id: fromDistrictId,
-        from_ward_code: fromWardCode,
-        to_district_id: toDistrictId,
-        to_ward_code: toWardCode,
-        length: pkgLength,
-        width: pkgWidth,
-        height: pkgHeight,
-        weight: pkgWeight,
-        insurance_value: clampInsurance(_insuranceValue),
-        coupon: '',
-        items: ghnItems,
+        from_district_id: Number(fromDistrictId),
+        from_ward_code: String(fromWardCode),
+        to_district_id: Number(toDistrictId),
+        to_ward_code: String(toWardCode),
+        length: Number(pkgLength),
+        width: Number(pkgWidth),
+        height: Number(pkgHeight),
+        weight: Number(pkgWeight),
+        insurance_value: Number(clampInsurance(_insuranceValue)),
+        coupon: '', // Empty string if no coupon
+        items: ghnItems.map(item => ({
+          name: String(item.name),
+          quantity: Number(item.quantity),
+          length: 1, // Default 1cm
+          width: 1, // Default 1cm
+          height: 1, // Default 1cm
+          weight: Number(item.weight),
+        })),
       };
 
       const resp = await ShippingService.calculateGhnFee(body);
-      if (resp.code === 200) {
-        _setShipCalcMessage(`Phí dự kiến: ${(resp.data.total || 0).toLocaleString('vi-VN')}₫ (dịch vụ: ${serviceTypeId === 2 ? 'Hàng nhẹ' : 'Hàng nặng'})`);
+      if (resp.code === 200 && resp.data?.service_fee !== undefined) {
+        // Use service_fee from response for shipping fee display
+        const serviceFee = resp.data.service_fee || 0;
+        _setShipCalcMessage(`Phí dự kiến: ${serviceFee.toLocaleString('vi-VN')}₫ (dịch vụ: ${serviceTypeId === 2 ? 'Hàng nhẹ' : 'Hàng nặng'})`);
         _setPackageDims({ length: pkgLength, width: pkgWidth, height: pkgHeight });
         onPackageWeightChange(pkgWeight);
         // Do not auto-apply; let user apply explicitly

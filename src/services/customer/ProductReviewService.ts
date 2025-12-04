@@ -11,6 +11,12 @@ export interface ReviewListResponse {
   last: boolean;
 }
 
+export interface ProductReviewStatusResponse {
+  hasReviewed: boolean;
+  review?: ReviewResponse;
+  message?: string;
+}
+
 export class ProductReviewService {
   static async getMyReviews(page: number = 0, size: number = 10): Promise<ReviewListResponse> {
     const query = new URLSearchParams({
@@ -49,6 +55,35 @@ export class ProductReviewService {
       `/api/reviews/product/${productId}?${query.toString()}`,
       { userType: 'customer' }
     );
+  }
+
+  static async getMyReviewForProduct(productId: string): Promise<ReviewResponse | null> {
+    try {
+      return await HttpInterceptor.get<ReviewResponse>(
+        `/api/reviews/product/${productId}/me`,
+        { userType: 'customer' }
+      );
+    } catch (error: any) {
+      if (error?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Check review status for a specific product in a specific order
+   * GET /api/reviews/product/{productId}/me/status?orderId={orderId}
+   */
+  static async getProductReviewStatus(
+    productId: string,
+    orderId: string,
+  ): Promise<ProductReviewStatusResponse> {
+    const url = `/api/reviews/product/${productId}/me/status?orderId=${encodeURIComponent(orderId)}`;
+
+    return HttpInterceptor.get<ProductReviewStatusResponse>(url, {
+      userType: 'customer',
+    });
   }
 }
 

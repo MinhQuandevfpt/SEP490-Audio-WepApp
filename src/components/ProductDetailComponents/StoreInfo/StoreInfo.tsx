@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { MessageCircle, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { CustomerStoreService } from '../../../services/customer/StoreService';
+import { useChatContext } from '../../../contexts/ChatContext';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 
 interface StoreInfoProps {
   storeId: string;
@@ -10,11 +13,45 @@ interface StoreInfoProps {
 
 const StoreInfo: React.FC<StoreInfoProps> = ({ storeId, storeName, storeAvatar }) => {
   const navigate = useNavigate();
+  const chatContext = useChatContext();
+  const [storeData, setStoreData] = useState<{
+    logoUrl?: string;
+    coverImageUrl?: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  
   const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(storeName)}&background=ff6b35&color=fff&size=128`;
   
+  // Fetch store details to get logo and cover image
+  useEffect(() => {
+    const fetchStoreData = async () => {
+      try {
+        setLoading(true);
+        const data = await CustomerStoreService.getStoreById(storeId);
+        setStoreData(data);
+      } catch (error) {
+        console.error('Error fetching store data:', error);
+        setStoreData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (storeId) {
+      fetchStoreData();
+    }
+  }, [storeId]);
+  
   const handleChatWithStore = () => {
-    // TODO: Implement chat functionality
-    console.log('Chat with store:', storeId);
+    // Check if user is logged in
+    if (!CustomerAuthService.isAuthenticated()) {
+      // Redirect to login page
+      navigate('/auth/login');
+      return;
+    }
+    
+    // Open chat with this store
+    chatContext.openChat('store', storeId);
   };
 
   const handleVisitStore = () => {
@@ -29,6 +66,9 @@ const StoreInfo: React.FC<StoreInfoProps> = ({ storeId, storeName, storeAvatar }
     navigate(`/store/${storeId}`);
   };
 
+  // Use logo from API if available, otherwise use prop or default
+  const displayAvatar = storeData?.logoUrl || storeAvatar || defaultAvatar;
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 mt-4">
       <div className="flex items-center gap-4">
@@ -38,15 +78,19 @@ const StoreInfo: React.FC<StoreInfoProps> = ({ storeId, storeName, storeAvatar }
           onClick={handleAvatarClick}
         >
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-orange-200 hover:border-orange-400 transition-colors">
-            <img
-              src={storeAvatar || defaultAvatar}
-              alt={storeName}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = defaultAvatar;
-              }}
-            />
+            {loading ? (
+              <div className="w-full h-full bg-gray-200 animate-pulse" />
+            ) : (
+              <img
+                src={displayAvatar}
+                alt={storeName}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = defaultAvatar;
+                }}
+              />
+            )}
           </div>
         </div>
 

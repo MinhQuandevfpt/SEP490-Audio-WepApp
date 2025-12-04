@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { ArrowLeft, Store, ShoppingBag, TrendingUp, Users, BarChart3 } from 'lucide-react';
+import { Store, ShoppingBag, TrendingUp, Users, BarChart3 } from 'lucide-react';
 
 const SellerLayout: React.FC = () => {
   return (
@@ -9,24 +9,19 @@ const SellerLayout: React.FC = () => {
       <div className="bg-white shadow-lg border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center">
-            <Link 
-              to="/" 
-              className="flex items-center text-gray-600 hover:text-blue-600 transition-colors mr-8"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              <span>Quay lại trang chủ</span>
-            </Link>
-            <div className="flex items-center space-x-3">
+            <Link to="/" className="flex items-center space-x-3 mr-8">
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-2 rounded-lg">
                 <Store className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  AudioShop Seller Center
+                <h1 className="text-2xl font-bold">
+                  <span className="text-orange-500">Audio</span>
+                  <span className="text-blue-600">Shop</span>
+                  <span className="text-gray-700 ml-2">Seller Center</span>
                 </h1>
                 <p className="text-sm text-gray-600">Kênh người bán - Quản lý cửa hàng của bạn</p>
               </div>
-            </div>
+            </Link>
           </div>
           
           {/* Support info cho seller */}

@@ -1,4 +1,5 @@
 import { HttpInterceptor } from '../HttpInterceptor';
+import { ProductListService } from './ProductListService';
 import type {
   FlashSaleCampaign,
   FlashSaleListResponse,
@@ -133,6 +134,17 @@ export class FlashSaleService {
         'ONGOING'
       );
 
+      // Bước 3.5: Chỉ lấy sản phẩm đã được admin duyệt
+      // Status có thể là 'APPROVE' (đã duyệt) hoặc 'ACTIVE' (đã duyệt và đang chạy)
+      products = products.filter(product => 
+        product.status === 'APPROVE' || product.status === 'ACTIVE'
+      );
+      
+      console.log('🔍 Flash Sale Products Filter:', {
+        total: products.length,
+        statuses: products.map(p => ({ id: p.productId, status: p.status }))
+      });
+
       // Bước 4: Enrich products với hình ảnh từ product detail
       products = await this.enrichProductsWithImages(products);
 
@@ -160,30 +172,18 @@ export class FlashSaleService {
         products.map(async (product) => {
           try {
             // Fetch product detail để lấy hình ảnh và variants
-            const response = await HttpInterceptor.fetch<{
-              status: number;
-              message: string;
-              data: {
-                productId: string;
-                price: number;
-                images?: string[];
-                variants?: Array<{
-                  variantId: string;
-                  variantPrice?: number; // Seller API uses this
-                  price?: number;        // Customer API uses this
-                  stock?: number;
-                  variantStock?: number;
-                }>;
-              };
-            }>(`/api/products/${product.productId}`, {
-              userType: 'customer'
-            });
+            const response = await ProductListService.getProductById(product.productId);
+            
+            // Get product data
+            const productData = response.data;
 
             // Get first image from array
-            const firstImage = response.data?.images?.[0];
+            const firstImage = productData.images && productData.images.length > 0 
+              ? productData.images[0] 
+              : null;
 
             // Check if product has variants
-            const variants = response.data?.variants || [];
+            const variants = productData.variants || [];
             const hasVariants = variants.length > 0;
 
             let originalPrice = product.originalPrice;
@@ -193,7 +193,7 @@ export class FlashSaleService {
             if (hasVariants) {
               // Get prices from variants (handle both variantPrice and price fields)
               const variantPrices = variants
-                .map(v => v.variantPrice || v.price || 0)
+                .map(v => v.variantPrice || 0)
                 .filter(p => p > 0);
               
               if (variantPrices.length > 0) {
@@ -214,16 +214,33 @@ export class FlashSaleService {
                   discountedPrice = minVariantPrice;
                 }
 
-                console.log(`✅ Variant product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}`);
+                console.log(`✅ Variant product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}, image=${firstImage || 'none'}`);
               }
             } else {
-              // No variants, ensure we have valid prices
-              console.log(`✅ Single product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}`);
+              // No variants - calculate from product's finalPrice or price
+              if (!originalPrice || originalPrice === 0) {
+                originalPrice = productData.finalPrice || productData.price || 0;
+              }
+              
+              // Calculate discounted price if not available from BE
+              if (!discountedPrice || discountedPrice === 0) {
+                if (product.type === 'PERCENT' && product.discountPercent) {
+                  const discount = (originalPrice * product.discountPercent) / 100;
+                  const maxDiscount = product.maxDiscountValue || discount;
+                  discountedPrice = Math.max(0, originalPrice - Math.min(discount, maxDiscount));
+                } else if (product.type === 'FIXED' && product.discountValue) {
+                  discountedPrice = Math.max(0, originalPrice - product.discountValue);
+                } else {
+                  discountedPrice = originalPrice;
+                }
+              }
+              
+              console.log(`✅ Single product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}, image=${firstImage || 'none'}`);
             }
 
             return {
               ...product,
-              imageUrl: firstImage || '',
+              imageUrl: firstImage || product.imageUrl || '',
               originalPrice,
               discountedPrice
             };
@@ -231,7 +248,7 @@ export class FlashSaleService {
             console.error(`❌ Error fetching details for product ${product.productId}:`, error);
             return {
               ...product,
-              imageUrl: ''
+              imageUrl: product.imageUrl || ''
             };
           }
         })

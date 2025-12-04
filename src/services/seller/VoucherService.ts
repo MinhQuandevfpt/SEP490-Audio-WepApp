@@ -9,9 +9,9 @@ const API_URL = RESOLVED_BASE.endsWith('/api') ? RESOLVED_BASE : `${RESOLVED_BAS
 export interface VoucherProductItem {
   productId: string;
   productName: string;
-  originalPrice: number;
-  discountedPrice: number | null;
-  discountPercent: number | null;
+  promotionStockLimit: number | null;
+  purchaseLimitPerCustomer: number | null;
+  active: boolean;
 }
 
 export interface StoreVoucher {
@@ -22,10 +22,14 @@ export interface StoreVoucher {
   type: 'FIXED' | 'PERCENT';
   discountValue: number | null;
   discountPercent: number | null;
+  maxDiscountValue: number | null;
   minOrderValue: number | null;
   status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | 'EXPIRED' | 'DISABLED';
   startTime: string;
   endTime: string;
+  totalVoucherIssued?: number | null;
+  usagePerUser?: number | null;
+  remainingUsage?: number | null;
   products: VoucherProductItem[];
 }
 
@@ -56,6 +60,19 @@ export interface CreateVoucherRequest {
   startTime: string; // ISO
   endTime: string;   // ISO
   products: CreateVoucherProductItem[];
+}
+
+export interface CreateShopWideVoucherRequest {
+  code: string;
+  title: string;
+  description: string;
+  type: 'FIXED' | 'PERCENT';
+  discountValue?: number | null;
+  discountPercent?: number | null;
+  maxDiscountValue?: number | null;
+  minOrderValue?: number | null;
+  startTime: string; // ISO
+  endTime: string;   // ISO
 }
 
 export interface CreateVoucherResponse {
@@ -100,6 +117,37 @@ export class VoucherService {
     const data = await HttpInterceptor.patch<{ status: number; message: string; data: StoreVoucher; }>(url, undefined as any, {
       headers: { 'Accept': 'application/json' },
       userType: 'seller'
+    });
+    return data;
+  }
+
+  static async createShopWideVoucher(body: CreateShopWideVoucherRequest): Promise<CreateVoucherResponse> {
+    const url = `${API_URL}/shop-vouchers/shop-wide`;
+    const data = await HttpInterceptor.post<CreateVoucherResponse>(url, body, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      userType: 'seller'
+    });
+    return data;
+  }
+
+  // Get shop-wide vouchers by store for customer checkout
+  static async getShopVouchersByStore(
+    storeId: string,
+    status: string = 'ACTIVE',
+    scopeType: string = 'ALL_SHOP_VOUCHER'
+  ): Promise<StoreVoucherListResponse> {
+    const url = `${API_URL}/shop-vouchers/by-store`;
+    const params = new URLSearchParams({
+      storeId,
+      status,
+      scopeType,
+    });
+    const data = await HttpInterceptor.get<StoreVoucherListResponse>(`${url}?${params.toString()}`, {
+      headers: { 'Accept': 'application/json' },
+      userType: 'customer'
     });
     return data;
   }

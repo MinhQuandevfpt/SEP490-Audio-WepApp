@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Table, Image, Tag, Space, Button, Tooltip } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import {
@@ -13,6 +13,8 @@ import {
 import { ProductService } from '../../../services/seller/ProductService';
 import type { Product, ProductQueryParams } from '../../../types/seller';
 import ProductDetailDrawer from './ProductDetailDrawer';
+import { StoreAddressService } from '../../../services/seller/StoreAddressService';
+import { showCenterError } from '../../../utils/notification';
 
 const ProductManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -120,6 +122,33 @@ const ProductManagement: React.FC = () => {
     setCurrentPage(1);
   }, []);
 
+  // Check store address before navigating to add product
+  const handleAddProductClick = useCallback(async () => {
+    try {
+      const addresses = await StoreAddressService.getStoreAddresses();
+      const addressList = Array.isArray(addresses) ? addresses : (addresses || []);
+
+      if (!addressList || addressList.length === 0) {
+        // Thông báo và chuyển sang trang tạo địa chỉ cửa hàng
+        showCenterError(
+          'Bạn cần tạo ít nhất một địa chỉ cửa hàng trước khi thêm sản phẩm.',
+          'Chưa có địa chỉ cửa hàng'
+        );
+        navigate('/seller/dashboard/store-address?from=create-product');
+        return;
+      }
+
+      // Nếu đã có địa chỉ, cho phép vào trang thêm sản phẩm
+      navigate('/seller/dashboard/products/add');
+    } catch (error) {
+      console.error('Error checking store addresses:', error);
+      showCenterError(
+        'Không thể kiểm tra địa chỉ cửa hàng. Vui lòng thử lại.',
+        'Lỗi'
+      );
+    }
+  }, [navigate]);
+
   const handleTableChange = useCallback((pagination: TablePaginationConfig) => {
     setCurrentPage(pagination.current || 1);
   }, []);
@@ -225,7 +254,8 @@ const ProductManagement: React.FC = () => {
       title: 'Sản phẩm',
       dataIndex: 'name',
       key: 'name',
-      width: 300,
+      width: 250,
+      fixed: 'left',
       render: (_, record) => (
         <div className="flex items-start space-x-3">
           <Image
@@ -323,8 +353,9 @@ const ProductManagement: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 120,
+      width: 100,
       align: 'center',
+      fixed: 'right',
       render: (_, record) => {
         // Don't show actions for variant rows
         if (record.isVariant) return null;
@@ -364,7 +395,7 @@ const ProductManagement: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 md:p-6 max-w-full overflow-hidden">
+    <div className="w-full overflow-x-hidden">
       {/* Custom CSS for expand icon alignment */}
       <style>{`
         .ant-table-row-expand-icon {
@@ -390,13 +421,13 @@ const ProductManagement: React.FC = () => {
               Quản lý tất cả sản phẩm trong cửa hàng của bạn
             </p>
           </div>
-          <Link
-            to="/seller/dashboard/products/add"
+          <button
+            onClick={handleAddProductClick}
             className="inline-flex items-center justify-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors whitespace-nowrap"
           >
             <Plus className="w-5 h-5 mr-2" />
             Thêm sản phẩm
-          </Link>
+          </button>
         </div>
 
         {/* Filters & Search */}
@@ -565,13 +596,13 @@ const ProductManagement: React.FC = () => {
                   <p className="text-sm text-gray-600 mb-4 md:mb-6">
                     Bắt đầu bằng cách thêm sản phẩm đầu tiên của bạn
                   </p>
-                  <Link
-                    to="/seller/dashboard/products/add"
+                  <button
+                    onClick={handleAddProductClick}
                     className="inline-flex items-center px-4 md:px-6 py-2 md:py-3 text-sm md:text-base bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                   >
                     <Plus className="w-4 h-4 md:w-5 md:h-5 mr-2" />
                     Thêm sản phẩm
-                  </Link>
+                  </button>
                 </div>
               ),
             }}

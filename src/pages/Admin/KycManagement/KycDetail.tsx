@@ -224,12 +224,12 @@ const KycDetail: React.FC = () => {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
-                onClick={() => openImageModal(kyc.idCardFrontUrl, 'CMND/CCCD mặt trước')}
+                onClick={() => openImageModal(kyc.idCardFrontUrl, 'Căn cước/CCCD mặt trước')}
                 className="group relative aspect-video bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-orange-500 transition-all"
               >
                 <img
                   src={kyc.idCardFrontUrl}
-                  alt="CMND mặt trước"
+                  alt="Căn cước/CCCD mặt trước"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
@@ -238,17 +238,17 @@ const KycDetail: React.FC = () => {
                   </span>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
-                  <p className="text-white text-xs font-medium">CMND/CCCD mặt trước</p>
+                  <p className="text-white text-xs font-medium">Căn cước/CCCD mặt trước</p>
                 </div>
               </button>
 
               <button
-                onClick={() => openImageModal(kyc.idCardBackUrl, 'CMND/CCCD mặt sau')}
+                onClick={() => openImageModal(kyc.idCardBackUrl, 'Căn cước/CCCD mặt sau')}
                 className="group relative aspect-video bg-gray-100 rounded-lg overflow-hidden hover:ring-2 hover:ring-orange-500 transition-all"
               >
                 <img
                   src={kyc.idCardBackUrl}
-                  alt="CMND mặt sau"
+                  alt="Căn cước/CCCD mặt sau"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
@@ -257,7 +257,7 @@ const KycDetail: React.FC = () => {
                   </span>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
-                  <p className="text-white text-xs font-medium">CMND/CCCD mặt sau</p>
+                  <p className="text-white text-xs font-medium">Căn cước/CCCD mặt sau</p>
                 </div>
               </button>
 

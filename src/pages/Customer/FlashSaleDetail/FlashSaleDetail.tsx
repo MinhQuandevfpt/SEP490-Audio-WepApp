@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Card, Button, Spin, Empty, Tag, Breadcrumb } from 'antd';
-import { FireOutlined, ClockCircleOutlined, HomeOutlined } from '@ant-design/icons';
+import { Card, Spin, Empty } from 'antd';
 import { FlashSaleService } from '../../../services/customer/FlashSaleService';
 import type { FlashSaleCampaign, FlashSaleSlot, FlashSaleProduct } from '../../../types/flashsale';
+import Header from '../../../components/Header/Header';
 
 /**
  * FlashSaleDetail Page
@@ -89,7 +89,23 @@ const FlashSaleDetail: React.FC = () => {
           selectedSlot.id,
           'ONGOING'
         );
-        setProducts(productList);
+        // Chỉ lấy sản phẩm đã được admin duyệt
+        // Status có thể là 'APPROVE' (đã duyệt) hoặc 'ACTIVE' (đã duyệt và đang chạy)
+        const approvedProducts = productList.filter(product => 
+          product.status === 'APPROVE' || product.status === 'ACTIVE'
+        );
+        
+        console.log('🔍 Flash Sale Detail Products Filter:', {
+          total: productList.length,
+          approved: approvedProducts.length,
+          statuses: productList.map(p => ({ id: p.productId, name: p.productName, status: p.status }))
+        });
+        // Enrich products with images (similar to FlashSaleHome)
+        console.log('📦 Products before enriching:', approvedProducts.length);
+        const enrichedProducts = await FlashSaleService.enrichProductsWithImages(approvedProducts);
+        console.log('✅ Products after enriching:', enrichedProducts.length);
+        console.log('🖼️ Sample product imageUrl:', enrichedProducts[0]?.imageUrl);
+        setProducts(enrichedProducts);
       } catch (error: any) {
         console.error('Error loading products:', error);
         setProducts([]);
@@ -119,22 +135,6 @@ const FlashSaleDetail: React.FC = () => {
     return () => clearInterval(interval);
   }, [selectedSlot]);
 
-  // Nhóm slots theo hôm nay/ngày mai
-  const groupedSlots = useMemo(() => {
-    const today: FlashSaleSlot[] = [];
-    const tomorrow: FlashSaleSlot[] = [];
-
-    slots.forEach(slot => {
-      if (FlashSaleService.isSlotTomorrow(slot)) {
-        tomorrow.push(slot);
-      } else {
-        today.push(slot);
-      }
-    });
-
-    return { today, tomorrow };
-  }, [slots]);
-
   const handleProductClick = (productId: string) => {
     navigate(`/product/${productId}`);
   };
@@ -156,149 +156,122 @@ const FlashSaleDetail: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6">
-      <div className="container mx-auto px-4">
-        {/* Breadcrumb */}
-        <Breadcrumb className="mb-4">
-          <Breadcrumb.Item>
-            <HomeOutlined />
-          </Breadcrumb.Item>
-          <Breadcrumb.Item>
-            <a href="/">Trang chủ</a>
-          </Breadcrumb.Item>
-          <Breadcrumb.Item>Flash Sale</Breadcrumb.Item>
-          <Breadcrumb.Item>{campaign.name}</Breadcrumb.Item>
-        </Breadcrumb>
+    <>
+      {/* Header giống trang home */}
+      <Header />
+      
+      {/* Flash Sale Banner với countdown */}
+      <div className="bg-gradient-to-r from-orange-600 via-red-600 to-orange-600 relative overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute top-10 left-20 w-32 h-32 bg-yellow-300 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 right-20 w-40 h-40 bg-yellow-400 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-orange-300 rounded-full blur-3xl"></div>
+        </div>
 
-        {/* Campaign Header */}
-        <Card className="mb-6 shadow-md">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
-              <FireOutlined className="text-white text-3xl" />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-800 mb-1">{campaign.name}</h1>
-              <p className="text-gray-600">{campaign.description}</p>
-              <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                <span>
-                  <ClockCircleOutlined className="mr-1" />
-                  {new Date(campaign.startTime).toLocaleDateString('vi-VN')} -{' '}
-                  {new Date(campaign.endTime).toLocaleDateString('vi-VN')}
-                </span>
-                <Tag color={campaign.status === 'ACTIVE' ? 'success' : 'default'}>
-                  {campaign.status === 'ACTIVE' ? 'Đang diễn ra' : campaign.status}
-                </Tag>
-              </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
+          <div className="flex items-center justify-center gap-12">
+            {/* Left: Flash Sale Logo */}
+            <div className="flex items-center gap-3">
+              <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+              </svg>
+              <h1 className="text-5xl font-bold uppercase tracking-wider text-white">
+                Flash Sale
+              </h1>
             </div>
 
-            {/* Countdown nếu slot active */}
+            {/* Center: KẾT THÚC TRONG text */}
             {selectedSlot && FlashSaleService.isSlotActive(selectedSlot) && countdown !== '00:00:00' && (
-              <div className="text-center">
-                <div className="text-sm text-gray-600 mb-1">Kết thúc sau</div>
-                <div className="bg-red-500 text-white px-6 py-3 rounded-lg">
-                  <span className="text-3xl font-mono font-bold">{countdown}</span>
-                </div>
+              <div className="flex items-center gap-2 text-white">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                </svg>
+                <span className="text-xl uppercase font-bold tracking-wide">
+                  KẾT THÚC TRONG
+                </span>
+              </div>
+            )}
+
+            {/* Right: Countdown Timer */}
+            {selectedSlot && FlashSaleService.isSlotActive(selectedSlot) && countdown !== '00:00:00' && (
+              <div className="flex items-center gap-3">
+                {countdown.split(':').map((unit, index) => (
+                  <React.Fragment key={index}>
+                    <div className="bg-black bg-opacity-50 backdrop-blur-sm rounded-lg px-5 py-4 min-w-[80px] shadow-2xl border-2 border-white border-opacity-30">
+                      <div className="text-white text-5xl font-bold text-center font-mono">
+                        {unit}
+                      </div>
+                    </div>
+                    {index < 2 && (
+                      <span className="text-white text-4xl font-bold opacity-80">:</span>
+                    )}
+                  </React.Fragment>
+                ))}
               </div>
             )}
           </div>
-        </Card>
+        </div>
+      </div>
 
-        {/* Slot Tabs */}
-        <Card className="mb-6 shadow-md">
-          <div className="border-b border-gray-200 pb-4 mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">Khung giờ Flash Sale</h2>
+      {/* Time Slots Section */}
+      <div className="bg-white border-b-2 border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center gap-6 py-4">
+            {slots
+              .filter(slot => new Date(slot.closeTime) >= new Date()) // Chỉ lấy slots chưa kết thúc
+              .slice(0, 4) // Chỉ hiện 4 slots
+              .map((slot) => {
+              const isActive = FlashSaleService.isSlotActive(slot);
+              const isSelected = selectedSlot?.id === slot.id;
+              const isTomorrow = FlashSaleService.isSlotTomorrow(slot);
+              
+              return (
+                <button
+                  key={slot.id}
+                  onClick={() => setSelectedSlot(slot)}
+                  className={`flex-shrink-0 text-center px-6 py-3 rounded-lg transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-orange-500 text-white shadow-lg scale-105'
+                      : isActive
+                      ? 'bg-red-50 text-red-600 border-2 border-red-500'
+                      : 'bg-gray-50 text-gray-700 hover:bg-orange-50'
+                  }`}
+                >
+                  <div className="text-2xl font-bold mb-1">
+                    {FlashSaleService.formatSlotTime(slot.openTime)}
+                  </div>
+                  <div className="text-xs font-medium">
+                    {isActive && isSelected && 'Đang Diễn Ra'}
+                    {isActive && !isSelected && 'Đang Diễn Ra'}
+                    {!isActive && !isTomorrow && 'Sắp Diễn Ra'}
+                    {isTomorrow && 'Tomorrow'}
+                  </div>
+                </button>
+              );
+            })}
           </div>
+        </div>
+      </div>
 
-          {/* Today's Slots */}
-          {groupedSlots.today.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Hôm nay</h3>
-              <div className="flex flex-wrap gap-3">
-                {groupedSlots.today.map(slot => {
-                  const isActive = FlashSaleService.isSlotActive(slot);
-                  const isSelected = selectedSlot?.id === slot.id;
-                  const statusLabel = FlashSaleService.getSlotStatusLabel(slot);
-
-                  return (
-                    <Button
-                      key={slot.id}
-                      type={isSelected ? 'primary' : 'default'}
-                      size="large"
-                      onClick={() => setSelectedSlot(slot)}
-                      className={`
-                        min-w-[120px] h-auto py-3
-                        ${isActive ? 'border-red-500 bg-red-50' : ''}
-                        ${isSelected && !isActive ? 'bg-blue-500 text-white' : ''}
-                      `}
-                    >
-                      <div className="flex flex-col items-center">
-                        <div className="text-lg font-bold">
-                          {FlashSaleService.formatSlotTime(slot.openTime)}
-                        </div>
-                        <div className="text-xs mt-1">
-                          {isActive && <Tag color="red">Đang diễn ra</Tag>}
-                          {!isActive && statusLabel !== 'Đã kết thúc' && (
-                            <Tag color="blue">{statusLabel}</Tag>
-                          )}
-                          {statusLabel === 'Đã kết thúc' && <Tag color="default">Đã kết thúc</Tag>}
-                        </div>
-                      </div>
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Tomorrow's Slots */}
-          {groupedSlots.tomorrow.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Ngày mai</h3>
-              <div className="flex flex-wrap gap-3">
-                {groupedSlots.tomorrow.map(slot => {
-                  const isSelected = selectedSlot?.id === slot.id;
-
-                  return (
-                    <Button
-                      key={slot.id}
-                      type={isSelected ? 'primary' : 'default'}
-                      size="large"
-                      onClick={() => setSelectedSlot(slot)}
-                      className="min-w-[120px] h-auto py-3"
-                    >
-                      <div className="flex flex-col items-center">
-                        <div className="text-lg font-bold">
-                          {FlashSaleService.formatSlotTime(slot.openTime)}
-                        </div>
-                        <div className="text-xs mt-1">
-                          <Tag color="cyan">Ngày mai</Tag>
-                        </div>
-                      </div>
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Products List */}
-        <Card className="shadow-md">
-          <div className="border-b border-gray-200 pb-4 mb-6">
-            <h2 className="text-lg font-semibold text-gray-800">
-              Sản phẩm trong khung giờ{' '}
-              {selectedSlot && FlashSaleService.formatSlotTime(selectedSlot.openTime)}
-            </h2>
-          </div>
-
+      {/* Products Section */}
+      <div className="bg-gray-50 min-h-screen py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Products Grid */}
           {isLoadingProducts ? (
             <div className="flex justify-center py-20">
               <Spin size="large" />
             </div>
           ) : products.length === 0 ? (
-            <Empty description="Chưa có sản phẩm trong khung giờ này" />
+            <div className="bg-white rounded-lg p-12">
+              <Empty description="Chưa có sản phẩm trong khung giờ này" />
+            </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <>
+              <div className="mb-4 text-sm text-gray-600">
+                Hiển thị <span className="font-semibold text-orange-600">{products.length}</span> sản phẩm
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {products.map(product => (
                 <div
                   key={product.campaignProductId}
@@ -314,67 +287,59 @@ const FlashSaleDetail: React.FC = () => {
                             src={product.imageUrl}
                             alt={product.productName}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
                           />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            No Image
-                          </div>
-                        )}
+                        ) : null}
+                        <div className={`w-full h-full flex items-center justify-center bg-gray-50 ${product.imageUrl ? 'hidden' : ''}`}>
+                          <span className="text-4xl text-gray-300">🎧</span>
+                        </div>
                         {product.discountPercent > 0 && (
-                          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold">
-                            -{product.discountPercent}%
+                          <div className="absolute top-0 right-0 bg-yellow-400 text-red-600 px-3 py-1 text-xs font-bold shadow-md">
+                            {product.discountPercent}% GIẢM
                           </div>
                         )}
                       </div>
                     }
-                    className="border-0"
+                    className="border-0 shadow-sm hover:shadow-lg transition-shadow"
                     bodyStyle={{ padding: '12px' }}
                   >
                     <h3 className="text-sm font-medium text-gray-800 line-clamp-2 mb-2 min-h-[40px]">
                       {product.productName}
                     </h3>
-                    <p className="text-xs text-gray-500 mb-2">{product.brandName}</p>
-                    <div className="space-y-1">
-                      <div className="text-red-600 font-bold text-lg">
-                        {product.discountedPrice.toLocaleString('vi-VN')}₫
-                      </div>
-                      {product.discountedPrice < product.originalPrice && (
-                        <div className="text-gray-400 text-xs line-through">
-                          {product.originalPrice.toLocaleString('vi-VN')}₫
+                    <div className="flex items-baseline gap-2">
+                      {product.discountedPrice && product.discountedPrice > 0 ? (
+                        <>
+                          <div className="text-red-600 font-bold text-lg">
+                            ₫{product.discountedPrice.toLocaleString('vi-VN')}
+                          </div>
+                          {product.originalPrice && product.originalPrice > 0 && product.discountedPrice < product.originalPrice && (
+                            <div className="text-gray-400 text-xs line-through">
+                              ₫{product.originalPrice.toLocaleString('vi-VN')}
+                            </div>
+                          )}
+                        </>
+                      ) : product.originalPrice && product.originalPrice > 0 ? (
+                        <div className="text-red-600 font-bold text-lg">
+                          ₫{product.originalPrice.toLocaleString('vi-VN')}
                         </div>
+                      ) : (
+                        <div className="text-red-600 font-bold text-sm">Liên hệ</div>
                       )}
                     </div>
-
-                    {product.totalUsageLimit > 0 && (
-                      <div className="mt-3">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Đã bán</span>
-                          <span>
-                            {product.totalUsageLimit - product.remainingUsage}/{product.totalUsageLimit}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-red-500 to-orange-500 h-2 rounded-full"
-                            style={{
-                              width: `${
-                                ((product.totalUsageLimit - product.remainingUsage) /
-                                  product.totalUsageLimit) *
-                                100
-                              }%`
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
                   </Card>
                 </div>
               ))}
             </div>
+            </>
           )}
-        </Card>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

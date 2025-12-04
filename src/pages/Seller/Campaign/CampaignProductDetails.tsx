@@ -70,6 +70,7 @@ const CampaignProductDetails: React.FC = () => {
     startTime: string;
     endTime: string;
     registeredAt: string;
+    badgeIconUrl?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -116,7 +117,8 @@ const CampaignProductDetails: React.FC = () => {
           type: first.campaignType,
           startTime: first.startTime,
           endTime: first.endTime,
-          registeredAt: first.registeredAt
+          registeredAt: first.registeredAt,
+          badgeIconUrl: (first as any).badgeIconUrl
         });
       }
 
@@ -139,24 +141,47 @@ const CampaignProductDetails: React.FC = () => {
           // Enrich campaign products with variant information
           const enrichedProducts: CampaignProductWithVariants[] = campaignProducts.map(cp => {
             const fullProduct = productMap.get(cp.productId);
+            
+            // Calculate originalPrice and discountedPrice for products WITHOUT variants
+            let originalPrice = cp.originalPrice;
+            let discountedPrice = cp.discountedPrice;
+            
+            // If product doesn't have variants, use finalPrice or price from fullProduct
+            if (fullProduct && (!fullProduct.variants || fullProduct.variants.length === 0)) {
+              originalPrice = fullProduct.finalPrice || fullProduct.price || 0;
+              
+              // Calculate discounted price based on campaign config
+              if (cp.discountType === 'FIXED' && cp.discountValue) {
+                discountedPrice = Math.max(0, originalPrice - cp.discountValue);
+              } else if (cp.discountType === 'PERCENT' && cp.discountPercent) {
+                const discount = (originalPrice * cp.discountPercent) / 100;
+                const maxDiscount = cp.maxDiscountValue || discount;
+                discountedPrice = Math.max(0, originalPrice - Math.min(discount, maxDiscount));
+              } else {
+                discountedPrice = originalPrice;
+              }
+            }
+            
             const enriched: CampaignProductWithVariants = {
               ...cp,
-              fullProduct
+              fullProduct,
+              originalPrice,
+              discountedPrice
             };
 
             // If product has variants, calculate discounted price for each variant
             if (fullProduct?.variants && fullProduct.variants.length > 0) {
               enriched.variantData = fullProduct.variants.map(variant => {
                 const variantPrice = variant.variantPrice || 0;
-                let discountedPrice = variantPrice;
+                let variantDiscountedPrice = variantPrice;
 
                 // Calculate discounted price based on campaign config
                 if (cp.discountType === 'FIXED' && cp.discountValue) {
-                  discountedPrice = Math.max(0, variantPrice - cp.discountValue);
+                  variantDiscountedPrice = Math.max(0, variantPrice - cp.discountValue);
                 } else if (cp.discountType === 'PERCENT' && cp.discountPercent) {
                   const discount = (variantPrice * cp.discountPercent) / 100;
                   const maxDiscount = cp.maxDiscountValue || discount;
-                  discountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+                  variantDiscountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
                 }
 
                 return {
@@ -166,7 +191,7 @@ const CampaignProductDetails: React.FC = () => {
                   variantStock: variant.variantStock || 0,
                   variantImage: variant.variantUrl,
                   variantSku: variant.variantSku,
-                  discountedPrice
+                  discountedPrice: variantDiscountedPrice
                 };
               });
             }
@@ -271,7 +296,8 @@ const CampaignProductDetails: React.FC = () => {
     {
       title: 'Sản phẩm',
       key: 'product',
-      width: 320,
+      width: 250,
+      fixed: 'left',
       render: (_, record) => {
         const fullProduct = record.fullProduct || productsMap.get(record.productId);
         const imageUrl = fullProduct?.images?.[0] || `https://via.placeholder.com/80?text=${encodeURIComponent(record.productName.slice(0, 2))}`;
@@ -374,7 +400,14 @@ const CampaignProductDetails: React.FC = () => {
       render: (price: number, record) => {
         // If has variants, show range or "Xem chi tiết"
         if (record.variantData && record.variantData.length > 0) {
-          const prices = record.variantData.map(v => v.variantPrice);
+          const prices = record.variantData
+            .map(v => v.variantPrice)
+            .filter(p => p != null && p > 0);
+          
+          if (prices.length === 0) {
+            return <span className="text-gray-400">N/A</span>;
+          }
+          
           const minPrice = Math.min(...prices);
           const maxPrice = Math.max(...prices);
           
@@ -397,6 +430,11 @@ const CampaignProductDetails: React.FC = () => {
               </div>
             </div>
           );
+        }
+        
+        // Safety check for price
+        if (!price || price === 0) {
+          return <span className="text-gray-400">N/A</span>;
         }
         
         return (
@@ -438,7 +476,14 @@ const CampaignProductDetails: React.FC = () => {
       render: (price: number, record) => {
         // If has variants, show range or "Xem chi tiết"
         if (record.variantData && record.variantData.length > 0) {
-          const prices = record.variantData.map(v => v.discountedPrice);
+          const prices = record.variantData
+            .map(v => v.discountedPrice)
+            .filter(p => p != null && p > 0); // Filter out undefined/null/0
+          
+          if (prices.length === 0) {
+            return <span className="text-gray-400">N/A</span>;
+          }
+          
           const minPrice = Math.min(...prices);
           const maxPrice = Math.max(...prices);
           
@@ -461,6 +506,11 @@ const CampaignProductDetails: React.FC = () => {
               </div>
             </div>
           );
+        }
+        
+        // Safety check for price
+        if (!price || price === 0) {
+          return <span className="text-gray-400">N/A</span>;
         }
         
         return (
@@ -498,8 +548,9 @@ const CampaignProductDetails: React.FC = () => {
     {
       title: 'Trạng thái',
       key: 'status',
-      width: 130,
+      width: 110,
       align: 'center',
+      fixed: 'right',
       render: (_, record) => (
         <div>
           <Tag
@@ -562,11 +613,16 @@ const CampaignProductDetails: React.FC = () => {
       key: 'variantPrice',
       width: 120,
       align: 'right',
-      render: (price: number) => (
-        <span className="font-medium text-orange-600 text-sm">
-          {price.toLocaleString('vi-VN')}₫
-        </span>
-      )
+      render: (price: number) => {
+        if (!price || price === 0) {
+          return <span className="text-gray-400">N/A</span>;
+        }
+        return (
+          <span className="font-medium text-orange-600 text-sm">
+            {price.toLocaleString('vi-VN')}₫
+          </span>
+        );
+      }
     },
     {
       title: 'Kho',
@@ -589,22 +645,29 @@ const CampaignProductDetails: React.FC = () => {
       key: 'discountedPrice',
       width: 120,
       align: 'right',
-      render: (discountedPrice: number, variant) => (
-        <div>
-          <div className="font-semibold text-green-600 text-sm">
-            {discountedPrice.toLocaleString('vi-VN')}₫
+      render: (discountedPrice: number, variant) => {
+        if (!discountedPrice || discountedPrice === 0) {
+          return <span className="text-gray-400">N/A</span>;
+        }
+        return (
+          <div>
+            <div className="font-semibold text-green-600 text-sm">
+              {discountedPrice.toLocaleString('vi-VN')}₫
+            </div>
+            {variant.variantPrice && variant.variantPrice > 0 && (
+              <div className="text-xs text-gray-400 line-through">
+                {variant.variantPrice.toLocaleString('vi-VN')}₫
+              </div>
+            )}
           </div>
-          <div className="text-xs text-gray-400 line-through">
-            {variant.variantPrice.toLocaleString('vi-VN')}₫
-          </div>
-        </div>
-      )
+        );
+      }
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="w-full overflow-x-hidden">
+      <div className="w-full">
         {/* Header - Back Button */}
         <Button
           type="text"
@@ -658,13 +721,26 @@ const CampaignProductDetails: React.FC = () => {
                   {/* Campaign Header */}
                   <Col span={24}>
                     <div className="flex items-center gap-3 pb-4 border-b border-gray-200">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                        {campaignInfo.type === 'MEGA_SALE' ? (
-                          <FireOutlined style={{ fontSize: '24px', color: 'white' }} />
-                        ) : (
-                          <ThunderboltOutlined style={{ fontSize: '24px', color: 'white' }} />
-                        )}
-                      </div>
+                      {campaignInfo.badgeIconUrl ? (
+                        <div className="flex-shrink-0 w-12 h-12">
+                          <Image
+                            src={campaignInfo.badgeIconUrl}
+                            alt={campaignInfo.name}
+                            width={48}
+                            height={48}
+                            className="rounded object-contain"
+                            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                          {campaignInfo.type === 'MEGA_SALE' ? (
+                            <FireOutlined style={{ fontSize: '24px', color: 'white' }} />
+                          ) : (
+                            <ThunderboltOutlined style={{ fontSize: '24px', color: 'white' }} />
+                          )}
+                        </div>
+                      )}
                       <div className="flex-1">
                         <Title level={3} style={{ margin: 0 }}>
                           {campaignInfo.name}
@@ -728,7 +804,7 @@ const CampaignProductDetails: React.FC = () => {
             {/* ============ SECTION 2: PRODUCTS TABLE ============ */}
             <Card
               title={
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <Space>
                     <InboxOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
                     <span className="text-lg font-semibold">
@@ -750,57 +826,59 @@ const CampaignProductDetails: React.FC = () => {
                   </Button>
                 </div>
               }
-              className="shadow-sm"
+              className="shadow-sm overflow-hidden"
               style={{ borderRadius: '12px' }}
             >
-              <Table
-                columns={columns}
-                dataSource={products}
-                rowKey="campaignProductId"
-                scroll={{ x: 'max-content' }}
-                pagination={{
-                  pageSize: 20,
-                  showSizeChanger: true,
-                  pageSizeOptions: ['10', '20', '50', '100'],
-                  showTotal: (total) => `Tổng ${total} sản phẩm`,
-                  position: ['bottomCenter']
-                }}
-                rowClassName={(record) => {
-                  if (record.status === 'REJECTED') return 'bg-red-50';
-                  if (record.status === 'DRAFT') return 'bg-orange-50';
-                  if (record.status === 'ACTIVE') return 'bg-blue-50';
-                  return '';
-                }}
-                expandable={{
-                  expandedRowRender: (record) => {
-                    // Only show expanded view if product has variants
-                    if (!record.variantData || record.variantData.length === 0) {
-                      return null;
-                    }
+              <div className="overflow-x-auto">
+                <Table
+                  columns={columns}
+                  dataSource={products}
+                  rowKey="campaignProductId"
+                  scroll={{ x: 1400 }}
+                  pagination={{
+                    pageSize: 20,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50', '100'],
+                    showTotal: (total) => `Tổng ${total} sản phẩm`,
+                    position: ['bottomCenter']
+                  }}
+                  rowClassName={(record) => {
+                    if (record.status === 'REJECTED') return 'bg-red-50';
+                    if (record.status === 'DRAFT') return 'bg-orange-50';
+                    if (record.status === 'ACTIVE') return 'bg-blue-50';
+                    return '';
+                  }}
+                  expandable={{
+                    expandedRowRender: (record) => {
+                      // Only show expanded view if product has variants
+                      if (!record.variantData || record.variantData.length === 0) {
+                        return null;
+                      }
 
-                    return (
-                      <div className="bg-gray-50 p-4">
-                        <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                          💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình voucher.
+                      return (
+                        <div className="bg-gray-50 p-4">
+                          <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                            💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình voucher.
+                          </div>
+                          <Table
+                            columns={variantColumns}
+                            dataSource={record.variantData}
+                            rowKey="variantId"
+                            pagination={false}
+                            size="small"
+                            showHeader={true}
+                          />
                         </div>
-                        <Table
-                          columns={variantColumns}
-                          dataSource={record.variantData}
-                          rowKey="variantId"
-                          pagination={false}
-                          size="small"
-                          showHeader={true}
-                        />
-                      </div>
-                    );
-                  },
-                  rowExpandable: (record) => {
-                    // Only allow expand if product has variants
-                    return !!(record.variantData && record.variantData.length > 0);
-                  },
-                  columnWidth: 48,
-                }}
-              />
+                      );
+                    },
+                    rowExpandable: (record) => {
+                      // Only allow expand if product has variants
+                      return !!(record.variantData && record.variantData.length > 0);
+                    },
+                    columnWidth: 48,
+                  }}
+                />
+              </div>
             </Card>
           </>
         )}

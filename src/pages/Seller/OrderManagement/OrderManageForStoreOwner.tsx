@@ -228,8 +228,12 @@ const OrderManageForStoreOwner: React.FC = () => {
       key: 'customerName',
       render: (v: string, record) => (
         <div>
-          <div className="font-medium text-gray-800">{v}</div>
-          <div className="text-xs text-gray-500">{record.customerPhone || ''}</div>
+          <div className="font-medium text-gray-800">
+            {maskAddress(v)}{/* 2 ký tự đầu ... 2 ký tự cuối */}
+          </div>
+          <div className="text-xs text-gray-500">
+            {record.customerPhone ? maskAddress(record.customerPhone) : ''}
+          </div>
         </div>
       )
     },
@@ -256,10 +260,13 @@ const OrderManageForStoreOwner: React.FC = () => {
           RETURNED: 'default',
           PENDING: 'default',
           READY_FOR_PICKUP: 'cyan',
+          READY_FOR_DELIVERY: 'cyan',
           OUT_FOR_DELIVERY: 'processing',
           DELIVERED_WAITING_CONFIRM: 'gold',
           DELIVERY_SUCCESS: 'green',
           DELIVERY_DENIED: 'red',
+          DELIVERY_FAIL: 'red',
+          EXCEPTION: 'volcano',
         };
         return <Tag color={colorMap[status] || 'default'}>{label}</Tag>;
       }
@@ -300,6 +307,7 @@ const OrderManageForStoreOwner: React.FC = () => {
         const isPending = record.status === 'PENDING';
         const isAwaitingShipment = record.status === 'AWAITING_SHIPMENT';
         const isPreparing = preparingOrderId === record.id;
+        const hasGhnOrder = !!ghnOrderData[record.id];
         
         if (isPending) {
           return (
@@ -318,7 +326,9 @@ const OrderManageForStoreOwner: React.FC = () => {
           );
         }
         
-        if (isAwaitingShipment) {
+        // Chỉ cho phép "Chuyển nhượng GHN" khi đơn đang chờ lấy hàng
+        // và CHƯA có thông tin vận chuyển GHN trong hệ thống
+        if (isAwaitingShipment && !hasGhnOrder) {
           return (
             <Button
               type="primary"

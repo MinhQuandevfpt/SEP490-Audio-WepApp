@@ -36,12 +36,14 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
   const [tooltipKey, setTooltipKey] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [pickerProducts, setPickerProducts] = useState<Product[]>([]);
+  const [pickerProductsLoading, setPickerProductsLoading] = useState<boolean>(false);
 
   const tooltips: Record<string, string> = {
     discountValue: 'Số tiền giảm giá cố định (VND). Ví dụ: 20.000đ giảm cho mỗi đơn hàng.',
     discountPercent: 'Phần trăm giảm giá. Ví dụ: 10% giảm trên tổng giá trị đơn hàng.',
     maxDiscountValue: 'Số tiền giảm tối đa khi áp dụng giảm theo phần trăm. Ví dụ: Giảm 20% nhưng tối đa 50.000đ.',
-    minOrderValue: 'Giá trị đơn hàng tối thiểu để áp dụng voucher. Ví dụ: Đơn từ 100.000đ trở lên.',
+    minOrderValue: 'Giá tối thiểu của sản phẩm để kích hoạt voucher',
     totalVoucherIssued: 'Tổng số lượng voucher được phát hành. Người dùng có thể sử dụng tối đa số lượng này.',
     usagePerUser: 'Số lần tối đa mỗi người dùng có thể sử dụng voucher này. Ví dụ: Mỗi user dùng tối đa 2 lần.',
     promotionStockLimit: 'Số lượng sản phẩm tham gia vào chương trình khuyến mãi. Không được vượt quá số lượng tồn kho.',
@@ -74,15 +76,22 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
   };
 
   // Format numbers with dot thousands separators
-  const formatNumber = (value: string | number | null | undefined): string => {
+  const formatNumber = (value: string | number | null | undefined, allowZero: boolean = false): string => {
     if (value == null || value === '') return '';
     const numericValue = String(value).replace(/[^\d]/g, '');
     if (!numericValue) return '';
+    // Nếu không allowZero và giá trị là 0, trả về rỗng
+    if (!allowZero && numericValue === '0') return '';
     return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
-  const parseFormattedNumber = (formattedValue: string): number => {
-    return Number(formattedValue.replace(/\./g, ''));
+  const parseFormattedNumber = (formattedValue: string): number | null => {
+    const cleaned = formattedValue.replace(/\./g, '').trim();
+    if (!cleaned) return null;
+    // Loại bỏ số 0 ở đầu (leading zeros) nhưng giữ lại nếu chỉ có 0
+    const numStr = cleaned.replace(/^0+/, '') || '0';
+    const num = Number(numStr);
+    return isNaN(num) ? null : num;
   };
 
   const loadProducts = async () => {
@@ -100,6 +109,38 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
       setProductsError(e?.message || 'Không thể tải danh sách sản phẩm');
     } finally {
       setProductsLoading(false);
+    }
+  };
+
+  // Load products for picker modal with price filter
+  const loadPickerProducts = async () => {
+    try {
+      setPickerProductsLoading(true);
+      setProductsError(null);
+      
+      // Build query params with price filter
+      const queryParams: any = {
+        page: 0,
+        size: 200,
+        status: 'ACTIVE', // Chỉ lấy sản phẩm ACTIVE
+      };
+      
+      // Nếu có minOrderValue, dùng làm minPrice
+      if (form.minOrderValue && form.minOrderValue > 0) {
+        queryParams.minPrice = form.minOrderValue;
+      }
+      
+      const res: ProductListResponse = await ProductService.getMyProducts(queryParams);
+      // Handle both pagination structure (res.data.content) and direct array (res.data)
+      const list = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.content || []);
+      setPickerProducts(list);
+    } catch (e: any) {
+      setProductsError(e?.message || 'Không thể tải danh sách sản phẩm');
+      setPickerProducts([]);
+    } finally {
+      setPickerProductsLoading(false);
     }
   };
 
@@ -269,7 +310,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                 onChange={e => {
                   const formatted = formatNumber(e.target.value);
                   const numeric = parseFormattedNumber(formatted);
-                  setForm({ ...form, discountValue: numeric, discountPercent: null });
+                  setForm({ ...form, discountValue: numeric ?? 0, discountPercent: null });
                 }} 
                 placeholder="VD: 10.000" 
               />
@@ -295,7 +336,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               onChange={e => {
                 const formatted = formatNumber(e.target.value);
                 const numeric = parseFormattedNumber(formatted);
-                setForm({ ...form, maxDiscountValue: isNaN(numeric) ? null : numeric });
+                setForm({ ...form, maxDiscountValue: numeric });
               }} 
               placeholder={form.type === 'PERCENT' ? 'VD: 50.000' : 'Chỉ áp dụng khi giảm theo %'} 
               disabled={form.type !== 'PERCENT'}
@@ -303,7 +344,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
           </div>
           <div>
             <label className="flex items-center text-sm font-medium text-gray-700">
-              Đơn tối thiểu (VND)
+              Giá tối thiểu (VND)
               <InfoTooltip fieldKey="minOrderValue" />
             </label>
             <input 
@@ -313,7 +354,7 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               onChange={e => {
                 const formatted = formatNumber(e.target.value);
                 const numeric = parseFormattedNumber(formatted);
-                setForm({ ...form, minOrderValue: numeric });
+                setForm({ ...form, minOrderValue: numeric ?? 0 });
               }} 
               placeholder="VD: 100.000" 
             />
@@ -325,7 +366,17 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               Tổng số phát hành
               <InfoTooltip fieldKey="totalVoucherIssued" />
             </label>
-            <input type="number" min={0} className="mt-1 w-full px-3 py-2 border rounded-lg" value={form.totalVoucherIssued ?? 0} onChange={e => setForm({ ...form, totalVoucherIssued: Number(e.target.value) })} />
+            <input 
+              type="text" 
+              className="mt-1 w-full px-3 py-2 border rounded-lg" 
+              value={form.totalVoucherIssued && form.totalVoucherIssued > 0 ? formatNumber(form.totalVoucherIssued) : ''} 
+              onChange={e => {
+                const formatted = formatNumber(e.target.value);
+                const numeric = parseFormattedNumber(formatted);
+                setForm({ ...form, totalVoucherIssued: numeric ?? 0 });
+              }} 
+              placeholder="VD: 100" 
+            />
           </div>
           {/* Removed: Tổng số lượt dùng (totalUsageLimit). Always send null per new API. */}
           <div>
@@ -333,7 +384,17 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               Lượt dùng mỗi user
               <InfoTooltip fieldKey="usagePerUser" />
             </label>
-            <input type="number" min={0} className="mt-1 w-full px-3 py-2 border rounded-lg" value={form.usagePerUser ?? 0} onChange={e => setForm({ ...form, usagePerUser: Number(e.target.value) })} />
+            <input 
+              type="text" 
+              className="mt-1 w-full px-3 py-2 border rounded-lg" 
+              value={form.usagePerUser && form.usagePerUser > 0 ? formatNumber(form.usagePerUser) : ''} 
+              onChange={e => {
+                const formatted = formatNumber(e.target.value);
+                const numeric = parseFormattedNumber(formatted);
+                setForm({ ...form, usagePerUser: numeric ?? 0 });
+              }} 
+              placeholder="VD: 1" 
+            />
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -353,9 +414,11 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
           <h3 className="text-sm font-medium text-gray-900">Sản phẩm áp dụng</h3>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               setPickerSelected(new Set(form.products.map(p => p.productId).filter(Boolean)));
               setShowPicker(true);
+              // Load products với price filter khi mở picker
+              await loadPickerProducts();
             }}
             className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
           >
@@ -415,21 +478,21 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                     const maxStock = selected?.stockQuantity ?? undefined;
                     return (
                       <input
-                        type="number"
-                        min={0}
-                        max={maxStock}
+                        type="text"
                         className="mt-1 w-full px-3 py-2 border rounded-lg"
-                        value={p.promotionStockLimit ?? 0}
+                        value={p.promotionStockLimit && p.promotionStockLimit > 0 ? formatNumber(p.promotionStockLimit) : ''}
                         onChange={e => {
-                          const raw = e.target.value === '' ? null : Number(e.target.value);
-                          if (raw === null) {
+                          const formatted = formatNumber(e.target.value);
+                          const numeric = parseFormattedNumber(formatted);
+                          if (numeric === null) {
                             updateProduct(idx, 'promotionStockLimit', null);
                             return;
                           }
                           const upper = typeof maxStock === 'number' ? maxStock : Number.MAX_SAFE_INTEGER;
-                          const clamped = Math.min(Math.max(0, raw), upper);
+                          const clamped = Math.min(Math.max(0, numeric), upper);
                           updateProduct(idx, 'promotionStockLimit', clamped);
                         }}
+                        placeholder="VD: 10"
                       />
                     );
                   })()}
@@ -439,7 +502,17 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                     Giới hạn mua/user
                     <InfoTooltip fieldKey="purchaseLimitPerCustomer" />
                   </label>
-                  <input type="number" min={0} className="mt-1 w-full px-3 py-2 border rounded-lg" value={p.purchaseLimitPerCustomer ?? 0} onChange={e => updateProduct(idx, 'purchaseLimitPerCustomer', e.target.value === '' ? null : Number(e.target.value))} />
+                  <input 
+                    type="text" 
+                    className="mt-1 w-full px-3 py-2 border rounded-lg" 
+                    value={p.purchaseLimitPerCustomer && p.purchaseLimitPerCustomer > 0 ? formatNumber(p.purchaseLimitPerCustomer) : ''} 
+                    onChange={e => {
+                      const formatted = formatNumber(e.target.value);
+                      const numeric = parseFormattedNumber(formatted);
+                      updateProduct(idx, 'purchaseLimitPerCustomer', numeric);
+                    }} 
+                    placeholder="VD: 1" 
+                  />
                 </div>
                 <div className="md:col-span-6 text-right">
                   <button type="button" onClick={() => removeProduct(idx)} className="text-sm text-red-600 hover:underline">Xoá</button>
@@ -456,7 +529,14 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowPicker(false)} />
           <div className="relative bg-white rounded-lg shadow-lg w-full max-w-3xl mx-4 p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-gray-900">Chọn sản phẩm</h3>
+              <h3 className="text-base font-semibold text-gray-900">
+                Chọn sản phẩm
+                {form.minOrderValue && form.minOrderValue > 0 && (
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    (Giá từ {formatNumber(form.minOrderValue)} đ trở lên)
+                  </span>
+                )}
+              </h3>
               <button className="text-gray-600 hover:text-gray-900" onClick={() => setShowPicker(false)}>Đóng</button>
             </div>
             <div className="mb-3">
@@ -466,76 +546,130 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                 value={productSearch}
                 onChange={e => setProductSearch(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
+                disabled={pickerProductsLoading}
               />
             </div>
-            <div className="max-h-96 overflow-auto divide-y border rounded">
-              {(products || [])
-                .filter(pr => !productSearch.trim() || pr.name.toLowerCase().includes(productSearch.toLowerCase()))
-                .map(pr => (
-                  <div key={pr.productId} className="p-3 hover:bg-gray-50 border-b last:border-b-0">
-                    <label className="flex items-start gap-3 cursor-pointer">
+            {pickerProductsLoading ? (
+              <div className="text-sm text-gray-600 text-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                Đang tải sản phẩm...
+              </div>
+            ) : (
+              (() => {
+                // Sử dụng pickerProducts thay vì products (đã được filter theo giá)
+                const filteredProducts = (pickerProducts.length > 0 ? pickerProducts : products)
+                  .filter(pr => !productSearch.trim() || pr.name.toLowerCase().includes(productSearch.toLowerCase()));
+                const allSelected = filteredProducts.length > 0 && filteredProducts.every(pr => pickerSelected.has(pr.productId));
+              
+              return (
+                <>
+                  <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={pickerSelected.has(pr.productId)}
+                        checked={allSelected}
                         onChange={(e) => {
-                          setPickerSelected(prev => {
-                            const next = new Set(prev);
-                            if (e.target.checked) next.add(pr.productId); else next.delete(pr.productId);
-                            return next;
-                          });
+                          if (e.target.checked) {
+                            // Chọn tất cả sản phẩm đang hiển thị
+                            setPickerSelected(prev => {
+                              const next = new Set(prev);
+                              filteredProducts.forEach(pr => next.add(pr.productId));
+                              return next;
+                            });
+                          } else {
+                            // Bỏ chọn tất cả sản phẩm đang hiển thị
+                            setPickerSelected(prev => {
+                              const next = new Set(prev);
+                              filteredProducts.forEach(pr => next.delete(pr.productId));
+                              return next;
+                            });
+                          }
                         }}
-                        className="mt-1"
+                        className="w-4 h-4"
                       />
-                      <img 
-                        src={pr.images?.[0] || 'https://via.placeholder.com/80'} 
-                        alt={pr.name} 
-                        className="w-16 h-16 object-cover rounded border flex-shrink-0" 
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://via.placeholder.com/80';
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate" title={pr.name}>{pr.name}</p>
-                        <div className="mt-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-gray-500">Tồn kho:</p>
-                            <p className="text-xs font-medium text-gray-700">{pr.stockQuantity}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-gray-500">Giá gốc:</p>
-                            <p className="text-xs font-medium text-orange-600">
-                              {formatNumber(pr.price || 0)} đ
-                            </p>
-                          </div>
-                        </div>
-                        {/* Hiển thị biến thể nếu có */}
-                        {pr.variants && pr.variants.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-200">
-                            <p className="text-xs font-medium text-gray-700 mb-1">Biến thể ({pr.variants.length}):</p>
-                            <div className="space-y-1 max-h-24 overflow-y-auto">
-                              {pr.variants.map((variant, idx) => (
-                                <div key={idx} className="text-xs bg-gray-50 p-1.5 rounded">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-gray-600">
-                                      {variant.optionName}: <span className="font-medium">{variant.optionValue}</span>
-                                    </span>
-                                    <span className="text-orange-600 font-medium">
-                                      {formatNumber(variant.variantPrice)} đ
-                                    </span>
-                                  </div>
-                                  <div className="text-gray-500 mt-0.5">
-                                    Tồn: {variant.variantStock} | SKU: {variant.variantSku || 'N/A'}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <span className="text-sm font-medium text-gray-700">
+                        Chọn tất cả ({filteredProducts.length} sản phẩm)
+                      </span>
                     </label>
                   </div>
-                ))}
-            </div>
+                  <div className="max-h-96 overflow-auto divide-y border rounded">
+                    {filteredProducts.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        {form.minOrderValue && form.minOrderValue > 0
+                          ? `Không tìm thấy sản phẩm nào có giá từ ${formatNumber(form.minOrderValue)} đ trở lên`
+                          : 'Không tìm thấy sản phẩm'}
+                      </div>
+                    ) : (
+                      filteredProducts.map(pr => (
+                        <div key={pr.productId} className="p-3 hover:bg-gray-50 border-b last:border-b-0">
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pickerSelected.has(pr.productId)}
+                              onChange={(e) => {
+                                setPickerSelected(prev => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(pr.productId); else next.delete(pr.productId);
+                                  return next;
+                                });
+                              }}
+                              className="mt-1"
+                            />
+                            <img 
+                              src={pr.images?.[0] || 'https://via.placeholder.com/80'} 
+                              alt={pr.name} 
+                              className="w-16 h-16 object-cover rounded border flex-shrink-0" 
+                              onError={(e) => {
+                                e.currentTarget.src = 'https://via.placeholder.com/80';
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate" title={pr.name}>{pr.name}</p>
+                              <div className="mt-1 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-gray-500">Tồn kho:</p>
+                                  <p className="text-xs font-medium text-gray-700">{pr.stockQuantity}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-gray-500">Giá gốc:</p>
+                                  <p className="text-xs font-medium text-orange-600">
+                                    {formatNumber(pr.price || 0)} đ
+                                  </p>
+                                </div>
+                              </div>
+                              {/* Hiển thị biến thể nếu có */}
+                              {pr.variants && pr.variants.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-200">
+                                  <p className="text-xs font-medium text-gray-700 mb-1">Biến thể ({pr.variants.length}):</p>
+                                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                                    {pr.variants.map((variant, idx) => (
+                                      <div key={idx} className="text-xs bg-gray-50 p-1.5 rounded">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="text-gray-600">
+                                            {variant.optionName}: <span className="font-medium">{variant.optionValue}</span>
+                                          </span>
+                                          <span className="text-orange-600 font-medium">
+                                            {formatNumber(variant.variantPrice)} đ
+                                          </span>
+                                        </div>
+                                        <div className="text-gray-500 mt-0.5">
+                                          Tồn: {variant.variantStock} | SKU: {variant.variantSku || 'N/A'}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              );
+              })()
+            )}
             <div className="mt-3 flex justify-end gap-2">
               <button className="px-3 py-1.5 border rounded" onClick={() => setShowPicker(false)}>Hủy</button>
               <button

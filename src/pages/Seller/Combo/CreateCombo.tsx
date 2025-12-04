@@ -53,6 +53,7 @@ const CreateCombo: React.FC = () => {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedProductsMap, setSelectedProductsMap] = useState<Map<string, Product>>(new Map());
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
   const resolveStoreContext = useCallback(async () => {
     try {
@@ -202,14 +203,26 @@ const CreateCombo: React.FC = () => {
       // Remove product if already selected
       handleRemoveProduct(product.productId, variantId);
     } else {
-      // Add new product/variant
+      // Add new product/variant with full details
       const variant = variantId ? product.variants.find(v => v.variantId === variantId) : null;
       const newItem: ComboItem = {
         productId: product.productId,
-        variantId,
-        variantName: variant ? `${variant.optionName}: ${variant.optionValue}` : undefined,
+        productName: product.name,
         quantity: 1,
       };
+      
+      // Add variant details ONLY if variant exists
+      if (variant && variantId) {
+        newItem.variantId = variantId;
+        newItem.variantName = `${variant.optionName}: ${variant.optionValue}`;
+        newItem.optionName = variant.optionName;
+        newItem.optionValue = variant.optionValue;
+        newItem.variantPrice = variant.variantPrice;
+        newItem.variantStock = variant.variantStock;
+        newItem.variantUrl = variant.variantUrl;
+        newItem.variantSku = variant.variantSku;
+      }
+      // For products without variants, don't set any variant fields
       
       setForm(prev => ({
         ...prev,
@@ -269,7 +282,10 @@ const CreateCombo: React.FC = () => {
   const validateForm = (): string | null => {
     if (!storeId) return 'Không tìm thấy thông tin cửa hàng';
     if (!form.name.trim()) return 'Tên combo không được để trống';
-    if (!form.shortDescription.trim()) return 'Mô tả ngắn không được để trống';
+    if (form.name.trim().length < 10) return 'Tên combo phải có ít nhất 10 ký tự';
+    if (form.name.trim().length > 100) return 'Tên combo không được vượt quá 100 ký tự';
+    if (!form.description.trim()) return 'Mô tả chi tiết không được để trống';
+    if (form.description.trim().length > 5000) return 'Mô tả chi tiết không được vượt quá 5000 ký tự';
     if (form.images.length === 0) return 'Vui lòng tải lên ít nhất 1 ảnh';
     if (form.items.length < 2) return 'Combo phải có ít nhất 2 sản phẩm';
     
@@ -293,6 +309,47 @@ const CreateCombo: React.FC = () => {
     try {
       setLoading(true);
 
+      // Clean items: BE requires all variant fields even for non-variant products
+      const cleanedItems = form.items.map(item => {
+        if (item.variantId) {
+          // Product HAS variant - include all variant fields
+          const cleanItem: any = {
+            productId: item.productId,
+            productName: item.productName,
+            variantId: item.variantId,
+            optionName: item.optionName,
+            optionValue: item.optionValue,
+            variantPrice: item.variantPrice,
+            variantStock: item.variantStock,
+            variantUrl: item.variantUrl,
+            variantSku: item.variantSku,
+            quantity: item.quantity,
+          };
+          // Remove undefined fields
+          Object.keys(cleanItem).forEach(key => {
+            if (cleanItem[key] === undefined) {
+              delete cleanItem[key];
+            }
+          });
+          return cleanItem;
+        } else {
+          // Product NO variant - Send empty strings for BE compatibility
+          // BE bug: requires option_name/value even when variantId is null
+          return {
+            productId: item.productId,
+            productName: item.productName,
+            variantId: null,
+            optionName: "", // Empty string instead of omitting
+            optionValue: "", // Empty string instead of omitting
+            variantPrice: 0,
+            variantStock: 0,
+            variantUrl: "",
+            variantSku: "",
+            quantity: item.quantity,
+          };
+        }
+      });
+
       const request: CreateComboRequest = {
         storeId,
         name: form.name.trim(),
@@ -307,7 +364,7 @@ const CreateCombo: React.FC = () => {
         provinceCode: '',
         districtCode: '',
         wardCode: '',
-        items: form.items,
+        items: cleanedItems as ComboItem[],
         createdBy: creatorId || storeId,
       };
 
@@ -385,7 +442,7 @@ const CreateCombo: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tên combo <span className="text-red-500">*</span>
+                <span className="text-red-500">*</span> Tên combo
               </label>
               <input
                 type="text"
@@ -393,12 +450,14 @@ const CreateCombo: React.FC = () => {
                 onChange={(e) => handleInputChange('name', e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="VD: Combo loa + mic thu âm chuyên nghiệp"
+                maxLength={100}
               />
+              <p className="text-xs text-gray-500 mt-1">{form.name.length}/100 ký tự (tối thiểu 10 ký tự)</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mô tả ngắn <span className="text-red-500">*</span>
+                Mô tả ngắn
               </label>
               <input
                 type="text"
@@ -413,7 +472,7 @@ const CreateCombo: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mô tả chi tiết
+                <span className="text-red-500">*</span> Mô tả chi tiết
               </label>
               <textarea
                 value={form.description}
@@ -421,7 +480,9 @@ const CreateCombo: React.FC = () => {
                 rows={4}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Mô tả chi tiết về combo, lợi ích khi mua combo..."
+                maxLength={5000}
               />
+              <p className="text-xs text-gray-500 mt-1">{form.description.length}/5000 ký tự</p>
             </div>
           </div>
 
@@ -431,7 +492,7 @@ const CreateCombo: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hình ảnh <span className="text-red-500">*</span> (Tối đa 9 ảnh)
+                <span className="text-red-500">*</span> Hình ảnh (Tối đa 9 ảnh)
               </label>
               
               <div className="grid grid-cols-5 gap-4">
@@ -517,9 +578,15 @@ const CreateCombo: React.FC = () => {
           {/* Sản phẩm trong combo */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Sản phẩm trong combo <span className="text-red-500">*</span>
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  <span className="text-red-500">*</span> Sản phẩm trong combo
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Combo hiện có: <span className="font-semibold text-orange-600">{form.items.length}</span> mặt hàng
+                  {form.items.length < 2 && <span className="text-red-500 ml-1">(Tối thiểu 2 mặt hàng)</span>}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowProductModal(true)}
@@ -537,62 +604,163 @@ const CreateCombo: React.FC = () => {
                 <p className="text-sm text-gray-400 mt-1">Nhấn "Thêm sản phẩm" để chọn</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {form.items.map((item) => {
-                  const itemKey = item.variantId ? `${item.productId}_${item.variantId}` : item.productId;
-                  const product = selectedProductsMap.get(itemKey);
-                  if (!product) return null;
+              <div className="space-y-4">
+                {/* Group items by productId for better visualization */}
+                {(() => {
+                  // Group items by productId
+                  const groupedItems = form.items.reduce((acc, item) => {
+                    if (!acc[item.productId]) {
+                      acc[item.productId] = [];
+                    }
+                    acc[item.productId].push(item);
+                    return acc;
+                  }, {} as Record<string, typeof form.items>);
 
-                  const variant = item.variantId 
-                    ? product.variants.find(v => v.variantId === item.variantId)
-                    : null;
-                  
-                  const displayPrice = variant ? variant.variantPrice : product.price;
-                  const displayStock = variant ? variant.variantStock : product.stockQuantity;
+                  return Object.entries(groupedItems).map(([productId, items]) => {
+                    const firstItem = items[0];
+                    const itemKey = firstItem.variantId ? `${firstItem.productId}_${firstItem.variantId}` : firstItem.productId;
+                    const product = selectedProductsMap.get(itemKey);
+                    if (!product) return null;
 
-                  return (
-                    <div key={itemKey} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg">
-                      <img
-                        src={variant?.variantUrl || product.images[0] || '/placeholder.png'}
-                        alt={product.name}
-                        className="w-20 h-20 object-cover rounded-lg"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{product.name}</h4>
-                        {item.variantName && (
-                          <p className="text-sm text-gray-600">{item.variantName}</p>
-                        )}
-                        <p className="text-sm text-gray-500">SKU: {variant?.variantSku || product.sku}</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          <p className="text-sm text-orange-600 font-semibold">
-                            {displayPrice.toLocaleString('vi-VN')}đ
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Kho: {displayStock}
-                          </p>
+                    return (
+                      <div key={productId} className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
+                        {/* Product Header */}
+                        <div className="bg-gradient-to-r from-orange-50 to-orange-100 px-4 py-3 border-b border-orange-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                              {items.length}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900">{product.name}</h4>
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {items.length === 1 ? '1 mặt hàng' : `${items.length} mặt hàng (các phân loại)`}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Items List */}
+                        <div className="divide-y divide-gray-200">
+                          {items.map((item, index) => {
+                            const itemKey = item.variantId ? `${item.productId}_${item.variantId}` : item.productId;
+                            const product = selectedProductsMap.get(itemKey);
+                            if (!product) return null;
+
+                            const variant = item.variantId 
+                              ? product.variants.find(v => v.variantId === item.variantId)
+                              : null;
+                            
+                            const displayPrice = variant ? variant.variantPrice : product.price;
+                            const displayStock = variant ? variant.variantStock : product.stockQuantity;
+                            const displayImage = variant?.variantUrl || product.images[0] || '/placeholder.png';
+                            const displaySku = variant?.variantSku || product.sku;
+
+                            return (
+                              <div key={itemKey} className="p-4 hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center gap-4">
+                                  {/* Item Number Badge */}
+                                  <div className="flex-shrink-0 w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                                    <span className="text-sm font-semibold text-orange-700">{index + 1}</span>
+                                  </div>
+
+                                  {/* Image */}
+                                  <img
+                                    src={displayImage}
+                                    alt={variant ? `${product.name} - ${variant.optionValue}` : product.name}
+                                    className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200"
+                                  />
+
+                                  {/* Item Details */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-start gap-2">
+                                      <h5 className="font-medium text-gray-900">
+                                        {variant ? (
+                                          <>
+                                            <span className="text-orange-600">Phân loại:</span> {variant.optionName} - {variant.optionValue}
+                                          </>
+                                        ) : (
+                                          <span className="text-blue-600">Sản phẩm đơn</span>
+                                        )}
+                                      </h5>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-4 mt-2">
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <span className="text-gray-500">SKU:</span>
+                                        <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+                                          {displaySku}
+                                        </span>
+                                      </div>
+                                      <div className="h-4 w-px bg-gray-300"></div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-500">Giá:</span>
+                                        <span className="text-base font-bold text-orange-600">
+                                          {displayPrice.toLocaleString('vi-VN')}đ
+                                        </span>
+                                      </div>
+                                      <div className="h-4 w-px bg-gray-300"></div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-500">Tồn kho:</span>
+                                        <span className={`text-sm font-semibold ${displayStock > 10 ? 'text-green-600' : 'text-red-600'}`}>
+                                          {displayStock} sản phẩm
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Quantity Controls */}
+                                  <div className="flex items-center gap-3 flex-shrink-0">
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDecreaseQuantity(item.productId, item.variantId, item.quantity)}
+                                        className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        disabled={item.quantity <= 1}
+                                      >
+                                        −
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max={displayStock}
+                                        value={item.quantity}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 1;
+                                          if (val >= 1 && val <= displayStock) {
+                                            handleUpdateQuantity(item.productId, item.variantId, val);
+                                          }
+                                        }}
+                                        className="w-16 px-2 py-2 border-2 border-gray-300 rounded-lg text-center font-semibold focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleIncreaseQuantity(item.productId, item.variantId, item.quantity, displayStock)}
+                                        className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded-lg text-white font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        disabled={item.quantity >= displayStock}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+
+                                    {/* Delete Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveProduct(item.productId, item.variantId)}
+                                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors group"
+                                      title="Xóa mặt hàng này"
+                                    >
+                                      <DeleteOutlined className="text-lg group-hover:scale-110 transition-transform" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm text-gray-600">Số lượng:</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max={displayStock}
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateQuantity(item.productId, item.variantId, parseInt(e.target.value) || 1)}
-                          className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveProduct(item.productId, item.variantId)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <DeleteOutlined />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -634,7 +802,12 @@ const CreateCombo: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-900">Chọn sản phẩm</h3>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Chọn sản phẩm</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Combo hiện có: <span className="font-semibold text-orange-600">{form.items.length}</span> mặt hàng
+                </p>
+              </div>
               <button
                 onClick={() => setShowProductModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -667,141 +840,187 @@ const CreateCombo: React.FC = () => {
                   <p className="text-gray-500">Không tìm thấy sản phẩm</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
                   {products.map((product) => {
-                    // If product has variants, show each variant as separate item
-                    if (product.variants && product.variants.length > 0) {
-                      return product.variants.map((variant) => {
-                        const itemKey = `${product.productId}_${variant.variantId}`;
-                        const selectedItem = form.items.find(
-                          item => item.productId === product.productId && item.variantId === variant.variantId
-                        );
-                        const isSelected = !!selectedItem;
-                        
-                        return (
-                          <div
-                            key={itemKey}
-                            className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
-                              isSelected
-                                ? 'border-orange-500 bg-orange-50'
-                                : 'border-gray-200 hover:border-orange-300'
-                            }`}
-                          >
-                            <div 
-                              className="flex items-center gap-3 flex-1 cursor-pointer"
-                              onClick={() => handleToggleProduct(product, variant.variantId)}
-                            >
-                              <img
-                                src={variant.variantUrl || product.images[0] || '/placeholder.png'}
-                                alt={product.name}
-                                className="w-16 h-16 object-cover rounded-lg"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-gray-900 truncate">{product.name}</h4>
-                                <p className="text-xs text-gray-600">{variant.optionName}: {variant.optionValue}</p>
-                                <p className="text-xs text-gray-500">SKU: {variant.variantSku}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <p className="text-sm text-orange-600 font-semibold">
-                                    {variant.variantPrice.toLocaleString('vi-VN')}đ
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Kho: {variant.variantStock}
-                                  </p>
-                                </div>
-                              </div>
-                              {isSelected && (
-                                <div className="flex-shrink-0 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                            {isSelected && selectedItem && (
-                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDecreaseQuantity(product.productId, variant.variantId, selectedItem.quantity)}
-                                  className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors"
-                                >
-                                  -
-                                </button>
-                                <span className="w-10 text-center font-semibold">{selectedItem.quantity}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleIncreaseQuantity(product.productId, variant.variantId, selectedItem.quantity, variant.variantStock)}
-                                  className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded text-white transition-colors"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      });
-                    }
+                    const hasVariants = product.variants && product.variants.length > 0;
+                    const isExpanded = expandedProducts.has(product.productId);
                     
-                    // Product without variants - show normally
-                    const selectedItem = form.items.find(
+                    // Check if any variant is selected
+                    const selectedVariantsCount = hasVariants 
+                      ? form.items.filter(item => item.productId === product.productId && item.variantId).length
+                      : 0;
+                    
+                    // Check if product itself is selected (no variants)
+                    const isProductSelected = !hasVariants && form.items.some(
                       item => item.productId === product.productId && !item.variantId
                     );
-                    const isSelected = !!selectedItem;
                     
                     return (
-                      <div
-                        key={product.productId}
-                        className={`flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-gray-200 hover:border-orange-300'
-                        }`}
-                      >
-                        <div 
-                          className="flex items-center gap-3 flex-1 cursor-pointer"
-                          onClick={() => handleToggleProduct(product)}
-                        >
+                      <div key={product.productId} className="border border-gray-200 rounded-lg overflow-hidden">
+                        {/* Parent Product Row */}
+                        <div className={`flex items-center gap-3 p-4 ${isExpanded ? 'bg-gray-50' : 'bg-white'} transition-colors`}>
                           <img
                             src={product.images[0] || '/placeholder.png'}
                             alt={product.name}
                             className="w-16 h-16 object-cover rounded-lg"
                           />
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-gray-900 truncate">{product.name}</h4>
+                            <h4 className="font-medium text-gray-900">{product.name}</h4>
                             <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-sm text-orange-600 font-semibold">
-                                {product.price.toLocaleString('vi-VN')}đ
+                            {!hasVariants && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-sm text-orange-600 font-semibold">
+                                  {product.price.toLocaleString('vi-VN')}đ
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Kho: {product.stockQuantity}
+                                </p>
+                              </div>
+                            )}
+                            {hasVariants && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                {product.variants.length} phân loại
+                                {selectedVariantsCount > 0 && ` • ${selectedVariantsCount} đã chọn`}
                               </p>
-                              <p className="text-xs text-gray-500">
-                                Kho: {product.stockQuantity}
-                              </p>
-                            </div>
+                            )}
                           </div>
-                          {isSelected && (
-                            <div className="flex-shrink-0 w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                          )}
+                          
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-3">
+                            {hasVariants ? (
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={isExpanded}
+                                  onChange={() => {
+                                    setExpandedProducts(prev => {
+                                      const newSet = new Set(prev);
+                                      if (newSet.has(product.productId)) {
+                                        newSet.delete(product.productId);
+                                      } else {
+                                        newSet.add(product.productId);
+                                      }
+                                      return newSet;
+                                    });
+                                  }}
+                                  className="w-5 h-5 rounded border-2 border-gray-300 text-orange-500 focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                                />
+                                <span className="text-sm font-medium text-gray-700 group-hover:text-orange-600 transition-colors">
+                                  {isExpanded ? 'Thu gọn phân loại' : 'Xem phân loại'}
+                                </span>
+                              </label>
+                            ) : (
+                              <>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isProductSelected}
+                                    onChange={() => handleToggleProduct(product)}
+                                    className="w-5 h-5 rounded border-2 border-gray-300 text-orange-500 focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">Chọn</span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDecreaseQuantity(product.productId, undefined, form.items.find(item => item.productId === product.productId)?.quantity || 1)}
+                                    disabled={!isProductSelected}
+                                    className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="w-10 text-center font-semibold">
+                                    {form.items.find(item => item.productId === product.productId)?.quantity || 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleIncreaseQuantity(product.productId, undefined, form.items.find(item => item.productId === product.productId)?.quantity || 1, product.stockQuantity)}
+                                    disabled={!isProductSelected}
+                                    className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        {isSelected && selectedItem && (
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => handleDecreaseQuantity(product.productId, undefined, selectedItem.quantity)}
-                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="w-10 text-center font-semibold">{selectedItem.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleIncreaseQuantity(product.productId, undefined, selectedItem.quantity, product.stockQuantity)}
-                              className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded text-white transition-colors"
-                            >
-                              +
-                            </button>
+                        
+                        {/* Variants List (Children) */}
+                        {hasVariants && isExpanded && (
+                          <div className="bg-orange-50 border-t border-gray-200">
+                            <div className="p-4 space-y-2">
+                              <p className="text-sm font-medium text-gray-700 mb-3">Chọn phân loại:</p>
+                              {product.variants.map((variant) => {
+                                const selectedItem = form.items.find(
+                                  item => item.productId === product.productId && item.variantId === variant.variantId
+                                );
+                                const isSelected = !!selectedItem;
+                                
+                                return (
+                                  <div
+                                    key={variant.variantId}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                                      isSelected
+                                        ? 'border-orange-500 bg-white'
+                                        : 'border-gray-200 bg-white hover:border-orange-300'
+                                    }`}
+                                  >
+                                    <img
+                                      src={variant.variantUrl || product.images[0] || '/placeholder.png'}
+                                      alt={variant.optionValue}
+                                      className="w-12 h-12 object-cover rounded-lg"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium text-gray-900">
+                                        {variant.optionName}: {variant.optionValue}
+                                      </p>
+                                      <p className="text-xs text-gray-500">SKU: {variant.variantSku}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-sm text-orange-600 font-semibold">
+                                          {variant.variantPrice.toLocaleString('vi-VN')}đ
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          Kho: {variant.variantStock}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Variant action buttons */}
+                                    <div className="flex items-center gap-3">
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => handleToggleProduct(product, variant.variantId)}
+                                          className="w-5 h-5 rounded border-2 border-gray-300 text-orange-500 focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">Chọn</span>
+                                      </label>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDecreaseQuantity(product.productId, variant.variantId, selectedItem?.quantity || 1)}
+                                          disabled={!isSelected}
+                                          className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded text-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                          -
+                                        </button>
+                                        <span className="w-10 text-center font-semibold">{selectedItem?.quantity || 1}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleIncreaseQuantity(product.productId, variant.variantId, selectedItem?.quantity || 1, variant.variantStock)}
+                                          disabled={!isSelected}
+                                          className="w-8 h-8 flex items-center justify-center bg-orange-500 hover:bg-orange-600 rounded text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>

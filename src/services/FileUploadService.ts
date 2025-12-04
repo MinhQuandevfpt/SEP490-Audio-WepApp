@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 
 export interface UploadResponse {
   url: string;
@@ -283,9 +283,12 @@ export class FileUploadService {
         throw new Error('Access token not found. Please login again.');
       }
 
-      // Validate video file
-      if (!file.type.includes('video/mp4')) {
-        throw new Error('Chỉ hỗ trợ định dạng video MP4');
+      // Validate video file - check both MIME type and extension
+      const isVideoMimeType = file.type.startsWith('video/');
+      const isVideoExtension = /\.(mp4|webm|ogg|mov|avi)$/i.test(file.name);
+      
+      if (!isVideoMimeType && !isVideoExtension) {
+        throw new Error('Vui lòng chọn file video hợp lệ');
       }
 
       const maxSize = 30 * 1024 * 1024; // 30MB

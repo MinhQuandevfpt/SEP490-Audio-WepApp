@@ -5,7 +5,6 @@ import { formatCurrency } from '../../data/shoppingcart';
 import StoreVoucherPicker from './StoreVoucherPicker';
 import type { ShopVoucher } from './VoucherSection';
 import type { AppliedStoreVoucher } from './StoreVoucherPicker';
-import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
 
 interface CartItemRowProps {
   item: CartItem;
@@ -20,8 +19,10 @@ interface CartItemRowProps {
   vouchers?: ShopVoucher[];
   appliedVoucher?: AppliedStoreVoucher;
   selectedTotal?: number;
-  onApplyVoucher?: (storeId: string, voucher: ShopVoucher, discountValue: number) => void;
-  onRemoveVoucher?: (storeId: string) => void;
+  voucherCodeToProductIdMap?: Map<string, string>; // Map<voucherCode, productId> - to check if voucher is used by another product
+  productCache?: Map<string, any>; // Product cache to get product names
+  onApplyVoucher?: (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => void;
+  onRemoveVoucher?: (productId: string) => void;
 }
 
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
@@ -36,91 +37,17 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
   vouchers = [],
   appliedVoucher,
   selectedTotal = 0,
+  voucherCodeToProductIdMap = new Map(),
+  productCache = new Map(),
   onApplyVoucher,
   onRemoveVoucher,
 }) => {
   const [qty, setQty] = useState<number>(it.quantity);
-  const [discountedPrice, setDiscountedPrice] = useState<number | null>(null);
+  // Giá hiển thị sẽ lấy trực tiếp từ cart item (đã được backend áp dụng chiến dịch nếu có)
 
   useEffect(() => {
     setQty(it.quantity);
   }, [it.quantity]);
-
-  // Fetch platform vouchers and calculate discounted price
-  useEffect(() => {
-    const fetchPlatformVoucher = async () => {
-      if (!it.productId) return;
-
-      try {
-        const response = await ProductVoucherService.getProductVouchers(it.productId, 'ALL', null);
-        
-        // Find first active platform campaign with active vouchers
-        const platformCampaigns = response.data?.vouchers?.platform || [];
-        let activePlatformVoucher = null;
-        const now = new Date();
-
-        for (const campaign of platformCampaigns) {
-          if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
-            // Find first active voucher in the campaign with valid time
-            for (const v of campaign.vouchers) {
-              if (v.status !== 'ACTIVE') continue;
-              
-              // Check if voucher is within valid time
-              let isActive = false;
-              if (v.slotOpenTime && v.slotCloseTime) {
-                // Flash Sale: check slot time and slot status
-                isActive = 
-                  now >= new Date(v.slotOpenTime) && 
-                  now <= new Date(v.slotCloseTime) &&
-                  v.slotStatus === 'ACTIVE';
-              } else {
-                // Regular campaign: check voucher time
-                isActive = now >= new Date(v.startTime) && now <= new Date(v.endTime);
-              }
-              
-              if (isActive) {
-                activePlatformVoucher = v;
-                break;
-              }
-            }
-            
-            if (activePlatformVoucher) break;
-          }
-        }
-
-        // Calculate discounted price if platform voucher exists
-        if (activePlatformVoucher) {
-          const originalPrice = it.price;
-          let calculatedDiscount = 0;
-
-          if (activePlatformVoucher.type === 'FIXED') {
-            // FIXED: subtract discountValue
-            calculatedDiscount = activePlatformVoucher.discountValue || 0;
-          } else if (activePlatformVoucher.type === 'PERCENT') {
-            // PERCENT: calculate percentage discount
-            const percentDiscount = (originalPrice * (activePlatformVoucher.discountPercent || 0)) / 100;
-            
-            // Check if maxDiscountValue exists and apply limit
-            if (activePlatformVoucher.maxDiscountValue !== null && activePlatformVoucher.maxDiscountValue !== undefined) {
-              calculatedDiscount = Math.min(percentDiscount, activePlatformVoucher.maxDiscountValue);
-            } else {
-              calculatedDiscount = percentDiscount;
-            }
-          }
-
-          const finalPrice = Math.max(0, originalPrice - calculatedDiscount);
-          setDiscountedPrice(finalPrice);
-        } else {
-          setDiscountedPrice(null);
-        }
-      } catch (error) {
-        console.error('Failed to fetch platform vouchers:', error);
-        setDiscountedPrice(null);
-      }
-    };
-
-    fetchPlatformVoucher();
-  }, [it.productId, it.price]);
 
   const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, '');
@@ -163,18 +90,23 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
 
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* Show original price with strikethrough if platform voucher discount exists */}
-              {discountedPrice !== null && discountedPrice < it.price && (
-                <span className="text-sm text-gray-400 line-through">{formatCurrency(it.price)}</span>
+              {it.originalPrice !== undefined && it.originalPrice > it.price ? (
+                <>
+                  {/* Giá sau giảm – làm nổi bật giống HomePage */}
+                  <span className="text-lg font-semibold text-red-600">
+                    {formatCurrency(it.price)}
+                  </span>
+                  {/* Giá gốc gạch ngang */}
+                  <span className="text-sm text-gray-400 line-through">
+                    {formatCurrency(it.originalPrice)}
+                  </span>
+                </>
+              ) : (
+                // Không có giảm giá: hiển thị giá gốc màu cam
+                <span className="text-lg font-semibold text-orange-600">
+                  {formatCurrency(it.price)}
+                </span>
               )}
-              {/* Show original price with strikethrough if originalPrice prop exists (for other discounts) */}
-              {discountedPrice === null && it.originalPrice && (
-                <span className="text-sm text-gray-400 line-through">{formatCurrency(it.originalPrice)}</span>
-              )}
-              {/* Show discounted price if platform voucher exists, otherwise show regular price */}
-              <span className="text-lg font-semibold text-orange-600">
-                {formatCurrency(discountedPrice !== null && discountedPrice < it.price ? discountedPrice : it.price)}
-              </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -201,12 +133,15 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
       {showVoucherPicker && storeId && (
         <div className="mt-3 pt-3 border-t border-gray-100">
           <StoreVoucherPicker
+            productId={it.productId}
             storeName={storeName || ''}
             vouchers={vouchers}
             selectedTotal={selectedTotal}
             appliedVoucher={appliedVoucher}
-            onApply={(voucher, discountValue) => onApplyVoucher && onApplyVoucher(storeId, voucher, discountValue)}
-            onRemove={() => onRemoveVoucher && onRemoveVoucher(storeId)}
+            voucherCodeToProductIdMap={voucherCodeToProductIdMap}
+            productCache={productCache}
+            onApply={(voucher, discountValue) => onApplyVoucher && onApplyVoucher(it.productId, storeId, voucher, discountValue)}
+            onRemove={() => onRemoveVoucher && onRemoveVoucher(it.productId)}
           />
         </div>
       )}

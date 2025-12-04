@@ -324,6 +324,7 @@ const ProductDetail: React.FC = () => {
               discountPercent={priceInfo.discountPercent}
               campaignBadge={priceInfo.campaignBadge}
               shortDescription={product.shortDescription}
+              productId={product.productId}
             />
        
             {!vouchersLoading && vouchers.length > 0 && (
@@ -356,6 +357,7 @@ const ProductDetail: React.FC = () => {
         <ProductTabs 
           description={product.description ? [product.description] : []} 
           specs={specs}
+          productId={product.productId}
         />
       </div>
     </Layout>

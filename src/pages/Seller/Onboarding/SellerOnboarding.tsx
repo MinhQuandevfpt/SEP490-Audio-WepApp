@@ -45,6 +45,7 @@ const SellerOnboarding: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [licenseWarning, setLicenseWarning] = useState<string>('');
   
   const [formData, setFormData] = useState<OnboardingData>({
     storeName: '',
@@ -81,6 +82,30 @@ const SellerOnboarding: React.FC = () => {
       delete newErrors[fieldName];
       return newErrors;
     });
+  };
+
+  // Handle business license number blur - check if it exists
+  const handleBusinessLicenseBlur = async () => {
+    const licenseNumber = formData.businessLicenseNumber.trim();
+    
+    // Clear previous warning
+    setLicenseWarning('');
+    
+    // Don't check if empty (will be validated on submit)
+    if (!licenseNumber) {
+      return;
+    }
+
+    try {
+      const isDuplicate = await KycService.checkBusinessLicense(licenseNumber);
+      
+      if (isDuplicate) {
+        setLicenseWarning('Số giấy phép kinh doanh này đã được đăng ký. Bạn vẫn có thể tiếp tục nhưng vui lòng kiểm tra lại.');
+      }
+    } catch (error) {
+      console.error('Error checking business license:', error);
+      // Don't show error to user, just log it
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -177,10 +202,10 @@ const SellerOnboarding: React.FC = () => {
         // Only validate step 3 when explicitly requested (when user clicks submit)
         if (forceValidate) {
           if (!formData.frontIdImage) {
-            newErrors.frontIdImage = 'Vui lòng tải lên ảnh mặt trước CCCD/CMND';
+            newErrors.frontIdImage = 'Vui lòng tải lên ảnh mặt trước Căn cước/CCCD';
           }
           if (!formData.backIdImage) {
-            newErrors.backIdImage = 'Vui lòng tải lên ảnh mặt sau CCCD/CMND';
+            newErrors.backIdImage = 'Vui lòng tải lên ảnh mặt sau Căn cước/CCCD';
           }
           if (!formData.businessLicenseImage) {
             newErrors.businessLicenseImage = 'Vui lòng tải lên giấy phép kinh doanh';
@@ -232,23 +257,33 @@ const SellerOnboarding: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Upload files to Cloudinary first
-      let idCardFrontUrl = '';
-      let idCardBackUrl = '';
-      let businessLicenseUrl = '';
-
+      // Upload all files in parallel for better performance (2-3s instead of 6-9s)
+      const uploadPromises = [];
+      
       if (formData.frontIdImage) {
-        const uploadResult = await FileUploadService.uploadImage(formData.frontIdImage, 'Audio/kyc');
-        idCardFrontUrl = uploadResult.url;
+        uploadPromises.push(FileUploadService.uploadImage(formData.frontIdImage, 'Audio/kyc'));
+      } else {
+        uploadPromises.push(Promise.resolve({ url: '' }));
       }
+      
       if (formData.backIdImage) {
-        const uploadResult = await FileUploadService.uploadImage(formData.backIdImage, 'Audio/kyc');
-        idCardBackUrl = uploadResult.url;
+        uploadPromises.push(FileUploadService.uploadImage(formData.backIdImage, 'Audio/kyc'));
+      } else {
+        uploadPromises.push(Promise.resolve({ url: '' }));
       }
+      
       if (formData.businessLicenseImage) {
-        const uploadResult = await FileUploadService.uploadImage(formData.businessLicenseImage, 'Audio/kyc');
-        businessLicenseUrl = uploadResult.url;
+        uploadPromises.push(FileUploadService.uploadImage(formData.businessLicenseImage, 'Audio/kyc'));
+      } else {
+        uploadPromises.push(Promise.resolve({ url: '' }));
       }
+
+      // Wait for all uploads to complete in parallel
+      const [frontResult, backResult, businessResult] = await Promise.all(uploadPromises);
+      
+      const idCardFrontUrl = frontResult.url;
+      const idCardBackUrl = backResult.url;
+      const businessLicenseUrl = businessResult.url;
 
       // Prepare KYC data
       const kycData: KycRequest = {
@@ -367,7 +402,7 @@ const SellerOnboarding: React.FC = () => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Tên cửa hàng *
+          <span className="text-red-500">* </span>Tên cửa hàng
         </label>
         <div className="relative">
           <Store className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -393,7 +428,7 @@ const SellerOnboarding: React.FC = () => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Số điện thoại *
+          <span className="text-red-500">* </span>Số điện thoại
         </label>
         <div className="relative">
           <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -424,7 +459,7 @@ const SellerOnboarding: React.FC = () => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Số giấy phép kinh doanh *
+          <span className="text-red-500">* </span>Số giấy phép kinh doanh
         </label>
         <div className="relative">
           <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -435,11 +470,7 @@ const SellerOnboarding: React.FC = () => {
             name="businessLicenseNumber"
             value={formData.businessLicenseNumber}
             onChange={handleInputChange}
-            onBlur={() => {
-              if (!formData.businessLicenseNumber.trim()) {
-                setErrors(prev => ({ ...prev, businessLicenseNumber: 'Vui lòng nhập số giấy phép kinh doanh' }));
-              }
-            }}
+            onBlur={handleBusinessLicenseBlur}
             className={`w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               errors.businessLicenseNumber ? 'border-red-500' : 'border-gray-300'
             }`}
@@ -448,11 +479,19 @@ const SellerOnboarding: React.FC = () => {
           />
         </div>
         <ErrorMessage fieldName="businessLicenseNumber" />
+        {licenseWarning && (
+          <div className="mt-2 flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm text-yellow-800">{licenseWarning}</span>
+          </div>
+        )}
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Mã số thuế *
+          <span className="text-red-500">* </span>Mã số thuế
         </label>
         <div className="relative">
           <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -493,7 +532,7 @@ const SellerOnboarding: React.FC = () => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Tên ngân hàng *
+          <span className="text-red-500">* </span>Tên ngân hàng
         </label>
         <BankSelector
           value={formData.bankName}
@@ -505,18 +544,13 @@ const SellerOnboarding: React.FC = () => {
             clearError('bankName');
           }}
           error={errors.bankName}
-          onBlur={() => {
-            if (!formData.bankName) {
-              setErrors(prev => ({ ...prev, bankName: 'Vui lòng chọn ngân hàng' }));
-            }
-          }}
         />
         <ErrorMessage fieldName="bankName" />
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Số tài khoản *
+          <span className="text-red-500">* </span>Số tài khoản
         </label>
         <input
           type="text"
@@ -544,7 +578,7 @@ const SellerOnboarding: React.FC = () => {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Tên chủ tài khoản *
+          <span className="text-red-500">* </span>Tên chủ tài khoản
         </label>
         <input
           type="text"
@@ -572,14 +606,14 @@ const SellerOnboarding: React.FC = () => {
       <div className="text-center mb-6">
         <Camera className="w-16 h-16 text-blue-600 mx-auto mb-4" />
         <h3 className="text-2xl font-bold text-gray-800">Thông tin định danh</h3>
-        <p className="text-gray-600">Tải lên ảnh CCCD/CMND để xác thực danh tính</p>
+        <p className="text-gray-600">Tải lên ảnh Căn cước/CCCD để xác thực danh tính</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Front ID Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Ảnh mặt trước CCCD/CMND *
+            <span className="text-red-500">* </span>Ảnh mặt trước Căn cước/CCCD
           </label>
           <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors ${
             errors.frontIdImage ? 'border-red-500' : 'border-gray-300'
@@ -627,7 +661,7 @@ const SellerOnboarding: React.FC = () => {
         {/* Back ID Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Ảnh mặt sau CCCD/CMND *
+            <span className="text-red-500">* </span>Ảnh mặt sau Căn cước/CCCD
           </label>
           <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors ${
             errors.backIdImage ? 'border-red-500' : 'border-gray-300'
@@ -675,7 +709,7 @@ const SellerOnboarding: React.FC = () => {
         {/* Business License Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Giấy phép kinh doanh *
+            <span className="text-red-500">* </span>Giấy phép kinh doanh
           </label>
           <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-blue-400 transition-colors ${
             errors.businessLicenseImage ? 'border-red-500' : 'border-gray-300'
@@ -735,7 +769,7 @@ const SellerOnboarding: React.FC = () => {
                 <li>Ảnh phải rõ nét, đầy đủ 4 góc của thẻ</li>
                 <li>Không bị mờ, nhòe hoặc che khuất</li>
                 <li>Thông tin trên thẻ phải đọc được rõ ràng</li>
-                <li>Chỉ chấp nhận CCCD hoặc CMND còn hiệu lực</li>
+                <li>Chỉ chấp nhận Căn cước/CCCD còn hiệu lực</li>
               </ul>
             </div>
           </div>

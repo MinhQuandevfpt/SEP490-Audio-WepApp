@@ -8,7 +8,8 @@ import type {
   CampaignProductStatus
 } from '../../types/seller';
 
-const API_BASE_URL = '/api/campaigns';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+const API_BASE_URL = BASE_URL.endsWith('/api') ? `${BASE_URL}/campaigns` : `${BASE_URL}/api/campaigns`;
 
 interface CampaignListResponse {
   status: number;
@@ -266,7 +267,7 @@ export class SellerCampaignService {
   }
 
   /**
-   * Get detailed remaining time: X ngày Y giờ Z phút
+   * Get detailed remaining time: X ngày Y giờ Z phút AA giây
    */
   static getTimeRemainingDetailed(targetTime: string): string {
     const now = Date.now();
@@ -278,10 +279,13 @@ export class SellerCampaignService {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     diff -= hours * 60 * 60 * 1000;
     const minutes = Math.floor(diff / (1000 * 60));
+    diff -= minutes * 60 * 1000;
+    const seconds = Math.floor(diff / 1000);
     const parts: string[] = [];
     if (days > 0) parts.push(`${days} ngày`);
     if (hours > 0) parts.push(`${hours} giờ`);
-    parts.push(`${minutes} phút`);
+    if (minutes > 0) parts.push(`${minutes} phút`);
+    if (seconds > 0) parts.push(`${seconds} giây`);
     return parts.join(' ');
   }
 
