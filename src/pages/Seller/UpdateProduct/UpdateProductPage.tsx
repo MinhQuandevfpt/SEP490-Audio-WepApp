@@ -14,12 +14,7 @@ const UpdateProductPage: React.FC = () => {
             <div>
               <p className="text-sm uppercase tracking-wide text-orange-200 font-semibold mb-2">Cập nhật sản phẩm</p>
               <h1 className="text-3xl md:text-4xl font-bold text-white">Chỉnh sửa thông tin sản phẩm</h1>
-              <p className="text-sm text-orange-100 mt-2">
-                Thông tin sẽ được đồng bộ với gian hàng sau khi bạn lưu thay đổi.
-              </p>
-              {productId && (
-                <p className="mt-3 text-xs text-orange-100">Mã sản phẩm: <span className="font-semibold">{productId}</span></p>
-              )}
+              
             </div>
             <div className="flex flex-col items-start md:items-end gap-3">
               <Link
@@ -28,7 +23,7 @@ const UpdateProductPage: React.FC = () => {
               >
                 ← Quay lại danh sách sản phẩm
               </Link>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white">Chỉ dành cho sản phẩm của cửa hàng bạn</span>
+             
             </div>
           </div>
         </div>

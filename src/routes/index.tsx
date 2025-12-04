@@ -42,6 +42,7 @@ import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
+import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
@@ -577,6 +578,10 @@ export const router = createBrowserRouter([
       {
         path: 'banners/:id/edit',
         element: <BannerDetail />
+      },
+      {
+        path: 'policies',
+        element: <PolicyManagement />
       },
       {
         path: 'orders',
