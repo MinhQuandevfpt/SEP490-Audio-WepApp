@@ -17,15 +17,16 @@ import {
   DatePicker,
   Form,
   Badge,
+  Modal,
 } from 'antd';
-import { EyeOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { EyeOutlined, SearchOutlined, ReloadOutlined, PlusOutlined, FileTextOutlined } from '@ant-design/icons';
 import { DollarSign } from 'lucide-react';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import { AdminPayoutService } from '../../../services/admin/AdminPayoutService';
 import { AdminStoreService } from '../../../services/admin/AdminStoreService';
 import type { PayoutBill, PayoutBillStatus, PayoutBillListParams } from '../../../types/admin';
-import { showCenterError } from '../../../utils/notification';
+import { showCenterError, showSuccess } from '../../../utils/notification';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -46,6 +47,10 @@ const PayoutManagement: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [storeMap, setStoreMap] = useState<Map<string, StoreOption>>(new Map());
   const [storesLoading, setStoresLoading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creatingBill, setCreatingBill] = useState(false);
+  const [selectedStoreForCreate, setSelectedStoreForCreate] = useState<string>('');
+  const [loadingCurrentBill, setLoadingCurrentBill] = useState(false);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 15,
@@ -156,6 +161,80 @@ const PayoutManagement: React.FC = () => {
     setSelectedStoreName('');
     setDateRange(null);
   }, []);
+
+  const handleViewCurrentBill = useCallback(async () => {
+    const targetStoreId = storeId.trim() || (selectedStoreName ? Array.from(storeMap.values()).find(s => s.name === selectedStoreName)?.id : '');
+    
+    if (!targetStoreId) {
+      showCenterError('Vui lòng chọn hoặc nhập ID cửa hàng', 'Lỗi');
+      return;
+    }
+
+    setLoadingCurrentBill(true);
+    try {
+      const currentBill = await AdminPayoutService.getCurrentPayoutBill(targetStoreId);
+      // Navigate to detail page
+      navigate(`/admin/reports/payout/${currentBill.id}`);
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Không thể lấy bill hiện tại';
+      showCenterError(errorMessage, 'Lỗi');
+    } finally {
+      setLoadingCurrentBill(false);
+    }
+  }, [storeId, selectedStoreName, storeMap, navigate]);
+
+  const handleCreateBill = useCallback(async () => {
+    if (!selectedStoreForCreate) {
+      showCenterError('Vui lòng chọn cửa hàng', 'Lỗi');
+      return;
+    }
+
+    setCreatingBill(true);
+    try {
+      const newBill = await AdminPayoutService.createPayoutBill(selectedStoreForCreate);
+      showSuccess(`Tạo bill thành công! Mã bill: ${newBill.billCode}`);
+      setShowCreateModal(false);
+      setSelectedStoreForCreate('');
+      
+      // Refresh the list by calling fetchPayoutBills directly
+      setIsLoading(true);
+      try {
+        const params: PayoutBillListParams = {};
+        
+        if (selectedStatus !== 'ALL') {
+          params.status = selectedStatus;
+        }
+        
+        if (dateRange && dateRange[0] && dateRange[1]) {
+          params.fromDate = dateRange[0].format('YYYY-MM-DDTHH:mm:ss');
+          params.toDate = dateRange[1].format('YYYY-MM-DDTHH:mm:ss');
+        }
+        
+        if (searchBillCode.trim()) {
+          params.billCode = searchBillCode.trim();
+        }
+        
+        if (storeId.trim()) {
+          params.storeId = storeId.trim();
+        }
+
+        const bills = await AdminPayoutService.getPayoutBills(params);
+        setPayoutBills(bills || []);
+      } catch (error: any) {
+        // Silently fail refresh
+      } finally {
+        setIsLoading(false);
+      }
+      
+      // Navigate to detail page
+      navigate(`/admin/reports/payout/${newBill.id}`);
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Không thể tạo bill payout';
+      showCenterError(errorMessage, 'Lỗi tạo bill');
+    } finally {
+      setCreatingBill(false);
+    }
+  }, [selectedStoreForCreate, selectedStatus, dateRange, searchBillCode, storeId, navigate]);
 
   const handleStoreNameChange = useCallback((storeName: string) => {
     setSelectedStoreName(storeName);
@@ -291,7 +370,7 @@ const PayoutManagement: React.FC = () => {
       ),
     },
     {
-      title: 'Tổng doanh thu',
+      title: 'Tổng hoá đơn',
       dataIndex: 'totalGross',
       key: 'totalGross',
       width: 150,
@@ -396,6 +475,14 @@ const PayoutManagement: React.FC = () => {
             Xem và quản lý các hóa đơn thanh toán payout cho cửa hàng
           </Typography.Text>
         </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          onClick={() => setShowCreateModal(true)}
+        >
+          Tạo bill mới
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -505,15 +592,27 @@ const PayoutManagement: React.FC = () => {
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12} md={8} lg={4}>
+            <Col xs={24} sm={12} md={8} lg={6}>
               <Form.Item label=" " style={{ marginBottom: 0 }}>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={handleResetFilters}
-                  block
-                >
-                  Đặt lại
-                </Button>
+                <Space style={{ width: '100%' }} direction="vertical" size="small">
+                  <Button
+                    type="primary"
+                    icon={<FileTextOutlined />}
+                    onClick={handleViewCurrentBill}
+                    loading={loadingCurrentBill}
+                    disabled={!storeId.trim() && !selectedStoreName}
+                    block
+                  >
+                    Xem bill hiện tại
+                  </Button>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleResetFilters}
+                    block
+                  >
+                    Đặt lại
+                  </Button>
+                </Space>
               </Form.Item>
             </Col>
           </Row>
@@ -570,6 +669,61 @@ const PayoutManagement: React.FC = () => {
           }}
         />
       </Card>
+
+      {/* Create Bill Modal */}
+      <Modal
+        title="Tạo bill payout mới"
+        open={showCreateModal}
+        onOk={handleCreateBill}
+        onCancel={() => {
+          setShowCreateModal(false);
+          setSelectedStoreForCreate('');
+        }}
+        confirmLoading={creatingBill}
+        okText="Tạo bill"
+        cancelText="Hủy"
+        width={500}
+      >
+        <Form layout="vertical">
+          <Form.Item
+            label="Chọn cửa hàng"
+            required
+            help="Chọn cửa hàng cần tạo bill payout"
+          >
+            <Select
+              placeholder="Chọn cửa hàng"
+              value={selectedStoreForCreate || undefined}
+              onChange={(value) => setSelectedStoreForCreate(value)}
+              showSearch
+              optionLabelProp="label"
+              filterOption={(input, option) => {
+                const label = option?.label as string;
+                return label ? label.toLowerCase().includes(input.toLowerCase()) : false;
+              }}
+              loading={storesLoading}
+              style={{ width: '100%' }}
+            >
+              {storeOptions.map(store => (
+                <Option key={store.id} value={store.id} label={store.name}>
+                  {store.name}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+          {selectedStoreForCreate && (
+            <Form.Item label="Thông tin">
+              <div className="text-sm text-gray-600">
+                <p>Bill sẽ được tạo cho cửa hàng này với:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Tất cả OrderItem chưa được payout</li>
+                  <li>Phí ship GHN chưa được thanh toán</li>
+                  <li>Phí ship hoàn hàng chưa được thanh toán</li>
+                </ul>
+              </div>
+            </Form.Item>
+          )}
+        </Form>
+      </Modal>
     </Space>
   );
 };

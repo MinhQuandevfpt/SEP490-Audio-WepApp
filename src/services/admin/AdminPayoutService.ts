@@ -107,10 +107,64 @@ class AdminHttpClient {
       method: 'GET',
     });
   }
+
+  async post<T>(endpoint: string, body?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
 }
 
 // Create HTTP client instance
 const adminHttpClient = new AdminHttpClient(API_BASE_URL);
+
+/**
+ * Helper function to normalize payout bill response
+ * Handles both direct object and wrapped response formats
+ */
+function normalizePayoutBill(response: any): PayoutBill {
+  let bill: PayoutBill;
+  
+  if (response && typeof response === 'object' && 'id' in response && 'billCode' in response) {
+    bill = response as PayoutBill;
+  } else if (response && typeof response === 'object' && 'data' in response) {
+    bill = (response as PayoutBillDetailResponse).data;
+  } else {
+    throw new Error('Invalid response format from server');
+  }
+  
+  // Normalize returnFees to returnShipFees for consistency
+  if (bill.returnFees !== undefined && !bill.returnShipFees) {
+    bill.returnShipFees = bill.returnFees;
+  }
+  
+  // Add IDs to items if missing (for table rowKey)
+  if (bill.items) {
+    bill.items = bill.items.map((item, index) => ({
+      ...item,
+      id: item.id || `${bill.id}-item-${index}-${item.orderItemId.slice(0, 8)}`
+    }));
+  }
+  
+  // Add IDs to shippingOrders if missing (for table rowKey)
+  if (bill.shippingOrders) {
+    bill.shippingOrders = bill.shippingOrders.map((order, index) => ({
+      ...order,
+      id: order.id || `${bill.id}-shipping-${index}-${order.ghnOrderCode}`
+    }));
+  }
+  
+  // Add IDs to returnShipFees if missing (for table rowKey)
+  if (bill.returnShipFees) {
+    bill.returnShipFees = bill.returnShipFees.map((fee, index) => ({
+      ...fee,
+      id: fee.id || `${bill.id}-return-${index}-${fee.ghnOrderCode || index}`
+    }));
+  }
+  
+  return bill;
+}
 
 // Admin Payout Management Service
 export class AdminPayoutService {
@@ -145,49 +199,31 @@ export class AdminPayoutService {
       `/api/admin/payout-bill/${billId}`
     );
     
-    // Handle both response formats:
-    // 1. Direct object: { id, billCode, ... }
-    // 2. Wrapped in object: { status, message, data: {...} }
-    let bill: PayoutBill;
+    return normalizePayoutBill(response);
+  }
+
+  /**
+   * Get current payout bill for a store (creates one if not exists)
+   * GET /api/admin/payout-bill/current/{storeId}
+   */
+  static async getCurrentPayoutBill(storeId: string): Promise<PayoutBill> {
+    const response: any = await adminHttpClient.get<any>(
+      `/api/admin/payout-bill/current/${storeId}`
+    );
     
-    if (response && typeof response === 'object' && 'id' in response && 'billCode' in response) {
-      bill = response as PayoutBill;
-    } else if (response && typeof response === 'object' && 'data' in response) {
-      bill = (response as PayoutBillDetailResponse).data;
-    } else {
-      throw new Error('Invalid response format from server');
-    }
+    return normalizePayoutBill(response);
+  }
+
+  /**
+   * Create payout bill for a store
+   * POST /api/admin/payout-bill/create/{storeId}
+   */
+  static async createPayoutBill(storeId: string): Promise<PayoutBill> {
+    const response: any = await adminHttpClient.post<any>(
+      `/api/admin/payout-bill/create/${storeId}`
+    );
     
-    // Normalize returnFees to returnShipFees for consistency
-    if (bill.returnFees !== undefined && !bill.returnShipFees) {
-      bill.returnShipFees = bill.returnFees;
-    }
-    
-    // Add IDs to items if missing (for table rowKey)
-    if (bill.items) {
-      bill.items = bill.items.map((item, index) => ({
-        ...item,
-        id: item.id || `${bill.id}-item-${index}-${item.orderItemId.slice(0, 8)}`
-      }));
-    }
-    
-    // Add IDs to shippingOrders if missing (for table rowKey)
-    if (bill.shippingOrders) {
-      bill.shippingOrders = bill.shippingOrders.map((order, index) => ({
-        ...order,
-        id: order.id || `${bill.id}-shipping-${index}-${order.ghnOrderCode}`
-      }));
-    }
-    
-    // Add IDs to returnShipFees if missing (for table rowKey)
-    if (bill.returnShipFees) {
-      bill.returnShipFees = bill.returnShipFees.map((fee, index) => ({
-        ...fee,
-        id: fee.id || `${bill.id}-return-${index}-${fee.ghnOrderCode || index}`
-      }));
-    }
-    
-    return bill;
+    return normalizePayoutBill(response);
   }
 }
 
