@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calcCartSummary, type CartItem as UICartItem } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
@@ -37,7 +37,7 @@ const ShoppingCart: React.FC = () => {
     setProductCache,
   } = useServiceTypeCalculator({ items });
 
-  // Map API cart items to UI items used by existing components
+  // Map API cart items to UI items used by existing components (base mapping, without platform discount)
   const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
     id: apiItem.cartItemId,
     productId: apiItem.refId, // refId is productId for PRODUCT, comboId for COMBO
@@ -45,11 +45,99 @@ const ShoppingCart: React.FC = () => {
     // Ưu tiên sử dụng variantUrl nếu có, nếu không thì dùng image
     image: apiItem.variantUrl || apiItem.image,
     price: apiItem.unitPrice,
+    originalPrice: apiItem.unitPrice, // Set originalPrice để có thể áp dụng platform discount sau
     quantity: apiItem.quantity,
     isSelected: true,
     variant: apiItem.variantOptionValue || undefined,
     type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
   });
+
+  // Helper function: Áp dụng platform discount cho một API item
+  const enhanceApiItemWithPlatformDiscount = useCallback(async (apiItem: ApiCartItem): Promise<UICartItem> => {
+    const baseItem: UICartItem = {
+      id: apiItem.cartItemId,
+      productId: apiItem.refId,
+      name: apiItem.name,
+      image: apiItem.variantUrl || apiItem.image,
+      price: apiItem.unitPrice,
+      originalPrice: apiItem.unitPrice,
+      quantity: apiItem.quantity,
+      isSelected: true,
+      variant: apiItem.variantOptionValue || undefined,
+      type: apiItem.type,
+    };
+
+    // Chỉ áp dụng giảm giá nền tảng cho PRODUCT (không áp dụng cho COMBO)
+    if (!apiItem.refId || apiItem.type === 'COMBO') {
+      return baseItem;
+    }
+
+    try {
+      const response = await ProductVoucherService.getProductVouchers(apiItem.refId, 'ALL', null);
+
+      const platformCampaigns = response.data?.vouchers?.platform || [];
+      let activePlatformVoucher: any = null;
+      const now = new Date();
+
+      // Tìm voucher nền tảng đang ACTIVE (giống logic ProductSuggestions)
+      for (const campaign of platformCampaigns) {
+        if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+          for (const v of campaign.vouchers) {
+            if (v.status !== 'ACTIVE') continue;
+
+            let isActive = false;
+            if (v.slotOpenTime && v.slotCloseTime) {
+              isActive =
+                now >= new Date(v.slotOpenTime) &&
+                now <= new Date(v.slotCloseTime) &&
+                v.slotStatus === 'ACTIVE';
+            } else {
+              isActive =
+                now >= new Date(v.startTime) &&
+                now <= new Date(v.endTime) &&
+                v.status === 'ACTIVE';
+            }
+
+            if (isActive) {
+              activePlatformVoucher = v;
+              break;
+            }
+          }
+
+          if (activePlatformVoucher) break;
+        }
+      }
+
+      if (activePlatformVoucher) {
+        const originalPrice = baseItem.originalPrice ?? baseItem.price;
+        let discountedPrice = originalPrice;
+
+        if (activePlatformVoucher.type === 'PERCENT' && activePlatformVoucher.discountPercent) {
+          discountedPrice = originalPrice * (1 - activePlatformVoucher.discountPercent / 100);
+        } else if (activePlatformVoucher.type === 'FIXED' && activePlatformVoucher.discountValue) {
+          discountedPrice = Math.max(0, originalPrice - activePlatformVoucher.discountValue);
+        }
+
+        // Nếu có giảm giá hợp lệ thì cập nhật price để dùng cho tính toán & hiển thị
+        if (discountedPrice < originalPrice) {
+          return {
+            ...baseItem,
+            price: discountedPrice,
+            originalPrice,
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load platform vouchers for cart item:', err);
+    }
+
+    return baseItem;
+  }, []);
+
+  // Helper function: Áp dụng platform discount cho nhiều API items
+  const enhanceApiItemsWithPlatformDiscounts = useCallback(async (apiItems: ApiCartItem[]): Promise<UICartItem[]> => {
+    return Promise.all(apiItems.map(enhanceApiItemWithPlatformDiscount));
+  }, [enhanceApiItemWithPlatformDiscount]);
 
   // Load addresses
   const loadAddresses = async () => {
@@ -77,7 +165,7 @@ const ShoppingCart: React.FC = () => {
 
   // Load cart items và áp dụng logic giảm giá nền tảng tương tự HomePage
   useEffect(() => {
-    const enhanceItemsWithPlatformDiscounts = async () => {
+    const loadAndEnhanceItems = async () => {
       if (!cart?.items) {
         setItems([]);
         return;
@@ -85,97 +173,16 @@ const ShoppingCart: React.FC = () => {
 
       try {
         const apiItems = cart.items as unknown as ApiCartItem[];
-
-        const enhanced: UICartItem[] = await Promise.all(
-          apiItems.map(async (apiItem) => {
-            const baseItem: UICartItem = {
-              id: apiItem.cartItemId,
-              productId: apiItem.refId,
-              name: apiItem.name,
-              image: apiItem.variantUrl || apiItem.image,
-              price: apiItem.unitPrice,
-              originalPrice: apiItem.unitPrice,
-              quantity: apiItem.quantity,
-              isSelected: true,
-              variant: apiItem.variantOptionValue || undefined,
-              type: apiItem.type,
-            };
-
-            // Chỉ áp dụng giảm giá nền tảng cho PRODUCT (không áp dụng cho COMBO)
-            if (!apiItem.refId || apiItem.type === 'COMBO') {
-              return baseItem;
-            }
-
-            try {
-              const response = await ProductVoucherService.getProductVouchers(apiItem.refId, 'ALL', null);
-
-              const platformCampaigns = response.data?.vouchers?.platform || [];
-              let activePlatformVoucher: any = null;
-              const now = new Date();
-
-              // Tìm voucher nền tảng đang ACTIVE (giống logic ProductSuggestions)
-              for (const campaign of platformCampaigns) {
-                if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
-                  for (const v of campaign.vouchers) {
-                    if (v.status !== 'ACTIVE') continue;
-
-                    let isActive = false;
-                    if (v.slotOpenTime && v.slotCloseTime) {
-                      isActive =
-                        now >= new Date(v.slotOpenTime) &&
-                        now <= new Date(v.slotCloseTime) &&
-                        v.slotStatus === 'ACTIVE';
-                    } else {
-                      isActive =
-                        now >= new Date(v.startTime) &&
-                        now <= new Date(v.endTime) &&
-                        v.status === 'ACTIVE';
-                    }
-
-                    if (isActive) {
-                      activePlatformVoucher = v;
-                      break;
-                    }
-                  }
-
-                  if (activePlatformVoucher) break;
-                }
-              }
-
-              if (activePlatformVoucher) {
-                const originalPrice = baseItem.originalPrice ?? baseItem.price;
-                let discountedPrice = originalPrice;
-
-                if (activePlatformVoucher.type === 'PERCENT' && activePlatformVoucher.discountPercent) {
-                  discountedPrice = originalPrice * (1 - activePlatformVoucher.discountPercent / 100);
-                } else if (activePlatformVoucher.type === 'FIXED' && activePlatformVoucher.discountValue) {
-                  discountedPrice = Math.max(0, originalPrice - activePlatformVoucher.discountValue);
-                }
-
-                // Nếu có giảm giá hợp lệ thì cập nhật price để dùng cho tính toán & hiển thị
-                if (discountedPrice < originalPrice) {
-                  return {
-                    ...baseItem,
-                    price: discountedPrice,
-                    originalPrice,
-                  };
-                }
-              }
-            } catch (err) {
-              console.error('Failed to load platform vouchers for cart item:', err);
-            }
-
-            return baseItem;
-          })
-        );
-
+        const enhanced = await enhanceApiItemsWithPlatformDiscounts(apiItems);
         setItems(enhanced);
-      } finally {
-        // no-op
+      } catch (err) {
+        console.error('Failed to enhance cart items with platform discounts:', err);
+        // Fallback: set items without platform discount
+        setItems((cart.items as unknown as ApiCartItem[]).map(mapApiItemToUI));
       }
     };
 
-    enhanceItemsWithPlatformDiscounts();
+    loadAndEnhanceItems();
   }, [cart]);
 
   // Load vouchers for all products in the cart (unique by refId)
@@ -537,16 +544,26 @@ const ShoppingCart: React.FC = () => {
     setItems(prev => prev.map(it => ({ ...it, isSelected: next })));
   };
 
-  const applyCartResponseToUI = (respItems: ApiCartItem[]) => {
-    setItems(respItems.map(mapApiItemToUI));
-    window.dispatchEvent(new Event('cartUpdated'));
+  // Apply cart response to UI và áp dụng lại platform discount để giữ nguyên định dạng giá
+  const applyCartResponseToUI = async (respItems: ApiCartItem[]) => {
+    try {
+      // Áp dụng platform discount cho items mới để giữ nguyên định dạng giá (originalPrice + price)
+      const enhanced = await enhanceApiItemsWithPlatformDiscounts(respItems);
+      setItems(enhanced);
+      window.dispatchEvent(new Event('cartUpdated'));
+    } catch (err) {
+      console.error('Failed to enhance cart items after update:', err);
+      // Fallback: set items without platform discount
+      setItems(respItems.map(mapApiItemToUI));
+      window.dispatchEvent(new Event('cartUpdated'));
+    }
   };
 
   const updateQuantity = async (cartItemId: string, nextQty: number) => {
     try {
       const clamped = Math.max(1, Math.min(nextQty, 99));
       const resp = await CustomerCartService.updateItemQuantity(cartItemId, clamped);
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      await applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
       showCenterError(msg, 'Lỗi');
@@ -568,7 +585,7 @@ const ShoppingCart: React.FC = () => {
   const removeItem = async (id: string) => {
     try {
       const resp = await CustomerCartService.deleteItems([id]);
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      await applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
       showCenterSuccess('Đã xóa sản phẩm khỏi giỏ hàng', 'Thành công');
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';
@@ -580,7 +597,7 @@ const ShoppingCart: React.FC = () => {
     if (items.length === 0) return;
     try {
       const resp = await CustomerCartService.deleteCart();
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      await applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
       showCenterSuccess('Đã xóa toàn bộ giỏ hàng', 'Thành công');
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa giỏ hàng. Vui lòng thử lại.';

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { TicketPercent, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+// ===== COMMENTED: Icons for voucher picker button (TicketPercent, ChevronDown, ChevronUp) =====
+import { X, AlertCircle } from 'lucide-react';
 import type { ShopVoucher } from './VoucherSection';
 import { showCenterError } from '../../utils/notification';
 
@@ -129,7 +130,8 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
 
   return (
     <div className="mt-3 border-t border-gray-100 pt-3">
-      <button
+      {/* ===== COMMENTED: Voucher picker button ===== */}
+      {/* <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
         className="w-full flex items-center justify-between px-3 py-2 border border-dashed border-orange-400 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors"
@@ -152,7 +154,7 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
             isOpen ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />
           )}
         </div>
-      </button>
+      </button> */}
 
       {appliedVoucher && (
         <div className="mt-2 flex items-center justify-between bg-orange-50 border border-orange-200 text-orange-800 px-3 py-2 rounded">
