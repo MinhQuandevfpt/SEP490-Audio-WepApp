@@ -45,6 +45,7 @@ import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/Campa
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
+import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
@@ -654,6 +655,14 @@ export const router = createBrowserRouter([
       {
         path: 'reports/sellers',
         element: <div>Seller Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports/payout',
+        element: <PayoutManagement />
+      },
+      {
+        path: 'reports/payout/:billId',
+        element: <PayoutBillDetail />
       },
       {
         path: 'categories',
