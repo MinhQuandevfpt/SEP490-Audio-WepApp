@@ -18,11 +18,25 @@ const CreateVoucherPage: React.FC = () => {
         endTime: data.endTime
       };
 
-      await VoucherService.createShopVoucher(payload);
+      // Log request body
+      console.log('📤 [CREATE VOUCHER] Request Body:', JSON.stringify(payload, null, 2));
+
+      const response = await VoucherService.createShopVoucher(payload);
+
+      // Log response
+      console.log('📥 [CREATE VOUCHER] Response Status:', response.status);
+      console.log('📥 [CREATE VOUCHER] Response Body:', JSON.stringify(response, null, 2));
+
       showCenterSuccess('Tạo voucher thành công');
       // Redirect back to list
       navigate('/seller/dashboard/marketing/vouchers');
     } catch (e: any) {
+      // Log error response if available
+      console.error('❌ [CREATE VOUCHER] Error:', e);
+      if (e?.response) {
+        console.error('❌ [CREATE VOUCHER] Error Status:', e.response.status);
+        console.error('❌ [CREATE VOUCHER] Error Response Body:', JSON.stringify(e.response.data, null, 2));
+      }
       showCenterError(e?.message || 'Không thể tạo voucher.');
     } finally {
       setSubmitting(false);

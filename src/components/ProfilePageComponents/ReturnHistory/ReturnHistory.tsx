@@ -202,14 +202,26 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
             </>
           );
         })();
-        const needsRecreateGhn =
+        // Case 4.4: GHN không pickup sau 48h
+        // Chỉ áp dụng khi đã từng có GHN order (status = SHIPPING) nhưng bị reset về APPROVED
+        // Dấu hiệu: status = APPROVED, có package info, không có ghnOrderCode, 
+        // và trackingStatus có thể là null (đã bị clear) hoặc 'ready_to_pick' (vẫn chờ lấy)
+        // Để phân biệt với trường hợp mới có package info: check nếu updatedAt cách xa hơn 5 phút
+        const hasPackageInfoForGhn = 
           record.status === 'APPROVED' &&
           record.shippingFee != null &&
           record.packageWeight != null &&
           record.packageLength != null &&
           record.packageWidth != null &&
-          record.packageHeight != null &&
-          !record.ghnOrderCode;
+          record.packageHeight != null;
+        const isGhnTimeoutCase = 
+          hasPackageInfoForGhn &&
+          !record.ghnOrderCode &&
+          (record.trackingStatus === null || record.trackingStatus === 'ready_to_pick');
+        // Check updatedAt để đảm bảo đây là trường hợp đã từng có GHN order (ít nhất 5 phút trước)
+        const updatedAt = record.updatedAt ? new Date(record.updatedAt) : null;
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const needsRecreateGhn = isGhnTimeoutCase && updatedAt && updatedAt <= fiveMinutesAgo;
         const label = isAutoApproved
           ? 'Shop đã duyệt (tự động)'
           : isAutoCancelled
