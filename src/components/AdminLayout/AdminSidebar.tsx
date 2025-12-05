@@ -114,6 +114,7 @@ const AdminSidebar: React.FC = () => {
       icon: <BarChart3 className="w-6 h-6" />,
       children: [
         { name: 'Doanh thu', href: '/admin/reports/revenue', icon: null },
+        { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null },
         { name: 'Sản phẩm bán chạy', href: '/admin/reports/bestsellers', icon: null },
         { name: 'Khách hàng', href: '/admin/reports/customers', icon: null },
         { name: 'Người bán', href: '/admin/reports/sellers', icon: null }
