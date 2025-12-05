@@ -20,6 +20,7 @@ export interface StoreVoucher {
   title: string;
   description: string;
   type: 'FIXED' | 'PERCENT';
+  scopeType?: 'ALL_SHOP_VOUCHER' | 'PRODUCT_VOUCHER' | string;
   discountValue: number | null;
   discountPercent: number | null;
   maxDiscountValue: number | null;
@@ -148,6 +149,23 @@ export class VoucherService {
     const data = await HttpInterceptor.get<StoreVoucherListResponse>(`${url}?${params.toString()}`, {
       headers: { 'Accept': 'application/json' },
       userType: 'customer'
+    });
+    return data;
+  }
+
+  // Get filtered shop vouchers (for seller)
+  static async getFilteredShopVouchers(
+    status: string = 'ACTIVE',
+    scopeType: string = 'ALL_SHOP_VOUCHER'
+  ): Promise<StoreVoucherListResponse> {
+    const url = `${API_URL}/shop-vouchers/filter`;
+    const params = new URLSearchParams({
+      status,
+      scopeType,
+    });
+    const data = await HttpInterceptor.get<StoreVoucherListResponse>(`${url}?${params.toString()}`, {
+      headers: { 'Accept': 'application/json' },
+      userType: 'seller'
     });
     return data;
   }
