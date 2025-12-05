@@ -271,13 +271,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           
           // Extract customer information from order
           const customerId = order.customerId;
-          const customerName = order.customerName;
-          const customerPhone = order.customerPhone;
+          // Use shipReceiverName and shipPhoneNumber instead of customerName and customerPhone
+          const shipReceiverName = order.shipReceiverName;
+          const shipPhoneNumber = order.shipPhoneNumber;
           
-          // Initialize to address fields with customer name and phone
+          // Initialize to address fields with shipping receiver name and phone
           let toAddressData: Partial<GhnTransferFormData> = {
-            to_name: customerName || '',
-            to_phone: customerPhone || '',
+            to_name: shipReceiverName || '',
+            to_phone: shipPhoneNumber || '',
           };
           
           // Load customer addresses if customerId exists
@@ -559,20 +560,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         [level]: !prev[itemIndex]?.[level],
       },
     }));
-  };
-
-  // Helper function to mask sensitive information
-  const maskInfo = (value: string | undefined | null): string => {
-    if (!value || value.trim() === '') return '';
-    const trimmed = value.trim();
-    if (trimmed.length <= 4) {
-      // If too short, just show first char + dots
-      return trimmed[0] + '.....';
-    }
-    // Show first 1-2 chars + dots + last 1-2 chars
-    const startChars = trimmed.length > 5 ? 2 : 1;
-    const endChars = trimmed.length > 5 ? 2 : 1;
-    return trimmed.substring(0, startChars) + '.....' + trimmed.substring(trimmed.length - endChars);
   };
 
   // Helper function to format number with dot separator (1.000.000)
@@ -1358,7 +1345,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   <label className="block text-xs text-gray-600 mb-1">Tên người nhận *</label>
                   <input
                     type="text"
-                    value={maskInfo(formData.to_name)}
+                    value={formData.to_name}
                     disabled
                     readOnly
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
@@ -1368,7 +1355,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   <label className="block text-xs text-gray-600 mb-1">Số điện thoại *</label>
                   <input
                     type="text"
-                    value={maskInfo(formData.to_phone)}
+                    value={formData.to_phone}
                     disabled
                     readOnly
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
@@ -1378,7 +1365,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   <label className="block text-xs text-gray-600 mb-1">Địa chỉ *</label>
                   <input
                     type="text"
-                    value={maskInfo(formData.to_address)}
+                    value={formData.to_address}
                     disabled
                     readOnly
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
