@@ -1107,37 +1107,54 @@ const AIChatbot: React.FC = () => {
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
           {/* Mode Selector - Show above button when clicked */}
           {showModeSelector && (
-            <div className="flex gap-3 animate-scale-in">
-              {/* AI Chat Option */}
-              <button
-                onClick={() => handleSelectMode('ai')}
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl px-4 py-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center gap-2"
-              >
-                <Bot className="w-5 h-5" />
-                <span className="font-semibold text-sm whitespace-nowrap">Chat AI</span>
-              </button>
+            <div className="w-44 bg-white/95 backdrop-blur-xl border border-orange-100 shadow-2xl rounded-2xl p-3 space-y-2 animate-scale-in">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-orange-500 font-semibold">Chọn chế độ</p>
+              <div className="space-y-2">
+                {/* AI Chat Option */}
+                <button
+                  onClick={() => handleSelectMode('ai')}
+                  className="w-full bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 hover:brightness-105 text-white rounded-xl px-3 py-2.5 shadow-lg shadow-orange-300/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/30">
+                    <Bot className="w-5 h-5" />
+                  </span>
+                  <div className="text-left">
+                    <span className="block text-sm font-semibold leading-tight">Chat AI</span>
+                    <span className="block text-[11px] text-white/80 leading-none">Tư vấn tức thì</span>
+                  </div>
+                </button>
 
-              {/* Store Chat Option */}
-              <button
-                onClick={() => handleSelectMode('store')}
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl px-4 py-3 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center gap-2"
-              >
-                <Store className="w-5 h-5" />
-                <span className="font-semibold text-sm whitespace-nowrap">Chat Shop</span>
-              </button>
+                {/* Store Chat Option */}
+                <button
+                  onClick={() => handleSelectMode('store')}
+                  className="w-full bg-white text-orange-600 border border-orange-100 hover:border-orange-200 rounded-xl px-3 py-2.5 shadow-lg shadow-orange-200/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 ring-1 ring-orange-100">
+                    <Store className="w-5 h-5" />
+                  </span>
+                  <div className="text-left">
+                    <span className="block text-sm font-semibold leading-tight">Chat Shop</span>
+                    <span className="block text-[11px] text-orange-500/80 leading-none">Trao đổi với cửa hàng</span>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 
           {/* Main Chat Button */}
-        <button
+          <button
             onClick={handleOpenChat}
-            className="bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl shadow-2xl hover:shadow-orange-500/50 hover:scale-105 transition-all duration-300 group flex flex-col items-center gap-1.5 px-4 py-3 w-20"
-          aria-label="Open chat"
-        >
-            <MessageSquare className="w-7 h-7 group-hover:animate-pulse" />
-            <span className="text-xs font-medium whitespace-nowrap">Chat Ngay</span>
+            className="relative bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 text-white rounded-2xl shadow-[0_15px_45px_-12px_rgba(249,115,22,0.6)] hover:shadow-[0_18px_55px_-10px_rgba(249,115,22,0.7)] hover:-translate-y-0.5 transition-all duration-300 group flex flex-col items-center gap-1.5 px-4 py-3 w-24 ring-2 ring-orange-300/50"
+            aria-label="Open chat"
+          >
+            <span className="absolute -top-1 -right-1 flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-400 border-2 border-white shadow-sm" />
+            </span>
+            <MessageSquare className="w-7 h-7 group-hover:animate-pulse drop-shadow" />
+            <span className="text-xs font-semibold whitespace-nowrap drop-shadow-sm">Chat Ngay</span>
           </button>
-          </div>
+        </div>
       )}
 
       {/* Chat Window */}
