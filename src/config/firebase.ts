@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore';
+import { getMessaging, getToken, onMessage, type Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAdVpD6Hf2uNQ_VWfkSJSBxiIRI8crJpVQ",
@@ -22,4 +23,16 @@ export const database = getDatabase(app);
 // Initialize Firestore
 export const firestore = getFirestore(app);
 
+// Initialize Firebase Cloud Messaging
+// Only initialize if running in browser (not SSR)
+let messaging: Messaging | null = null;
+if (typeof window !== 'undefined' && 'Notification' in window) {
+  try {
+    messaging = getMessaging(app);
+  } catch (error) {
+    console.warn('Firebase Messaging initialization failed:', error);
+  }
+}
+
+export { messaging, getToken, onMessage };
 export default app;
