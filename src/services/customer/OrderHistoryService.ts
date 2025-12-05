@@ -243,14 +243,64 @@ export class OrderHistoryService {
   }
 
   /**
-   * Normalize API response to always include storeOrders array
-   * New backend response may return items at root level without storeOrders
+   * Normalize API response to always include storeOrders array with items
+   * New backend response may return items at root level and storeOrders separately
+   * Need to map items to storeOrders based on storeOrderId
    */
   private static normalizeOrder(order: CustomerOrder & { items?: any[] }): CustomerOrder {
-    if (Array.isArray(order.storeOrders) && order.storeOrders.length > 0) {
+    const rootItems = Array.isArray(order.items) ? order.items : [];
+    const storeOrders = Array.isArray(order.storeOrders) ? order.storeOrders : [];
+
+    // If we have both storeOrders and root items, map items to storeOrders
+    if (storeOrders.length > 0 && rootItems.length > 0) {
+      // Check if storeOrders already have items
+      const hasItemsInStoreOrders = storeOrders.some(so => Array.isArray(so.items) && so.items.length > 0);
+      
+      if (!hasItemsInStoreOrders) {
+        // Map root items to storeOrders based on storeOrderId
+        const storeOrdersWithItems = storeOrders.map(storeOrder => {
+          const itemsForStoreOrder = rootItems
+            .filter(item => item.storeOrderId === storeOrder.id)
+            .map((item: any, index: number) => {
+              const displayImage = this.getPreferredItemImage(item);
+              return {
+                id: item.id || `${order.id}-item-${index + 1}`,
+                type: item.type || 'PRODUCT',
+                refId: item.refId || item.productId || item.id || `${order.id}-ref-${index + 1}`,
+                name: item.name || 'Sản phẩm',
+                quantity: item.quantity ?? 1,
+                unitPrice: item.unitPrice ?? 0,
+                lineTotal: item.lineTotal ?? (item.unitPrice ?? 0) * (item.quantity ?? 1),
+                image: displayImage,
+                storeId: item.storeId || storeOrder.storeId,
+                storeOrderId: item.storeOrderId ?? storeOrder.id,
+                storeName: item.storeName || storeOrder.storeName,
+                variantId: item.variantId ?? null,
+                variantOptionName: item.variantOptionName ?? null,
+                variantOptionValue: item.variantOptionValue ?? null,
+                variantUrl: item.variantUrl ?? null,
+              } as OrderItem;
+            });
+
+          return {
+            ...storeOrder,
+            items: itemsForStoreOrder,
+          };
+        });
+
+        return {
+          ...order,
+          storeOrders: storeOrdersWithItems,
+        };
+      }
+    }
+
+    // If we have storeOrders but no root items, return as is
+    if (storeOrders.length > 0) {
       return order;
     }
 
+    // If no storeOrders, generate from root items (legacy fallback)
     const generatedStoreOrders = this.createStoreOrdersFromItems(order);
 
     return {
@@ -289,6 +339,7 @@ export class OrderHistoryService {
         lineTotal: item.lineTotal ?? (item.unitPrice ?? 0) * (item.quantity ?? 1),
         image: displayImage,
         storeId,
+        storeOrderId: item.storeOrderId ?? null,
         storeName,
         variantId: item.variantId ?? null,
         variantOptionName: item.variantOptionName ?? null,

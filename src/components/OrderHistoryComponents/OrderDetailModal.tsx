@@ -44,7 +44,12 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
   const [cancelNote, setCancelNote] = React.useState<string>('');
   const [isCancelling, setIsCancelling] = React.useState(false);
   const [showReturnModal, setShowReturnModal] = React.useState(false);
-  const totalItemsCount = order.storeOrders.reduce((sum, so) => sum + so.items.reduce((s, item) => s + item.quantity, 0), 0);
+  const totalItemsCount = Array.isArray(order.storeOrders) 
+    ? order.storeOrders.reduce((sum, so) => {
+        if (!Array.isArray(so.items)) return sum;
+        return sum + so.items.reduce((s, item) => s + (item.quantity || 0), 0);
+      }, 0)
+    : 0;
 
   const handleCancelOrder = async () => {
     try {
@@ -142,10 +147,11 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
               <div className="space-y-4">
                 <h4 className="font-semibold text-gray-900 flex items-center gap-2">
                   <Store className="w-5 h-5 text-orange-500" />
-                  Đơn hàng từ các cửa hàng ({order.storeOrders.length})
+                  Đơn hàng từ các cửa hàng ({Array.isArray(order.storeOrders) ? order.storeOrders.length : 0})
                 </h4>
                 
-                {order.storeOrders.map((storeOrder) => {
+                {Array.isArray(order.storeOrders) && order.storeOrders.length > 0 ? (
+                  order.storeOrders.map((storeOrder) => {
                   // Truncate store name: show first 2 chars + "..." + last 2 chars if long
                   const storeName = storeOrder.storeName || '';
                   const displayStoreName = storeName.length > 8 
@@ -175,42 +181,46 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
 
                     {/* Items */}
                     <div className="space-y-3 mb-4">
-                      {storeOrder.items.map((item) => {
-                        const itemImage = resolveOrderItemImage(item);
-                        return (
-                          <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                            <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
-                              {itemImage ? (
-                                <img 
-                                  src={itemImage} 
-                                  alt={item.name} 
-                                  className="w-full h-full object-cover rounded"
-                                />
-                              ) : (
-                                <Package className="w-6 h-6 text-gray-400" />
+                      {Array.isArray(storeOrder.items) && storeOrder.items.length > 0 ? (
+                        storeOrder.items.map((item) => {
+                          const itemImage = resolveOrderItemImage(item);
+                          return (
+                            <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                              <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                {itemImage ? (
+                                  <img 
+                                    src={itemImage} 
+                                    alt={item.name} 
+                                    className="w-full h-full object-cover rounded"
+                                  />
+                                ) : (
+                                  <Package className="w-6 h-6 text-gray-400" />
+                                )}
+                              </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 text-sm truncate">{item.name}</p>
+                              {formatVariantLabel(item) && (
+                                <p className="text-xs text-gray-500 mt-0.5">{formatVariantLabel(item)}</p>
                               )}
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Loại: {item.type === 'PRODUCT' ? 'Sản phẩm' : 'Combo'} • 
+                                SL: {item.quantity}
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1">
+                                {formatCurrency(item.unitPrice)} × {item.quantity}
+                              </p>
                             </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 text-sm truncate">{item.name}</p>
-                            {formatVariantLabel(item) && (
-                              <p className="text-xs text-gray-500 mt-0.5">{formatVariantLabel(item)}</p>
-                            )}
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Loại: {item.type === 'PRODUCT' ? 'Sản phẩm' : 'Combo'} • 
-                              SL: {item.quantity}
-                            </p>
-                            <p className="text-xs text-gray-600 mt-1">
-                              {formatCurrency(item.unitPrice)} × {item.quantity}
-                            </p>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900 text-sm">
+                                {formatCurrency(item.lineTotal)}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900 text-sm">
-                              {formatCurrency(item.lineTotal)}
-                            </p>
-                          </div>
-                        </div>
-                        );
-                      })}
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-4">Không có sản phẩm</p>
+                      )}
                     </div>
 
                     {/* GHN Order Code */}
@@ -300,7 +310,10 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                     )}
                   </div>
                   );
-                })}
+                })
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">Không có đơn hàng từ cửa hàng</p>
+                )}
               </div>
             </div>
 

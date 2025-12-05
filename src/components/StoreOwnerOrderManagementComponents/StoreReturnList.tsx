@@ -26,6 +26,8 @@ const statusColorMap: Record<string, string> = {
   PENDING: 'gold',
   APPROVED: 'green',
   REJECTED: 'red',
+  CANCELLED: 'gray',
+  AUTO_REFUNDED: 'gray',
   SHIPPING: 'blue',
   REFUNDED: 'green',
 };
@@ -36,9 +38,11 @@ const reasonTypeLabel: Record<string, string> = {
 };
 
 const statusLabelMap: Record<string, string> = {
-  PENDING: 'Đang chờ duyệt yêu cầu',
+  PENDING: 'Yêu cầu mới – Chờ xử lý',
   APPROVED: 'Đã duyệt',
   REJECTED: 'Từ chối',
+  CANCELLED: 'Đã huỷ (khách không gửi hàng)',
+  AUTO_REFUNDED: 'AUTO REFUND – Shop không xử lý sau khi nhận hàng',
   SHIPPING: 'Đang hoàn trả',
   REFUNDED: 'Đã hoàn tiền',
 };
@@ -75,6 +79,11 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   });
   const [rejectReason, setRejectReason] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [showRefundWithoutReturn, setShowRefundWithoutReturn] = useState<{ visible: boolean; record: ReturnRequestResponse | null }>({
+    visible: false,
+    record: null,
+  });
+  const [refundingId, setRefundingId] = useState<string | null>(null);
 
   const handleApprove = async (record: ReturnRequestResponse) => {
     try {
@@ -220,12 +229,67 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 150,
-      render: (value: string) => (
-        <Tag color={statusColorMap[value] || 'default'}>
-          {statusLabelMap[value] || value}
-        </Tag>
-      ),
+      width: 200,
+      render: (_: string, record: ReturnRequestResponse) => {
+        const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
+        const isCancelled = record.status === 'CANCELLED';
+        const isAutoRefunded = record.status === 'AUTO_REFUNDED';
+        const needsRecreateGhn =
+          record.status === 'APPROVED' &&
+          hasPackageInfo(record) &&
+          record.shippingFee != null &&
+          !record.ghnOrderCode;
+        const isShippingDelivered = record.status === 'SHIPPING' && record.trackingStatus === 'delivered';
+        const label = isAutoApproved
+          ? 'Đã duyệt (tự động)'
+          : isCancelled
+            ? 'Đã huỷ (khách không gửi hàng)'
+            : isAutoRefunded
+              ? 'AUTO REFUND – Hệ thống hoàn tiền'
+              : statusLabelMap[record.status] || record.status;
+        return (
+          <Space direction="vertical" size={4}>
+            <Tag color={statusColorMap[record.status] || 'default'}>
+              {label}
+            </Tag>
+            {record.status === 'PENDING' && (
+              <Text type="secondary" className="text-xs">
+                Yêu cầu mới – Chờ xử lý
+              </Text>
+            )}
+            {record.status === 'SHIPPING' && record.trackingStatus === 'delivered' && (
+              <Text type="secondary" className="text-xs text-orange-600">
+                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
+              </Text>
+            )}
+            {isAutoApproved && (
+              <Text type="secondary" className="text-xs">
+                Yêu cầu đã được hệ thống tự duyệt do quá 48 giờ không phản hồi.
+              </Text>
+            )}
+            {isCancelled && (
+              <Text type="secondary" className="text-xs">
+                Khách không gửi hàng – yêu cầu đã bị huỷ tự động.
+              </Text>
+            )}
+            {isAutoRefunded && (
+              <Text type="secondary" className="text-xs">
+                Hệ thống đã tự hoàn tiền do shop không xử lý trong thời hạn.
+              </Text>
+            )}
+            {isShippingDelivered && (
+              <Text type="secondary" className="text-xs text-orange-600">
+                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: nếu hàng đúng mô tả → xác nhận hoàn tiền; nếu sai → khiếu nại. Quá 48 giờ hệ thống sẽ tự hoàn tiền sản phẩm.
+              </Text>
+            )}
+            {needsRecreateGhn && (
+              <Text type="secondary" className="text-xs">
+                GHN không lấy hàng, vui lòng tạo lại đơn GHN.
+              </Text>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Hình ảnh / Video',
@@ -403,9 +467,23 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       key: 'actions',
       width: 250,
       render: (_: any, record: ReturnRequestResponse) => {
+        const canRefundWithoutReturn =
+          record.status === 'PENDING' && !record.ghnOrderCode;
         if (record.status === 'PENDING') {
           return (
             <Space direction="vertical" size={8} className="w-full">
+              {canRefundWithoutReturn && (
+                <Button
+                  type="primary"
+                  size="small"
+                  className="w-full"
+                  onClick={() => setShowRefundWithoutReturn({ visible: true, record })}
+                  loading={refundingId === record.id}
+                  disabled={approvingId === record.id || rejectingId === record.id}
+                >
+                  Hoàn tiền không cần trả hàng
+                </Button>
+              )}
               <Button
                 type="primary"
                 size="small"
@@ -431,15 +509,92 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
           );
         }
 
+        const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
+        const isCancelled = record.status === 'CANCELLED';
+        const isAutoRefunded = record.status === 'AUTO_REFUNDED';
+        const needsRecreateGhn =
+          record.status === 'APPROVED' &&
+          hasPackageInfo(record) &&
+          record.shippingFee != null &&
+          !record.ghnOrderCode;
+        const isShippingDelivered = record.status === 'SHIPPING' && record.trackingStatus === 'delivered';
+
+        if (isAutoRefunded) {
+          return (
+            <Text type="secondary" className="text-xs">
+              AUTO REFUND – Hệ thống đã hoàn tiền do shop không xử lý trong 48 giờ sau khi nhận. Không thể khiếu nại/nhận hàng nữa.
+            </Text>
+          );
+        }
+
+        if (isShippingDelivered) {
+          return (
+            <Space direction="vertical" size={6} className="w-full">
+              <Text type="secondary" className="text-xs text-orange-600">
+                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
+              </Text>
+              <Space className="w-full">
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => handleApprove(record)}
+                  disabled={rejectingId === record.id || approvingId === record.id}
+                >
+                  Xác nhận nhận đúng hàng & hoàn tiền
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => handleOpenRejectModal(record)}
+                  disabled={approvingId === record.id || rejectingId === record.id}
+                >
+                  Khiếu nại hàng trả
+                </Button>
+              </Space>
+              <Text type="secondary" className="text-xs">
+                Nếu không xử lý trong 48 giờ, hệ thống sẽ tự động hoàn tiền sản phẩm cho khách (không hoàn phí trả hàng).
+              </Text>
+            </Space>
+          );
+        }
+
+        if (isCancelled) {
+          return (
+            <Text type="secondary" className="text-xs">
+              Khách không gửi hàng – yêu cầu đã bị huỷ tự động.
+            </Text>
+          );
+        }
+
         if (hasPackageInfo(record)) {
           return (
-            <Button
-              type="default"
-              size="small"
-              onClick={() => handleOpenPickShiftModal(record)}
-            >
-              Xác nhận ca lấy hàng
-            </Button>
+            <Space direction="vertical" size={6} className="w-full">
+              {isAutoApproved && (
+                <Text type="secondary" className="text-xs">
+                  Yêu cầu đã được hệ thống auto-approve, không thể chấp nhận/từ chối.
+                </Text>
+              )}
+              {needsRecreateGhn && (
+                <Text type="secondary" className="text-xs text-orange-600">
+                  GHN không lấy hàng, vui lòng tạo lại đơn GHN.
+                </Text>
+              )}
+              <Button
+                type="default"
+                size="small"
+                onClick={() => handleOpenPickShiftModal(record)}
+              >
+                {needsRecreateGhn ? 'Tạo lại đơn GHN trả hàng' : 'Xác nhận ca lấy hàng'}
+              </Button>
+            </Space>
+          );
+        }
+
+        if (record.status === 'APPROVED' && isAutoApproved) {
+          return (
+            <Text type="secondary" className="text-xs">
+              Yêu cầu auto-approve, không thể thay đổi. Chờ shop tạo đơn GHN sau khi có thông tin gói hàng.
+            </Text>
           );
         }
 
@@ -719,6 +874,60 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Refund Without Return Modal */}
+      <Modal
+        title="Xác nhận hoàn tiền không cần trả hàng?"
+        open={showRefundWithoutReturn.visible}
+        onCancel={() => {
+          if (refundingId) return;
+          setShowRefundWithoutReturn({ visible: false, record: null });
+        }}
+        footer={null}
+        width={500}
+      >
+        {showRefundWithoutReturn.record && (
+          <div className="space-y-4 py-2">
+            <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+              <Text strong>Số tiền hoàn cho khách: {formatCurrency(showRefundWithoutReturn.record.itemPrice)}</Text>
+              <Text type="secondary">
+                Không tạo đơn GHN, khách không cần gửi lại hàng.
+              </Text>
+              <Text type="secondary">
+                Lưu ý: Phí vận chuyển ban đầu sẽ không được hoàn.
+              </Text>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+              <Button
+                onClick={() => setShowRefundWithoutReturn({ visible: false, record: null })}
+                disabled={!!refundingId}
+              >
+                Huỷ
+              </Button>
+              <Button
+                type="primary"
+                loading={!!refundingId}
+                onClick={async () => {
+                  if (!showRefundWithoutReturn.record) return;
+                  try {
+                    setRefundingId(showRefundWithoutReturn.record.id);
+                    await StoreReturnService.refundWithoutReturn(showRefundWithoutReturn.record.id);
+                    message.success('Hoàn tiền thành công. Khách không cần gửi lại hàng.');
+                    setShowRefundWithoutReturn({ visible: false, record: null });
+                    onReload?.();
+                  } catch (e: any) {
+                    message.error(e?.message || 'Có lỗi xảy ra khi hoàn tiền. Vui lòng thử lại.');
+                  } finally {
+                    setRefundingId(null);
+                  }
+                }}
+              >
+                Xác nhận hoàn tiền
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </Card>
   );

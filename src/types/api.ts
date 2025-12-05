@@ -349,7 +349,23 @@ export interface ReturnRequestResponse {
   reason: string;
   customerImageUrls: string[];
   customerVideoUrl?: string | null;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'AUTO_REFUNDED' | string;
+  /**
+   * Flag/metadata when system auto-approves after SLA (e.g., 48h no response)
+   * Optional to keep backward compatibility with backend response
+   */
+  autoApproved?: boolean;
+  autoApprovedAt?: string | null;
+  /**
+   * Flag/metadata when system auto-cancels because customer didn't ship on time
+   */
+  autoCancelled?: boolean;
+  autoCancelledAt?: string | null;
+  /**
+   * Flag/metadata when system auto-refunds because shop didn't handle after receiving
+   */
+  autoRefunded?: boolean;
+  autoRefundedAt?: string | null;
   faultType?: string | null;
   packageWeight?: number | null;
   packageLength?: number | null;
@@ -358,6 +374,10 @@ export interface ReturnRequestResponse {
   shippingFee?: number | null;
   ghnOrderCode?: string | null;
   trackingStatus?: string | null;
+  /**
+   * Flag when shop refunds without requesting return shipment (refund-only)
+   */
+  refundWithoutReturn?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -373,6 +393,7 @@ export interface OrderItem {
   lineTotal: number;
   image?: string | null;  // Base product image
   storeId?: string | null;
+  storeOrderId?: string | null; // ID of the store order this item belongs to
   storeName?: string | null;
   variantId?: string | null;
   variantOptionName?: string | null;

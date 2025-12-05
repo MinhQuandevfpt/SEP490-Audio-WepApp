@@ -25,6 +25,7 @@ import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
+import OrderDetailPage from '../pages/Customer/OrderHistory/OrderDetailPage';
 import WarrantyPage from '../pages/Customer/Warranty/WarrantyPage';
 import ReturnHistoryPage from '../pages/Customer/ReturnHistory/ReturnHistoryPage';
 import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
@@ -217,6 +218,10 @@ export const router = createBrowserRouter([
   {
     path: '/orders',
     element: <ProtectedRoute element={<OrderHistoryPage />} />
+  },
+  {
+    path: '/orders/:orderId',
+    element: <ProtectedRoute element={<OrderDetailPage />} />
   },
   {
     path: '/returns',

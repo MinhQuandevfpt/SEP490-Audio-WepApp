@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Table, Tag, Typography, Pagination, Empty, Spin, Button, message, Modal } from 'antd';
+import { Card, Table, Tag, Typography, Pagination, Empty, Spin, Button, message, Modal, Space } from 'antd';
 import { ZoomIn, Video as VideoIcon } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReturnRequestResponse } from '../../../types/api';
@@ -25,6 +25,8 @@ const statusColorMap: Record<string, string> = {
   PENDING: 'gold',
   APPROVED: 'green',
   REJECTED: 'red',
+  CANCELLED: 'gray',
+  AUTO_REFUNDED: 'blue',
   SHIPPING: 'blue',
   REFUNDED: 'green',
 };
@@ -35,9 +37,11 @@ const reasonTypeLabel: Record<string, string> = {
 };
 
 const statusLabelMap: Record<string, string> = {
-  PENDING: 'Đang chờ duyệt yêu cầu',
+  PENDING: 'Chờ shop phản hồi',
   APPROVED: 'Đã duyệt yêu cầu',
   REJECTED: 'Từ chối yêu cầu',
+  CANCELLED: 'Đã huỷ',
+  AUTO_REFUNDED: 'Đã hoàn tiền (tự động)',
   SHIPPING: 'Đang hoàn trả',
   REFUNDED: 'Đã hoàn trả',
 };
@@ -171,12 +175,87 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 160,
-      render: (value: string) => (
-        <Tag color={statusColorMap[value] || 'default'}>
-          {statusLabelMap[value] || value}
-        </Tag>
-      ),
+      width: 200,
+      render: (_: string, record: ReturnRequestResponse) => {
+        const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
+        const isAutoCancelled = record.status === 'CANCELLED';
+        const isAutoRefunded = record.status === 'AUTO_REFUNDED';
+        const autoRefundText = (() => {
+          if (!isAutoRefunded) return null;
+          if (record.faultType === 'CUSTOMER') {
+            return (
+              <>
+                Shop không phản hồi trong 48 giờ sau khi nhận hàng, hệ thống đã tự động hoàn lại tiền sản phẩm vào ví cho bạn. Do lỗi phát sinh từ phía khách, phí vận chuyển trả hàng không được hoàn lại.
+              </>
+            );
+          }
+          if (record.faultType === 'SHOP') {
+            return (
+              <>
+                Shop không phản hồi trong 48 giờ sau khi nhận hàng, hệ thống đã tự động hoàn lại tiền sản phẩm vào ví cho bạn. Lỗi phát sinh từ phía shop. Phí vận chuyển được xử lý theo chính sách của từng chương trình khuyến mãi.
+              </>
+            );
+          }
+          return (
+            <>
+              Shop không phản hồi trong 48 giờ sau khi nhận hàng, hệ thống đã tự động hoàn lại tiền sản phẩm vào ví cho bạn.
+            </>
+          );
+        })();
+        const needsRecreateGhn =
+          record.status === 'APPROVED' &&
+          record.shippingFee != null &&
+          record.packageWeight != null &&
+          record.packageLength != null &&
+          record.packageWidth != null &&
+          record.packageHeight != null &&
+          !record.ghnOrderCode;
+        const label = isAutoApproved
+          ? 'Shop đã duyệt (tự động)'
+          : isAutoCancelled
+            ? 'Yêu cầu bị huỷ (quá hạn gửi hàng)'
+            : isAutoRefunded
+              ? 'Đã hoàn tiền (tự động)'
+            : statusLabelMap[record.status] || record.status;
+
+        return (
+          <Space direction="vertical" size={4}>
+            <Tag color={statusColorMap[record.status] || 'default'}>
+              {label}
+            </Tag>
+            {record.status === 'PENDING' && (
+              <Text type="secondary" className="text-xs">
+                Chờ shop phản hồi
+              </Text>
+            )}
+            {record.status === 'SHIPPING' && record.trackingStatus === 'delivered' && (
+              <Text type="secondary" className="text-xs text-orange-600">
+                Shop đã nhận hàng – đang chờ xử lý (tối đa 48 giờ). Nếu shop không phản hồi, hệ thống sẽ hoàn lại tiền sản phẩm (không hoàn phí trả hàng).
+              </Text>
+            )}
+            {isAutoApproved && (
+              <Text type="secondary" className="text-xs">
+                Yêu cầu trả hàng đã được hệ thống tự duyệt do shop không phản hồi.
+              </Text>
+            )}
+            {isAutoCancelled && (
+              <Text type="secondary" className="text-xs">
+                Yêu cầu trả hàng đã bị huỷ do bạn không gửi hàng trong thời hạn quy định.
+              </Text>
+            )}
+            {isAutoRefunded && autoRefundText && (
+              <Text type="secondary" className="text-xs">
+                {autoRefundText}
+              </Text>
+            )}
+            {needsRecreateGhn && (
+              <Text type="secondary" className="text-xs">
+                Đơn vị vận chuyển không đến lấy hàng. Shop sẽ tạo lại đơn lấy hàng mới.
+              </Text>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Hình ảnh / Video',
@@ -309,6 +388,27 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       key: 'actions',
       width: 200,
       render: (_: any, record: ReturnRequestResponse) => {
+        if (record.status === 'CANCELLED') {
+          return (
+            <Text type="secondary" className="text-xs">
+              Yêu cầu trả hàng đã bị huỷ do bạn không gửi hàng trong thời hạn quy định.
+            </Text>
+          );
+        }
+
+        if (record.status === 'AUTO_REFUNDED') {
+          return (
+            <Space direction="vertical" size={4}>
+              <Text strong className="text-xs text-blue-600">
+                Đã hoàn tiền (tự động)
+              </Text>
+              <Text type="secondary" className="text-xs">
+                Hệ thống đã tự hoàn tiền do shop không xử lý sau khi nhận hàng.
+              </Text>
+            </Space>
+          );
+        }
+
         if (record.status !== 'APPROVED') {
           return <Text type="secondary">—</Text>;
         }

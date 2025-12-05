@@ -74,6 +74,18 @@ export class StoreReturnService {
       throw new Error(error?.message || 'Không thể từ chối yêu cầu hoàn trả');
     }
   }
+
+  /**
+   * Refund without requiring return shipment
+   */
+  static async refundWithoutReturn(id: string): Promise<void> {
+    try {
+      const endpoint = `/api/store/returns/${id}/refund-without-return`;
+      await HttpInterceptor.post<void>(endpoint, undefined, { userType: 'seller' });
+    } catch (error: any) {
+      throw new Error(error?.message || 'Không thể hoàn tiền không cần trả hàng');
+    }
+  }
 }
 
 export default StoreReturnService;

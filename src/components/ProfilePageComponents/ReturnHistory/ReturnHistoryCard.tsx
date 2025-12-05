@@ -21,14 +21,18 @@ const statusColorMap: Record<string, string> = {
   PENDING: 'gold',
   APPROVED: 'green',
   REJECTED: 'red',
+  CANCELLED: 'gray',
+  AUTO_REFUNDED: 'blue',
   SHIPPING: 'blue',
   REFUNDED: 'green',
 };
 
 const statusLabelMap: Record<string, string> = {
-  PENDING: 'Đang chờ duyệt yêu cầu',
+  PENDING: 'Chờ shop phản hồi',
   APPROVED: 'Đã duyệt yêu cầu',
   REJECTED: 'Từ chối yêu cầu',
+  CANCELLED: 'Đã huỷ',
+  AUTO_REFUNDED: 'Đã hoàn tiền (tự động)',
   SHIPPING: 'Đang hoàn trả',
   REFUNDED: 'Đã hoàn trả',
 };
@@ -173,6 +177,38 @@ const ReturnHistoryCard: React.FC<ReturnHistoryCardProps> = ({
               {statusLabelMap[data.status] || data.status}
             </Tag>
           </div>
+          {data.status === 'APPROVED' && data.autoApproved && (
+            <Text type="secondary" className="text-xs">
+              Yêu cầu trả hàng đã được hệ thống tự duyệt do shop không phản hồi.
+            </Text>
+          )}
+          {data.status === 'SHIPPING' && data.trackingStatus === 'delivered' && (
+            <Text type="secondary" className="text-xs text-orange-600">
+              Shop đã nhận hàng – đang chờ xử lý (tối đa 48 giờ). Nếu shop không phản hồi, hệ thống sẽ hoàn lại tiền sản phẩm (không hoàn phí trả hàng).
+            </Text>
+          )}
+          {data.status === 'CANCELLED' && (
+            <Text type="secondary" className="text-xs">
+              Yêu cầu trả hàng đã bị huỷ do bạn không gửi hàng trong thời hạn quy định.
+            </Text>
+          )}
+          {data.status === 'AUTO_REFUNDED' && (
+            <>
+              <Text type="secondary" className="text-xs">
+                Shop không phản hồi trong 48 giờ sau khi nhận hàng, hệ thống đã tự động hoàn lại tiền sản phẩm vào ví cho bạn.
+              </Text>
+              {data.faultType === 'CUSTOMER' && (
+                <Text type="secondary" className="text-xs">
+                  Do lỗi phát sinh từ phía khách, phí vận chuyển trả hàng không được hoàn lại.
+                </Text>
+              )}
+              {data.faultType === 'SHOP' && (
+                <Text type="secondary" className="text-xs">
+                  Lỗi phát sinh từ phía shop. Phí vận chuyển được xử lý theo chính sách của từng chương trình khuyến mãi.
+                </Text>
+              )}
+            </>
+          )}
 
           {/* Product Info */}
           <div className="flex items-start gap-4">
@@ -307,9 +343,20 @@ const ReturnHistoryCard: React.FC<ReturnHistoryCardProps> = ({
                   Đã đóng gói
                 </Button>
               )}
+              {data.status === 'CANCELLED' && (
+                <Button type="primary" size="middle" disabled className="w-full">
+                  Đã huỷ yêu cầu (quá hạn gửi hàng)
+                </Button>
+              )}
+              {data.status === 'AUTO_REFUNDED' && (
+                <Button type="primary" size="middle" disabled className="w-full">
+                  Đã hoàn tiền (tự động)
+                </Button>
+              )}
             </div>
           </div>
         </div>
+        {/* End of space-y-4 wrapper */}
       </Card>
 
       <ReturnPackingModal
