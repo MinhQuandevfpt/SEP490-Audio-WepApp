@@ -77,7 +77,19 @@ export class ProductVoucherService {
     if (campaignType) params.append('campaignType', campaignType);
     const qs = params.toString();
     const url = `/api/products/view/${productId}/vouchers${qs ? `?${qs}` : ''}`;
-    return await HttpInterceptor.get<ProductVoucherResponse>(url, { userType: 'customer' });
+    
+    const response = await HttpInterceptor.get<ProductVoucherResponse>(url, { userType: 'customer' });
+    
+    // Log response body khi vào checkout page
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('🎫 [PRODUCT VOUCHERS API RESPONSE BODY]');
+    console.log(`GET ${url}`);
+    console.log(`ProductId: ${productId}`);
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log(JSON.stringify(response, null, 2));
+    console.log('═══════════════════════════════════════════════════════════════');
+    
+    return response;
   }
 }
 

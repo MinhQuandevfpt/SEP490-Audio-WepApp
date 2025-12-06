@@ -32,7 +32,7 @@ export interface CartItem {
   name: string;
   image: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number;  // Giá hiện tại (đã áp dụng platform campaign nếu có)
   lineTotal: number;
   originProvinceCode?: string;
   originDistrictCode?: string;
@@ -41,6 +41,11 @@ export interface CartItem {
   variantOptionName?: string;
   variantOptionValue?: string;
   variantUrl?: string;  // URL của ảnh variant (nếu có)
+  // Platform campaign fields (from backend)
+  baseUnitPrice?: number;  // Giá gốc (chưa campaign)
+  platformCampaignPrice?: number;  // Giá sau campaign (nếu có)
+  inPlatformCampaign?: boolean;  // Có đang nằm trong campaign không
+  campaignUsageExceeded?: boolean;  // Đã vượt giới hạn sử dụng campaign chưa
 }
 
 // Cart Response
