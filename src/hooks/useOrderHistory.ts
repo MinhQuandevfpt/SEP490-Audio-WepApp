@@ -38,6 +38,9 @@ export const useOrderHistory = () => {
       // Note: Many orders may not have GHN orders yet (404/500 is normal)
       const ghnDataPromises: Promise<void>[] = [];
       res.data.forEach((order) => {
+        if (!Array.isArray(order.storeOrders)) {
+          return;
+        }
         order.storeOrders.forEach((storeOrder) => {
           // Only load if not already loaded
           if (!storeOrder.id || storeOrder.id.includes('-store-')) {

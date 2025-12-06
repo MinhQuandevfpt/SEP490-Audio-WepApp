@@ -107,9 +107,9 @@ const Header: React.FC = () => {
               </Link>
             </div>
             <div className="flex space-x-6">
-              <a href="/support" className="text-gray-600 hover:text-gray-900">
+              <Link to="/policies" className="text-gray-600 hover:text-gray-900">
                 Hỗ trợ
-              </a>
+              </Link>
               
               {isAuthenticated ? (
                 <div className="flex items-center space-x-4">
@@ -241,7 +241,7 @@ const Header: React.FC = () => {
 
             <div className="flex items-center space-x-2 text-gray-700">
               <Clock className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">30 ngày đổi trả</span>
+              <span className="text-sm font-medium">7 ngày đổi trả</span>
             </div>
 
            <div className="flex items-center space-x-2 text-gray-700">

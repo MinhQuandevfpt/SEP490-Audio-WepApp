@@ -239,3 +239,79 @@ export interface BannerListResponse {
   data: Banner[];
 }
 
+// Payout Bill Management Types
+export type PayoutBillStatus = 'PENDING' | 'PAID' | 'CANCELED';
+
+export interface PayoutBillItem {
+  id?: string; // Optional - may not be present in detail API response
+  orderItemId: string;
+  storeOrderId: string;
+  productName: string;
+  quantity: number;
+  isReturned: boolean;
+  finalLineTotal: number;
+  platformFeePercentage: number;
+  platformFeeAmount: number;
+  netPayout: number;
+}
+
+export interface ShippingOrder {
+  id?: string; // Optional - may not be present in detail API response
+  storeOrderId: string;
+  ghnOrderCode: string;
+  shippingFee: number;
+  shippingType: string;
+}
+
+export interface ReturnShipFee {
+  id?: string; // Optional - may not be present in API response
+  returnRequestId: string;
+  ghnOrderCode: string;
+  shippingFee: number;
+  chargedToShop: number;
+  shippingType: string;
+}
+
+export interface PayoutBill {
+  id: string;
+  shopId: string;
+  billCode: string;
+  createdAt: string;
+  updatedAt?: string; // Optional - may not be present in detail response
+  fromDate: string;
+  toDate: string;
+  totalGross: number;
+  totalPlatformFee: number;
+  totalShippingOrderFee: number;
+  totalReturnShippingFee: number;
+  totalNetPayout: number;
+  status: PayoutBillStatus;
+  transferReference: string | null;
+  receiptImageUrl: string | null;
+  adminNote: string | null;
+  items: PayoutBillItem[];
+  shippingOrders: ShippingOrder[];
+  returnShipFees?: ReturnShipFee[]; // Used in list response
+  returnFees?: ReturnShipFee[]; // Used in detail response (alternative field name)
+}
+
+export interface PayoutBillListParams {
+  storeId?: string;
+  status?: PayoutBillStatus;
+  fromDate?: string;
+  toDate?: string;
+  billCode?: string;
+}
+
+export interface PayoutBillListResponse {
+  status: number;
+  message: string;
+  data: PayoutBill[];
+}
+
+export interface PayoutBillDetailResponse {
+  status: number;
+  message: string;
+  data: PayoutBill;
+}
+

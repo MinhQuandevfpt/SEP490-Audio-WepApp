@@ -276,7 +276,8 @@ const SellerDashboardLayout: React.FC = () => {
         { label: 'Chờ lấy hàng', path: '/seller/dashboard/orders/processing' },
         { label: 'Đang giao', path: '/seller/dashboard/orders/shipping' },
         { label: 'Đã giao', path: '/seller/dashboard/orders/delivered' },
-        { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' }
+        { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' },
+        { label: 'Hoàn trả sản phẩm', path: '/seller/dashboard/returns' }
       ]
     },
     {
@@ -413,7 +414,7 @@ const SellerDashboardLayout: React.FC = () => {
 
               {/* Notification Dropdown Menu */}
               {isNotificationMenuOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-96 overflow-y-auto">
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50 max-h-96 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-gray-800">Thông báo</h3>

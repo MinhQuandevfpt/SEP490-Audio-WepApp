@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Eye, 
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { showTikiNotification } from '../../../utils/notification';
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
+import { usePolicyCategories } from '../../../hooks/usePolicyCategories';
 import type { SellerRegisterRequest } from '../../../types/seller';
 
 const SellerRegister: React.FC = () => {
@@ -18,6 +19,8 @@ const SellerRegister: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [policyCategoryId, setPolicyCategoryId] = useState<string>('');
+  const { categories } = usePolicyCategories();
   const [formData, setFormData] = useState({
     // Basic account info only
     name: '',
@@ -28,6 +31,18 @@ const SellerRegister: React.FC = () => {
     agreeTerms: false,
     agreeMarketing: false
   });
+
+  // Find policy category ID by name
+  useEffect(() => {
+    if (categories.length > 0) {
+      const policyCategory = categories.find(
+        (cat: { name: string }) => cat.name.toLowerCase().includes('thông tin') || cat.name.toLowerCase().includes('chính sách')
+      );
+      if (policyCategory) {
+        setPolicyCategoryId(policyCategory.id);
+      }
+    }
+  }, [categories]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -224,8 +239,18 @@ const SellerRegister: React.FC = () => {
           />
           <span className="ml-3 text-sm text-gray-600">
             Tôi đồng ý với{' '}
-            <Link to="/seller/terms" className="text-blue-600 hover:text-blue-700 font-medium">
-              Điều khoản dịch vụ Seller
+            <Link 
+              to={policyCategoryId ? `/policies/${policyCategoryId}?item=điều khoản` : '/policies'} 
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Điều khoản dịch vụ
+            </Link>{' '}
+            và{' '}
+            <Link 
+              to={policyCategoryId ? `/policies/${policyCategoryId}?item=chính sách bảo mật` : '/policies'} 
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Chính sách bảo mật
             </Link>{' '}
             của AudioShop *
           </span>

@@ -17,7 +17,7 @@ const ShopWideVoucherPage: React.FC = () => {
         showCenterSuccess('Voucher toàn shop đã được tạo thành công!', 'Thành công');
         // Navigate back to vouchers list after 1.5 seconds
         setTimeout(() => {
-          navigate('/seller/dashboard/marketing/vouchers');
+          navigate('/seller/dashboard/shop-wide-voucher');
         }, 1500);
       } else {
         showCenterError(response.message || 'Không thể tạo voucher', 'Lỗi');
@@ -39,7 +39,7 @@ const ShopWideVoucherPage: React.FC = () => {
           <p className="text-sm text-gray-600">Tạo voucher áp dụng cho toàn bộ cửa hàng, không giới hạn số lượng</p>
         </div>
         <button
-          onClick={() => navigate('/seller/dashboard/marketing/vouchers')}
+          onClick={() => navigate('/seller/dashboard/shop-wide-voucher')}
           className="px-4 py-2 rounded bg-gray-100 text-gray-700 text-sm hover:bg-gray-200"
         >
           Quay lại

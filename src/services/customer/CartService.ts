@@ -193,18 +193,17 @@ export class CustomerCartService {
   static async checkoutCod(request: CheckoutCodRequest): Promise<CheckoutCodResponse> {
     try {
       const customerId = this.getCustomerId();
-      console.log('💳 Processing COD checkout:', { customerId, request });
-
+      
       const response = await HttpInterceptor.post<CheckoutCodResponse>(
         `/api/v1/customers/${customerId}/cart/checkout-cod`,
         request,
         { userType: 'customer' }
       );
 
-      console.log('✅ COD checkout successful:', response);
+      // Response đã được log đầy đủ ở CheckoutOrderContainer
       return response;
     } catch (error) {
-      console.error('❌ Failed to checkout COD:', error);
+      console.error('❌ [COD CHECKOUT ERROR]', error);
       throw error;
     }
   }

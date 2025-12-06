@@ -10,6 +10,8 @@ import type {
   CustomerOrder,
   StoreOrder,
   OrderItem,
+  CreateReturnRequest,
+  ReturnRequestResponse,
 } from '../../types/api';
 import { getCustomerId } from '../../utils/authHelper';
 
@@ -55,12 +57,22 @@ export class OrderHistoryService {
 
       const endpoint = `/api/customers/${customerId}/orders?${queryParams.toString()}`;
       
-      const response = await HttpInterceptor.get<OrderHistoryResponse>(
+      // NOTE:
+      // Backend may return either the legacy structure:
+      //  { items: CustomerOrder[], totalElements, totalPages, page, size }
+      // or a standard Spring Page:
+      //  { content: CustomerOrder[], totalElements, totalPages, number, size, ... }
+      const response = await HttpInterceptor.get<OrderHistoryResponse | any>(
         endpoint,
         { userType: 'customer' }
       );
 
-      const normalizedItems = (response.items || []).map((order) => this.normalizeOrder(order));
+      const raw: any = response as any;
+
+      // Prefer "items" (old) then "content" (new)
+      const sourceItems: CustomerOrder[] = (raw.items || raw.content || []) as CustomerOrder[];
+
+      const normalizedItems = sourceItems.map((order) => this.normalizeOrder(order));
 
       let filteredItems = normalizedItems;
 
@@ -73,12 +85,18 @@ export class OrderHistoryService {
         );
       }
 
+      const totalElements: number = raw.totalElements ?? sourceItems.length ?? 0;
+      const totalPages: number = raw.totalPages ?? 0;
+      // Some Spring Page implementations use "number" for current page index
+      const currentPage: number = raw.page ?? raw.number ?? page;
+      const pageSize: number = raw.size ?? size;
+
       return {
         data: filteredItems,
-        total: response.totalElements || 0,
-        totalPages: response.totalPages || 0,
-        page: response.page || 0,
-        size: response.size || size,
+        total: totalElements,
+        totalPages,
+        page: currentPage,
+        size: pageSize,
       };
     } catch (error: any) {
       console.error('❌ Error fetching order history:', error);
@@ -207,14 +225,82 @@ export class OrderHistoryService {
   }
 
   /**
-   * Normalize API response to always include storeOrders array
-   * New backend response may return items at root level without storeOrders
+   * Create return request for delivered order item
+   * POST /api/customers/me/returns
+   */
+  static async requestReturn(payload: CreateReturnRequest): Promise<ReturnRequestResponse> {
+    try {
+      const response = await HttpInterceptor.post<ReturnRequestResponse>(
+        '/api/customers/me/returns',
+        payload,
+        { userType: 'customer' }
+      );
+      return response;
+    } catch (error: any) {
+      console.error('Failed to submit return request:', error);
+      throw new Error(error?.message || 'Không thể gửi yêu cầu hoàn trả sản phẩm');
+    }
+  }
+
+  /**
+   * Normalize API response to always include storeOrders array with items
+   * New backend response may return items at root level and storeOrders separately
+   * Need to map items to storeOrders based on storeOrderId
    */
   private static normalizeOrder(order: CustomerOrder & { items?: any[] }): CustomerOrder {
-    if (Array.isArray(order.storeOrders) && order.storeOrders.length > 0) {
+    const rootItems = Array.isArray(order.items) ? order.items : [];
+    const storeOrders = Array.isArray(order.storeOrders) ? order.storeOrders : [];
+
+    // If we have both storeOrders and root items, map items to storeOrders
+    if (storeOrders.length > 0 && rootItems.length > 0) {
+      // Check if storeOrders already have items
+      const hasItemsInStoreOrders = storeOrders.some(so => Array.isArray(so.items) && so.items.length > 0);
+      
+      if (!hasItemsInStoreOrders) {
+        // Map root items to storeOrders based on storeOrderId
+        const storeOrdersWithItems = storeOrders.map(storeOrder => {
+          const itemsForStoreOrder = rootItems
+            .filter(item => item.storeOrderId === storeOrder.id)
+            .map((item: any, index: number) => {
+              const displayImage = this.getPreferredItemImage(item);
+              return {
+                id: item.id || `${order.id}-item-${index + 1}`,
+                type: item.type || 'PRODUCT',
+                refId: item.refId || item.productId || item.id || `${order.id}-ref-${index + 1}`,
+                name: item.name || 'Sản phẩm',
+                quantity: item.quantity ?? 1,
+                unitPrice: item.unitPrice ?? 0,
+                lineTotal: item.lineTotal ?? (item.unitPrice ?? 0) * (item.quantity ?? 1),
+                image: displayImage,
+                storeId: item.storeId || storeOrder.storeId,
+                storeOrderId: item.storeOrderId ?? storeOrder.id,
+                storeName: item.storeName || storeOrder.storeName,
+                variantId: item.variantId ?? null,
+                variantOptionName: item.variantOptionName ?? null,
+                variantOptionValue: item.variantOptionValue ?? null,
+                variantUrl: item.variantUrl ?? null,
+              } as OrderItem;
+            });
+
+          return {
+            ...storeOrder,
+            items: itemsForStoreOrder,
+          };
+        });
+
+        return {
+          ...order,
+          storeOrders: storeOrdersWithItems,
+        };
+      }
+    }
+
+    // If we have storeOrders but no root items, return as is
+    if (storeOrders.length > 0) {
       return order;
     }
 
+    // If no storeOrders, generate from root items (legacy fallback)
     const generatedStoreOrders = this.createStoreOrdersFromItems(order);
 
     return {
@@ -253,6 +339,7 @@ export class OrderHistoryService {
         lineTotal: item.lineTotal ?? (item.unitPrice ?? 0) * (item.quantity ?? 1),
         image: displayImage,
         storeId,
+        storeOrderId: item.storeOrderId ?? null,
         storeName,
         variantId: item.variantId ?? null,
         variantOptionName: item.variantOptionName ?? null,

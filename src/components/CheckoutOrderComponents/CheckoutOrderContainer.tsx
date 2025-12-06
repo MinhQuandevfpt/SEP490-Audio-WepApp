@@ -4,7 +4,7 @@ import Layout from '../../components/Layout';
 import { AddressForm, PaymentMethodDropdown, CartItemList, OrderSummaryCard } from '.';
 import type { StoreGroup } from './CartItemList';
 import { useServiceTypeCalculator } from '../../hooks/useServiceTypeCalculator';
-import { useAutoShippingFee } from '../../hooks/useAutoShippingFee';
+import { useAutoShippingFee, type StoreShippingFee } from '../../hooks/useAutoShippingFee';
 import { AddressService } from '../../services/customer/AddressService';
 import { CustomerCartService } from '../../services/customer/CartService';
 import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
@@ -12,7 +12,7 @@ import { ProductListService, type Product } from '../../services/customer/Produc
 import { VoucherService, type StoreVoucher } from '../../services/seller/VoucherService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import type { CustomerAddressApiItem } from '../../types/api';
-import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher as CheckoutStoreVoucher, ServiceTypeIds, PlatformVoucher } from '../../types/cart';
+import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher as CheckoutStoreVoucher, ServiceTypeIds } from '../../types/cart';
 import type { CartItem } from '../../data/shoppingcart';
 import type { CheckoutCartItem, PaymentMethod } from '../../data/checkout';
 import type { ShopVoucher } from '../ShoppingCartComponents/VoucherSection';
@@ -249,6 +249,7 @@ const CheckoutOrderContainer: React.FC = () => {
   const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, { discount: number; campaignProductId: string }>>({});
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [shippingFee, setShippingFee] = useState<number>(0);
+  const [storeShippingFees, setStoreShippingFees] = useState<Record<string, StoreShippingFee>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -277,6 +278,9 @@ const CheckoutOrderContainer: React.FC = () => {
       setShippingFee(fee);
       // Xóa lỗi phí vận chuyển nếu tính lại thành công
       setShippingFeeError(null);
+    },
+    onStoreShippingFeesChange: (fees) => {
+      setStoreShippingFees(fees);
     },
     onProductCacheUpdate: setProductCache,
     autoCalculate: shippingItems.length > 0 && !!selectedAddressId,
@@ -360,38 +364,8 @@ const CheckoutOrderContainer: React.FC = () => {
     }, 0);
   }, [cartItems]);
 
-  // Build platform vouchers array for checkout request
-  const buildPlatformVouchers = useCallback((): PlatformVoucher[] => {
-    const platformVouchersMap = new Map<string, number>();
-    
-    console.log('🎁 [BUILD PLATFORM VOUCHERS] Starting build...');
-    console.log('  - Cart Items:', cartItems);
-    console.log('  - Platform Voucher Discounts:', platformVoucherDiscounts);
-    
-    cartItems.forEach(item => {
-      const platformVoucherInfo = platformVoucherDiscounts[item.productId];
-      console.log(`  - Processing item ${item.productId}:`, {
-        item,
-        platformVoucherInfo,
-        hasDiscount: platformVoucherInfo && platformVoucherInfo.discount > 0
-      });
-      
-      if (platformVoucherInfo && platformVoucherInfo.discount > 0) {
-        const { campaignProductId } = platformVoucherInfo;
-        const currentQuantity = platformVouchersMap.get(campaignProductId) || 0;
-        platformVouchersMap.set(campaignProductId, currentQuantity + item.quantity);
-        console.log(`  - Added to map: campaignProductId=${campaignProductId}, quantity=${currentQuantity + item.quantity}`);
-      }
-    });
-    
-    const result = Array.from(platformVouchersMap.entries()).map(([campaignProductId, quantity]) => ({
-      campaignProductId,
-      quantity,
-    }));
-    
-    console.log('🎁 [BUILD PLATFORM VOUCHERS] Result:', result);
-    return result;
-  }, [cartItems, platformVoucherDiscounts]);
+  // Note: buildPlatformVouchers logic has been moved to handleSubmit
+  // to support fetching platform vouchers for variants at checkout time
 
   // Calculate store totals for each store (after platform discount)
   const storeTotals = useMemo(() => {
@@ -533,22 +507,30 @@ const CheckoutOrderContainer: React.FC = () => {
   useEffect(() => {
     const loadVouchers = async () => {
       try {
-        const productIds = Array.from(new Set(cartItems.map(item => item.productId)));
-        if (productIds.length === 0) {
+        // Collect unique productIds (luôn dùng productId để get platform voucher, kể cả khi có variant)
+        const productIds = new Set<string>();
+        
+        cartItems.forEach(item => {
+          // Luôn dùng productId (product gốc) để get platform voucher
+          // Kể cả khi có variant, vẫn dùng productId vì platform voucher được lưu theo productId
+          productIds.add(item.productId);
+        });
+        
+        if (productIds.size === 0) {
           setAvailableVouchers([]);
           return;
         }
 
         const responses = await Promise.all(
-          productIds.map(async pid => {
+          Array.from(productIds).map(async pid => {
             try {
               const [voucherRes, productRes] = await Promise.all([
                 ProductVoucherService.getProductVouchers(pid, 'ALL', null).catch(() => null),
                 ProductListService.getProductById(pid).catch(() => null),
               ]);
-              return { voucherRes, productRes };
+              return { productId: pid, voucherRes, productRes };
             } catch {
-              return { voucherRes: null, productRes: null };
+              return { productId: pid, voucherRes: null, productRes: null };
             }
           })
         );
@@ -558,9 +540,7 @@ const CheckoutOrderContainer: React.FC = () => {
         
         const newStoreMeta: Record<string, { storeName: string }> = {};
 
-        responses.forEach(({ voucherRes, productRes }, index) => {
-          const productId = productIds[index];
-          
+        responses.forEach(({ productId, voucherRes, productRes }) => {
           if (voucherRes && productRes) {
             const storeId = productRes.data?.storeId;
             if (storeId) {
@@ -610,7 +590,10 @@ const CheckoutOrderContainer: React.FC = () => {
               }
             }
             
-            // Only store if we have both discount and platformVoucherId
+            // Store platform discount for productId (product gốc)
+            // QUAN TRỌNG: Chỉ lưu cho productId, không lưu cho variantId
+            // Khi có variant, vẫn dùng productId để lookup platform voucher
+            // Backend sẽ tự động map từ variantId sang productId để tìm platform voucher
             if (platformDiscount > 0 && campaignProductId) {
               platformDiscountsMap[productId] = {
                 discount: platformDiscount,
@@ -629,10 +612,14 @@ const CheckoutOrderContainer: React.FC = () => {
         setPlatformVoucherDiscounts(platformDiscountsMap);
 
         // Áp dụng giảm giá nền tảng vào cartItems (giá hiển thị + tính toán)
+        // QUAN TRỌNG: Luôn lookup theo productId, kể cả khi có variant
         if (Object.keys(platformDiscountsMap).length > 0) {
           setCartItems(prev =>
             prev.map(item => {
+              // Luôn dùng productId để lookup platform discount
+              // Kể cả khi có variant, vẫn dùng productId vì platform voucher được lưu theo productId
               const info = platformDiscountsMap[item.productId];
+              
               const original = item.originalPrice ?? item.price;
               if (!info || !info.discount || info.discount <= 0) {
                 return {
@@ -886,7 +873,122 @@ const CheckoutOrderContainer: React.FC = () => {
 
     const storeVouchers = buildStoreVouchers(appliedStoreVouchers, appliedStoreWideVouchers);
     const serviceTypeIds = buildServiceTypeIds(cartItems, productCache);
-    const platformVouchers = buildPlatformVouchers();
+    
+    // QUAN TRỌNG: Fetch platform vouchers cho các items có variant nếu chưa có
+    // Vì khi có variant, cần dùng productId để get platform voucher
+    // Tìm các productId cần fetch platform voucher
+    const missingProductIds = new Set<string>();
+    
+    checkoutItemsPayload.forEach(item => {
+      if (item.variantId && !item.productId) {
+        // Có variantId nhưng không có productId trong payload
+        // Cần tìm productId từ cartItems
+        const cartItem = cartItems.find(ci => ci.variantId === item.variantId);
+        if (cartItem) {
+          const productId = cartItem.productId;
+          if (!platformVoucherDiscounts[productId]) {
+            missingProductIds.add(productId);
+          }
+        }
+      } else if (item.productId && !platformVoucherDiscounts[item.productId]) {
+        // Có productId nhưng chưa có platform voucher
+        missingProductIds.add(item.productId);
+      }
+    });
+    
+    // Fetch platform vouchers cho các productId còn thiếu
+    let finalPlatformVoucherDiscounts = { ...platformVoucherDiscounts };
+    
+    if (missingProductIds.size > 0) {
+      console.log('🔍 [CHECKOUT] Fetching platform vouchers for missing products:', Array.from(missingProductIds));
+      
+      const voucherPromises = Array.from(missingProductIds).map(async (productId) => {
+        try {
+          const voucherRes = await ProductVoucherService.getProductVouchers(productId, 'ALL', null);
+          const platformCampaigns = voucherRes.data?.vouchers?.platform || [];
+          let platformDiscount = 0;
+          let campaignProductId: string | null = null;
+          
+          if (voucherRes.data?.product) {
+            const originalPrice = voucherRes.data.product.price;
+            
+            for (const campaign of platformCampaigns) {
+              if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+                const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+                if (activeVoucher) {
+                  campaignProductId = activeVoucher.platformVoucherId;
+                  
+                  if (activeVoucher.type === 'FIXED') {
+                    platformDiscount = activeVoucher.discountValue || 0;
+                  } else if (activeVoucher.type === 'PERCENT') {
+                    const percentDiscount = (originalPrice * (activeVoucher.discountPercent || 0)) / 100;
+                    if (activeVoucher.maxDiscountValue !== null && activeVoucher.maxDiscountValue !== undefined) {
+                      platformDiscount = Math.min(percentDiscount, activeVoucher.maxDiscountValue);
+                    } else {
+                      platformDiscount = percentDiscount;
+                    }
+                  }
+                  break;
+                }
+              }
+            }
+          }
+          
+          if (platformDiscount > 0 && campaignProductId) {
+            console.log(`✅ [CHECKOUT] Found platform voucher for product ${productId}:`, { campaignProductId, discount: platformDiscount });
+            return { productId, discount: platformDiscount, campaignProductId };
+          }
+          return null;
+        } catch (error) {
+          console.error(`❌ [CHECKOUT] Failed to fetch platform voucher for product ${productId}:`, error);
+          return null;
+        }
+      });
+      
+      const results = await Promise.all(voucherPromises);
+      
+      // Update finalPlatformVoucherDiscounts với các voucher mới fetch được
+      results.forEach(result => {
+        if (result) {
+          finalPlatformVoucherDiscounts[result.productId] = {
+            discount: result.discount,
+            campaignProductId: result.campaignProductId,
+          };
+        }
+      });
+    }
+    
+    // Build platform vouchers với data đã cập nhật
+    const platformVouchersMap = new Map<string, number>();
+    
+    checkoutItemsPayload.forEach(item => {
+      let productId: string | null = null;
+      
+      // Tìm productId từ variantId nếu cần
+      if (item.variantId && !item.productId) {
+        const cartItem = cartItems.find(ci => ci.variantId === item.variantId);
+        if (cartItem) {
+          productId = cartItem.productId;
+        }
+      } else if (item.productId) {
+        productId = item.productId;
+      }
+      
+      if (productId && finalPlatformVoucherDiscounts[productId]) {
+        const { campaignProductId } = finalPlatformVoucherDiscounts[productId];
+        const currentQuantity = platformVouchersMap.get(campaignProductId) || 0;
+        platformVouchersMap.set(campaignProductId, currentQuantity + item.quantity);
+        console.log(`🎁 [CHECKOUT] Added platform voucher for product ${productId} (variant: ${item.variantId || 'none'}):`, {
+          campaignProductId,
+          quantity: currentQuantity + item.quantity
+        });
+      }
+    });
+    
+    const platformVouchers = Array.from(platformVouchersMap.entries()).map(([campaignProductId, quantity]) => ({
+      campaignProductId,
+      quantity,
+    }));
 
     // Debug logging
     console.log('🔍 [CHECKOUT DEBUG] ===========================================');
@@ -906,6 +1008,7 @@ const CheckoutOrderContainer: React.FC = () => {
 
     try {
       if (paymentMethod === 'cod') {
+        // Build request với tất cả thuộc tính (kể cả null/undefined/empty)
         const request: CheckoutCodRequest = {
           items: checkoutItemsPayload,
           addressId: selectedAddressId,
@@ -915,11 +1018,69 @@ const CheckoutOrderContainer: React.FC = () => {
           serviceTypeIds: Object.keys(serviceTypeIds).length > 0 ? serviceTypeIds : undefined,
         };
         
-        console.log('📤 [COD REQUEST] Sending checkout request:', JSON.stringify(request, null, 2));
+        // Build full request body để hiển thị đầy đủ (bao gồm cả null/undefined/empty)
+        const fullRequestBody = {
+          items: checkoutItemsPayload.map(item => ({
+            productId: item.productId || '',
+            variantId: item.variantId || '',
+            comboId: item.comboId || '',
+            type: item.type || '',
+            quantity: item.quantity || 0,
+          })),
+          addressId: selectedAddressId || '',
+          message: message || '',
+          storeVouchers: storeVouchers.length > 0 ? storeVouchers : null,
+          platformVouchers: platformVouchers.length > 0 ? platformVouchers : null,
+          serviceTypeIds: Object.keys(serviceTypeIds).length > 0 ? serviceTypeIds : null,
+        };
+        
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log('📤 [COD CHECKOUT REQUEST BODY]');
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log(JSON.stringify(fullRequestBody, null, 2));
+        console.log('═══════════════════════════════════════════════════════════════');
         
         const response = await CustomerCartService.checkoutCod(request);
         
-        console.log('✅ [COD RESPONSE] Received response:', response);
+        // Build full response body để hiển thị đầy đủ
+        const fullResponseBody = {
+          status: response.status || null,
+          message: response.message || '',
+          data: Array.isArray(response.data) 
+            ? response.data.map((order: any) => ({
+                id: order.id || '',
+                orderCode: order.orderCode || '',
+                status: order.status || '',
+                message: order.message || null,
+                createdAt: order.createdAt || '',
+                storeId: order.storeId || '',
+                storeName: order.storeName || '',
+                totalAmount: order.totalAmount || 0,
+                shippingFeeTotal: order.shippingFeeTotal || 0,
+                discountTotal: order.discountTotal || 0,
+                grandTotal: order.grandTotal || 0,
+                storeVoucherDiscount: order.storeVoucherDiscount || null,
+                platformDiscount: order.platformDiscount || {},
+                receiverName: order.receiverName || '',
+                phoneNumber: order.phoneNumber || '',
+                country: order.country || '',
+                province: order.province || '',
+                district: order.district || '',
+                ward: order.ward || '',
+                street: order.street || '',
+                addressLine: order.addressLine || '',
+                postalCode: order.postalCode || '',
+                note: order.note || '',
+                shippingServiceTypeId: order.shippingServiceTypeId || null,
+              }))
+            : (response.data ? [response.data] : []),
+        };
+        
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log('✅ [COD CHECKOUT RESPONSE BODY]');
+        console.log('═══════════════════════════════════════════════════════════════');
+        console.log(JSON.stringify(fullResponseBody, null, 2));
+        console.log('═══════════════════════════════════════════════════════════════');
         if (response.status === 200) {
           sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
           showCenterSuccess(response.message || 'Đặt hàng thành công!', 'Thành công', 4000);
@@ -1018,6 +1179,7 @@ const CheckoutOrderContainer: React.FC = () => {
                       storeWideVouchers={storeWideVouchers}
                       appliedStoreWideVouchers={appliedStoreWideVouchers}
                       storeTotals={storeTotals}
+                      storeShippingFees={storeShippingFees}
                       onApplyStoreWideVoucher={(storeId, voucher) => {
                         const storeTotal = storeTotals[storeId] || 0;
                         let discountValue = 0;

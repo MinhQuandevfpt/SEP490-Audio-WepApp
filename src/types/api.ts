@@ -325,6 +325,63 @@ export type OrderStatus =
   | 'DELIVERY_FAIL'          // Giao hàng thất bại / không giao được
   | 'EXCEPTION';             // Lỗi xử lý đơn hàng
 
+export type ReturnReasonType = 'CUSTOMER_FAULT' | 'SHOP_FAULT';
+
+export interface CreateReturnRequest {
+  orderItemId: string;
+  productId: string;
+  itemPrice: number;
+  reasonType: ReturnReasonType;
+  reason: string;
+  customerVideoUrl?: string | null;
+  customerImageUrls?: string[];
+}
+
+export interface ReturnRequestResponse {
+  id: string;
+  customerId: string;
+  shopId: string;
+  orderItemId: string;
+  productId: string;
+  productName: string;
+  itemPrice: number;
+  reasonType: ReturnReasonType;
+  reason: string;
+  customerImageUrls: string[];
+  customerVideoUrl?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'AUTO_REFUNDED' | string;
+  /**
+   * Flag/metadata when system auto-approves after SLA (e.g., 48h no response)
+   * Optional to keep backward compatibility with backend response
+   */
+  autoApproved?: boolean;
+  autoApprovedAt?: string | null;
+  /**
+   * Flag/metadata when system auto-cancels because customer didn't ship on time
+   */
+  autoCancelled?: boolean;
+  autoCancelledAt?: string | null;
+  /**
+   * Flag/metadata when system auto-refunds because shop didn't handle after receiving
+   */
+  autoRefunded?: boolean;
+  autoRefundedAt?: string | null;
+  faultType?: string | null;
+  packageWeight?: number | null;
+  packageLength?: number | null;
+  packageWidth?: number | null;
+  packageHeight?: number | null;
+  shippingFee?: number | null;
+  ghnOrderCode?: string | null;
+  trackingStatus?: string | null;
+  /**
+   * Flag when shop refunds without requesting return shipment (refund-only)
+   */
+  refundWithoutReturn?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Order Item (in store order)
 export interface OrderItem {
   id: string;
@@ -336,6 +393,7 @@ export interface OrderItem {
   lineTotal: number;
   image?: string | null;  // Base product image
   storeId?: string | null;
+  storeOrderId?: string | null; // ID of the store order this item belongs to
   storeName?: string | null;
   variantId?: string | null;
   variantOptionName?: string | null;

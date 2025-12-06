@@ -6,12 +6,15 @@ import { AddressBook } from '../../../components/ProfilePageComponents/AddressBo
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
 import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
+import ReturnHistoryCard from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistoryCard';
 import { ReviewProductPage } from '../ReviewFolder';
 import { WalletPage } from '../../../components/CustomerWalletComponents';
 import { NotificationPage } from '../../../components/ProfilePageComponents/Notifications';
 import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
 import { User, Package, MapPinned, Lock, CreditCard, Shield, Star, Wallet, Bell } from 'lucide-react';
 import { profileCache } from '../../../services/cache/ProfileCache';
+import useCustomerReturns from '../../../hooks/useCustomerReturns';
+import { useNavigate } from 'react-router-dom';
 
 type ProfileTab =
   | 'info'
@@ -22,13 +25,15 @@ type ProfileTab =
   | 'warranty'
   | 'reviews'
   | 'wallet'
-  | 'notifications';
+  | 'notifications'
+  | 'returns';
 
 interface ProfileProps {
   initialTab?: ProfileTab;
 }
 
 const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
+  const navigate = useNavigate();
   const [data, setData] = useState<ProfileData | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [preloadedData, setPreloadedData] = useState<{
@@ -36,6 +41,27 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
     addresses?: any[];
     provinces?: any[];
   }>({});
+  const {
+    returns,
+    total,
+    isLoading: returnsLoading,
+    error: returnsError,
+    reload: reloadReturns,
+  } = useCustomerReturns();
+
+  // Chỉ lấy 1 return order mới nhất dựa theo ngày tạo
+  const latestReturn = useMemo(() => {
+    if (!returns || returns.length === 0) return [];
+    
+    // Sort theo createdAt desc và lấy phần tử đầu tiên
+    const sorted = [...returns].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA; // Descending order (mới nhất trước)
+    });
+    
+    return sorted.slice(0, 1); // Chỉ lấy 1 item đầu tiên
+  }, [returns]);
 
   useEffect(() => {
     setData(loadProfileData());
@@ -114,6 +140,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
       { key: 'notifications' as const, label: 'Thông báo', icon: Bell },
       { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
       { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
+      { key: 'returns' as const, label: 'Lịch sử hoàn trả', icon: Package },
     ],
     []
   );
@@ -167,6 +194,28 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
 
               <div className={active === 'warranty' ? 'block' : 'hidden'}>
                 <WarrantyComponent />
+              </div>
+
+              <div className={active === 'returns' ? 'block' : 'hidden'}>
+                <div className="space-y-4">
+                  <ReturnHistoryCard
+                    data={latestReturn[0] || null}
+                    isLoading={returnsLoading}
+                    error={returnsError}
+                    onReload={reloadReturns}
+                  />
+                  {total > 1 && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/returns')}
+                        className="px-4 py-2 rounded-lg border border-orange-500 text-orange-600 text-sm font-medium hover:bg-orange-50 transition-colors"
+                      >
+                        Xem đầy đủ lịch sử hoàn trả ({total} yêu cầu)
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className={active === 'password' ? 'block' : 'hidden'}>

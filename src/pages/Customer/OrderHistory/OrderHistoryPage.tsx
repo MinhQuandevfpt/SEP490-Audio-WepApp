@@ -59,11 +59,17 @@ const OrderHistoryPage: React.FC = () => {
   }, [location.state, location.pathname, viewDetail, navigate]);
 
   // Calculate statistics
-  const totalAmount = orders.reduce((sum, order) => sum + order.grandTotal, 0);
+  const totalAmount = orders.reduce((sum, order) => sum + (order.grandTotal || 0), 0);
   const totalItems = orders.reduce((sum, order) => {
-    const orderItems = order.storeOrders.reduce((s, so) => 
-      s + so.items.reduce((i, item) => i + item.quantity, 0), 0
-    );
+    if (!order.storeOrders || !Array.isArray(order.storeOrders)) {
+      return sum;
+    }
+    const orderItems = order.storeOrders.reduce((s, so) => {
+      if (!so.items || !Array.isArray(so.items)) {
+        return s;
+      }
+      return s + so.items.reduce((i, item) => i + (item.quantity || 0), 0);
+    }, 0);
     return sum + orderItems;
   }, 0);
 

@@ -1232,13 +1232,12 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       });
       
       variants.forEach(v => {
-        const variantData = {
+        const variantData: any = {
           optionName: v.optionName?.trim(), 
           optionValue: v.optionValue?.trim(),
           variantPrice: Number(v.variantPrice) || 0,
           variantStock: Number(v.variantStock) || 0,
-          variantUrl: v.variantUrl?.trim() || '',
-          variantSku: v.variantSku?.trim() || ''
+          variantUrl: v.variantUrl?.trim() || ''
         };
         
         // Chỉ thêm variant hợp lệ
@@ -1246,12 +1245,24 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         
         if (v.variantId) {
           // Có variantId => update
+          // Tìm variant gốc để so sánh SKU
+          const originalVariant = originalVariants.find(ov => ov.variantId === v.variantId);
+          const currentSku = v.variantSku?.trim() || '';
+          const originalSku = originalVariant?.variantSku?.trim() || '';
+          
+          // Chỉ gửi SKU nếu nó thay đổi so với original
+          // Nếu SKU không đổi, không gửi để tránh lỗi duplicate từ backend
+          if (currentSku !== originalSku) {
+            variantData.variantSku = currentSku;
+          }
+          
           variantsToUpdate.push({
             variantId: v.variantId,
             ...variantData
           });
         } else {
           // Không có variantId => thêm mới
+          variantData.variantSku = v.variantSku?.trim() || '';
           variantsToAdd.push(variantData);
         }
       });

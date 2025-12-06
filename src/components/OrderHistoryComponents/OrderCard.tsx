@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
-import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X } from 'lucide-react';
+import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X, ChevronRight } from 'lucide-react';
 import { Card, Button, message, Select, Input } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import { ProductReviewService } from '../../services/customer/ProductReviewService';
 import { FileUploadService } from '../../services/FileUploadService';
+import ReturnRequestModal from './ReturnRequestModal';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -55,6 +57,7 @@ const isAlreadyReviewedError = (error: any): boolean => {
 };
 
 const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled }) => {
+  const navigate = useNavigate();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -69,6 +72,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [loadingReviewStatus, setLoadingReviewStatus] = useState<Record<string, boolean>>({});
   const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
   const [cancelNote, setCancelNote] = useState<string>('');
+  const [showReturnModal, setShowReturnModal] = useState(false);
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -76,8 +80,8 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const isDeliverySuccess = order.status === 'DELIVERY_SUCCESS';
 
   type LegacyOrderWithItems = CustomerOrder & { items?: Array<OrderItem & { storeName?: string | null }> };
-  const storeOrders = order.storeOrders ?? [];
-  const legacyItems = (order as LegacyOrderWithItems).items ?? [];
+  const storeOrders = Array.isArray(order.storeOrders) ? order.storeOrders : [];
+  const legacyItems = Array.isArray((order as LegacyOrderWithItems).items) ? (order as LegacyOrderWithItems).items : [];
 
   type ReviewableItem = {
     id: string;
@@ -108,6 +112,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     }
 
     // Fallback for legacy API response where items exist at root level
+    if (!Array.isArray(legacyItems) || legacyItems.length === 0) {
+      return [];
+    }
     return legacyItems
       .filter((item) => item.type === 'PRODUCT')
       .map((item) => ({
@@ -356,7 +363,18 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         {/* Left column */}
         <div className="flex-1 space-y-4">
           {/* Header */}
-          <div className="rounded-2xl border border-orange-100 bg-[#FFF4EC] p-4">
+          <div 
+            className="rounded-2xl border border-orange-100 bg-[#FFF4EC] p-4 cursor-pointer transition-all hover:bg-[#FFE8D6] hover:shadow-md"
+            onClick={() => navigate(`/orders/${order.id}`)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                navigate(`/orders/${order.id}`);
+              }
+            }}
+          >
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 text-gray-900">
                 <Package className="w-4 h-4 text-[#FF6A00]" />
@@ -369,6 +387,16 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   <Calendar className="w-3.5 h-3.5" />
                   {formattedDate}
                 </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/orders/${order.id}`);
+                  }}
+                  className="flex items-center gap-1 text-[#FF6A00] hover:text-orange-600 font-medium mt-1 transition-colors"
+                >
+                  Xem chi tiết
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           </div>
@@ -392,32 +420,36 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   </div>
 
                   <div className="space-y-3">
-                    {storeOrder.items.map((item) => {
-                      const itemImage = resolveOrderItemImage(item);
-                      return (
-                        <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
-                          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
-                            {itemImage ? (
-                              <img src={itemImage} alt={item.name} className="h-full w-full object-cover" />
-                            ) : (
-                              <Package className="h-full w-full p-3 text-gray-400" />
+                    {Array.isArray(storeOrder.items) && storeOrder.items.length > 0 ? (
+                      storeOrder.items.map((item) => {
+                        const itemImage = resolveOrderItemImage(item);
+                        return (
+                          <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
+                            <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                              {itemImage ? (
+                                <img src={itemImage} alt={item.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <Package className="h-full w-full p-3 text-gray-400" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+                            {formatVariantLabel(item) && (
+                              <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
                             )}
+                              <p className="text-xs text-gray-500">
+                                {formatCurrency(item.unitPrice)} · SL {item.quantity}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.lineTotal)}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-                          {formatVariantLabel(item) && (
-                            <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
-                          )}
-                            <p className="text-xs text-gray-500">
-                              {formatCurrency(item.unitPrice)} · SL {item.quantity}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.lineTotal)}</p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">Không có sản phẩm</p>
+                    )}
                   </div>
 
                   {ghnOrderData[storeOrder.id]?.orderGhn && (
@@ -722,6 +754,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   </Button>
                 </>
               )}
+              {order.status === 'DELIVERY_SUCCESS' && (
+                <Button
+                  className="h-10 w-full"
+                  style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}
+                  onClick={() => setShowReturnModal(true)}
+                >
+                  Hoàn trả sản phẩm
+                </Button>
+              )}
               {canCancelOrder(order.status) && (
                 <Button danger className="h-10 w-full" style={{ borderRadius: '10px' }} onClick={() => setShowCancelModal(true)}>
                   {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
@@ -734,6 +775,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   style={{ backgroundColor: '#2D9CDB', borderColor: '#2D9CDB', borderRadius: '10px' }}
                 >
                   Thanh toán ngay
+                </Button>
+              )}
+              {order.status === 'RETURN_REQUESTED' && (
+                <Button
+                  className="h-10 w-full"
+                  style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}
+                  onClick={() => navigate(`/returns`)}
+                >
+                  Xem trạng thái hoàn trả
                 </Button>
               )}
             </div>
@@ -806,6 +856,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
           </div>
         </div>
       )}
+      <ReturnRequestModal
+        open={showReturnModal}
+        order={order}
+        onClose={() => setShowReturnModal(false)}
+        onSuccess={() => {
+          onOrderCancelled?.();
+          setShowReturnModal(false);
+        }}
+      />
     </Card>
   );
 };

@@ -10,7 +10,8 @@ import {
   ChevronRight,
   LogOut,
   Zap,
-  Image
+  Image,
+  FileText
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -103,11 +104,17 @@ const AdminSidebar: React.FC = () => {
       ]
     },
     {
+      name: 'Quản lý Chính Sách',
+      href: '/admin/policies',
+      icon: <FileText className="w-6 h-6" />
+    },
+    {
       name: 'Báo cáo & Thống kê',
       href: '/admin/reports',
       icon: <BarChart3 className="w-6 h-6" />,
       children: [
         { name: 'Doanh thu', href: '/admin/reports/revenue', icon: null },
+        { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null },
         { name: 'Sản phẩm bán chạy', href: '/admin/reports/bestsellers', icon: null },
         { name: 'Khách hàng', href: '/admin/reports/customers', icon: null },
         { name: 'Người bán', href: '/admin/reports/sellers', icon: null }

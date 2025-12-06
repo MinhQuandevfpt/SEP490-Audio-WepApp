@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User, Phone, Loader2 } from 'lucide-react';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 import { GoogleLoginButton } from '../../../components/common';
+import { usePolicyCategories } from '../../../hooks/usePolicyCategories';
 import type { ApiError } from '../../../types/api';
 
 const Register: React.FC = () => {
@@ -11,6 +12,8 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [policyCategoryId, setPolicyCategoryId] = useState<string>('');
+  const { categories } = usePolicyCategories();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -21,6 +24,18 @@ const Register: React.FC = () => {
     agreeTerms: false,
     agreePromotions: false
   });
+
+  // Find policy category ID by name
+  useEffect(() => {
+    if (categories.length > 0) {
+      const policyCategory = categories.find(
+        (cat: { name: string }) => cat.name.toLowerCase().includes('thông tin') || cat.name.toLowerCase().includes('chính sách')
+      );
+      if (policyCategory) {
+        setPolicyCategoryId(policyCategory.id);
+      }
+    }
+  }, [categories]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -244,11 +259,17 @@ const Register: React.FC = () => {
             />
             <span className="ml-3 text-sm text-gray-600">
               Tôi đồng ý với{' '}
-              <Link to="/terms" className="text-orange-500 hover:text-orange-600 font-medium">
+              <Link 
+                to={policyCategoryId ? `/policies/${policyCategoryId}?item=điều khoản` : '/policies'} 
+                className="text-orange-500 hover:text-orange-600 font-medium"
+              >
                 Điều khoản dịch vụ
               </Link>{' '}
               và{' '}
-              <Link to="/privacy" className="text-orange-500 hover:text-orange-600 font-medium">
+              <Link 
+                to={policyCategoryId ? `/policies/${policyCategoryId}?item=chính sách bảo mật` : '/policies'} 
+                className="text-orange-500 hover:text-orange-600 font-medium"
+              >
                 Chính sách bảo mật
               </Link>{' '}
               của AudioShop *

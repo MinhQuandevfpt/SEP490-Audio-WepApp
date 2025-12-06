@@ -12,7 +12,7 @@ import AuthLayout from '../components/AuthLayout';
 import SellerLayout from '../components/SellerLayout';
 import SellerDashboardLayout from '../components/SellerDashboardLayout';
 import { VoucherPage, CreateVoucherPage } from '../pages/Seller/Voucher';
-import { ShopWideVoucherPage } from '../pages/Seller/ShopWideVoucher';
+import { ShopWideVoucherPage, ShopWideVoucherListPage } from '../pages/Seller/ShopWideVoucher';
 import { CampaignList as SellerCampaignList } from '../pages/Seller/Campaign';
 import CampaignProductDetails from '../pages/Seller/Campaign/CampaignProductDetails';
 import AdminLayout from '../components/AdminLayout';
@@ -25,7 +25,9 @@ import OAuth2Success from '../pages/OAuth2Success';
 import ThreeDRoom from '../pages/Customer/3DTrialRoom/3DRoom';
 import CheckoutOrderPage from '../pages/Customer/CheckoutOrder/CheckoutOrderPage';
 import OrderHistoryPage from '../pages/Customer/OrderHistory/OrderHistoryPage';
+import OrderDetailPage from '../pages/Customer/OrderHistory/OrderDetailPage';
 import WarrantyPage from '../pages/Customer/Warranty/WarrantyPage';
+import ReturnHistoryPage from '../pages/Customer/ReturnHistory/ReturnHistoryPage';
 import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
@@ -42,6 +44,8 @@ import CategoryDetail from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
+import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
+import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
@@ -69,6 +73,8 @@ import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
 import CreateCombo from '../pages/Seller/Combo/CreateCombo';
 import ComboManagement from '../pages/Seller/Combo/ComboManagement';
+import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
+import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -215,6 +221,14 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute element={<OrderHistoryPage />} />
   },
   {
+    path: '/orders/:orderId',
+    element: <ProtectedRoute element={<OrderDetailPage />} />
+  },
+  {
+    path: '/returns',
+    element: <ProtectedRoute element={<ReturnHistoryPage />} />
+  },
+  {
     path: '/warranty',
     element: <ProtectedRoute element={<WarrantyPage />} />
   },
@@ -253,6 +267,14 @@ export const router = createBrowserRouter([
   {
     path: '/flash-sale/:campaignId',
     element: <FlashSaleDetail />
+  },
+  {
+    path: '/policies',
+    element: <PoliciesPage />
+  },
+  {
+    path: '/policies/:categoryId',
+    element: <PolicyCategoryDetailPage />
   },
   {
     path: '/auth',
@@ -348,6 +370,10 @@ export const router = createBrowserRouter([
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Đơn hàng đã hủy</h2><p className="text-gray-600 mt-2">Trang này đang được phát triển...</p></div>
       },
       {
+        path: 'returns',
+        element: <StoreReturnsPage />
+      },
+      {
         path: 'warranty',
         element: <StoreOwnerWarranty />
       },
@@ -413,6 +439,10 @@ export const router = createBrowserRouter([
       },
       {
         path: 'shop-wide-voucher',
+        element: <ShopWideVoucherListPage />
+      },
+      {
+        path: 'shop-wide-voucher/create',
         element: <ShopWideVoucherPage />
       },
       {
@@ -579,6 +609,10 @@ export const router = createBrowserRouter([
         element: <BannerDetail />
       },
       {
+        path: 'policies',
+        element: <PolicyManagement />
+      },
+      {
         path: 'orders',
         element: <div>Order Management Page (Coming Soon)</div>
       },
@@ -621,6 +655,14 @@ export const router = createBrowserRouter([
       {
         path: 'reports/sellers',
         element: <div>Seller Reports Page (Coming Soon)</div>
+      },
+      {
+        path: 'reports/payout',
+        element: <PayoutManagement />
+      },
+      {
+        path: 'reports/payout/:billId',
+        element: <PayoutBillDetail />
       },
       {
         path: 'categories',

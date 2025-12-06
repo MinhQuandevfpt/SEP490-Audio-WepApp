@@ -168,6 +168,33 @@ export interface DashboardStats {
   ordersGrowth?: number;
 }
 
+// Shop Stats Types (Range Statistics)
+export interface TopProduct {
+  productId: string;
+  name: string;
+  totalSoldQuantity: number;
+  totalRevenue: number;
+}
+
+export interface TopReturnProduct {
+  productId: string;
+  productName: string;
+  returnCount: number;
+}
+
+export interface ShopStatsRangeResponse {
+  totalDeliveredOrders: number;
+  totalRevenue: number;
+  totalPlatformFee: number;
+  totalNetRevenue: number;
+  totalReturnRequests: number;
+  returnRate: number;
+  top10Products: TopProduct[];
+  topReturnProduct: TopReturnProduct | null;
+  totalShippingDifferenceFee: number;
+  totalReturnShippingFee: number;
+}
+
 // Product Types for Seller - Full Product Details from API
 export interface ProductVariant {
   variantId?: string; // Từ API response
