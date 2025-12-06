@@ -491,7 +491,7 @@ const ShoppingCart: React.FC = () => {
     try {
       const clamped = Math.max(1, Math.min(nextQty, 99));
       const resp = await CustomerCartService.updateItemQuantity(cartItemId, clamped);
-      await applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
       showCenterError(msg, 'Lỗi');
@@ -513,7 +513,7 @@ const ShoppingCart: React.FC = () => {
   const removeItem = async (id: string) => {
     try {
       const resp = await CustomerCartService.deleteItems([id]);
-      await applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
       showCenterSuccess('Đã xóa sản phẩm khỏi giỏ hàng', 'Thành công');
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';
@@ -525,7 +525,7 @@ const ShoppingCart: React.FC = () => {
     if (items.length === 0) return;
     try {
       const resp = await CustomerCartService.deleteCart();
-      await applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
       showCenterSuccess('Đã xóa toàn bộ giỏ hàng', 'Thành công');
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa giỏ hàng. Vui lòng thử lại.';

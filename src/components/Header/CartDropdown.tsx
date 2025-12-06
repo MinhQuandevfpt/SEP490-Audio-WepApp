@@ -10,8 +10,8 @@ interface EnrichedCartItem {
   name: string;
   image: string;
   variantUrl?: string;
-  unitPrice: number;
-  discountedPrice: number;
+  unitPrice: number; // Giá gốc (baseUnitPrice) để hiển thị gạch ngang khi có discount
+  discountedPrice: number; // Giá sau khi áp dụng campaign (platformCampaignPrice hoặc unitPrice)
   quantity: number;
   variantOptionValue?: string;
 }
@@ -38,8 +38,9 @@ const CartDropdown: React.FC = () => {
         // - inPlatformCampaign: có đang trong campaign không
         // - campaignUsageExceeded: đã vượt giới hạn chưa
         
-        // Logic: Nếu có platformCampaignPrice và inPlatformCampaign = true và campaignUsageExceeded = false
-        // thì dùng platformCampaignPrice, ngược lại dùng unitPrice
+        // unitPrice trong EnrichedCartItem = baseUnitPrice (giá gốc) để hiển thị gạch ngang
+        // discountedPrice = platformCampaignPrice (nếu có) hoặc unitPrice (nếu không có campaign)
+        const originalPrice = item.baseUnitPrice ?? item.unitPrice;
         const discountedPrice = 
           item.inPlatformCampaign && 
           !item.campaignUsageExceeded && 
@@ -53,8 +54,8 @@ const CartDropdown: React.FC = () => {
           name: item.name,
           image: item.image,
           variantUrl: item.variantUrl,
-          unitPrice: item.unitPrice,
-          discountedPrice,
+          unitPrice: originalPrice, // Giá gốc để so sánh và hiển thị gạch ngang
+          discountedPrice, // Giá sau khi áp dụng campaign
           quantity: item.quantity,
           variantOptionValue: item.variantOptionValue
         };
@@ -109,17 +110,27 @@ const CartDropdown: React.FC = () => {
   const formatPrice = (price: number) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
 
   // Use enriched items for display, fallback to first 5 raw items if enrichment not done
-  const displayItems = enrichedItems.length > 0 ? enrichedItems : cart?.items?.slice(0, 5).map(item => ({
-    cartItemId: item.cartItemId,
-    refId: item.refId,
-    name: item.name,
-    image: item.image,
-    variantUrl: item.variantUrl,
-    unitPrice: item.unitPrice,
-    discountedPrice: item.unitPrice, // Fallback: no discount
-    quantity: item.quantity,
-    variantOptionValue: item.variantOptionValue
-  })) || [];
+  const displayItems = enrichedItems.length > 0 ? enrichedItems : cart?.items?.slice(0, 5).map(item => {
+    const originalPrice = item.baseUnitPrice ?? item.unitPrice;
+    const discountedPrice = 
+      item.inPlatformCampaign && 
+      !item.campaignUsageExceeded && 
+      item.platformCampaignPrice !== undefined
+        ? item.platformCampaignPrice
+        : item.unitPrice;
+    
+    return {
+      cartItemId: item.cartItemId,
+      refId: item.refId,
+      name: item.name,
+      image: item.image,
+      variantUrl: item.variantUrl,
+      unitPrice: originalPrice, // Giá gốc để so sánh
+      discountedPrice, // Giá sau khi áp dụng campaign
+      quantity: item.quantity,
+      variantOptionValue: item.variantOptionValue
+    };
+  }) || [];
   
   const remainingCount = Math.max(0, cartItemCount - 5);  return (
     <div className="relative" ref={dropdownRef}>
