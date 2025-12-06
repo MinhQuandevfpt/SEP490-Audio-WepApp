@@ -157,10 +157,11 @@ const CampaignProductApproval: React.FC = () => {
           const voucher = getProductVoucher(product);
           
           // Calculate originalPrice and discountedPrice for products WITHOUT variants
-          let originalPrice = product.originalPrice;
-          let discountedPrice: number | undefined = undefined; // BE doesn't return this field
+          // Always calculate from fullProduct (like seller page does) since BE removed originalPrice/discountedPrice
+          let originalPrice = product.originalPrice || 0;
+          let discountedPrice: number | undefined = undefined;
           
-          // If product doesn't have variants, calculate prices from fullProduct
+          // If product doesn't have variants, use finalPrice or price from fullProduct
           if (fullProduct && (!fullProduct.variants || fullProduct.variants.length === 0)) {
             originalPrice = fullProduct.finalPrice || fullProduct.price || 0;
             
@@ -191,18 +192,20 @@ const CampaignProductApproval: React.FC = () => {
           };
 
           // If product has variants, calculate discounted price for each variant
-          if (fullProduct?.variants && fullProduct.variants.length > 0 && voucher) {
+          if (fullProduct?.variants && fullProduct.variants.length > 0) {
             enrichedProduct.variantData = fullProduct.variants.map(variant => {
               const variantPrice = variant.variantPrice || 0;
               let variantDiscountedPrice = variantPrice;
 
               // Calculate discounted price based on voucher config
-              if (voucher.type === 'FIXED' && voucher.discountValue) {
-                variantDiscountedPrice = Math.max(0, variantPrice - voucher.discountValue);
-              } else if (voucher.type === 'PERCENT' && voucher.discountPercent) {
-                const discount = (variantPrice * voucher.discountPercent) / 100;
-                const maxDiscount = voucher.maxDiscountValue || discount;
-                variantDiscountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+              if (voucher) {
+                if (voucher.type === 'FIXED' && voucher.discountValue) {
+                  variantDiscountedPrice = Math.max(0, variantPrice - voucher.discountValue);
+                } else if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+                  const discount = (variantPrice * voucher.discountPercent) / 100;
+                  const maxDiscount = voucher.maxDiscountValue || discount;
+                  variantDiscountedPrice = Math.max(0, variantPrice - Math.min(discount, maxDiscount));
+                }
               }
 
               return {
@@ -475,36 +478,53 @@ const CampaignProductApproval: React.FC = () => {
       render: (price: number, record) => {
         // If has variants, show range
         if (record.variantData && record.variantData.length > 0) {
-          const prices = record.variantData.map(v => v.variantPrice);
+          const prices = record.variantData
+            .map(v => v.variantPrice)
+            .filter(p => p != null && p > 0);
+          
+          if (prices.length === 0) {
+            return <span className="text-gray-400">N/A</span>;
+          }
+          
           const minPrice = Math.min(...prices);
           const maxPrice = Math.max(...prices);
           
           if (minPrice === maxPrice) {
             return (
-              <span className="text-gray-600">{minPrice.toLocaleString('vi-VN')}₫</span>
+              <span className="text-gray-600 font-medium">
+                {minPrice.toLocaleString('vi-VN')}₫
+              </span>
             );
           }
           
           return (
             <div className="text-right">
-              <div className="text-gray-600 text-xs">
+              <div className="text-gray-600 font-medium text-xs">
                 {minPrice.toLocaleString('vi-VN')}₫
               </div>
               <div className="text-gray-400 text-xs">~</div>
-              <div className="text-gray-600 text-xs">
+              <div className="text-gray-600 font-medium text-xs">
                 {maxPrice.toLocaleString('vi-VN')}₫
               </div>
             </div>
           );
         }
         
+        // For products without variants, try to get price from fullProduct if calculated price is 0
+        let displayPrice = price;
+        if ((!displayPrice || displayPrice === 0) && record.fullProduct) {
+          displayPrice = record.fullProduct.finalPrice || record.fullProduct.price || 0;
+        }
+        
         // Safety check for price
-        if (!price || price === 0) {
+        if (!displayPrice || displayPrice === 0) {
           return <span className="text-gray-400">N/A</span>;
         }
         
         return (
-          <span className="text-gray-600">{price.toLocaleString('vi-VN')}₫</span>
+          <span className="text-gray-600 font-medium">
+            {displayPrice.toLocaleString('vi-VN')}₫
+          </span>
         );
       }
     },
@@ -572,9 +592,18 @@ const CampaignProductApproval: React.FC = () => {
           );
         }
         
-        // No variants
+        // No variants - use the calculated discountedPrice if available
+        if (record.discountedPrice !== undefined && record.discountedPrice > 0) {
+          return (
+            <span className="text-red-600 font-bold">
+              {record.discountedPrice.toLocaleString('vi-VN')}₫
+            </span>
+          );
+        }
+        
+        // Fallback: calculate on the fly if discountedPrice not set
         if (!voucher) {
-          const price = record.originalPrice;
+          const price = record.originalPrice || (record.fullProduct?.finalPrice || record.fullProduct?.price || 0);
           if (!price || price === 0) {
             return <span className="text-gray-400">N/A</span>;
           }
@@ -584,8 +613,15 @@ const CampaignProductApproval: React.FC = () => {
             </span>
           );
         }
+        
+        // Calculate discounted price
+        const originalPrice = record.originalPrice || (record.fullProduct?.finalPrice || record.fullProduct?.price || 0);
+        if (!originalPrice || originalPrice === 0) {
+          return <span className="text-gray-400">N/A</span>;
+        }
+        
         const finalPrice = CampaignProductService.calculateDiscountedPrice(
-          record.originalPrice,
+          originalPrice,
           voucher
         );
         return (
