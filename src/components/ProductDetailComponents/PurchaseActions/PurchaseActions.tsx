@@ -73,15 +73,46 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
         selectedVariant,
         variantId: selectedVariant?.variantId
       });
-      
-      // Pass variantId if variant is selected
-      await CustomerCartService.addProductToCart(
-        productId, 
-        qty, 
-        selectedVariant?.variantId
-      );
 
-      showCenterSuccess('Đã thêm sản phẩm vào giỏ hàng!', '🛒 Thành công');
+      // Check if item already exists in cart
+      const currentCart = await CustomerCartService.getCart();
+      
+      // Find existing item in cart
+      // Note: refId is productId (or comboId), variantId is a separate field
+      const existingItem = currentCart.items.find(item => {
+        if (item.type !== 'PRODUCT') return false;
+        
+        // For variant: check if refId matches productId AND variantId matches
+        if (selectedVariant?.variantId) {
+          return item.refId === productId && item.variantId === selectedVariant.variantId;
+        }
+        
+        // For product without variant: check if refId matches productId AND no variantId
+        return item.refId === productId && !item.variantId;
+      });
+
+      if (existingItem) {
+        // Item already exists - update quantity (add to existing quantity)
+        const newQuantity = existingItem.quantity + qty;
+        console.log('🔄 Item already in cart, updating quantity:', {
+          cartItemId: existingItem.cartItemId,
+          oldQuantity: existingItem.quantity,
+          addQuantity: qty,
+          newQuantity
+        });
+        
+        await CustomerCartService.updateItemQuantity(existingItem.cartItemId, newQuantity);
+        showCenterSuccess(`Đã cập nhật số lượng sản phẩm trong giỏ hàng! (${newQuantity} sản phẩm)`, '🛒 Thành công');
+      } else {
+        // Item doesn't exist - add new item
+        console.log('➕ Adding new item to cart');
+        await CustomerCartService.addProductToCart(
+          productId, 
+          qty, 
+          selectedVariant?.variantId
+        );
+        showCenterSuccess('Đã thêm sản phẩm vào giỏ hàng!', '🛒 Thành công');
+      }
       
       // Trigger cart update event
       window.dispatchEvent(new CustomEvent('cartUpdated', {
