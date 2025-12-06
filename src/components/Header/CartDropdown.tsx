@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CustomerCartService } from '../../services/customer/CartService';
-import { ProductVoucherService } from '../../services/customer/ProductVoucherService';
 import type { CartResponse } from '../../types/cart';
 
 interface EnrichedCartItem {
@@ -29,65 +28,37 @@ const CartDropdown: React.FC = () => {
       const cartData = await CustomerCartService.getCart();
       setCart(cartData);
       
-      // Enrich items with discounted prices (only for first 5 items to display)
+      // Backend đã xử lý platform campaign, sử dụng trực tiếp từ response
       const itemsToEnrich = cartData.items.slice(0, 5);
-      const enriched = await Promise.all(
-        itemsToEnrich.map(async (item) => {
-          let discountedPrice = item.unitPrice;
-          
-          try {
-            // Fetch platform vouchers for this product
-            const voucherData = await ProductVoucherService.getProductVouchers(item.refId, null, null);
-            const platformVouchers = voucherData.data?.vouchers?.platform || [];
-            
-            if (platformVouchers.length > 0) {
-              const campaign = platformVouchers[0];
-              const voucher = campaign.vouchers?.[0];
-              
-              if (voucher && voucher.status === 'ACTIVE') {
-                const now = new Date();
-                
-                // Check if voucher is within valid time
-                let isActive = false;
-                if (voucher.slotOpenTime && voucher.slotCloseTime) {
-                  // Flash Sale: check slot time and slot status
-                  isActive = 
-                    now >= new Date(voucher.slotOpenTime) && 
-                    now <= new Date(voucher.slotCloseTime) &&
-                    voucher.slotStatus === 'ACTIVE';
-                } else {
-                  // Regular campaign: check voucher time
-                  isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
-                }
-                
-                if (isActive) {
-                  if (voucher.type === 'PERCENT' && voucher.discountPercent) {
-                    const discount = (item.unitPrice * voucher.discountPercent) / 100;
-                    const maxDiscount = voucher.maxDiscountValue || discount;
-                    discountedPrice = item.unitPrice - Math.min(discount, maxDiscount);
-                  } else if (voucher.type === 'FIXED' && voucher.discountValue) {
-                    discountedPrice = Math.max(0, item.unitPrice - voucher.discountValue);
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching vouchers for product ${item.refId}:`, error);
-          }
-          
-          return {
-            cartItemId: item.cartItemId,
-            refId: item.refId,
-            name: item.name,
-            image: item.image,
-            variantUrl: item.variantUrl,
-            unitPrice: item.unitPrice,
-            discountedPrice,
-            quantity: item.quantity,
-            variantOptionValue: item.variantOptionValue
-          };
-        })
-      );
+      const enriched = itemsToEnrich.map((item) => {
+        // Backend trả về:
+        // - baseUnitPrice: giá gốc (chưa campaign)
+        // - platformCampaignPrice: giá sau campaign (nếu có)
+        // - unitPrice: giá hiện tại (đã áp dụng campaign nếu có)
+        // - inPlatformCampaign: có đang trong campaign không
+        // - campaignUsageExceeded: đã vượt giới hạn chưa
+        
+        // Logic: Nếu có platformCampaignPrice và inPlatformCampaign = true và campaignUsageExceeded = false
+        // thì dùng platformCampaignPrice, ngược lại dùng unitPrice
+        const discountedPrice = 
+          item.inPlatformCampaign && 
+          !item.campaignUsageExceeded && 
+          item.platformCampaignPrice !== undefined
+            ? item.platformCampaignPrice
+            : item.unitPrice;
+        
+        return {
+          cartItemId: item.cartItemId,
+          refId: item.refId,
+          name: item.name,
+          image: item.image,
+          variantUrl: item.variantUrl,
+          unitPrice: item.unitPrice,
+          discountedPrice,
+          quantity: item.quantity,
+          variantOptionValue: item.variantOptionValue
+        };
+      });
       
       setEnrichedItems(enriched);
     } catch (error) {

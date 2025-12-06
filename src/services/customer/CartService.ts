@@ -80,7 +80,14 @@ export class CustomerCartService {
         { userType: 'customer' }
       );
 
-      console.log('✅ Cart fetched successfully:', response);
+      // Log response body với format đẹp
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('📦 [CART API RESPONSE BODY]');
+      console.log('GET /api/v1/customers/{customerId}/cart');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(JSON.stringify(response, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+      
       return response;
     } catch (error) {
       console.error('❌ Failed to fetch cart:', error);

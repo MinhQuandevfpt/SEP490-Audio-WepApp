@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calcCartSummary, type CartItem as UICartItem } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
@@ -37,107 +37,43 @@ const ShoppingCart: React.FC = () => {
     setProductCache,
   } = useServiceTypeCalculator({ items });
 
-  // Map API cart items to UI items used by existing components (base mapping, without platform discount)
-  const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => ({
-    id: apiItem.cartItemId,
-    productId: apiItem.refId, // refId is productId for PRODUCT, comboId for COMBO
-    name: apiItem.name,
-    // Ưu tiên sử dụng variantUrl nếu có, nếu không thì dùng image
-    image: apiItem.variantUrl || apiItem.image,
-    price: apiItem.unitPrice,
-    originalPrice: apiItem.unitPrice, // Set originalPrice để có thể áp dụng platform discount sau
-    quantity: apiItem.quantity,
-    isSelected: true,
-    variant: apiItem.variantOptionValue || undefined,
-    type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
-  });
-
-  // Helper function: Áp dụng platform discount cho một API item
-  const enhanceApiItemWithPlatformDiscount = useCallback(async (apiItem: ApiCartItem): Promise<UICartItem> => {
-    const baseItem: UICartItem = {
+  // Map API cart items to UI items - sử dụng trực tiếp từ backend response
+  // Backend đã xử lý platform campaign, chỉ cần map đúng giá
+  const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => {
+    // Backend trả về:
+    // - baseUnitPrice: giá gốc (chưa campaign)
+    // - platformCampaignPrice: giá sau campaign (nếu có)
+    // - unitPrice: giá hiện tại (đã áp dụng campaign nếu có)
+    // - inPlatformCampaign: có đang trong campaign không
+    // - campaignUsageExceeded: đã vượt giới hạn chưa
+    
+    // Logic: Nếu có platformCampaignPrice và inPlatformCampaign = true và campaignUsageExceeded = false
+    // thì dùng platformCampaignPrice, ngược lại dùng unitPrice
+    const finalPrice = 
+      apiItem.inPlatformCampaign && 
+      !apiItem.campaignUsageExceeded && 
+      apiItem.platformCampaignPrice !== undefined
+        ? apiItem.platformCampaignPrice
+        : apiItem.unitPrice;
+    
+    // originalPrice: dùng baseUnitPrice nếu có, ngược lại dùng unitPrice
+    const originalPrice = apiItem.baseUnitPrice ?? apiItem.unitPrice;
+    
+    return {
       id: apiItem.cartItemId,
-      productId: apiItem.refId,
+      productId: apiItem.refId, // refId is productId for PRODUCT, comboId for COMBO
       name: apiItem.name,
+      // Ưu tiên sử dụng variantUrl nếu có, nếu không thì dùng image
       image: apiItem.variantUrl || apiItem.image,
-      price: apiItem.unitPrice,
-      originalPrice: apiItem.unitPrice,
+      price: finalPrice, // Giá sau khi áp dụng platform campaign (nếu có)
+      originalPrice: originalPrice, // Giá gốc để hiển thị
       quantity: apiItem.quantity,
       isSelected: true,
       variant: apiItem.variantOptionValue || undefined,
-      type: apiItem.type,
+      variantId: apiItem.variantId || null, // Lưu variantId từ API
+      type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
     };
-
-    // Chỉ áp dụng giảm giá nền tảng cho PRODUCT (không áp dụng cho COMBO)
-    if (!apiItem.refId || apiItem.type === 'COMBO') {
-      return baseItem;
-    }
-
-    try {
-      const response = await ProductVoucherService.getProductVouchers(apiItem.refId, 'ALL', null);
-
-      const platformCampaigns = response.data?.vouchers?.platform || [];
-      let activePlatformVoucher: any = null;
-      const now = new Date();
-
-      // Tìm voucher nền tảng đang ACTIVE (giống logic ProductSuggestions)
-      for (const campaign of platformCampaigns) {
-        if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
-          for (const v of campaign.vouchers) {
-            if (v.status !== 'ACTIVE') continue;
-
-            let isActive = false;
-            if (v.slotOpenTime && v.slotCloseTime) {
-              isActive =
-                now >= new Date(v.slotOpenTime) &&
-                now <= new Date(v.slotCloseTime) &&
-                v.slotStatus === 'ACTIVE';
-            } else {
-              isActive =
-                now >= new Date(v.startTime) &&
-                now <= new Date(v.endTime) &&
-                v.status === 'ACTIVE';
-            }
-
-            if (isActive) {
-              activePlatformVoucher = v;
-              break;
-            }
-          }
-
-          if (activePlatformVoucher) break;
-        }
-      }
-
-      if (activePlatformVoucher) {
-        const originalPrice = baseItem.originalPrice ?? baseItem.price;
-        let discountedPrice = originalPrice;
-
-        if (activePlatformVoucher.type === 'PERCENT' && activePlatformVoucher.discountPercent) {
-          discountedPrice = originalPrice * (1 - activePlatformVoucher.discountPercent / 100);
-        } else if (activePlatformVoucher.type === 'FIXED' && activePlatformVoucher.discountValue) {
-          discountedPrice = Math.max(0, originalPrice - activePlatformVoucher.discountValue);
-        }
-
-        // Nếu có giảm giá hợp lệ thì cập nhật price để dùng cho tính toán & hiển thị
-        if (discountedPrice < originalPrice) {
-          return {
-            ...baseItem,
-            price: discountedPrice,
-            originalPrice,
-          };
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load platform vouchers for cart item:', err);
-    }
-
-    return baseItem;
-  }, []);
-
-  // Helper function: Áp dụng platform discount cho nhiều API items
-  const enhanceApiItemsWithPlatformDiscounts = useCallback(async (apiItems: ApiCartItem[]): Promise<UICartItem[]> => {
-    return Promise.all(apiItems.map(enhanceApiItemWithPlatformDiscount));
-  }, [enhanceApiItemWithPlatformDiscount]);
+  };
 
   // Load addresses
   const loadAddresses = async () => {
@@ -163,26 +99,25 @@ const ShoppingCart: React.FC = () => {
     init();
   }, [loadCart]);
 
-  // Load cart items và áp dụng logic giảm giá nền tảng tương tự HomePage
+  // Load cart items - backend đã xử lý platform campaign, chỉ cần map
   useEffect(() => {
-    const loadAndEnhanceItems = async () => {
-      if (!cart?.items) {
-        setItems([]);
-        return;
-      }
+    if (!cart?.items) {
+      setItems([]);
+      return;
+    }
 
-      try {
-        const apiItems = cart.items as unknown as ApiCartItem[];
-        const enhanced = await enhanceApiItemsWithPlatformDiscounts(apiItems);
-        setItems(enhanced);
-      } catch (err) {
-        console.error('Failed to enhance cart items with platform discounts:', err);
-        // Fallback: set items without platform discount
-        setItems((cart.items as unknown as ApiCartItem[]).map(mapApiItemToUI));
-      }
-    };
+    // Log cart response khi vào shopping cart page
+    console.log('🛒 [SHOPPING CART PAGE] Cart Response Body:');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('GET /api/v1/customers/{customerId}/cart');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log(JSON.stringify(cart, null, 2));
+    console.log('═══════════════════════════════════════════════════════════════');
 
-    loadAndEnhanceItems();
+    // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
+    const apiItems = cart.items as unknown as ApiCartItem[];
+    const mappedItems = apiItems.map(mapApiItemToUI);
+    setItems(mappedItems);
   }, [cart]);
 
   // Load vouchers for all products in the cart (unique by refId)
@@ -544,19 +479,12 @@ const ShoppingCart: React.FC = () => {
     setItems(prev => prev.map(it => ({ ...it, isSelected: next })));
   };
 
-  // Apply cart response to UI và áp dụng lại platform discount để giữ nguyên định dạng giá
-  const applyCartResponseToUI = async (respItems: ApiCartItem[]) => {
-    try {
-      // Áp dụng platform discount cho items mới để giữ nguyên định dạng giá (originalPrice + price)
-      const enhanced = await enhanceApiItemsWithPlatformDiscounts(respItems);
-      setItems(enhanced);
-      window.dispatchEvent(new Event('cartUpdated'));
-    } catch (err) {
-      console.error('Failed to enhance cart items after update:', err);
-      // Fallback: set items without platform discount
-      setItems(respItems.map(mapApiItemToUI));
-      window.dispatchEvent(new Event('cartUpdated'));
-    }
+  // Apply cart response to UI - backend đã xử lý platform campaign
+  const applyCartResponseToUI = (respItems: ApiCartItem[]) => {
+    // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
+    const mappedItems = respItems.map(mapApiItemToUI);
+    setItems(mappedItems);
+    window.dispatchEvent(new Event('cartUpdated'));
   };
 
   const updateQuantity = async (cartItemId: string, nextQty: number) => {
