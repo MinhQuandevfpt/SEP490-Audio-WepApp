@@ -117,8 +117,8 @@ const PayoutBillDetail: React.FC = () => {
       render: (productName: string, record: PayoutBillItem) => (
         <div>
           <div className="font-medium text-gray-900">{productName}</div>
-          <div className="text-xs text-gray-500">
-            Order Item ID: {record.orderItemId.slice(0, 8)}...
+          <div className="text-xs text-gray-500 font-mono">
+            Order Item ID: {record.orderItemId || 'N/A'}
           </div>
         </div>
       ),
@@ -194,9 +194,9 @@ const PayoutBillDetail: React.FC = () => {
       title: 'Store Order ID',
       dataIndex: 'storeOrderId',
       key: 'storeOrderId',
-      width: 200,
+      width: 300,
       render: (id: string) => (
-        <span className="text-xs text-gray-500">{id.slice(0, 8)}...</span>
+        <span className="text-xs text-gray-500 font-mono">{id || 'N/A'}</span>
       ),
     },
     {
@@ -231,12 +231,12 @@ const PayoutBillDetail: React.FC = () => {
       ),
     },
     {
-      title: 'Store Order ID',
-      dataIndex: 'storeOrderId',
-      key: 'storeOrderId',
-      width: 200,
+      title: 'Return Request ID',
+      dataIndex: 'returnRequestId',
+      key: 'returnRequestId',
+      width: 320,
       render: (id: string) => (
-        <span className="text-xs text-gray-500">{id.slice(0, 8)}...</span>
+        <span className="text-xs text-gray-500 font-mono whitespace-nowrap">{id || 'N/A'}</span>
       ),
     },
     {
@@ -249,13 +249,23 @@ const PayoutBillDetail: React.FC = () => {
       ),
     },
     {
-      title: 'Phí vận chuyển hoàn',
+      title: 'Phí ship',
       dataIndex: 'shippingFee',
       key: 'shippingFee',
       width: 150,
       align: 'right',
       render: (fee: number) => (
         <span className="font-medium text-red-600">{formatCurrency(fee)}</span>
+      ),
+    },
+    {
+      title: 'Phí tính cho shop',
+      dataIndex: 'chargedToShop',
+      key: 'chargedToShop',
+      width: 150,
+      align: 'right',
+      render: (fee: number) => (
+        <span className="font-medium text-red-700">{formatCurrency(fee)}</span>
       ),
     },
   ], [formatCurrency]);
@@ -368,12 +378,15 @@ const PayoutBillDetail: React.FC = () => {
           <Card title="Thông tin hóa đơn" className="mb-6">
             <Descriptions column={1} bordered>
               <Descriptions.Item label="Mã hóa đơn">
-                <Text strong className="text-blue-600">{payoutBill.billCode}</Text>
+                <Text strong className="text-blue-600 font-mono">{payoutBill.billCode}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="ID hóa đơn">
+                <Text className="font-mono text-xs">{payoutBill.id}</Text>
               </Descriptions.Item>
               <Descriptions.Item label="Cửa hàng">
                 <div>
-                  <Text strong>{storeName || `Cửa hàng ${payoutBill.shopId.slice(0, 8)}`}</Text>
-                  <div className="text-xs text-gray-500 mt-1">ID: {payoutBill.shopId}</div>
+                  <Text strong>{storeName || 'Đang tải...'}</Text>
+                  <div className="text-xs text-gray-500 mt-1 font-mono">Shop ID: {payoutBill.shopId}</div>
                 </div>
               </Descriptions.Item>
               <Descriptions.Item label="Khoảng thời gian">

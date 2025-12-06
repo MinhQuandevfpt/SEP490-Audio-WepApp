@@ -225,5 +225,109 @@ export class AdminPayoutService {
     
     return normalizePayoutBill(response);
   }
+
+  /**
+   * Mark payout bill as paid
+   * POST /api/admin/payout-bill/{billId}/mark-paid
+   * Backend accepts query parameters (as per Swagger spec)
+   */
+  static async markPaidPayoutBill(
+    billId: string,
+    params: {
+      reference: string;
+      proofImageUrl: string;
+      note?: string;
+    }
+  ): Promise<PayoutBill> {
+    const endpoint = `/api/admin/payout-bill/${billId}/mark-paid`;
+    
+    // Build query params - URL encode values properly
+    const searchParams = new URLSearchParams();
+    searchParams.append('reference', params.reference.trim());
+    searchParams.append('proofImageUrl', params.proofImageUrl.trim());
+    
+    if (params.note && params.note.trim()) {
+      searchParams.append('note', params.note.trim());
+    }
+    
+    const queryString = searchParams.toString();
+    const fullEndpoint = `${endpoint}?${queryString}`;
+    
+    // For POST with query params, make a custom request without Content-Type header
+    // This matches Swagger behavior where POST uses query params
+    const url = `${API_BASE_URL}${fullEndpoint}`;
+    const token = localStorage.getItem('admin_access_token');
+    
+    // Debug logging
+    console.log('Mark Paid Request:', {
+      url,
+      billId,
+      params,
+      queryString,
+      headers: {
+        Authorization: token ? `Bearer ${token}` : 'No token',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      }
+    });
+    console.log('COPY THIS FOR POSTMAN:', `curl -X POST "${url}" -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" -H "Accept: application/json" -d '{}'`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}), // Empty body for POST request
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Mark Paid Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          url
+        });
+        throw {
+          status: response.status,
+          message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          errors: errorData.errors || {}
+        } as ApiError;
+      }
+
+      const responseData = await response.json();
+      console.log('Mark Paid Success Response:', responseData);
+      return normalizePayoutBill(responseData);
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      
+      if (error?.name === 'AbortError') {
+        throw {
+          status: 408,
+          message: 'Request timeout',
+          errors: {}
+        } as ApiError;
+      }
+      
+      if (error?.status) {
+        throw error; // API error
+      }
+      
+      throw {
+        status: 0,
+        message: 'Network error. Please check your connection.',
+        errors: {}
+      } as ApiError;
+    }
+  }
 }
 

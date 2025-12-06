@@ -265,9 +265,10 @@ export interface ShippingOrder {
 
 export interface ReturnShipFee {
   id?: string; // Optional - may not be present in API response
-  storeOrderId: string;
+  returnRequestId: string;
   ghnOrderCode: string;
   shippingFee: number;
+  chargedToShop: number;
   shippingType: string;
 }
 
