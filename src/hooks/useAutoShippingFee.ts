@@ -3,13 +3,21 @@ import type { CartItem } from '../data/shoppingcart';
 import type { CustomerAddressApiItem } from '../types/api';
 import type { Product } from '../services/customer/ProductListService';
 
+export interface StoreShippingFee {
+  storeId: string;
+  storeName: string;
+  fee: number;
+  error?: string;
+}
+
 interface UseAutoShippingFeeProps {
   items: CartItem[];
   addresses: CustomerAddressApiItem[];
   selectedAddressId: string | null;
   productCache: Map<string, Product>;
   serviceTypeId: 2 | 5;
-  onShippingFeeChange: (fee: number) => void;
+  onShippingFeeChange: (fee: number) => void; // Total shipping fee (sum of all stores)
+  onStoreShippingFeesChange?: (fees: Record<string, StoreShippingFee>) => void; // Shipping fee per store
   onProductCacheUpdate: (cache: Map<string, Product>) => void;
   autoCalculate?: boolean; // Enable/disable auto calculation
   onError?: (message: string) => void; // Optional error handler
@@ -22,6 +30,7 @@ export const useAutoShippingFee = ({
   productCache,
   serviceTypeId,
   onShippingFeeChange,
+  onStoreShippingFeesChange,
   onProductCacheUpdate,
   autoCalculate = true,
   onError,
@@ -33,6 +42,7 @@ export const useAutoShippingFee = ({
   const addressesRef = useRef(addresses);
   const productCacheRef = useRef(productCache);
   const onShippingFeeChangeRef = useRef(onShippingFeeChange);
+  const onStoreShippingFeesChangeRef = useRef(onStoreShippingFeesChange);
   const onProductCacheUpdateRef = useRef(onProductCacheUpdate);
   const onErrorRef = useRef(onError);
   
@@ -40,9 +50,10 @@ export const useAutoShippingFee = ({
     addressesRef.current = addresses;
     productCacheRef.current = productCache;
     onShippingFeeChangeRef.current = onShippingFeeChange;
+    onStoreShippingFeesChangeRef.current = onStoreShippingFeesChange;
     onProductCacheUpdateRef.current = onProductCacheUpdate;
     onErrorRef.current = onError;
-  }, [addresses, productCache, onShippingFeeChange, onProductCacheUpdate, onError]);
+  }, [addresses, productCache, onShippingFeeChange, onStoreShippingFeesChange, onProductCacheUpdate, onError]);
 
   useEffect(() => {
     // Clear previous timeout
@@ -121,33 +132,6 @@ export const useAutoShippingFee = ({
           onProductCacheUpdateRef.current(newCache);
         }
 
-        // Determine origin from the first selected product
-        const firstProd = productById.get(selectedItems[0].productId);
-        const fromDistrictId = firstProd?.districtCode ? Number(firstProd.districtCode) : NaN;
-        const fromWardCode = firstProd?.wardCode || '';
-        if (!fromWardCode || Number.isNaN(fromDistrictId)) {
-          return; // Silent fail for auto calculation
-        }
-
-        // Build GHN items
-        const ghnItems = selectedItems.map(si => {
-          const p = productById.get(si.productId);
-          const weightKg = (p?.weight && p.weight > 0 ? p.weight : 0.5);
-          const weightGr = Math.round(weightKg * 1000);
-          // Luôn sử dụng kích thước mặc định 1x1x1 (cm) cho mọi sản phẩm
-          const defaultDim = 1;
-          return {
-            name: si.name,
-            quantity: si.quantity,
-            length: defaultDim,
-            width: defaultDim,
-            height: defaultDim,
-            weight: weightGr,
-          };
-        });
-
-        const pkgWeight = ghnItems.reduce((sum, it) => sum + it.weight * it.quantity, 0);
-
         // Ensure to_district_id and to_ward_code are valid
         const toDistrictId = currentAddress.districtId;
         const toWardCode = currentAddress.wardCode;
@@ -158,69 +142,263 @@ export const useAutoShippingFee = ({
           return;
         }
 
-        // Build request body with all required fields
-        const body = {
-          service_type_id: serviceTypeId,
-          from_district_id: fromDistrictId,
-          from_ward_code: fromWardCode,
-          to_district_id: Number(toDistrictId), // Ensure it's a number
-          to_ward_code: String(toWardCode), // Ensure it's a string
-          length: 1, // Default package dimensions (cm)
-          width: 1, // Default package dimensions (cm)
-          height: 1, // Default package dimensions (cm)
-          weight: Number(pkgWeight), // Ensure it's a number (grams)
-          insurance_value: 0, // Default insurance value
-          coupon: '', // Empty string if no coupon
-          items: ghnItems.map(item => ({
-            name: String(item.name),
-            quantity: Number(item.quantity),
-            length: 1, // Default 1cm
-            width: 1, // Default 1cm
-            height: 1, // Default 1cm
-            weight: Number(item.weight),
-          })),
-        };
+        // ========== GROUP ITEMS BY STORE ==========
+        // Group selected items by storeId
+        const itemsByStore = new Map<string, { items: typeof selectedItems; storeName: string }>();
+        
+        selectedItems.forEach(si => {
+          const product = productById.get(si.productId);
+          if (!product?.storeId) {
+            // Skip items without storeId
+            return;
+          }
+          
+          if (!itemsByStore.has(product.storeId)) {
+            itemsByStore.set(product.storeId, {
+              items: [],
+              storeName: product.storeName || `Cửa hàng ${product.storeId.substring(0, 6)}`
+            });
+          }
+          
+          itemsByStore.get(product.storeId)!.items.push(si);
+        });
 
-        const resp = await ShippingService.calculateGhnFee(body);
-
-        // Check if response is valid
-        if (!resp) {
+        if (itemsByStore.size === 0) {
+          // No valid stores found
           if (onErrorRef.current) {
-            onErrorRef.current('Không nhận được phản hồi từ API. Vui lòng thử lại.');
+            onErrorRef.current('Không tìm thấy thông tin cửa hàng cho sản phẩm.');
           }
           return;
         }
 
-        // Check if response code is 200
-        if (resp.code !== 200) {
-          if (onErrorRef.current) {
-            onErrorRef.current(resp.message || 'Không thể tính phí vận chuyển. Vui lòng thử lại hoặc kiểm tra lại địa chỉ.');
+        // ========== CALCULATE SHIPPING FEE PER STORE ==========
+        const storeShippingFees: Record<string, StoreShippingFee> = {};
+        let totalShippingFee = 0;
+        let hasError = false;
+
+        // Calculate shipping fee for each store
+        const storeCalculations = Array.from(itemsByStore.entries()).map(async ([storeId, { items: storeItems, storeName }]) => {
+          try {
+            // Get origin address from first product of this store
+            const firstStoreProduct = productById.get(storeItems[0].productId);
+            if (!firstStoreProduct) {
+              storeShippingFees[storeId] = {
+                storeId,
+                storeName,
+                fee: 0,
+                error: 'Không tìm thấy thông tin sản phẩm'
+              };
+              hasError = true;
+              return;
+            }
+
+            const fromDistrictId = firstStoreProduct.districtCode ? Number(firstStoreProduct.districtCode) : NaN;
+            const fromWardCode = firstStoreProduct.wardCode || '';
+            
+            if (!fromWardCode || Number.isNaN(fromDistrictId)) {
+              storeShippingFees[storeId] = {
+                storeId,
+                storeName,
+                fee: 0,
+                error: 'Thiếu thông tin địa chỉ gửi hàng'
+              };
+              hasError = true;
+              return;
+            }
+
+            // Build GHN items for this store
+            const ghnItems = storeItems.map(si => {
+              const p = productById.get(si.productId);
+              const weightKg = (p?.weight && p.weight > 0 ? p.weight : 0.5);
+              const weightGr = Math.round(weightKg * 1000);
+              return {
+                name: si.name,
+                quantity: si.quantity,
+                length: 1, // Default 1cm
+                width: 1,  // Default 1cm
+                height: 1, // Default 1cm
+                weight: weightGr,
+              };
+            });
+
+            const pkgWeight = ghnItems.reduce((sum, it) => sum + it.weight * it.quantity, 0);
+
+            // Calculate service type for this store
+            const storeServiceTypeId: 2 | 5 = pkgWeight <= 7500 ? 2 : 5;
+
+            // Build request body for this store
+            const body = {
+              service_type_id: storeServiceTypeId,
+              from_district_id: fromDistrictId,
+              from_ward_code: fromWardCode,
+              to_district_id: Number(toDistrictId),
+              to_ward_code: String(toWardCode),
+              length: 1,
+              width: 1,
+              height: 1,
+              weight: Number(pkgWeight),
+              insurance_value: 0,
+              coupon: '',
+              items: ghnItems.map(item => ({
+                name: String(item.name),
+                quantity: Number(item.quantity),
+                length: 1,
+                width: 1,
+                height: 1,
+                weight: Number(item.weight),
+              })),
+            };
+
+            // Call GHN API for this store
+            let resp: any;
+            try {
+              resp = await ShippingService.calculateGhnFee(body);
+            } catch (apiError: any) {
+              // Handle API error (400, 500, etc.)
+              const errorMessage = apiError?.message || apiError?.data?.message || '';
+              const errorCode = apiError?.status || apiError?.data?.code;
+              const codeMessage = apiError?.data?.code_message || '';
+              
+              // Check for specific DistrictID validation error
+              const isDistrictError = 
+                errorCode === 400 &&
+                (errorMessage.includes('DistrictID') || 
+                 errorMessage.includes('District') ||
+                 codeMessage === 'SEND_DISTRICT_IS_INVALID' ||
+                 errorMessage.includes('Field validation for \'DistrictID\''));
+              
+              if (isDistrictError) {
+                storeShippingFees[storeId] = {
+                  storeId,
+                  storeName,
+                  fee: 0,
+                  error: 'địa chỉ giao nhận có vấn đề từ API(400DB)'
+                };
+              } else {
+                storeShippingFees[storeId] = {
+                  storeId,
+                  storeName,
+                  fee: 0,
+                  error: errorMessage || 'Không thể tính phí vận chuyển'
+                };
+              }
+              hasError = true;
+              return;
+            }
+
+            // Check response
+            if (!resp || resp.code !== 200 || !resp.data) {
+              // Check for specific DistrictID validation error in response
+              const errorMessage = resp?.message || '';
+              const codeMessage = resp?.code_message || '';
+              
+              const isDistrictError = 
+                resp?.code === 400 &&
+                (errorMessage.includes('DistrictID') || 
+                 errorMessage.includes('District') ||
+                 codeMessage === 'SEND_DISTRICT_IS_INVALID' ||
+                 errorMessage.includes('Field validation for \'DistrictID\''));
+              
+              if (isDistrictError) {
+                storeShippingFees[storeId] = {
+                  storeId,
+                  storeName,
+                  fee: 0,
+                  error: 'địa chỉ giao nhận có vấn đề từ API(400DB)'
+                };
+              } else {
+                storeShippingFees[storeId] = {
+                  storeId,
+                  storeName,
+                  fee: 0,
+                  error: errorMessage || 'Không thể tính phí vận chuyển'
+                };
+              }
+              hasError = true;
+              return;
+            }
+
+            if (resp.data.service_fee === undefined || resp.data.service_fee === null) {
+              storeShippingFees[storeId] = {
+                storeId,
+                storeName,
+                fee: 0,
+                error: 'Không tìm thấy phí vận chuyển trong phản hồi'
+              };
+              hasError = true;
+              return;
+            }
+
+            const serviceFee = Number(resp.data.service_fee) || 0;
+            storeShippingFees[storeId] = {
+              storeId,
+              storeName,
+              fee: serviceFee
+            };
+            totalShippingFee += serviceFee;
+
+          } catch (error: any) {
+            console.error(`Error calculating shipping fee for store ${storeId}:`, error);
+            
+            // Check for specific DistrictID validation error
+            const errorMessage = error?.message || error?.data?.message || '';
+            const errorCode = error?.status || error?.data?.code;
+            const codeMessage = error?.data?.code_message || '';
+            
+            // Check for DistrictID validation error
+            const isDistrictError = 
+              errorCode === 400 &&
+              (errorMessage.includes('DistrictID') || 
+               errorMessage.includes('District') ||
+               codeMessage === 'SEND_DISTRICT_IS_INVALID' ||
+               errorMessage.includes('Field validation for \'DistrictID\'') ||
+               errorMessage.includes('DistrictDetailRequest.DistrictID'));
+            
+            if (isDistrictError) {
+              storeShippingFees[storeId] = {
+                storeId,
+                storeName: itemsByStore.get(storeId)?.storeName || storeId,
+                fee: 0,
+                error: 'địa chỉ giao nhận có vấn đề từ API(400DB)'
+              };
+            } else {
+              storeShippingFees[storeId] = {
+                storeId,
+                storeName: itemsByStore.get(storeId)?.storeName || storeId,
+                fee: 0,
+                error: errorMessage || 'Lỗi tính phí vận chuyển'
+              };
+            }
+            hasError = true;
           }
-          return;
+        });
+
+        // Wait for all store calculations to complete
+        await Promise.all(storeCalculations);
+
+        // Update store shipping fees
+        if (onStoreShippingFeesChangeRef.current) {
+          onStoreShippingFeesChangeRef.current(storeShippingFees);
         }
 
-        // Check if data exists
-        if (!resp.data) {
-          if (onErrorRef.current) {
-            onErrorRef.current('Phản hồi từ API không hợp lệ. Vui lòng thử lại.');
-          }
-          return;
-        }
+        // Update total shipping fee
+        onShippingFeeChangeRef.current(totalShippingFee);
 
-        // Check if service_fee exists (can be 0, so check for undefined/null)
-        if (resp.data.service_fee === undefined || resp.data.service_fee === null) {
-          if (onErrorRef.current) {
-            onErrorRef.current('Không tìm thấy phí vận chuyển trong phản hồi. Vui lòng thử lại.');
+        // Handle errors
+        if (hasError) {
+          const errorMessages = Object.values(storeShippingFees)
+            .filter(sf => sf.error)
+            .map(sf => `${sf.storeName}: ${sf.error}`)
+            .join('; ');
+          
+          if (onErrorRef.current && errorMessages) {
+            onErrorRef.current(`Một số cửa hàng không thể tính phí vận chuyển: ${errorMessages}`);
           }
-          return;
-        }
-
-        // Use service_fee from response for shipping fee
-        const serviceFee = Number(resp.data.service_fee) || 0;
-        onShippingFeeChangeRef.current(serviceFee);
-        // Clear previous error on success
-        if (onErrorRef.current) {
-          onErrorRef.current('');
+        } else {
+          // Clear error on success
+          if (onErrorRef.current) {
+            onErrorRef.current('');
+          }
         }
       } catch (error) {
         console.error('Auto shipping fee calculation failed:', error);
