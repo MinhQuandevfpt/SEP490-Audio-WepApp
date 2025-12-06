@@ -1,12 +1,10 @@
 import React from 'react';
-import type { StoreShippingFee } from '../../hooks/useAutoShippingFee';
 
 interface Props {
   subtotal: number;
   platformDiscount: number;
   voucherDiscount: number;
   shippingFee: number;
-  storeShippingFees?: Record<string, StoreShippingFee>;
   total: number;
   disabled: boolean;
   onSubmit: () => void;
@@ -18,7 +16,6 @@ const OrderSummaryCard: React.FC<Props> = ({
   platformDiscount,
   voucherDiscount,
   shippingFee,
-  storeShippingFees = {},
   total,
   disabled,
   onSubmit,
@@ -53,33 +50,10 @@ const OrderSummaryCard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Shipping fee per store */}
-      {Object.keys(storeShippingFees).length > 0 ? (
-        <div className="space-y-1">
-          <div className="flex justify-between text-gray-700">
-            <span className="text-sm font-medium">Phí vận chuyển</span>
-          </div>
-          {Object.values(storeShippingFees).map((storeFee) => (
-            <div key={storeFee.storeId} className="flex justify-between text-sm text-gray-600 pl-4">
-              <span>{storeFee.storeName}:</span>
-              {storeFee.error ? (
-                <span className="text-red-500 text-xs">{storeFee.error}</span>
-              ) : (
-                <span>{fmt(storeFee.fee)}</span>
-              )}
-            </div>
-          ))}
-          <div className="flex justify-between text-gray-700 pt-1 border-t border-gray-100">
-            <span className="font-medium">Tổng phí vận chuyển</span>
-            <span className="font-medium">{fmt(shippingFee)}</span>
-          </div>
-        </div>
-      ) : (
-        <div className="flex justify-between text-gray-700">
-          <span>Phí vận chuyển</span>
-          <span>{fmt(shippingFee)}</span>
-        </div>
-      )}
+      <div className="flex justify-between text-gray-700">
+        <span>Phí vận chuyển</span>
+        <span>{fmt(shippingFee)}</span>
+      </div>
 
       <div className="h-px bg-gray-200" />
 

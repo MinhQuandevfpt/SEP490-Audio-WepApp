@@ -1249,7 +1249,6 @@ const CheckoutOrderContainer: React.FC = () => {
                         platformDiscount={totalPlatformDiscount}
                         voucherDiscount={voucherDiscount}
                         shippingFee={shippingFee}
-                        storeShippingFees={storeShippingFees}
                         total={total}
                         disabled={
                           isSubmitting ||
