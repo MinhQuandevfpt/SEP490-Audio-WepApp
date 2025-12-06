@@ -416,6 +416,6 @@ export const useAutoShippingFee = ({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, selectedAddressId, serviceTypeId]); // Only depend on values that change, not functions
+  }, [items, selectedAddressId, serviceTypeId, autoCalculate]); // Include autoCalculate to trigger recalculation when it changes
 };
 
