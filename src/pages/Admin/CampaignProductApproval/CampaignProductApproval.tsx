@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignProductService } from '../../../services/admin/CampaignProductService';
-import { ProductService } from '../../../services/seller/ProductService';
+import { HttpInterceptor } from '../../../services/HttpInterceptor';
 import type { 
   CampaignProduct, 
   CampaignOverviewItem,
@@ -131,10 +131,19 @@ const CampaignProductApproval: React.FC = () => {
         });
       });
 
-      // Fetch all products in parallel
+      // Fetch all products in parallel using HttpInterceptor with admin token
       const productPromises = Array.from(productIds).map(async (productId) => {
         try {
-          const product = await ProductService.getProductById(productId);
+          // Use HttpInterceptor with admin token instead of ProductService (which uses seller token)
+          const response = await HttpInterceptor.fetch<{ status: number; message: string; data: Product }>(
+            `/api/products/${productId}`,
+            {
+              method: 'GET',
+              userType: 'admin'
+            }
+          );
+          // Handle different response formats
+          const product = response.data || response;
           return product;
         } catch (error) {
           console.warn(`Failed to fetch product ${productId}:`, error);
