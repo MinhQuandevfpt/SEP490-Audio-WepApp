@@ -39,7 +39,7 @@ const ShoppingCart: React.FC = () => {
 
   // Map API cart items to UI items - sử dụng trực tiếp từ backend response
   // Backend đã xử lý platform campaign, chỉ cần map đúng giá
-  const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => {
+  const mapApiItemToUI = (apiItem: ApiCartItem, preserveSelection: boolean = false, currentItems: UICartItem[] = []): UICartItem => {
     // Backend trả về:
     // - baseUnitPrice: giá gốc (chưa campaign)
     // - platformCampaignPrice: giá sau campaign (nếu có)
@@ -59,6 +59,15 @@ const ShoppingCart: React.FC = () => {
     // originalPrice: dùng baseUnitPrice nếu có, ngược lại dùng unitPrice
     const originalPrice = apiItem.baseUnitPrice ?? apiItem.unitPrice;
     
+    // Preserve selection state if requested
+    let isSelected: boolean = true; // Default to true for initial load
+    if (preserveSelection) {
+      const existingItem = currentItems.find(item => item.id === apiItem.cartItemId);
+      if (existingItem) {
+        isSelected = existingItem.isSelected ?? true;
+      }
+    }
+    
     return {
       id: apiItem.cartItemId,
       productId: apiItem.refId, // refId is productId for PRODUCT, comboId for COMBO
@@ -68,7 +77,7 @@ const ShoppingCart: React.FC = () => {
       price: finalPrice, // Giá sau khi áp dụng platform campaign (nếu có)
       originalPrice: originalPrice, // Giá gốc để hiển thị
       quantity: apiItem.quantity,
-      isSelected: true,
+      isSelected: isSelected,
       variant: apiItem.variantOptionValue || undefined,
       variantId: apiItem.variantId || null, // Lưu variantId từ API
       type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
@@ -115,8 +124,9 @@ const ShoppingCart: React.FC = () => {
     console.log('═══════════════════════════════════════════════════════════════');
 
     // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
+    // Initial load: don't preserve selection (default to all selected)
     const apiItems = cart.items as unknown as ApiCartItem[];
-    const mappedItems = apiItems.map(mapApiItemToUI);
+    const mappedItems = apiItems.map(apiItem => mapApiItemToUI(apiItem, false, []));
     setItems(mappedItems);
   }, [cart]);
 
@@ -362,21 +372,21 @@ const ShoppingCart: React.FC = () => {
 
   // Calculate subtotal dựa trên giá gốc (để hiển thị giống HomePage: giá gốc + giảm giá)
   const subtotalBeforePlatformDiscount = useMemo(() => {
-    return items.reduce((sum, item) => {
+    return Math.round(items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const original = item.originalPrice ?? item.price;
       return sum + original * item.quantity;
-    }, 0);
+    }, 0));
   }, [items]);
   
   // Tổng giảm giá nền tảng = (giá gốc - giá sau giảm) * quantity
   const totalPlatformDiscount = useMemo(() => {
-    return items.reduce((sum, item) => {
+    return Math.round(items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const original = item.originalPrice ?? item.price;
       const discountPerUnit = Math.max(0, original - item.price);
       return sum + discountPerUnit * item.quantity;
-    }, 0);
+    }, 0));
   }, [items]);
 
   // Store voucher discount
@@ -397,7 +407,8 @@ const ShoppingCart: React.FC = () => {
       totalPlatformDiscount -
       voucherDiscount +
       shippingFee;
-    return Math.max(0, total);
+    // Làm tròn để tránh số thập phân
+    return Math.max(0, Math.round(total));
   }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
 
   // Calculate discount amount for a voucher
@@ -480,19 +491,245 @@ const ShoppingCart: React.FC = () => {
   };
 
   // Apply cart response to UI - backend đã xử lý platform campaign
-  const applyCartResponseToUI = (respItems: ApiCartItem[]) => {
+  const applyCartResponseToUI = (respItems: ApiCartItem[], preserveSelection: boolean = false) => {
     // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
-    const mappedItems = respItems.map(mapApiItemToUI);
+    // Preserve selection state when updating quantity to avoid auto-selecting all items
+    const mappedItems = respItems.map(apiItem => mapApiItemToUI(apiItem, preserveSelection, items));
     setItems(mappedItems);
     window.dispatchEvent(new Event('cartUpdated'));
+  };
+
+  // Build store vouchers from appliedStoreVouchers
+  const buildStoreVouchers = (): Array<{ storeId: string; codes: string[] }> | null => {
+    const storeVouchersMap = new Map<string, string[]>();
+    
+    Object.values(appliedStoreVouchers).forEach(voucher => {
+      if (!voucher.storeId) return;
+      if (!storeVouchersMap.has(voucher.storeId)) {
+        storeVouchersMap.set(voucher.storeId, []);
+      }
+      storeVouchersMap.get(voucher.storeId)!.push(voucher.code);
+    });
+    
+    const result = Array.from(storeVouchersMap.entries()).map(([storeId, codes]) => ({
+      storeId,
+      codes,
+    }));
+    
+    return result.length > 0 ? result : null;
+  };
+
+  // Build platform vouchers from cart items
+  // Load platform vouchers for the item being updated
+  const buildPlatformVouchers = async (
+    targetItem: UICartItem,
+    newQuantity: number
+  ): Promise<Array<{ campaignProductId: string; quantity: number }> | null> => {
+    try {
+      // Check if item is in platform campaign (from cart response)
+      const apiItem = cart?.items?.find(item => item.cartItemId === targetItem.id) as ApiCartItem | undefined;
+      if (!apiItem?.inPlatformCampaign || apiItem.campaignUsageExceeded) {
+        console.log('🔍 [PLATFORM VOUCHER] Item not in platform campaign or usage exceeded:', {
+          cartItemId: targetItem.id,
+          inPlatformCampaign: apiItem?.inPlatformCampaign,
+          campaignUsageExceeded: apiItem?.campaignUsageExceeded,
+        });
+        return null;
+      }
+
+      console.log('🔍 [PLATFORM VOUCHER] Loading platform vouchers for product:', targetItem.productId);
+
+      // Load platform vouchers for this product
+      const voucherRes = await ProductVoucherService.getProductVouchers(targetItem.productId, 'ALL', null);
+      const platformCampaigns = voucherRes.data?.vouchers?.platform || [];
+      
+      let campaignProductId: string | null = null;
+      
+      // Try to find active platform voucher first
+      for (const campaign of platformCampaigns) {
+        if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+          const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+          if (activeVoucher && activeVoucher.platformVoucherId) {
+            campaignProductId = activeVoucher.platformVoucherId;
+            console.log('✅ [PLATFORM VOUCHER] Found active platform voucher:', campaignProductId);
+            break;
+          }
+        }
+      }
+      
+      // If no active voucher found, try to get from any voucher (for items already in campaign)
+      if (!campaignProductId) {
+        for (const campaign of platformCampaigns) {
+          if (campaign.vouchers && campaign.vouchers.length > 0) {
+            const voucher = campaign.vouchers[0];
+            if (voucher?.platformVoucherId) {
+              campaignProductId = voucher.platformVoucherId;
+              console.log('⚠️ [PLATFORM VOUCHER] Using non-active platform voucher:', campaignProductId);
+              break;
+            }
+          }
+        }
+      }
+      
+      if (campaignProductId) {
+        const result = [{
+          campaignProductId,
+          quantity: newQuantity,
+        }];
+        console.log('✅ [PLATFORM VOUCHER] Built platform vouchers:', result);
+        return result;
+      }
+      
+      console.log('⚠️ [PLATFORM VOUCHER] No platform voucher found for product:', targetItem.productId);
+      return null;
+    } catch (error) {
+      console.error('❌ [PLATFORM VOUCHER] Failed to build platform vouchers:', error);
+      return null;
+    }
+  };
+
+  // Build service type IDs for all stores in cart
+  const buildServiceTypeIds = (): Record<string, number> | null => {
+    const result: Record<string, number> = {};
+    const storeIds = new Set<string>();
+    
+    items.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product?.storeId) {
+        storeIds.add(product.storeId);
+      }
+    });
+    
+    storeIds.forEach(storeId => {
+      // Calculate total weight for this store
+      let totalWeight = 0;
+      items.forEach(item => {
+        const product = productCache.get(item.productId);
+        if (product && product.storeId === storeId) {
+          const weightKg = product.weight && product.weight > 0 ? product.weight : 0.5;
+          totalWeight += weightKg * 1000 * item.quantity;
+        }
+      });
+      
+      // Service type: ≤7500g → 2, >7500g → 5
+      result[storeId] = totalWeight <= 7500 ? 2 : 5;
+    });
+    
+    return Object.keys(result).length > 0 ? result : null;
   };
 
   const updateQuantity = async (cartItemId: string, nextQty: number) => {
     try {
       const clamped = Math.max(1, Math.min(nextQty, 99));
-      const resp = await CustomerCartService.updateItemQuantity(cartItemId, clamped);
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      
+      console.log('🛒 [UPDATE QUANTITY] Starting quantity update:', {
+        cartItemId,
+        oldQuantity: items.find(item => item.id === cartItemId)?.quantity,
+        newQuantity: nextQty,
+        clampedQuantity: clamped,
+      });
+      
+      // Find the item being updated
+      const targetItem = items.find(item => item.id === cartItemId);
+      if (!targetItem) {
+        console.error('❌ [UPDATE QUANTITY] Item not found:', cartItemId);
+        showCenterError('Không tìm thấy sản phẩm trong giỏ hàng.', 'Lỗi');
+        return;
+      }
+
+      // Optimization: Skip API call if item is not in campaign
+      // If item has no campaign or campaign is exhausted, price will always be base price
+      // No need to check API regardless of quantity (1, 2, 3, 4, 5...)
+      const apiItem = cart?.items?.find(item => item.cartItemId === cartItemId) as ApiCartItem | undefined;
+      const isNotInCampaign = !apiItem?.inPlatformCampaign || apiItem?.campaignUsageExceeded;
+      const currentQuantity = targetItem.quantity;
+      
+      // Skip API call if item is not in campaign (no campaign or campaign exhausted)
+      // This applies to any quantity change (1→2, 2→3, 3→4, etc.) since price will always be base price
+      if (isNotInCampaign) {
+        console.log('⚡ [UPDATE QUANTITY] Optimization: Item not in campaign, skipping API call');
+        console.log('   Item:', targetItem.name);
+        console.log('   Current quantity:', currentQuantity);
+        console.log('   New quantity:', clamped);
+        console.log('   Price will remain base price:', targetItem.originalPrice);
+        console.log('   Reason: Item has no campaign or campaign is exhausted');
+        
+        // Update quantity locally without API call
+        const updatedItems = items.map(item => {
+          if (item.id === cartItemId) {
+            return {
+              ...item,
+              quantity: clamped,
+              // Price remains the same (base price) since no campaign
+              price: item.originalPrice ?? item.price,
+            };
+          }
+          return item;
+        });
+        
+        setItems(updatedItems);
+        window.dispatchEvent(new Event('cartUpdated'));
+        console.log('✅ [UPDATE QUANTITY] Quantity updated locally (no API call)');
+        return;
+      }
+
+      console.log('🔍 [UPDATE QUANTITY] Building vouchers and service type IDs...');
+
+      // Build vouchers and service type IDs
+      const storeVouchers = buildStoreVouchers();
+      console.log('🏪 [UPDATE QUANTITY] Built store vouchers:', storeVouchers);
+      
+      const platformVouchers = await buildPlatformVouchers(targetItem, clamped);
+      console.log('🎁 [UPDATE QUANTITY] Built platform vouchers:', platformVouchers);
+      
+      const serviceTypeIds = buildServiceTypeIds();
+      console.log('📦 [UPDATE QUANTITY] Built service type IDs:', serviceTypeIds);
+
+      // Build request payload
+      const requestPayload = {
+        cartItemId,
+        quantity: clamped,
+        storeVouchers: storeVouchers || null,
+        platformVouchers: platformVouchers || null,
+        serviceTypeIds: serviceTypeIds || null,
+      };
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('📤 [UPDATE QUANTITY] Final Request Payload:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(JSON.stringify(requestPayload, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Call new API with vouchers
+      const resp = await CustomerCartService.updateQuantityWithVouchers(requestPayload);
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('✅ [UPDATE QUANTITY] Response received:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Cart Summary:', {
+        subtotal: resp.subtotal,
+        discountTotal: resp.discountTotal,
+        grandTotal: resp.grandTotal,
+        itemCount: resp.items.length,
+      });
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Apply response to UI - preserve selection state to avoid auto-selecting all items
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[], true);
+      
+      // Check for campaign usage exceeded warnings
+      const updatedItem = resp.items.find(item => item.cartItemId === cartItemId);
+      if (updatedItem?.campaignUsageExceeded) {
+        console.warn('⚠️ [UPDATE QUANTITY] Campaign usage exceeded for item:', updatedItem.name);
+        showCenterError(
+          `Sản phẩm "${updatedItem.name}" đã vượt quá giới hạn sử dụng chiến dịch. Giá đã được cập nhật về giá gốc.`,
+          'Cảnh báo'
+        );
+      } else {
+        console.log('✅ [UPDATE QUANTITY] Quantity updated successfully');
+      }
     } catch (error: any) {
+      console.error('❌ [UPDATE QUANTITY] Error:', error);
       const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
       showCenterError(msg, 'Lỗi');
     }
@@ -513,7 +750,8 @@ const ShoppingCart: React.FC = () => {
   const removeItem = async (id: string) => {
     try {
       const resp = await CustomerCartService.deleteItems([id]);
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      // Preserve selection state when removing item
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[], true);
       showCenterSuccess('Đã xóa sản phẩm khỏi giỏ hàng', 'Thành công');
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';

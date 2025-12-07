@@ -1643,13 +1643,13 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             ))}
 
             {/* Add classification button */}
-            {classifications.length < 2 && (
+            {classifications.length < 1 && (
               <button
                 type="button"
                 onClick={addClassification}
                 className="px-4 py-2 text-sm text-orange-600 border-2 border-dashed border-orange-300 rounded-lg hover:bg-orange-50 flex items-center gap-2"
               >
-                <span className="text-lg">+</span> Thêm nhóm phân loại {classifications.length + 1}
+                <span className="text-lg">+</span> Thêm phân loại
               </button>
             )}
 

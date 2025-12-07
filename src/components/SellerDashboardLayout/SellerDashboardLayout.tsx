@@ -335,8 +335,7 @@ const SellerDashboardLayout: React.FC = () => {
     {
       icon: MessageSquare,
       label: 'Tin nhắn',
-      path: '/seller/dashboard/messages',
-      badge: '12' // Mock badge for demo
+      path: '/seller/dashboard/messages'
     },
     {
       icon: Bell,

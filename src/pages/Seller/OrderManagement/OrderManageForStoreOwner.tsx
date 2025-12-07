@@ -254,6 +254,7 @@ const OrderManageForStoreOwner: React.FC = () => {
           CONFIRMED: 'blue',
           SHIPPING: 'purple',
           AWAITING_SHIPMENT: 'gold',
+          GHN_CREATED: 'blue',
           UNPAID: 'orange',
           CANCELLED: 'red',
           RETURN_REQUESTED: 'orange',

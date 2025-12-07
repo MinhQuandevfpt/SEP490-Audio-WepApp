@@ -106,6 +106,7 @@ export interface ProductViewItem {
   thumbnailUrl: string | null;
   ratingAverage: number | null;
   reviewCount: number | null;
+  status?: string; // Product status: ACTIVE, INACTIVE, etc.
   variants?: ProductViewVariant[];
   store: ProductViewStoreInfo | null;
   vouchers?: ProductVouchers;

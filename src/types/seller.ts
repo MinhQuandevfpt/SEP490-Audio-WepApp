@@ -478,6 +478,7 @@ export type StoreOrderStatus =
   | 'PENDING'                  // Chờ xử lý
   | 'CONFIRMED'                // Đã xác nhận
   | 'AWAITING_SHIPMENT'        // Chờ lấy hàng
+  | 'GHN_CREATED'              // Đã chuyển nhượng GHN
   | 'SHIPPING'                 // Đang giao hàng
   | 'READY_FOR_PICKUP'         // Kho đang chuẩn bị
   | 'READY_FOR_DELIVERY'       // Chờ giao hàng

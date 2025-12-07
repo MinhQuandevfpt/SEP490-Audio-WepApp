@@ -76,11 +76,12 @@ const calculateStoreTotal = (
   productCache: Map<string, Product>
 ): number => {
   // Tính tổng tiền theo giá đã áp dụng giảm giá nền tảng (item.price)
-  return items.reduce((sum, item) => {
+  // Làm tròn để tránh số thập phân
+  return Math.round(items.reduce((sum, item) => {
     const product = productCache.get(item.productId);
     if (!product || product.storeId !== storeId) return sum;
     return sum + item.price * item.quantity;
-  }, 0);
+  }, 0));
 };
 
 const calculateVoucherDiscountAmount = (voucher: ShopVoucher, storeTotal: number): number => {
@@ -275,26 +276,26 @@ const CheckoutOrderContainer: React.FC = () => {
 
   // Calculate subtotal dựa trên giá gốc (giống Cart/HomePage)
   const subtotalBeforePlatformDiscount = useMemo(() => {
-    return cartItems.reduce((sum, item) => {
+    return Math.round(cartItems.reduce((sum, item) => {
       const original = item.originalPrice ?? item.price;
       return sum + original * item.quantity;
-    }, 0);
+    }, 0));
   }, [cartItems]);
 
   // Subtotal sau khi áp dụng giảm giá nền tảng (dùng giá hiện tại)
   const subtotalAfterPlatformDiscount = useMemo(() => {
-    return cartItems.reduce((sum, item) => {
+    return Math.round(cartItems.reduce((sum, item) => {
       return sum + item.price * item.quantity;
-    }, 0);
+    }, 0));
   }, [cartItems]);
 
   // Tổng giảm giá nền tảng = chênh lệch giữa giá gốc và giá sau giảm
   const totalPlatformDiscount = useMemo(() => {
-    return cartItems.reduce((sum, item) => {
+    return Math.round(cartItems.reduce((sum, item) => {
       const original = item.originalPrice ?? item.price;
       const discountPerUnit = Math.max(0, original - item.price);
       return sum + discountPerUnit * item.quantity;
-    }, 0);
+    }, 0));
   }, [cartItems]);
 
   // Note: buildPlatformVouchers logic has been moved to handleSubmit
@@ -323,7 +324,8 @@ const CheckoutOrderContainer: React.FC = () => {
   const voucherDiscount = useMemo(() => {
     const productVoucherDiscount = Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
     const storeWideVoucherDiscount = Object.values(appliedStoreWideVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
-    return productVoucherDiscount + storeWideVoucherDiscount;
+    // Làm tròn để tránh số thập phân
+    return Math.round(productVoucherDiscount + storeWideVoucherDiscount);
   }, [appliedStoreVouchers, appliedStoreWideVouchers]);
 
   // Danh sách mã voucher đã áp dụng (voucher sản phẩm + voucher toàn shop)
@@ -335,13 +337,12 @@ const CheckoutOrderContainer: React.FC = () => {
 
   // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const total = useMemo(() => {
-    return Math.max(
-      0,
-      subtotalBeforePlatformDiscount -
-        totalPlatformDiscount -
-        voucherDiscount +
-        shippingFee
-    );
+    const calculatedTotal = subtotalBeforePlatformDiscount -
+      totalPlatformDiscount -
+      voucherDiscount +
+      shippingFee;
+    // Làm tròn để tránh số thập phân
+    return Math.max(0, Math.round(calculatedTotal));
   }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
 
   const loadAddresses = useCallback(async (): Promise<CustomerAddressApiItem[]> => {

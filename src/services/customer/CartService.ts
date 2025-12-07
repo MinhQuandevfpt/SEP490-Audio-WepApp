@@ -48,6 +48,52 @@ export class CustomerCartService {
   }
 
   /**
+   * Update quantity with vouchers
+   * POST /api/v1/customers/{customerId}/cart/items/quantity-with-vouchers
+   * 
+   * @param request - Update quantity request with cartItemId, quantity, storeVouchers, platformVouchers, serviceTypeIds
+   * @returns Updated cart response
+   */
+  static async updateQuantityWithVouchers(request: {
+    cartItemId: string;
+    quantity: number;
+    storeVouchers?: Array<{ storeId: string; codes: string[] }> | null;
+    platformVouchers?: Array<{ campaignProductId: string; quantity: number }> | null;
+    serviceTypeIds?: Record<string, number> | null;
+  }): Promise<CartResponse> {
+    try {
+      const customerId = this.getCustomerId();
+      
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('📤 [UPDATE QUANTITY WITH VOUCHERS REQUEST]');
+      console.log('POST /api/v1/customers/{customerId}/cart/items/quantity-with-vouchers');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Request Body:');
+      console.log(JSON.stringify(request, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      const response = await HttpInterceptor.post<CartResponse>(
+        `/api/v1/customers/${customerId}/cart/items/quantity-with-vouchers`,
+        request,
+        { userType: 'customer' }
+      );
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('✅ [UPDATE QUANTITY WITH VOUCHERS RESPONSE]');
+      console.log('POST /api/v1/customers/{customerId}/cart/items/quantity-with-vouchers');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Response Body:');
+      console.log(JSON.stringify(response, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to update quantity with vouchers:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete one or multiple cart items
    * DELETE /api/v1/customers/{customerId}/cart/items
    */

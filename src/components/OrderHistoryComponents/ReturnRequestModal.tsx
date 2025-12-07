@@ -56,12 +56,14 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ open, order, on
   }, [open, orderItems]);
 
   const selectedItem = orderItems.find((item) => item.id === selectedItemId) || orderItems[0];
-  const derivedPrice =
+  // Làm tròn giá trị để tránh số thập phân
+  const derivedPrice = Math.round(
     selectedItem?.lineTotal ??
     selectedItem?.unitPrice ??
     order?.totalAmount ??
     order?.grandTotal ??
-    0;
+    0
+  );
 
   const handleImageFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

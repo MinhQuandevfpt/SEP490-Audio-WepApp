@@ -41,17 +41,17 @@ const KycStatusPage: React.FC = () => {
       
       console.log('📊 Current Status:', currentStatus);
       
-      // If status is ACTIVE, redirect to dashboard IMMEDIATELY (không set storeInfo để tránh render UI)
+      // If status is ACTIVE, redirect to dashboard IMMEDIATELY (không set state để tránh render)
       if (currentStatus === 'ACTIVE') {
         navigate('/seller/dashboard', { replace: true });
-        return; // Dừng ngay, không set storeInfo
+        return; // Return ngay, không set state nào
       }
       
-      // Chỉ set storeInfo nếu không phải ACTIVE
+      // Chỉ set storeInfo và loading nếu không phải ACTIVE
       setStoreInfo(info);
+      setIsLoading(false);
     } catch (error) {
       console.error('Error loading store info:', error);
-    } finally {
       setIsLoading(false);
     }
   };

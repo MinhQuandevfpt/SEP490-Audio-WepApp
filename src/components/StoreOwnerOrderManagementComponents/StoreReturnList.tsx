@@ -47,6 +47,16 @@ const statusLabelMap: Record<string, string> = {
   REFUNDED: 'Đã hoàn tiền',
 };
 
+const trackingStatusLabelMap: Record<string, string> = {
+  CREATED_WAITING_SYNC: 'Đang chờ đồng bộ từ GHN',
+  ready_to_pick: 'Sẵn sàng lấy hàng',
+  picking_up: 'Đang lấy hàng',
+  delivering: 'Đang giao hàng',
+  delivered: 'Đã giao hàng',
+  return: 'Trả hàng',
+  cancel: 'Đã hủy',
+};
+
 const StoreReturnList: React.FC<StoreReturnListProps> = ({
   data,
   page,
@@ -173,6 +183,16 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     const trimmed = cancelOrderCode.trim();
     if (!trimmed) {
       message.error('Vui lòng nhập mã đơn hàng GHN');
+      return;
+    }
+
+    // Check if any return is waiting for sync
+    const hasWaitingSync = data.some(record => 
+      record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC'
+    );
+    
+    if (hasWaitingSync) {
+      message.warning('Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát trước khi hủy đơn.');
       return;
     }
 
@@ -429,6 +449,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       render: (_: any, record: ReturnRequestResponse) => {
         const hasOrderCode = !!record.ghnOrderCode;
         const hasTracking = !!record.trackingStatus;
+        const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
 
         if (!hasOrderCode && !hasTracking) {
           return <Text type="secondary" className="text-xs">Chưa tạo đơn hoàn</Text>;
@@ -441,6 +462,11 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 <Text>
                   Mã GHN: <Text strong>{record.ghnOrderCode}</Text>
                 </Text>
+                {isWaitingForSync && (
+                  <Text type="secondary" className="text-xs text-orange-600">
+                    ⏳ Đang chờ đồng bộ từ GHN...
+                  </Text>
+                )}
                 <Button
                   type="link"
                   size="small"
@@ -451,6 +477,8 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                     )}`;
                     window.open(url, '_blank');
                   }}
+                  disabled={isWaitingForSync}
+                  title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
                 >
                   Theo dõi đơn
                 </Button>
@@ -458,7 +486,12 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
             )}
             {hasTracking && (
               <Text>
-                Trạng thái: <Text strong>{record.trackingStatus}</Text>
+                Trạng thái: <Text strong>{trackingStatusLabelMap[record.trackingStatus || ''] || record.trackingStatus}</Text>
+                {isWaitingForSync && (
+                  <Text type="secondary" className="text-xs block mt-1">
+                    (Đang chờ đồng bộ)
+                  </Text>
+                )}
               </Text>
             )}
           </Space>
@@ -548,17 +581,30 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
         }
 
         if (isShippingDelivered) {
+          // Check if waiting for GHN sync: status == SHIPPING && trackingStatus == "CREATED_WAITING_SYNC"
+          const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
+          // Disable buttons if waiting for sync
+          const canTakeAction = !isWaitingForSync;
+
           return (
             <Space direction="vertical" size={6} className="w-full">
-              <Text type="secondary" className="text-xs text-orange-600">
-                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
-              </Text>
+              {isWaitingForSync && (
+                <Text type="secondary" className="text-xs text-orange-600">
+                  Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
+                </Text>
+              )}
+              {!isWaitingForSync && (
+                <Text type="secondary" className="text-xs text-orange-600">
+                  Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
+                </Text>
+              )}
               <Space className="w-full">
                 <Button
                   type="primary"
                   size="small"
                   onClick={() => handleApprove(record)}
-                  disabled={rejectingId === record.id || approvingId === record.id}
+                  disabled={!canTakeAction || rejectingId === record.id || approvingId === record.id}
+                  title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
                 >
                   Xác nhận nhận đúng hàng & hoàn tiền
                 </Button>
@@ -566,14 +612,17 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                   danger
                   size="small"
                   onClick={() => handleOpenRejectModal(record)}
-                  disabled={approvingId === record.id || rejectingId === record.id}
+                  disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id}
+                  title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
                 >
                   Khiếu nại hàng trả
                 </Button>
               </Space>
-              <Text type="secondary" className="text-xs">
-                Nếu không xử lý trong 48 giờ, hệ thống sẽ tự động hoàn tiền sản phẩm cho khách (không hoàn phí trả hàng).
-              </Text>
+              {!isWaitingForSync && (
+                <Text type="secondary" className="text-xs">
+                  Nếu không xử lý trong 48 giờ, hệ thống sẽ tự động hoàn tiền sản phẩm cho khách (không hoàn phí trả hàng).
+                </Text>
+              )}
             </Space>
           );
         }
@@ -587,11 +636,33 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
         }
 
         if (hasPackageInfo(record)) {
+          // Check if waiting for GHN sync: status == SHIPPING && trackingStatus == "CREATED_WAITING_SYNC"
+          const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
+          // Disable if already has ghnOrderCode (should not create again)
+          const hasGhnOrderCode = !!record.ghnOrderCode;
+          // Disable create GHN button if waiting for sync or already has order code
+          const canCreateGhn = !isWaitingForSync && !hasGhnOrderCode;
+          
+          // Check trackingStatus after sync to enable appropriate actions
+          const trackingStatus = record.trackingStatus;
+          // Enable cancel GHN button for ready_to_pick, picking_up, and CREATED_WAITING_SYNC status
+          const canCancelGhn = trackingStatus === 'ready_to_pick' || trackingStatus === 'picking_up' || trackingStatus === 'CREATED_WAITING_SYNC';
+
           return (
             <Space direction="vertical" size={6} className="w-full">
               {isAutoApproved && (
                 <Text type="secondary" className="text-xs">
                   Yêu cầu đã được hệ thống auto-approve, không thể chấp nhận/từ chối.
+                </Text>
+              )}
+              {isWaitingForSync && (
+                <Text type="secondary" className="text-xs text-orange-600">
+                  Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
+                </Text>
+              )}
+              {hasGhnOrderCode && !isWaitingForSync && (
+                <Text type="secondary" className="text-xs text-green-600">
+                  Đã tạo đơn GHN: {record.ghnOrderCode}
                 </Text>
               )}
               {needsRecreateGhn && (
@@ -603,9 +674,25 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 type="default"
                 size="small"
                 onClick={() => handleOpenPickShiftModal(record)}
+                disabled={!canCreateGhn}
+                title={!canCreateGhn ? (isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : 'Đã có đơn GHN') : undefined}
               >
                 {needsRecreateGhn ? 'Tạo lại đơn GHN trả hàng' : 'Xác nhận ca lấy hàng'}
               </Button>
+              {/* Show cancel GHN button if trackingStatus allows it (including CREATED_WAITING_SYNC) */}
+              {hasGhnOrderCode && canCancelGhn && (
+                <Button
+                  danger
+                  size="small"
+                  onClick={() => {
+                    setCancelOrderCode(record.ghnOrderCode || '');
+                    setShowCancelModal(true);
+                  }}
+                  className="w-full"
+                >
+                  Hủy đơn GHN
+                </Button>
+              )}
             </Space>
           );
         }
@@ -645,6 +732,12 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 setCancelOrderCode('');
                 setShowCancelModal(true);
               }}
+              disabled={data.some(record => 
+                record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC'
+              )}
+              title={data.some(record => 
+                record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC'
+              ) ? 'Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...' : undefined}
             >
               Hủy đơn GHN
             </Button>

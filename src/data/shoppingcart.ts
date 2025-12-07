@@ -68,11 +68,12 @@ export const mockCartItems: CartItem[] = [
 
 export function calcCartSummary(items: CartItem[]): CartSummary {
   const itemCount = items.reduce((acc, it) => acc + it.quantity, 0);
-  const subtotal = items.reduce((acc, it) => acc + it.price * it.quantity, 0);
-  const original = items.reduce((acc, it) => acc + (it.originalPrice ?? it.price) * it.quantity, 0);
-  const discount = Math.max(0, original - subtotal);
+  // Làm tròn tất cả giá trị tiền tệ để tránh số thập phân
+  const subtotal = Math.round(items.reduce((acc, it) => acc + it.price * it.quantity, 0));
+  const original = Math.round(items.reduce((acc, it) => acc + (it.originalPrice ?? it.price) * it.quantity, 0));
+  const discount = Math.round(Math.max(0, original - subtotal));
   const selectedCount = items.filter(it => it.isSelected).reduce((acc, it) => acc + it.quantity, 0);
-  const total = items.filter(it => it.isSelected).reduce((acc, it) => acc + it.price * it.quantity, 0);
+  const total = Math.round(items.filter(it => it.isSelected).reduce((acc, it) => acc + it.price * it.quantity, 0));
   return { subtotal, discount, total, selectedCount, itemCount };
 }
 

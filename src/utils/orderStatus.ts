@@ -30,6 +30,11 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     color: 'text-yellow-600',
     bgColor: 'bg-yellow-50 border-yellow-200',
   },
+  GHN_CREATED: {
+    label: 'Đã chuyển nhượng GHN',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50 border-blue-200',
+  },
   SHIPPING: {
     label: 'Đang giao hàng',
     color: 'text-[#2D9CDB]',
@@ -177,7 +182,9 @@ export const isActiveOrder = (status: OrderStatus): boolean => {
  * Format currency
  */
 export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+  // Làm tròn giá trị trước khi format để tránh số thập phân
+  const roundedAmount = Math.round(amount);
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(roundedAmount) + 'đ';
 };
 
 /**
