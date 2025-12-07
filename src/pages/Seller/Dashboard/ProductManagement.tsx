@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Image, Tag, Space, Button, Tooltip } from 'antd';
+import { Table, Image, Tag, Space, Button, Tooltip, Modal } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import {
   Search,
@@ -8,13 +8,15 @@ import {
   Edit,
   Eye,
   Package,
-  RefreshCw
+  RefreshCw,
+  EyeOff,
+  Check
 } from 'lucide-react';
 import { ProductService } from '../../../services/seller/ProductService';
 import type { Product, ProductQueryParams } from '../../../types/seller';
 import ProductDetailDrawer from './ProductDetailDrawer';
 import { StoreAddressService } from '../../../services/seller/StoreAddressService';
-import { showCenterError } from '../../../utils/notification';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 
 const ProductManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -162,6 +164,45 @@ const ProductManagement: React.FC = () => {
     setIsDrawerOpen(false);
     setSelectedProductId(null);
   }, []);
+
+  // Toggle product status (ACTIVE <-> INACTIVE)
+  const handleToggleStatus = useCallback(async (productId: string, currentStatus: string, productName: string) => {
+    const isActive = currentStatus === 'ACTIVE';
+    
+    Modal.confirm({
+      title: isActive ? 'Xác nhận ẩn sản phẩm' : 'Xác nhận hiển thị sản phẩm',
+      content: isActive 
+        ? `Bạn có chắc chắn muốn ẩn sản phẩm "${productName}"? Sản phẩm sẽ không hiển thị trên trang chủ và các chiến dịch.`
+        : `Bạn có chắc chắn muốn hiển thị lại sản phẩm "${productName}"?`,
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      okButtonProps: {
+        danger: isActive,
+      },
+      onOk: async () => {
+        try {
+          const response = await ProductService.toggleProductStatus(productId);
+          
+          // Show success message based on new status
+          const newStatus = response?.data?.status || (currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE');
+          if (newStatus === 'INACTIVE') {
+            showCenterSuccess('Đã ẩn sản phẩm thành công', 'Thành công');
+          } else {
+            showCenterSuccess('Đã hiển thị sản phẩm thành công', 'Thành công');
+          }
+          
+          // Reload products to reflect changes
+          loadProducts();
+        } catch (error) {
+          console.error('Error toggling product status:', error);
+          showCenterError(
+            error instanceof Error ? error.message : 'Không thể thay đổi trạng thái sản phẩm',
+            'Lỗi'
+          );
+        }
+      },
+    });
+  }, [loadProducts]);
 
   // Memoized stats calculations
   const stats = useMemo(() => {
@@ -353,12 +394,14 @@ const ProductManagement: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 100,
+      width: 140,
       align: 'center',
       fixed: 'right',
       render: (_, record) => {
         // Don't show actions for variant rows
         if (record.isVariant) return null;
+        
+        const isActive = record.status === 'ACTIVE';
         
         return (
           <Space size="small">
@@ -378,11 +421,20 @@ const ProductManagement: React.FC = () => {
                 onClick={() => navigate(`/seller/dashboard/products/${record.productId}/edit`)}
               />
             </Tooltip>
+            <Tooltip title={isActive ? "Ẩn sản phẩm" : "Hiển thị sản phẩm"}>
+              <Button
+                type="text"
+                size="small"
+                icon={isActive ? <EyeOff className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+                onClick={() => handleToggleStatus(record.productId, record.status, record.name)}
+                className={isActive ? "text-orange-600 hover:text-orange-700" : "text-green-600 hover:text-green-700"}
+              />
+            </Tooltip>
           </Space>
         );
       },
     },
-  ], [handleViewDetail]);
+  ], [handleViewDetail, handleToggleStatus]);
 
   // Status options
   const statusOptions = [

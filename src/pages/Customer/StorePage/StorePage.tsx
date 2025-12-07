@@ -88,8 +88,9 @@ const StorePage: React.FC = () => {
           setStoreName(productsData[0].storeName);
         }
 
-        // Process products to handle variants and calculate prices
-        const processedProducts = productsData.map(processProduct);
+        // Filter out INACTIVE products and process remaining products
+        const activeProducts = productsData.filter(p => p.status !== 'INACTIVE');
+        const processedProducts = activeProducts.map(processProduct);
 
         if (append) {
           setProducts(prev => [...prev, ...processedProducts]);

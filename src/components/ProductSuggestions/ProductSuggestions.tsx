@@ -135,7 +135,7 @@ const ProductSuggestions: React.FC = () => {
       const response = await ProductViewService.getProductViews({
         page: page,
         size: itemsPerPage,
-        // Không truyền status để tránh lỗi enum từ backend
+        status: 'ACTIVE', // Chỉ lấy sản phẩm đang active
       });
 
       console.log('📦 API Response:', response);
@@ -144,6 +144,7 @@ const ProductSuggestions: React.FC = () => {
         const items = response.data.data || [];
         const pageInfo = response.data.page;
 
+        // No need to filter here - API already returns ACTIVE products only
         const newProducts: Product[] = items.map(mapToProduct);
         const total = pageInfo?.totalElements ?? newProducts.length;
         const currentPage = pageInfo?.pageNumber ?? page;

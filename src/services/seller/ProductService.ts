@@ -308,6 +308,31 @@ export class ProductService {
   }
 
   /**
+   * Toggle product status (ACTIVE <-> INACTIVE)
+   * DELETE /api/products/{productId}
+   */
+  static async toggleProductStatus(productId: string): Promise<any> {
+    try {
+      const url = `${API_URL}/products/${productId}`;
+      console.log('🔄 Toggling product status:', productId);
+
+      const response = await HttpInterceptor.fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+        },
+        userType: 'seller',
+      } as any);
+
+      console.log('✅ Product status toggled:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Error toggling product status:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Format currency
    */
   static formatCurrency(amount: number | null | undefined): string {
