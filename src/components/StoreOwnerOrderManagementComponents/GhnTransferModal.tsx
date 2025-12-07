@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Truck, Loader2, AlertCircle } from 'lucide-react';
+import { X, Truck, Loader2, AlertCircle, Check } from 'lucide-react';
 import { GhnService, type PickShift } from '../../services/seller/GhnService';
 import { StoreService } from '../../services/seller/StoreService';
 import { StoreAddressService } from '../../services/seller/StoreAddressService';
@@ -66,6 +66,12 @@ interface Props {
   onClose: () => void;
   onSubmit?: (data: GhnTransferFormData) => void;
 }
+
+// Package packing rules
+const MAX_BOX_WEIGHT = 15000;      // 15kg / 1 kiện (gram)
+const MAX_BOX_VOLUME = 50000;      // 50,000 cm³
+const MAX_BOX_EDGE = 80;           // 80cm cạnh dài nhất
+const LARGE_ITEM_WEIGHT = 7500;   // >7.5kg coi là hàng lớn (gram)
 
 const PROVINCE_PREFIXES = ['tinh', 'thanh pho', 'tp'];
 const DISTRICT_PREFIXES = ['quan', 'huyen', 'thi xa', 'thi tran', 'tx', 'tp'];
@@ -175,6 +181,111 @@ const parseAddressSegments = (address: string) => {
  * - "50x50x50cm"
  * Returns { length: number, width: number, height: number } in cm, or null if parsing fails
  */
+/**
+ * Product type for packing calculation
+ */
+type Product = {
+  length: number; // cm
+  width: number;  // cm
+  height: number; // cm
+  weight: number; // gram
+};
+
+/**
+ * Packing validation result
+ */
+type PackingResult = {
+  canPack: boolean;
+  reason: string;
+  calculatedDimensions?: {
+    length: number;
+    width: number;
+    height: number;
+    weight: number;
+    volume: number;
+    maxEdge: number;
+  };
+};
+
+/**
+ * Check if products can be packed together in one box
+ */
+const canPackTogether = (products: Product[]): PackingResult => {
+  if (products.length === 0) {
+    return {
+      canPack: false,
+      reason: 'Chưa có sản phẩm nào',
+    };
+  }
+
+  // Case 1: Check for large items (>7.5kg)
+  const hasLargeItem = products.some(p => p.weight >= LARGE_ITEM_WEIGHT);
+  if (hasLargeItem) {
+    const largeItems = products.filter(p => p.weight >= LARGE_ITEM_WEIGHT);
+    return {
+      canPack: false,
+      reason: `Có ${largeItems.length} sản phẩm >7.5kg. Không thể đóng chung.`,
+    };
+  }
+
+  // Calculate totals
+  const totalWeight = products.reduce((sum, p) => sum + p.weight, 0);
+  const totalVolume = products.reduce((sum, p) => sum + (p.length * p.width * p.height), 0);
+
+  // Case 2: Check total weight
+  if (totalWeight > MAX_BOX_WEIGHT) {
+    return {
+      canPack: false,
+      reason: `Tổng cân nặng (${totalWeight.toLocaleString('vi-VN')}g) vượt mức cho phép ${MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g/kiện.`,
+    };
+  }
+
+  // Case 3: Check total volume
+  if (totalVolume > MAX_BOX_VOLUME) {
+    return {
+      canPack: false,
+      reason: `Thể tích gộp (${totalVolume.toLocaleString('vi-VN')} cm³) vượt giới hạn đóng kiện (${MAX_BOX_VOLUME.toLocaleString('vi-VN')} cm³).`,
+    };
+  }
+
+  // Case 4: Calculate combined dimensions (xếp các hộp nối chiều dài)
+  const combinedLength = products.reduce((sum, p) => sum + p.length, 0);
+  const combinedWidth = Math.max(...products.map(p => p.width));
+  const combinedHeight = Math.max(...products.map(p => p.height));
+
+  const maxEdge = Math.max(combinedLength, combinedWidth, combinedHeight);
+
+  if (maxEdge > MAX_BOX_EDGE) {
+    return {
+      canPack: false,
+      reason: `Kích thước kiện (cạnh dài nhất: ${maxEdge}cm) vượt quy chuẩn vận chuyển (${MAX_BOX_EDGE}cm).`,
+      calculatedDimensions: {
+        length: combinedLength,
+        width: combinedWidth,
+        height: combinedHeight,
+        weight: totalWeight,
+        volume: totalVolume,
+        maxEdge,
+      },
+    };
+  }
+
+  // All checks passed
+  return {
+    canPack: true,
+    reason: 'Đóng chung 1 kiện',
+    calculatedDimensions: {
+      length: combinedLength,
+      width: combinedWidth,
+      height: combinedHeight,
+      weight: totalWeight,
+      volume: totalVolume,
+      maxEdge,
+    },
+  };
+};
+
+
 const parseDimensions = (dimensionString: string | null | undefined): { length: number; width: number; height: number } | null => {
   if (!dimensionString || typeof dimensionString !== 'string') {
     return null;
@@ -293,6 +404,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     to_phone?: string;
     return_phone?: string;
   }>({});
+  
+  // Store packing validation result
+  const [packingValidation, setPackingValidation] = useState<PackingResult | null>(null);
   
   // Address selection states (from address)
   const [selectedProvinceId, setSelectedProvinceId] = useState<number | null>(null);
@@ -1328,6 +1442,38 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     validateAddress();
   }, [formData.from_address, selectedProvince, selectedDistrict, selectedWard]);
 
+  // Auto-calculate package dimensions and validate packing when items change
+  useEffect(() => {
+    if (formData.items.length === 0) {
+      setPackingValidation(null);
+      return;
+    }
+
+    // Convert items to Product format
+    const products: Product[] = formData.items.map(item => ({
+      length: item.length || 0,
+      width: item.width || 0,
+      height: item.height || 0,
+      weight: item.weight || 0,
+    }));
+
+    // Validate packing
+    const packingResult = canPackTogether(products);
+    setPackingValidation(packingResult);
+
+    // Auto-update package dimensions if valid
+    if (packingResult.canPack && packingResult.calculatedDimensions) {
+      const calculated = packingResult.calculatedDimensions;
+      setFormData(prev => ({
+        ...prev,
+        weight: calculated.weight,
+        length: calculated.length,
+        width: calculated.width,
+        height: calculated.height,
+      }));
+    }
+  }, [formData.items]);
+
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
@@ -1360,16 +1506,28 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         return;
       }
 
-      // Calculate total dimensions and weight from items
-      const totalItemWeight = formData.items.reduce((sum, item) => sum + (item.weight || 0), 0);
-      const totalItemLength = formData.items.reduce((sum, item) => sum + (item.length || 0), 0);
-      const totalItemWidth = formData.items.reduce((sum, item) => sum + (item.width || 0), 0);
-      const totalItemHeight = formData.items.reduce((sum, item) => sum + (item.height || 0), 0);
+      // Validate packing rules first
+      if (formData.items.length > 0) {
+        const products: Product[] = formData.items.map(item => ({
+          length: item.length || 0,
+          width: item.width || 0,
+          height: item.height || 0,
+          weight: item.weight || 0,
+        }));
+
+        const packingResult = canPackTogether(products);
+        if (!packingResult.canPack) {
+          showCenterError(packingResult.reason, 'Lỗi đóng gói');
+          setIsSubmitting(false);
+          return;
+        }
+      }
       
       // Calculate total product value (price * quantity for all items)
       const totalProductValue = formData.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
 
-      // Validate package information must be >= total items
+      // Validate package information must be >= total items (fallback validation)
+      const totalItemWeight = formData.items.reduce((sum, item) => sum + (item.weight || 0), 0);
       if (!formData.weight || formData.weight < totalItemWeight) {
         showCenterError(`Trọng lượng kiện hàng (${formData.weight || 0}g) phải lớn hơn hoặc bằng tổng trọng lượng sản phẩm (${totalItemWeight}g)`, 'Lỗi');
         setIsSubmitting(false);
@@ -1380,21 +1538,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       const MAX_PACKAGE_WEIGHT = 100000;
       if (formData.weight > MAX_PACKAGE_WEIGHT) {
         showCenterError(`Trọng lượng kiện hàng không được vượt quá 100 kg (100,000 gram). Giá trị hiện tại: ${formData.weight.toLocaleString('vi-VN')} gram`, 'Lỗi');
-        setIsSubmitting(false);
-        return;
-      }
-      if (!formData.length || formData.length < totalItemLength) {
-        showCenterError(`Chiều dài kiện hàng (${formData.length || 0}cm) phải lớn hơn hoặc bằng tổng chiều dài sản phẩm (${totalItemLength}cm)`, 'Lỗi');
-        setIsSubmitting(false);
-        return;
-      }
-      if (!formData.width || formData.width < totalItemWidth) {
-        showCenterError(`Chiều rộng kiện hàng (${formData.width || 0}cm) phải lớn hơn hoặc bằng tổng chiều rộng sản phẩm (${totalItemWidth}cm)`, 'Lỗi');
-        setIsSubmitting(false);
-        return;
-      }
-      if (!formData.height || formData.height < totalItemHeight) {
-        showCenterError(`Chiều cao kiện hàng (${formData.height || 0}cm) phải lớn hơn hoặc bằng tổng chiều cao sản phẩm (${totalItemHeight}cm)`, 'Lỗi');
         setIsSubmitting(false);
         return;
       }
@@ -1661,10 +1804,57 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           );
         }
         
+        // Update order status to GHN_CREATED after successful GHN order creation
+        try {
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📤 [GHN TRANSFER MODAL] API REQUEST - PATCH Order Status');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('Endpoint: PATCH /api/v1/stores/{storeId}/orders/{orderId}/status');
+          console.log('Request Attributes:');
+          console.log('  - Method: PATCH');
+          console.log('  - orderId:', orderId);
+          console.log('  - status: GHN_CREATED');
+          console.log('  - Headers: { Authorization: "Bearer ...", Accept: "*/*", Content-Type: "application/json" }');
+          console.log('Request Body:');
+          console.log('  { "status": "GHN_CREATED" }');
+          console.log('═══════════════════════════════════════════════════════════════');
+          
+          console.log('🔄 Updating order status to GHN_CREATED...');
+          const statusUpdateResponse = await StoreOrderService.updateOrderStatus(orderId, 'GHN_CREATED');
+          
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📥 [GHN TRANSFER MODAL] API RESPONSE - PATCH Order Status');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('Response Status: Success');
+          console.log('Response Attributes:');
+          console.log('  - id:', statusUpdateResponse.id);
+          console.log('  - storeId:', statusUpdateResponse.storeId);
+          console.log('  - status:', statusUpdateResponse.status);
+          console.log('  - createdAt:', statusUpdateResponse.createdAt);
+          console.log('Response Body (Full):');
+          console.log(JSON.stringify(statusUpdateResponse, null, 2));
+          console.log('═══════════════════════════════════════════════════════════════');
+          
+          console.log('✅ Order status updated to GHN_CREATED');
+        } catch (error: any) {
+          console.error('═══════════════════════════════════════════════════════════════');
+          console.error('❌ [GHN TRANSFER MODAL] API ERROR - PATCH Order Status');
+          console.error('═══════════════════════════════════════════════════════════════');
+          console.error('Error:', error);
+          console.error('Error Message:', error?.message);
+          console.error('Error Status:', error?.status);
+          console.error('Error Data:', error?.data);
+          console.error('Error Stack:', error?.stack);
+          console.error('═══════════════════════════════════════════════════════════════');
+          console.error('❌ Error updating order status:', error);
+          // Don't throw error - just log it, as the main GHN order creation was successful
+          console.warn('⚠️ GHN order created but order status update failed. Backend may handle this automatically.');
+        }
+        
         const deliveryDate = new Date(expected_delivery_time).toLocaleString('vi-VN');
         
         showCenterSuccess(
-          `Tạo đơn hàng GHN thành công!\n\nMã đơn: ${order_code}\nThời gian giao dự kiến: ${deliveryDate}\nTổng phí: ${total_fee.toLocaleString('vi-VN')} VND`,
+          `Tạo đơn hàng GHN thành công!\n\nMã đơn: ${order_code}\nThời gian giao dự kiến: ${deliveryDate}\nTổng phí: ${total_fee.toLocaleString('vi-VN')} VND\n\nĐơn hàng đã được chuyển sang trạng thái "Đã chuyển nhượng GHN".`,
           'Thành công',
           5000
         );
@@ -2362,10 +2552,60 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
             {/* Package Information */}
             <div className="border rounded-lg p-4 bg-gray-50">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Thông tin kiện hàng</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">Thông tin kiện hàng</h3>
+                {packingValidation && (
+                  <div className="flex items-center gap-2">
+                    {packingValidation.canPack ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded">
+                        <Check className="w-3 h-3" />
+                        {packingValidation.reason}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded">
+                        <AlertCircle className="w-3 h-3" />
+                        {packingValidation.reason}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {packingValidation && !packingValidation.canPack && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-red-700 mb-1">Không thể đóng chung 1 kiện</p>
+                      <p className="text-xs text-red-600">{packingValidation.reason}</p>
+                      {packingValidation.calculatedDimensions && (
+                        <div className="mt-2 text-xs text-red-600">
+                          <p>Kích thước tính toán:</p>
+                          <ul className="list-disc list-inside ml-2 mt-1 space-y-0.5">
+                            <li>Dài: {packingValidation.calculatedDimensions.length}cm</li>
+                            <li>Rộng: {packingValidation.calculatedDimensions.width}cm</li>
+                            <li>Cao: {packingValidation.calculatedDimensions.height}cm</li>
+                            <li>Cạnh dài nhất: {packingValidation.calculatedDimensions.maxEdge}cm (giới hạn: {MAX_BOX_EDGE}cm)</li>
+                            <li>Tổng cân: {packingValidation.calculatedDimensions.weight.toLocaleString('vi-VN')}g (giới hạn: {MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g)</li>
+                            <li>Tổng thể tích: {packingValidation.calculatedDimensions.volume.toLocaleString('vi-VN')} cm³ (giới hạn: {MAX_BOX_VOLUME.toLocaleString('vi-VN')} cm³)</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Trọng lượng (gram) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Trọng lượng (gram) *
+                    {packingValidation?.calculatedDimensions && (
+                      <span className="text-gray-500 ml-1">
+                        (Tự động: {packingValidation.calculatedDimensions.weight.toLocaleString('vi-VN')}g)
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     value={formData.weight || ''}
@@ -2382,12 +2622,25 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     }}
                     placeholder="≤ 100.000g"
                     max={100000}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                      packingValidation && !packingValidation.canPack
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-orange-500'
+                    }`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 100.000 gram (100 kg)</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Tối đa 100.000 gram (100 kg) • Giới hạn đóng kiện: {MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g
+                  </p>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Chiều dài (cm) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Chiều dài (cm) *
+                    {packingValidation?.calculatedDimensions && (
+                      <span className="text-gray-500 ml-1">
+                        (Tự động: {packingValidation.calculatedDimensions.length}cm)
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     value={formData.length || ''}
@@ -2399,12 +2652,23 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     }}
                     placeholder="≤ 150cm"
                     max={150}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                      packingValidation && !packingValidation.canPack
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-orange-500'
+                    }`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm • Giới hạn đóng kiện: {MAX_BOX_EDGE}cm (cạnh dài nhất)</p>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Chiều rộng (cm) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Chiều rộng (cm) *
+                    {packingValidation?.calculatedDimensions && (
+                      <span className="text-gray-500 ml-1">
+                        (Tự động: {packingValidation.calculatedDimensions.width}cm)
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     value={formData.width || ''}
@@ -2416,12 +2680,23 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     }}
                     placeholder="≤ 150cm"
                     max={150}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                      packingValidation && !packingValidation.canPack
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-orange-500'
+                    }`}
                   />
                   <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Chiều cao (cm) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Chiều cao (cm) *
+                    {packingValidation?.calculatedDimensions && (
+                      <span className="text-gray-500 ml-1">
+                        (Tự động: {packingValidation.calculatedDimensions.height}cm)
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     value={formData.height || ''}
@@ -2433,7 +2708,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     }}
                     placeholder="≤ 150cm"
                     max={150}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                      packingValidation && !packingValidation.canPack
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-orange-500'
+                    }`}
                   />
                   <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
                 </div>
@@ -2508,7 +2787,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || (packingValidation !== null && !packingValidation.canPack)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (

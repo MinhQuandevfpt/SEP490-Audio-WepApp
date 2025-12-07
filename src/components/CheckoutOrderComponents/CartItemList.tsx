@@ -22,8 +22,11 @@ interface Props {
   onRemoveStoreWideVoucher?: (storeId: string) => void;
 }
 
-const formatVnd = (value: number) =>
-  new Intl.NumberFormat('vi-VN').format(value) + 'đ';
+const formatVnd = (value: number) => {
+  // Làm tròn giá trị trước khi format để tránh số thập phân
+  const roundedValue = Math.round(value);
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(roundedValue) + 'đ';
+};
 
 const CartItemList: React.FC<Props> = ({ 
   groups, 

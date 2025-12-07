@@ -21,7 +21,11 @@ const OrderSummaryCard: React.FC<Props> = ({
   onSubmit,
   selectedVoucherCodes = [],
 }) => {
-  const fmt = (v: number) => new Intl.NumberFormat('vi-VN').format(v) + 'đ';
+  const fmt = (v: number) => {
+    // Làm tròn giá trị trước khi format để tránh số thập phân
+    const roundedValue = Math.round(v);
+    return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(roundedValue) + 'đ';
+  };
 
   // Tổng trước khi áp dụng mọi loại giảm giá (giống Cart/HomePage)
   const originalTotal = subtotal + shippingFee;

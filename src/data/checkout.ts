@@ -79,10 +79,11 @@ export const dummyCartItems: CheckoutCartItem[] = [
 ];
 
 export function calcCheckoutSummary(items: CheckoutCartItem[], shippingFee: number): CheckoutSummary {
-  const subtotal = items.reduce((sum, it) => sum + it.price * it.quantity, 0);
-  const original = items.reduce((sum, it) => sum + (it.originalPrice ?? it.price) * it.quantity, 0);
-  const discount = Math.max(0, original - subtotal);
-  const total = subtotal + shippingFee;
+  // Làm tròn tất cả giá trị tiền tệ để tránh số thập phân
+  const subtotal = Math.round(items.reduce((sum, it) => sum + it.price * it.quantity, 0));
+  const original = Math.round(items.reduce((sum, it) => sum + (it.originalPrice ?? it.price) * it.quantity, 0));
+  const discount = Math.round(Math.max(0, original - subtotal));
+  const total = Math.round(subtotal + shippingFee);
   return { subtotal, discount, shippingFee, total };
 }
 

@@ -51,6 +51,50 @@ class SimpleHttpClient {
 
     return await response.json();
   }
+
+  async post<T>(endpoint: string, body: any): Promise<T> {
+    // Check if endpoint is already a full URL
+    const url = endpoint.startsWith('http://') || endpoint.startsWith('https://') 
+      ? endpoint 
+      : `${this.baseURL}${endpoint}`;
+    const startTime = performance.now();
+    
+    // Get token from localStorage for authenticated requests
+    const token = localStorage.getItem('CUSTOMER_token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': '*/*',
+    };
+    
+    // Add Authorization header if token exists
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    console.log(`🚀 API Call started: ${url}`, { body });
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+    console.log(`⏱️ API Call completed in ${duration.toFixed(2)}ms: ${url}`);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw {
+        status: response.status,
+        statusText: response.statusText,
+        message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+        data: errorData,
+      };
+    }
+
+    return await response.json();
+  }
 }
 
 const httpClient = new SimpleHttpClient();
@@ -467,6 +511,70 @@ export class ProductListService {
       return response;
     } catch (error) {
       console.error('❌ Error fetching product detail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy thông tin campaign preview cho sản phẩm
+   * POST /api/products/{productId}/campaign-preview
+   */
+  static async getCampaignPreview(
+    productId: string,
+    params: {
+      customerId: string;
+      variantId?: string | null;
+      quantity: number;
+    }
+  ): Promise<{
+    productId: string;
+    variantId?: string | null;
+    quantity: number;
+    baseUnitPrice: number;
+    campaignUnitPrice: number | null;
+    effectiveUnitPrice: number;
+    lineTotal: number;
+    inCampaign: boolean;
+    campaignUsageExceeded: boolean;
+    campaignRemaining: number | null;
+    campaignName: string | null;
+    campaignCode: string | null;
+  }> {
+    try {
+      const url = `${this.BASE_URL}/${productId}/campaign-preview`;
+      
+      console.log(`🔍 Fetching campaign preview: ${url}`, params);
+      
+      const requestBody: any = {
+        customerId: params.customerId,
+        quantity: params.quantity,
+      };
+      
+      // Only include variantId if it exists
+      if (params.variantId) {
+        requestBody.variantId = params.variantId;
+      }
+      
+      const response = await httpClient.post<{
+        productId: string;
+        variantId?: string | null;
+        quantity: number;
+        baseUnitPrice: number;
+        campaignUnitPrice: number | null;
+        effectiveUnitPrice: number;
+        lineTotal: number;
+        inCampaign: boolean;
+        campaignUsageExceeded: boolean;
+        campaignRemaining: number | null;
+        campaignName: string | null;
+        campaignCode: string | null;
+      }>(url, requestBody);
+      
+      console.log('✅ Campaign preview loaded:', response);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching campaign preview:', error);
       throw error;
     }
   }

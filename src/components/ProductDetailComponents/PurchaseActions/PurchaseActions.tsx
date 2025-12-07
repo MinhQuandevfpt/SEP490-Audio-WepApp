@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, CreditCard } from 'lucide-react';
+import { ShoppingCart, CreditCard, AlertCircle } from 'lucide-react';
 import { CustomerCartService } from '../../../services/customer/CartService';
+import { ProductListService } from '../../../services/customer/ProductListService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 
 interface PurchaseActionsProps {
@@ -34,6 +35,20 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
   const [qty, setQty] = React.useState(1);
   const [color, setColor] = React.useState(colors?.[0]?.name ?? '');
   const [isAdding, setIsAdding] = React.useState(false);
+  
+  // Campaign preview state
+  const [campaignPreview, setCampaignPreview] = React.useState<{
+    baseUnitPrice: number;
+    campaignUnitPrice: number | null;
+    effectiveUnitPrice: number;
+    lineTotal: number;
+    inCampaign: boolean;
+    campaignUsageExceeded: boolean;
+    campaignRemaining: number | null;
+    campaignName: string | null;
+    campaignCode: string | null;
+  } | null>(null);
+  const [debounceTimer, setDebounceTimer] = React.useState<ReturnType<typeof setTimeout> | null>(null);
 
   // Calculate actual stock based on variant selection
   const actualStock = selectedVariant ? selectedVariant.variantStock : totalStock;
@@ -47,6 +62,89 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
     const customerId = localStorage.getItem('customerId');
     return !!customerId;
   };
+
+  // Fetch campaign preview (silently in background)
+  const fetchCampaignPreview = React.useCallback(async (quantity: number, variantId?: string | null) => {
+    if (!isLoggedIn()) {
+      setCampaignPreview(null);
+      return;
+    }
+
+    try {
+      // Don't set loading state - run silently in background
+      const customerId = localStorage.getItem('customerId');
+      if (!customerId) {
+        setCampaignPreview(null);
+        return;
+      }
+
+      const preview = await ProductListService.getCampaignPreview(productId, {
+        customerId,
+        variantId: variantId || null,
+        quantity,
+      });
+
+      // Only set campaignPreview if there's an issue to display
+      // Issues: campaignUsageExceeded OR (inCampaign AND quantity > campaignRemaining)
+      const hasIssue = preview.campaignUsageExceeded || 
+        (preview.inCampaign && 
+         preview.campaignRemaining !== null && 
+         preview.campaignRemaining > 0 && 
+         quantity > preview.campaignRemaining);
+      
+      if (hasIssue) {
+        setCampaignPreview(preview);
+      } else {
+        // No issue - don't show anything
+        setCampaignPreview(null);
+      }
+    } catch (error: any) {
+      console.error('Error fetching campaign preview:', error);
+      // Don't show error to user, just use base price
+      setCampaignPreview(null);
+    }
+    // No finally block - we don't use loadingCampaign anymore
+  }, [productId, isLoggedIn]);
+
+  // Fetch campaign preview on mount (quantity = 1)
+  React.useEffect(() => {
+    if (isLoggedIn()) {
+      fetchCampaignPreview(1, selectedVariant?.variantId);
+    }
+  }, []); // Only on mount
+
+  // Fetch campaign preview when variant changes
+  React.useEffect(() => {
+    if (isLoggedIn()) {
+      fetchCampaignPreview(qty, selectedVariant?.variantId);
+    }
+  }, [selectedVariant?.variantId]);
+
+  // Fetch campaign preview when quantity changes (with debounce)
+  React.useEffect(() => {
+    if (!isLoggedIn()) {
+      return;
+    }
+
+    // Clear previous timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    // Set new timer
+    const timer = setTimeout(() => {
+      fetchCampaignPreview(qty, selectedVariant?.variantId);
+    }, 250); // 250ms debounce
+
+    setDebounceTimer(timer);
+
+    // Cleanup
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [qty]);
 
   const handleAddToCart = async () => {
     // Check login first
@@ -315,6 +413,43 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
           <span className="text-xs text-red-500">(Hết hàng)</span>
         )}
       </div>
+
+      {/* Campaign Warnings - Only show when there are issues with quantity */}
+      {campaignPreview && (
+        <div className="space-y-2">
+          {/* Campaign usage exceeded warning */}
+          {campaignPreview.campaignUsageExceeded && (
+            <div className="flex items-start gap-2 text-sm text-orange-700 bg-orange-100 p-2 rounded border border-orange-300">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                {campaignPreview.campaignRemaining === 0 ? (
+                  <span>Bạn đã dùng hết số lượng khuyến mãi cho sản phẩm này.</span>
+                ) : (
+                  <span>
+                    Bạn chỉ được giảm tối đa {campaignPreview.campaignRemaining} sản phẩm cho chiến dịch này. 
+                    Nếu mua {qty} sản phẩm trong cùng đơn hàng, giá sẽ quay về giá gốc trong đơn hàng.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Quantity exceeds campaign remaining warning */}
+          {campaignPreview.inCampaign && 
+           !campaignPreview.campaignUsageExceeded && 
+           campaignPreview.campaignRemaining !== null &&
+           campaignPreview.campaignRemaining > 0 &&
+           qty > campaignPreview.campaignRemaining && (
+            <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="font-medium">Gợi ý:</span> Bạn nên đặt tối đa{' '}
+                <span className="font-bold text-amber-800">{campaignPreview.campaignRemaining}</span> cái để được hưởng giá khuyến mãi.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-3 mt-6">

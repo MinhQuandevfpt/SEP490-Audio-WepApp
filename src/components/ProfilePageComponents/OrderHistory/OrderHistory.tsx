@@ -197,16 +197,16 @@ const OrderHistory: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <Text type="secondary">Tạm tính:</Text>
-                    <Text>{formatCurrency(orderSummary.totalAmount - orderSummary.discountTotal)}</Text>
+                    <Text>{formatCurrency(Math.round(orderSummary.totalAmount - orderSummary.discountTotal))}</Text>
                   </div>
                   <div className="flex justify-between text-sm">
                     <Text type="secondary">Phí vận chuyển:</Text>
-                    <Text>{formatCurrency(orderSummary.shippingFeeTotal)}</Text>
+                    <Text>{formatCurrency(Math.round(orderSummary.shippingFeeTotal))}</Text>
                   </div>
                   <div className="flex justify-between text-sm pt-2 border-t border-gray-100">
                     <Text className="font-semibold text-gray-900">Tổng cộng:</Text>
                     <Text className="font-semibold text-orange-600 text-base">
-                      {formatCurrency(orderSummary.grandTotal)}
+                      {formatCurrency(Math.round(orderSummary.grandTotal))}
                     </Text>
                   </div>
                 </div>

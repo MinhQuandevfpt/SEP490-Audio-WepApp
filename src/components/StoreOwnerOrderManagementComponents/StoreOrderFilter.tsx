@@ -14,6 +14,7 @@ const STATUS_OPTIONS: Array<{ value: StoreOrderStatus | 'ALL'; label: string }> 
   { value: 'PENDING', label: 'Chờ xử lý' },
   { value: 'CONFIRMED', label: 'Đã xác nhận' },
   { value: 'AWAITING_SHIPMENT', label: 'Chờ lấy hàng' },
+  { value: 'GHN_CREATED', label: 'Đã chuyển nhượng GHN' },
   { value: 'SHIPPING', label: 'Đang giao hàng' },
   { value: 'COMPLETED', label: 'Đã giao hàng' },
   { value: 'CANCELLED', label: 'Đã hủy' },

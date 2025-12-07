@@ -362,21 +362,21 @@ const ShoppingCart: React.FC = () => {
 
   // Calculate subtotal dựa trên giá gốc (để hiển thị giống HomePage: giá gốc + giảm giá)
   const subtotalBeforePlatformDiscount = useMemo(() => {
-    return items.reduce((sum, item) => {
+    return Math.round(items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const original = item.originalPrice ?? item.price;
       return sum + original * item.quantity;
-    }, 0);
+    }, 0));
   }, [items]);
   
   // Tổng giảm giá nền tảng = (giá gốc - giá sau giảm) * quantity
   const totalPlatformDiscount = useMemo(() => {
-    return items.reduce((sum, item) => {
+    return Math.round(items.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const original = item.originalPrice ?? item.price;
       const discountPerUnit = Math.max(0, original - item.price);
       return sum + discountPerUnit * item.quantity;
-    }, 0);
+    }, 0));
   }, [items]);
 
   // Store voucher discount
@@ -397,7 +397,8 @@ const ShoppingCart: React.FC = () => {
       totalPlatformDiscount -
       voucherDiscount +
       shippingFee;
-    return Math.max(0, total);
+    // Làm tròn để tránh số thập phân
+    return Math.max(0, Math.round(total));
   }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
 
   // Calculate discount amount for a voucher

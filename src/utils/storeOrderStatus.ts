@@ -32,6 +32,11 @@ export const STORE_ORDER_STATUS_CONFIG: Record<StoreOrderStatus, StatusConfig> =
     color: 'text-yellow-600',
     bgColor: 'bg-yellow-50 border-yellow-200',
   },
+  GHN_CREATED: {
+    label: 'Đã chuyển nhượng GHN',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50 border-blue-200',
+  },
   SHIPPING: {
     label: 'Đang giao hàng',
     color: 'text-purple-600',
