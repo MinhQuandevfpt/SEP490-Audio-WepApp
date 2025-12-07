@@ -39,7 +39,7 @@ const ShoppingCart: React.FC = () => {
 
   // Map API cart items to UI items - sử dụng trực tiếp từ backend response
   // Backend đã xử lý platform campaign, chỉ cần map đúng giá
-  const mapApiItemToUI = (apiItem: ApiCartItem): UICartItem => {
+  const mapApiItemToUI = (apiItem: ApiCartItem, preserveSelection: boolean = false, currentItems: UICartItem[] = []): UICartItem => {
     // Backend trả về:
     // - baseUnitPrice: giá gốc (chưa campaign)
     // - platformCampaignPrice: giá sau campaign (nếu có)
@@ -59,6 +59,15 @@ const ShoppingCart: React.FC = () => {
     // originalPrice: dùng baseUnitPrice nếu có, ngược lại dùng unitPrice
     const originalPrice = apiItem.baseUnitPrice ?? apiItem.unitPrice;
     
+    // Preserve selection state if requested
+    let isSelected: boolean = true; // Default to true for initial load
+    if (preserveSelection) {
+      const existingItem = currentItems.find(item => item.id === apiItem.cartItemId);
+      if (existingItem) {
+        isSelected = existingItem.isSelected ?? true;
+      }
+    }
+    
     return {
       id: apiItem.cartItemId,
       productId: apiItem.refId, // refId is productId for PRODUCT, comboId for COMBO
@@ -68,7 +77,7 @@ const ShoppingCart: React.FC = () => {
       price: finalPrice, // Giá sau khi áp dụng platform campaign (nếu có)
       originalPrice: originalPrice, // Giá gốc để hiển thị
       quantity: apiItem.quantity,
-      isSelected: true,
+      isSelected: isSelected,
       variant: apiItem.variantOptionValue || undefined,
       variantId: apiItem.variantId || null, // Lưu variantId từ API
       type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
@@ -115,8 +124,9 @@ const ShoppingCart: React.FC = () => {
     console.log('═══════════════════════════════════════════════════════════════');
 
     // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
+    // Initial load: don't preserve selection (default to all selected)
     const apiItems = cart.items as unknown as ApiCartItem[];
-    const mappedItems = apiItems.map(mapApiItemToUI);
+    const mappedItems = apiItems.map(apiItem => mapApiItemToUI(apiItem, false, []));
     setItems(mappedItems);
   }, [cart]);
 
@@ -481,9 +491,10 @@ const ShoppingCart: React.FC = () => {
   };
 
   // Apply cart response to UI - backend đã xử lý platform campaign
-  const applyCartResponseToUI = (respItems: ApiCartItem[]) => {
+  const applyCartResponseToUI = (respItems: ApiCartItem[], preserveSelection: boolean = false) => {
     // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
-    const mappedItems = respItems.map(mapApiItemToUI);
+    // Preserve selection state when updating quantity to avoid auto-selecting all items
+    const mappedItems = respItems.map(apiItem => mapApiItemToUI(apiItem, preserveSelection, items));
     setItems(mappedItems);
     window.dispatchEvent(new Event('cartUpdated'));
   };
@@ -626,6 +637,42 @@ const ShoppingCart: React.FC = () => {
         return;
       }
 
+      // Optimization: Skip API call if item is not in campaign
+      // If item has no campaign or campaign is exhausted, price will always be base price
+      // No need to check API regardless of quantity (1, 2, 3, 4, 5...)
+      const apiItem = cart?.items?.find(item => item.cartItemId === cartItemId) as ApiCartItem | undefined;
+      const isNotInCampaign = !apiItem?.inPlatformCampaign || apiItem?.campaignUsageExceeded;
+      const currentQuantity = targetItem.quantity;
+      
+      // Skip API call if item is not in campaign (no campaign or campaign exhausted)
+      // This applies to any quantity change (1→2, 2→3, 3→4, etc.) since price will always be base price
+      if (isNotInCampaign) {
+        console.log('⚡ [UPDATE QUANTITY] Optimization: Item not in campaign, skipping API call');
+        console.log('   Item:', targetItem.name);
+        console.log('   Current quantity:', currentQuantity);
+        console.log('   New quantity:', clamped);
+        console.log('   Price will remain base price:', targetItem.originalPrice);
+        console.log('   Reason: Item has no campaign or campaign is exhausted');
+        
+        // Update quantity locally without API call
+        const updatedItems = items.map(item => {
+          if (item.id === cartItemId) {
+            return {
+              ...item,
+              quantity: clamped,
+              // Price remains the same (base price) since no campaign
+              price: item.originalPrice ?? item.price,
+            };
+          }
+          return item;
+        });
+        
+        setItems(updatedItems);
+        window.dispatchEvent(new Event('cartUpdated'));
+        console.log('✅ [UPDATE QUANTITY] Quantity updated locally (no API call)');
+        return;
+      }
+
       console.log('🔍 [UPDATE QUANTITY] Building vouchers and service type IDs...');
 
       // Build vouchers and service type IDs
@@ -667,8 +714,8 @@ const ShoppingCart: React.FC = () => {
       });
       console.log('═══════════════════════════════════════════════════════════════');
 
-      // Apply response to UI
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      // Apply response to UI - preserve selection state to avoid auto-selecting all items
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[], true);
       
       // Check for campaign usage exceeded warnings
       const updatedItem = resp.items.find(item => item.cartItemId === cartItemId);
@@ -703,7 +750,8 @@ const ShoppingCart: React.FC = () => {
   const removeItem = async (id: string) => {
     try {
       const resp = await CustomerCartService.deleteItems([id]);
-      applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      // Preserve selection state when removing item
+      applyCartResponseToUI(resp.items as unknown as ApiCartItem[], true);
       showCenterSuccess('Đã xóa sản phẩm khỏi giỏ hàng', 'Thành công');
     } catch (error: any) {
       const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';
