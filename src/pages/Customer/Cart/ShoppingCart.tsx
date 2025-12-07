@@ -487,12 +487,201 @@ const ShoppingCart: React.FC = () => {
     window.dispatchEvent(new Event('cartUpdated'));
   };
 
+  // Build store vouchers from appliedStoreVouchers
+  const buildStoreVouchers = (): Array<{ storeId: string; codes: string[] }> | null => {
+    const storeVouchersMap = new Map<string, string[]>();
+    
+    Object.values(appliedStoreVouchers).forEach(voucher => {
+      if (!voucher.storeId) return;
+      if (!storeVouchersMap.has(voucher.storeId)) {
+        storeVouchersMap.set(voucher.storeId, []);
+      }
+      storeVouchersMap.get(voucher.storeId)!.push(voucher.code);
+    });
+    
+    const result = Array.from(storeVouchersMap.entries()).map(([storeId, codes]) => ({
+      storeId,
+      codes,
+    }));
+    
+    return result.length > 0 ? result : null;
+  };
+
+  // Build platform vouchers from cart items
+  // Load platform vouchers for the item being updated
+  const buildPlatformVouchers = async (
+    targetItem: UICartItem,
+    newQuantity: number
+  ): Promise<Array<{ campaignProductId: string; quantity: number }> | null> => {
+    try {
+      // Check if item is in platform campaign (from cart response)
+      const apiItem = cart?.items?.find(item => item.cartItemId === targetItem.id) as ApiCartItem | undefined;
+      if (!apiItem?.inPlatformCampaign || apiItem.campaignUsageExceeded) {
+        console.log('🔍 [PLATFORM VOUCHER] Item not in platform campaign or usage exceeded:', {
+          cartItemId: targetItem.id,
+          inPlatformCampaign: apiItem?.inPlatformCampaign,
+          campaignUsageExceeded: apiItem?.campaignUsageExceeded,
+        });
+        return null;
+      }
+
+      console.log('🔍 [PLATFORM VOUCHER] Loading platform vouchers for product:', targetItem.productId);
+
+      // Load platform vouchers for this product
+      const voucherRes = await ProductVoucherService.getProductVouchers(targetItem.productId, 'ALL', null);
+      const platformCampaigns = voucherRes.data?.vouchers?.platform || [];
+      
+      let campaignProductId: string | null = null;
+      
+      // Try to find active platform voucher first
+      for (const campaign of platformCampaigns) {
+        if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+          const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+          if (activeVoucher && activeVoucher.platformVoucherId) {
+            campaignProductId = activeVoucher.platformVoucherId;
+            console.log('✅ [PLATFORM VOUCHER] Found active platform voucher:', campaignProductId);
+            break;
+          }
+        }
+      }
+      
+      // If no active voucher found, try to get from any voucher (for items already in campaign)
+      if (!campaignProductId) {
+        for (const campaign of platformCampaigns) {
+          if (campaign.vouchers && campaign.vouchers.length > 0) {
+            const voucher = campaign.vouchers[0];
+            if (voucher?.platformVoucherId) {
+              campaignProductId = voucher.platformVoucherId;
+              console.log('⚠️ [PLATFORM VOUCHER] Using non-active platform voucher:', campaignProductId);
+              break;
+            }
+          }
+        }
+      }
+      
+      if (campaignProductId) {
+        const result = [{
+          campaignProductId,
+          quantity: newQuantity,
+        }];
+        console.log('✅ [PLATFORM VOUCHER] Built platform vouchers:', result);
+        return result;
+      }
+      
+      console.log('⚠️ [PLATFORM VOUCHER] No platform voucher found for product:', targetItem.productId);
+      return null;
+    } catch (error) {
+      console.error('❌ [PLATFORM VOUCHER] Failed to build platform vouchers:', error);
+      return null;
+    }
+  };
+
+  // Build service type IDs for all stores in cart
+  const buildServiceTypeIds = (): Record<string, number> | null => {
+    const result: Record<string, number> = {};
+    const storeIds = new Set<string>();
+    
+    items.forEach(item => {
+      const product = productCache.get(item.productId);
+      if (product?.storeId) {
+        storeIds.add(product.storeId);
+      }
+    });
+    
+    storeIds.forEach(storeId => {
+      // Calculate total weight for this store
+      let totalWeight = 0;
+      items.forEach(item => {
+        const product = productCache.get(item.productId);
+        if (product && product.storeId === storeId) {
+          const weightKg = product.weight && product.weight > 0 ? product.weight : 0.5;
+          totalWeight += weightKg * 1000 * item.quantity;
+        }
+      });
+      
+      // Service type: ≤7500g → 2, >7500g → 5
+      result[storeId] = totalWeight <= 7500 ? 2 : 5;
+    });
+    
+    return Object.keys(result).length > 0 ? result : null;
+  };
+
   const updateQuantity = async (cartItemId: string, nextQty: number) => {
     try {
       const clamped = Math.max(1, Math.min(nextQty, 99));
-      const resp = await CustomerCartService.updateItemQuantity(cartItemId, clamped);
+      
+      console.log('🛒 [UPDATE QUANTITY] Starting quantity update:', {
+        cartItemId,
+        oldQuantity: items.find(item => item.id === cartItemId)?.quantity,
+        newQuantity: nextQty,
+        clampedQuantity: clamped,
+      });
+      
+      // Find the item being updated
+      const targetItem = items.find(item => item.id === cartItemId);
+      if (!targetItem) {
+        console.error('❌ [UPDATE QUANTITY] Item not found:', cartItemId);
+        showCenterError('Không tìm thấy sản phẩm trong giỏ hàng.', 'Lỗi');
+        return;
+      }
+
+      console.log('🔍 [UPDATE QUANTITY] Building vouchers and service type IDs...');
+
+      // Build vouchers and service type IDs
+      const storeVouchers = buildStoreVouchers();
+      console.log('🏪 [UPDATE QUANTITY] Built store vouchers:', storeVouchers);
+      
+      const platformVouchers = await buildPlatformVouchers(targetItem, clamped);
+      console.log('🎁 [UPDATE QUANTITY] Built platform vouchers:', platformVouchers);
+      
+      const serviceTypeIds = buildServiceTypeIds();
+      console.log('📦 [UPDATE QUANTITY] Built service type IDs:', serviceTypeIds);
+
+      // Build request payload
+      const requestPayload = {
+        cartItemId,
+        quantity: clamped,
+        storeVouchers: storeVouchers || null,
+        platformVouchers: platformVouchers || null,
+        serviceTypeIds: serviceTypeIds || null,
+      };
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('📤 [UPDATE QUANTITY] Final Request Payload:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(JSON.stringify(requestPayload, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Call new API with vouchers
+      const resp = await CustomerCartService.updateQuantityWithVouchers(requestPayload);
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('✅ [UPDATE QUANTITY] Response received:');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Cart Summary:', {
+        subtotal: resp.subtotal,
+        discountTotal: resp.discountTotal,
+        grandTotal: resp.grandTotal,
+        itemCount: resp.items.length,
+      });
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      // Apply response to UI
       applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
+      
+      // Check for campaign usage exceeded warnings
+      const updatedItem = resp.items.find(item => item.cartItemId === cartItemId);
+      if (updatedItem?.campaignUsageExceeded) {
+        console.warn('⚠️ [UPDATE QUANTITY] Campaign usage exceeded for item:', updatedItem.name);
+        showCenterError(
+          `Sản phẩm "${updatedItem.name}" đã vượt quá giới hạn sử dụng chiến dịch. Giá đã được cập nhật về giá gốc.`,
+          'Cảnh báo'
+        );
+      } else {
+        console.log('✅ [UPDATE QUANTITY] Quantity updated successfully');
+      }
     } catch (error: any) {
+      console.error('❌ [UPDATE QUANTITY] Error:', error);
       const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
       showCenterError(msg, 'Lỗi');
     }
