@@ -273,14 +273,88 @@ export class CustomerCartService {
       const customerId = this.getCustomerId();
       console.log('💳 Processing PayOS checkout:', { customerId, request });
 
-      const response = await HttpInterceptor.post<CheckoutPayOSResponse>(
-        `/api/v1/payos/checkout?customerId=${customerId}`,
-        request,
-        { userType: 'customer' }
-      );
+      // Use localhost for testing PayOS checkout
+      // Force localhost for testing - can be overridden by env var
+      // const API_BASE_URL = 'http://localhost:8080'; case local run project
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+      const endpoint = `${API_BASE_URL}/api/v1/payos/checkout?customerId=${customerId}`;
+      
+      // Clean request body: remove undefined/null/empty fields and ensure proper format
+      // Backend signature validation requires exact format - don't send null or empty arrays/objects
+      const cleanRequest: any = {
+        addressId: request.addressId,
+        description: request.description,
+        items: request.items.map(item => {
+          const cleanItem: any = {
+            type: item.type,
+            quantity: item.quantity,
+          };
+          // Only include one of variantId, productId, or comboId (not all)
+          if (item.variantId) {
+            cleanItem.variantId = item.variantId;
+          } else if (item.productId) {
+            cleanItem.productId = item.productId;
+          } else if (item.comboId) {
+            cleanItem.comboId = item.comboId;
+          }
+          return cleanItem;
+        }),
+        returnUrl: request.returnUrl,
+        cancelUrl: request.cancelUrl,
+      };
+      
+      // Add optional fields only if they have valid values (not null, not undefined, not empty)
+      if (request.message && request.message.trim()) {
+        cleanRequest.message = request.message.trim();
+      }
+      
+      // Only include storeVouchers if it's a non-empty array
+      if (request.storeVouchers && Array.isArray(request.storeVouchers) && request.storeVouchers.length > 0) {
+        cleanRequest.storeVouchers = request.storeVouchers;
+      }
+      
+      // Only include platformVouchers if it's a non-empty array (not null, not empty)
+      if (request.platformVouchers && Array.isArray(request.platformVouchers) && request.platformVouchers.length > 0) {
+        cleanRequest.platformVouchers = request.platformVouchers;
+      }
+      
+      // Only include serviceTypeIds if it's a non-empty object
+      if (request.serviceTypeIds && typeof request.serviceTypeIds === 'object' && Object.keys(request.serviceTypeIds).length > 0) {
+        cleanRequest.serviceTypeIds = request.serviceTypeIds;
+      }
+      
+      console.log('🌐 [PAYOS] Using endpoint:', endpoint);
+      console.log('📦 [PAYOS] Original request:', JSON.stringify(request, null, 2));
+      console.log('📦 [PAYOS] Clean request body:', JSON.stringify(cleanRequest, null, 2));
+      console.log('📦 [PAYOS] Request body keys:', Object.keys(cleanRequest));
+      console.log('📦 [PAYOS] Items count:', cleanRequest.items?.length);
+      console.log('📦 [PAYOS] Has storeVouchers:', !!cleanRequest.storeVouchers);
+      console.log('📦 [PAYOS] Has platformVouchers:', !!cleanRequest.platformVouchers);
+      console.log('📦 [PAYOS] Has serviceTypeIds:', !!cleanRequest.serviceTypeIds);
 
-      console.log('✅ PayOS checkout successful:', response);
-      return response;
+      // Use fetch directly to ensure we use the correct URL
+      // HttpInterceptor might use a different base URL
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+          'Authorization': `Bearer ${localStorage.getItem('CUSTOMER_token') || ''}`,
+        },
+        body: JSON.stringify(cleanRequest),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.error('❌ [PAYOS] API Error:', errorMessage);
+        console.error('❌ [PAYOS] Error details:', errorData);
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log('✅ PayOS checkout successful:', data);
+      return data;
     } catch (error) {
       console.error('❌ Failed to checkout PayOS:', error);
       throw error;
