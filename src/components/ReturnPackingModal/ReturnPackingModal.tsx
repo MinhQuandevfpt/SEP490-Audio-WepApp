@@ -214,6 +214,16 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                   return Promise.reject(new Error('Khối lượng phải lớn hơn 0'));
                 }
                 
+                // Không được nhỏ hơn khối lượng sản phẩm
+                if (productWeight != null && productWeight > 0) {
+                  if (value < productWeight) {
+                    return Promise.reject(
+                      new Error(`Khối lượng không được nhỏ hơn ${productWeight} kg (khối lượng sản phẩm)`)
+                    );
+                  }
+                }
+                
+                // Không được vượt quá giới hạn tối đa
                 if (productWeight != null && productWeight > 0 && maxWeight) {
                   if (value > maxWeight) {
                     if (productWeight <= 5) {
@@ -234,7 +244,7 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
           ]}
         >
           <InputNumber 
-            min={0.1} 
+            min={productWeight && productWeight > 0 ? productWeight : 0.1} 
             max={maxWeight} 
             step={0.1} 
             className="w-full"
@@ -255,6 +265,16 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     return Promise.reject(new Error('Chiều dài phải lớn hơn 0'));
                   }
                   
+                  // Không được nhỏ hơn kích thước sản phẩm
+                  if (productDims) {
+                    if (value < productDims.length) {
+                      return Promise.reject(
+                        new Error(`Chiều dài không được nhỏ hơn ${productDims.length} cm (kích thước sản phẩm)`)
+                      );
+                    }
+                  }
+                  
+                  // Không được vượt quá giới hạn tối đa
                   if (productDims && maxDims && value > maxDims.length) {
                     return Promise.reject(
                       new Error(`Chiều dài không được vượt quá ${maxDims.length} cm (sản phẩm + 2 cm)`)
@@ -267,7 +287,7 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
             ]}
           >
             <InputNumber 
-              min={1} 
+              min={productDims?.length || 1} 
               max={maxDims?.length} 
               className="w-full"
               precision={1}
@@ -285,6 +305,16 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     return Promise.reject(new Error('Chiều rộng phải lớn hơn 0'));
                   }
                   
+                  // Không được nhỏ hơn kích thước sản phẩm
+                  if (productDims) {
+                    if (value < productDims.width) {
+                      return Promise.reject(
+                        new Error(`Chiều rộng không được nhỏ hơn ${productDims.width} cm (kích thước sản phẩm)`)
+                      );
+                    }
+                  }
+                  
+                  // Không được vượt quá giới hạn tối đa
                   if (productDims && maxDims && value > maxDims.width) {
                     return Promise.reject(
                       new Error(`Chiều rộng không được vượt quá ${maxDims.width} cm (sản phẩm + 2 cm)`)
@@ -297,7 +327,7 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
             ]}
           >
             <InputNumber 
-              min={1} 
+              min={productDims?.width || 1} 
               max={maxDims?.width} 
               className="w-full"
               precision={1}
@@ -315,6 +345,16 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     return Promise.reject(new Error('Chiều cao phải lớn hơn 0'));
                   }
                   
+                  // Không được nhỏ hơn kích thước sản phẩm
+                  if (productDims) {
+                    if (value < productDims.height) {
+                      return Promise.reject(
+                        new Error(`Chiều cao không được nhỏ hơn ${productDims.height} cm (kích thước sản phẩm)`)
+                      );
+                    }
+                  }
+                  
+                  // Không được vượt quá giới hạn tối đa
                   if (productDims && maxDims && value > maxDims.height) {
                     return Promise.reject(
                       new Error(`Chiều cao không được vượt quá ${maxDims.height} cm (sản phẩm + 2 cm)`)
@@ -327,7 +367,7 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
             ]}
           >
             <InputNumber 
-              min={1} 
+              min={productDims?.height || 1} 
               max={maxDims?.height} 
               className="w-full"
               precision={1}

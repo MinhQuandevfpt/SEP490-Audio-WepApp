@@ -28,9 +28,16 @@ const statusColorMap: Record<string, string> = {
   APPROVED: 'green',
   REJECTED: 'red',
   CANCELLED: 'gray',
+  CANCELED: 'gray',
   AUTO_REFUNDED: 'gray',
   SHIPPING: 'blue',
+  RECEIVED: 'cyan',
+  DISPUTE: 'orange',
+  DISPUTE_ESCALATED: 'purple',
+  DISPUTE_RESOLVED_SHOP: 'green',
+  DISPUTE_RESOLVED_CUSTOMER: 'red',
   REFUNDED: 'green',
+  RETURN_DONE: 'blue',
 };
 
 const reasonTypeLabel: Record<string, string> = {
@@ -40,21 +47,66 @@ const reasonTypeLabel: Record<string, string> = {
 
 const statusLabelMap: Record<string, string> = {
   PENDING: 'Yêu cầu mới – Chờ xử lý',
-  APPROVED: 'Đã duyệt',
-  REJECTED: 'Từ chối',
+  APPROVED: 'Đã duyệt – Chờ khách gửi hàng',
+  REJECTED: 'Từ chối hoàn trả',
   CANCELLED: 'Đã huỷ (khách không gửi hàng)',
+  CANCELED: 'Đã huỷ (khách hủy yêu cầu)',
   AUTO_REFUNDED: 'AUTO REFUND – Shop không xử lý sau khi nhận hàng',
-  SHIPPING: 'Đang hoàn trả',
+  SHIPPING: 'GHN đang vận chuyển',
+  RECEIVED: 'Shop xác nhận đã nhận đúng hàng',
+  DISPUTE: 'Đang khiếu nại',
+  DISPUTE_ESCALATED: 'Khiếu nại đã được đưa lên sàn xử lý',
+  DISPUTE_RESOLVED_SHOP: 'Khiếu nại đã được giải quyết có lợi cho shop',
+  DISPUTE_RESOLVED_CUSTOMER: 'Khiếu nại đã được giải quyết có lợi cho khách hàng',
   REFUNDED: 'Đã hoàn tiền',
+  RETURN_DONE: 'Hoàn tất quy trình trả hàng',
 };
 
 const trackingStatusLabelMap: Record<string, string> = {
+  // Status mặc định
   CREATED_WAITING_SYNC: 'Đang chờ đồng bộ từ GHN',
+  
+  // Status lấy hàng
+  READY_TO_PICK: 'Sẵn sàng lấy hàng',
   ready_to_pick: 'Sẵn sàng lấy hàng',
+  PICKING: 'Đang lấy hàng',
   picking_up: 'Đang lấy hàng',
+  picking: 'Đang lấy hàng',
+  MONEY_COLLECT_PICKING: 'Đang thu tiền khi lấy hàng',
+  money_collect_picking: 'Đang thu tiền khi lấy hàng',
+  PICKED: 'Đã lấy hàng',
+  picked: 'Đã lấy hàng',
+  
+  // Status vận chuyển
+  STORING: 'Đang lưu kho',
+  storing: 'Đang lưu kho',
+  TRANSPORTING: 'Đang vận chuyển',
+  transporting: 'Đang vận chuyển',
+  SORTING: 'Đang phân loại',
+  sorting: 'Đang phân loại',
+  
+  // Status giao hàng
+  DELIVERING: 'Đang giao hàng',
   delivering: 'Đang giao hàng',
+  MONEY_COLLECT_DELIVERING: 'Đang thu tiền khi giao hàng',
+  money_collect_delivering: 'Đang thu tiền khi giao hàng',
+  DELIVERED: 'Đã giao hàng',
   delivered: 'Đã giao hàng',
+  
+  // Status trả hàng
+  WAITING_TO_RETURN: 'Chờ trả hàng',
+  waiting_to_return: 'Chờ trả hàng',
+  RETURN: 'Trả hàng',
   return: 'Trả hàng',
+  RETURN_TRANSPORTING: 'Đang vận chuyển trả hàng',
+  return_transporting: 'Đang vận chuyển trả hàng',
+  RETURN_SORTING: 'Đang phân loại trả hàng',
+  return_sorting: 'Đang phân loại trả hàng',
+  RETURNING: 'Đang trả hàng',
+  returning: 'Đang trả hàng',
+  
+  // Status hủy
+  CANCEL: 'Đã hủy',
   cancel: 'Đã hủy',
 };
 
@@ -254,16 +306,6 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     const trimmed = cancelOrderCode.trim();
     if (!trimmed) {
       message.error('Vui lòng nhập mã đơn hàng GHN');
-      return;
-    }
-
-    // Check if any return is waiting for sync
-    const hasWaitingSync = data.some(record => 
-      record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC'
-    );
-    
-    if (hasWaitingSync) {
-      message.warning('Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát trước khi hủy đơn.');
       return;
     }
 
@@ -535,11 +577,6 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
               Phí vận chuyển:{' '}
               <Text strong>{formatCurrency(record.shippingFee || 0)}</Text>
             </Text>
-            {record.faultType && (
-              <Text type="secondary">
-                Phân loại lỗi: <Text strong>{record.faultType}</Text>
-              </Text>
-            )}
           </Space>
         );
       },
@@ -744,11 +781,6 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
           const hasGhnOrderCode = !!record.ghnOrderCode;
           // Disable create GHN button if waiting for sync or already has order code
           const canCreateGhn = !isWaitingForSync && !hasGhnOrderCode;
-          
-          // Check trackingStatus after sync to enable appropriate actions
-          const trackingStatus = record.trackingStatus;
-          // Enable cancel GHN button for ready_to_pick, picking_up, and CREATED_WAITING_SYNC status
-          const canCancelGhn = trackingStatus === 'ready_to_pick' || trackingStatus === 'picking_up' || trackingStatus === 'CREATED_WAITING_SYNC';
 
           return (
             <Space direction="vertical" size={6} className="w-full">
@@ -781,19 +813,34 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
               >
                 {needsRecreateGhn ? 'Tạo lại đơn GHN trả hàng' : 'Xác nhận ca lấy hàng'}
               </Button>
-              {/* Show cancel GHN button if trackingStatus allows it (including CREATED_WAITING_SYNC) */}
-              {hasGhnOrderCode && canCancelGhn && (
-                <Button
-                  danger
-                  size="small"
-                  onClick={() => {
-                    setCancelOrderCode(record.ghnOrderCode || '');
-                    setShowCancelModal(true);
-                  }}
-                  className="w-full"
-                >
-                  Hủy đơn GHN
-                </Button>
+              {/* Show cancel GHN button and track order link when has GHN order code */}
+              {hasGhnOrderCode && (
+                <>
+                  <Button
+                    type="link"
+                    size="small"
+                    className="!p-0 !h-auto"
+                    onClick={() => {
+                      const url = `https://donhang.ghn.vn/?order_code=${encodeURIComponent(
+                        record.ghnOrderCode || ''
+                      )}`;
+                      window.open(url, '_blank');
+                    }}
+                  >
+                    Theo dõi đơn
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    onClick={() => {
+                      setCancelOrderCode(record.ghnOrderCode || '');
+                      setShowCancelModal(true);
+                    }}
+                    className="w-full"
+                  >
+                    Hủy đơn GHN
+                  </Button>
+                </>
               )}
             </Space>
           );
@@ -834,12 +881,6 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 setCancelOrderCode('');
                 setShowCancelModal(true);
               }}
-              disabled={data.some(record => 
-                record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC'
-              )}
-              title={data.some(record => 
-                record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC'
-              ) ? 'Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...' : undefined}
             >
               Hủy đơn GHN
             </Button>
