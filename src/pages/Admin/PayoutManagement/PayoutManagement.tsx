@@ -38,6 +38,14 @@ interface StoreOption {
   name: string;
 }
 
+interface SimpleStoreInfo {
+  id: string;
+  name: string;
+  email?: string;
+  phoneNumber?: string;
+  status?: string;
+}
+
 const PayoutManagement: React.FC = () => {
   const navigate = useNavigate();
   const [payoutBills, setPayoutBills] = useState<PayoutBill[]>([]);
@@ -59,6 +67,7 @@ const PayoutManagement: React.FC = () => {
   const [markPaidForm] = Form.useForm();
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
+  const [allStores, setAllStores] = useState<SimpleStoreInfo[]>([]);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 15,
@@ -117,6 +126,21 @@ const PayoutManagement: React.FC = () => {
     loadStoreNames();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uniqueStoreIds.join(',')]);
+
+  // Load all stores when create modal opens
+  useEffect(() => {
+    if (showCreateModal && allStores.length === 0) {
+      const loadAllStores = async () => {
+        try {
+          const stores = await AdminStoreService.getAllStores();
+          setAllStores(stores as SimpleStoreInfo[]);
+        } catch (error) {
+          console.error('Failed to load stores:', error);
+        }
+      };
+      loadAllStores();
+    }
+  }, [showCreateModal, allStores.length]);
 
   useEffect(() => {
     fetchPayoutBills();
@@ -450,6 +474,17 @@ const PayoutManagement: React.FC = () => {
 
   // Get unique stores for dropdown
   const storeOptions = useMemo(() => {
+    // When creating bill, use all stores from system
+    if (showCreateModal && allStores.length > 0) {
+      return allStores
+        .map(store => ({
+          id: store.id,
+          name: store.name || `Cửa hàng ${store.id.slice(0, 8)}`
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    
+    // Otherwise use stores from existing bills for filtering
     const stores = new Map<string, StoreOption>();
     payoutBills.forEach(bill => {
       if (bill.shopId) {
@@ -465,7 +500,7 @@ const PayoutManagement: React.FC = () => {
       }
     });
     return Array.from(stores.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [payoutBills, storeMap]);
+  }, [payoutBills, storeMap, showCreateModal, allStores]);
 
   // Stats
   const stats = useMemo(() => ({

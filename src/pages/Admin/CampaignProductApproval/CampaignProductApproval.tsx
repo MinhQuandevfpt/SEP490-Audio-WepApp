@@ -61,9 +61,10 @@ const CampaignProductApproval: React.FC = () => {
   
   // Filters
   const [filterType, setFilterType] = useState<CampaignType | undefined>();
-  const [filterStatus, setFilterStatus] = useState<VoucherStatus | undefined>('DRAFT');
+  const [filterStatus, setFilterStatus] = useState<VoucherStatus | undefined>(undefined);
   const [filterCampaignId, setFilterCampaignId] = useState<string | undefined>();
   const [filterStoreId, setFilterStoreId] = useState<string | undefined>();
+  const [filterStoreName, setFilterStoreName] = useState<string>('');
   
   // Pagination
   const [pagination, setPagination] = useState<TablePaginationConfig>({
@@ -80,7 +81,7 @@ const CampaignProductApproval: React.FC = () => {
 
   useEffect(() => {
     fetchCampaignOverview();
-  }, [filterType, filterStatus, filterCampaignId, filterStoreId, pagination.current, pagination.pageSize]);
+  }, [filterType, filterStatus, filterCampaignId, filterStoreId, filterStoreName, pagination.current, pagination.pageSize]);
 
   const fetchAllCampaigns = async () => {
     try {
@@ -257,10 +258,34 @@ const CampaignProductApproval: React.FC = () => {
     return null;
   }, []);
 
-  // Use enriched products with variant data
-  const allProducts = useMemo(() => {
-    return enrichedProducts;
+  // Extract unique stores from enriched products
+  const uniqueStores = useMemo(() => {
+    const storeMap = new Map<string, { storeId: string; storeName: string }>();
+    enrichedProducts.forEach(product => {
+      if (product.storeId && product.storeName) {
+        storeMap.set(product.storeId, {
+          storeId: product.storeId,
+          storeName: product.storeName
+        });
+      }
+    });
+    return Array.from(storeMap.values()).sort((a, b) => 
+      a.storeName.localeCompare(b.storeName)
+    );
   }, [enrichedProducts]);
+
+  // Use enriched products with variant data and apply store name filter
+  const allProducts = useMemo(() => {
+    if (!filterStoreName.trim()) {
+      return enrichedProducts;
+    }
+    
+    // Filter by store name (case-insensitive)
+    const searchTerm = filterStoreName.toLowerCase().trim();
+    return enrichedProducts.filter(product => 
+      product.storeName?.toLowerCase().includes(searchTerm)
+    );
+  }, [enrichedProducts, filterStoreName]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -391,9 +416,10 @@ const CampaignProductApproval: React.FC = () => {
 
   const handleClearFilters = () => {
     setFilterType(undefined);
-    setFilterStatus('DRAFT');
+    setFilterStatus(undefined);
     setFilterCampaignId(undefined);
     setFilterStoreId(undefined);
+    setFilterStoreName('');
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
@@ -874,6 +900,7 @@ const CampaignProductApproval: React.FC = () => {
                 allowClear
                 className="w-full"
               >
+                <Option value={undefined}>Tất cả</Option>
                 <Option value="DRAFT">Chờ duyệt</Option>
                 <Option value="APPROVE">Đã duyệt</Option>
                 <Option value="ACTIVE">Đang hoạt động</Option>
@@ -896,6 +923,26 @@ const CampaignProductApproval: React.FC = () => {
                 {allCampaigns.map(campaign => (
                   <Option key={campaign.id} value={campaign.id}>
                     {campaign.name}
+                  </Option>
+                ))}
+              </Select>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Text type="secondary" className="block mb-1">Cửa hàng</Text>
+              <Select
+                placeholder="Tất cả cửa hàng"
+                value={filterStoreName}
+                onChange={setFilterStoreName}
+                allowClear
+                showSearch
+                className="w-full"
+                filterOption={(input, option) =>
+                  (option?.value as string)?.toLowerCase().includes(input.toLowerCase())
+                }
+              >
+                {uniqueStores.map(store => (
+                  <Option key={store.storeId} value={store.storeName}>
+                    {store.storeName}
                   </Option>
                 ))}
               </Select>

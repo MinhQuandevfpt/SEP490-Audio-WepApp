@@ -187,6 +187,31 @@ export class AdminStoreService {
   }
 
   /**
+   * Get all stores (with pagination)
+   * GET /api/stores?page=0&size=1000
+   */
+  static async getAllStores(page: number = 0, size: number = 1000): Promise<StoreInfo[]> {
+    try {
+      const response: any = await adminHttpClient.get<any>(`/api/stores?page=${page}&size=${size}`);
+      
+      if (response?.data?.stores && Array.isArray(response.data.stores)) {
+        return response.data.stores.map((store: any) => ({
+          id: store.storeId,
+          name: store.storeName,
+          email: store.email,
+          phoneNumber: store.phoneNumber,
+          status: store.status
+        }));
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching all stores:', error);
+      return [];
+    }
+  }
+
+  /**
    * Clear store cache
    */
   static clearCache() {
