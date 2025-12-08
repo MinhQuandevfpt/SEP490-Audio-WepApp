@@ -4,6 +4,7 @@ import { Trash2, Store } from 'lucide-react';
 import StoreWideVoucherSection, { type AppliedStoreWideVoucher } from './StoreWideVoucherSection';
 import type { StoreVoucher } from '../../services/seller/VoucherService';
 import type { StoreShippingFee } from '../../hooks/useAutoShippingFee';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export interface StoreGroup {
   storeId: string;
@@ -38,10 +39,12 @@ const CartItemList: React.FC<Props> = ({
   onApplyStoreWideVoucher,
   onRemoveStoreWideVoucher,
 }) => {
+  const { t } = useLanguage();
+  
   if (groups.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
-        Giỏ hàng trống.
+        {t('cartItemList.empty')}
       </div>
     );
   }

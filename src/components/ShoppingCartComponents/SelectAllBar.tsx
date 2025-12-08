@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckSquare, Square } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface SelectAllBarProps {
   allSelected: boolean;
@@ -14,6 +15,7 @@ const SelectAllBar: React.FC<SelectAllBarProps> = ({
   onToggleAll,
   onDeleteAll,
 }) => {
+  const { t } = useLanguage();
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleDeleteClick = () => {
@@ -41,14 +43,14 @@ const SelectAllBar: React.FC<SelectAllBarProps> = ({
           ) : (
             <Square className="w-5 h-5 text-gray-400" />
           )}
-          <span>Chọn tất cả ({itemCount} sản phẩm)</span>
+          <span>{t('selectAll.selectAll', { count: itemCount })}</span>
         </button>
         {onDeleteAll && (
           <button
             onClick={handleDeleteClick}
             className="ml-auto px-3 py-1.5 text-sm text-white bg-orange-500 hover:bg-orange-600 rounded"
           >
-            Xoá tất cả
+            {t('selectAll.deleteAll')}
           </button>
         )}
       </div>
@@ -56,22 +58,22 @@ const SelectAllBar: React.FC<SelectAllBarProps> = ({
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Xoá toàn bộ giỏ hàng?</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('selectAll.confirmTitle')}</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Bạn có chắc chắn muốn xoá tất cả sản phẩm khỏi giỏ hàng? Hành động này không thể hoàn tác.
+              {t('selectAll.confirmMessage')}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={handleCancel}
                 className="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
               >
-                Huỷ
+                {t('selectAll.cancel')}
               </button>
               <button
                 onClick={handleConfirm}
                 className="px-3 py-1.5 text-sm rounded bg-orange-500 text-white hover:bg-orange-600"
               >
-                Đồng ý xoá
+                {t('selectAll.confirm')}
               </button>
             </div>
           </div>

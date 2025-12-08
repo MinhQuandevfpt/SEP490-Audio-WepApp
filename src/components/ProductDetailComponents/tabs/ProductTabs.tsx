@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductReviewSection from '../reviewproduct/ProductReviewSection';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 interface ProductTabsProps {
   description?: string[] | string;
@@ -8,12 +9,13 @@ interface ProductTabsProps {
 }
 
 const ProductTabs: React.FC<ProductTabsProps> = ({ description = [], specs, productId }) => {
+  const { t } = useLanguage();
   return (
     <div className="mt-6 space-y-4">
       {/* Thông số kỹ thuật */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Thông số kỹ thuật</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('productDetail.specs.title')}</h3>
         </div>
         <div className="p-4">
           <div className="grid grid-cols-1 gap-3">
@@ -30,12 +32,12 @@ const ProductTabs: React.FC<ProductTabsProps> = ({ description = [], specs, prod
       {/* Mô tả sản phẩm */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">Mô tả sản phẩm</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('productDetail.description.title')}</h3>
         </div>
         <div className="p-4">
           <div className="text-gray-700 leading-relaxed">
             {!description || (Array.isArray(description) && description.length === 0) ? (
-              <p className="text-gray-500">Đang cập nhật mô tả...</p>
+              <p className="text-gray-500">{t('productDetail.description.updating')}</p>
             ) : typeof description === 'string' ? (
               <div 
                 className="prose prose-sm max-w-none"

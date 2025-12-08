@@ -4,6 +4,7 @@ import { ChevronDown, Edit2, Trash2 } from 'lucide-react';
 import AddressFormForCart from './AddressFormForCart';
 import { AddressService } from '../../services/customer/AddressService';
 import { toast } from 'react-toastify';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Props {
   addresses: CustomerAddressApiItem[];
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId, onSelect, onAddressesChange }) => {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -35,12 +37,12 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
     const addressToDelete = addresses.find(a => a.id === addressId);
     if (!addressToDelete) return;
 
-    const confirmDelete = window.confirm(`Bạn có chắc chắn muốn xóa địa chỉ "${addressToDelete.receiverName}"?`);
+    const confirmDelete = window.confirm(t('addressSelector.confirmDelete', { name: addressToDelete.receiverName }));
     if (!confirmDelete) return;
 
     try {
       await AddressService.deleteAddress(addressId);
-      toast.success('Xóa địa chỉ thành công!');
+      toast.success(t('addressSelector.success.delete'));
       
       // If deleted address was selected, select default or first available
       if (addressId === selectedAddressId) {
@@ -54,23 +56,23 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
       onAddressesChange();
       setOpen(false);
     } catch (error: any) {
-      toast.error(error?.message || 'Không thể xóa địa chỉ. Vui lòng thử lại.');
+      toast.error(error?.message || t('addressSelector.errors.cannotDelete'));
     }
   };
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">Địa chỉ nhận hàng</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{t('addressSelector.title')}</h3>
         <div className="flex items-center gap-2">
           <button 
             onClick={() => { setShowAddForm(true); setOpen(false); }} 
             className="text-sm text-orange-600 hover:underline"
           >
-            Thêm địa chỉ mới
+            {t('addressSelector.addNew')}
           </button>
           <button onClick={() => setOpen(o => !o)} className="text-sm text-gray-700 flex items-center gap-1">
-            <span>Đổi</span>
+            <span>{t('addressSelector.change')}</span>
             <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
         </div>
@@ -111,20 +113,20 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
                   <p className="text-xs text-gray-600">
                     {([selected.ward, selected.district, selected.province].filter(Boolean) as string[]).join(', ')}
                   </p>
-                  {selected.default && <span className="inline-block text-xs text-white bg-gray-800 rounded px-2 py-0.5 mt-1">Mặc định</span>}
+                  {selected.default && <span className="inline-block text-xs text-white bg-gray-800 rounded px-2 py-0.5 mt-1">{t('address.default')}</span>}
                 </div>
                 <div className="flex items-center gap-2 ml-2">
                   <button
                     onClick={(e) => handleEdit(e, selected.id)}
                     className="text-gray-500 hover:text-orange-600"
-                    title="Chỉnh sửa"
+                    title={t('address.edit')}
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={(e) => handleDelete(e, selected.id)}
                     className="text-gray-500 hover:text-red-600"
-                    title="Xóa địa chỉ"
+                    title={t('addressSelector.errors.cannotDelete')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -132,7 +134,7 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
               </div>
             </div>
           ) : (
-            <div className="p-3 border rounded-lg text-sm text-gray-500">Chưa có địa chỉ. Vui lòng thêm địa chỉ mới.</div>
+            <div className="p-3 border rounded-lg text-sm text-gray-500">{t('addressSelector.empty')}</div>
           )}
 
           {/* Dropdown list */}
@@ -161,14 +163,14 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
                         <button
                           onClick={(e) => handleEdit(e, a.id)}
                           className="text-gray-500 hover:text-orange-600"
-                          title="Chỉnh sửa"
+                          title={t('address.edit')}
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={(e) => handleDelete(e, a.id)}
                           className="text-gray-500 hover:text-red-600"
-                          title="Xóa địa chỉ"
+                          title={t('addressSelector.errors.cannotDelete')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

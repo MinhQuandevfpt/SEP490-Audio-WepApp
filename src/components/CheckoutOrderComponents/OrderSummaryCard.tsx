@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Props {
   subtotal: number;
@@ -21,6 +22,7 @@ const OrderSummaryCard: React.FC<Props> = ({
   onSubmit,
   selectedVoucherCodes = [],
 }) => {
+  const { t } = useLanguage();
   const fmt = (v: number) => {
     // Làm tròn giá trị trước khi format để tránh số thập phân
     const roundedValue = Math.round(v);
@@ -33,29 +35,29 @@ const OrderSummaryCard: React.FC<Props> = ({
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
-      <h3 className="text-lg font-semibold text-gray-900">Tóm tắt đơn hàng</h3>
+      <h3 className="text-lg font-semibold text-gray-900">{t('checkout.summary.title')}</h3>
 
       <div className="flex justify-between text-gray-700">
-        <span>Tạm tính</span>
+        <span>{t('checkout.summary.subtotal')}</span>
         <span>{fmt(subtotal)}</span>
       </div>
 
       {platformDiscount > 0 && (
         <div className="flex justify-between text-gray-700">
-          <span>Giảm giá nền tảng</span>
+          <span>{t('checkout.summary.platformDiscount')}</span>
           <span className="text-green-600">-{fmt(platformDiscount)}</span>
         </div>
       )}
 
       {voucherDiscount > 0 && (
         <div className="flex justify-between text-gray-700">
-          <span>Voucher</span>
+          <span>{t('checkout.summary.voucher')}</span>
           <span className="text-green-600">-{fmt(voucherDiscount)}</span>
         </div>
       )}
 
       <div className="flex justify-between text-gray-700">
-        <span>Phí vận chuyển</span>
+        <span>{t('checkout.summary.shippingFee')}</span>
         <span>{fmt(shippingFee)}</span>
       </div>
 
@@ -63,7 +65,7 @@ const OrderSummaryCard: React.FC<Props> = ({
 
       <div className="flex justify-between items-end">
         <div className="text-gray-600">
-          <p className="text-sm">Tổng cộng</p>
+          <p className="text-sm">{t('checkout.summary.total')}</p>
           {hasAnyDiscount && (
             <p className="text-xs text-gray-400 line-through">
               {fmt(originalTotal)}
@@ -71,7 +73,7 @@ const OrderSummaryCard: React.FC<Props> = ({
           )}
           {selectedVoucherCodes.length > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              Đã áp dụng voucher: {selectedVoucherCodes.join(', ')}
+              {t('checkout.summary.voucherApplied', { codes: selectedVoucherCodes.join(', ') })}
             </p>
           )}
         </div>
@@ -85,11 +87,11 @@ const OrderSummaryCard: React.FC<Props> = ({
         onClick={onSubmit}
         className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg disabled:opacity-50"
       >
-        Xác nhận & Thanh toán
+        {t('checkout.confirmButton')}
       </button>
 
       <p className="text-xs text-gray-500">
-        Bạn có mã giảm giá? Hãy nhập trước khi thanh toán.
+        {t('checkout.summary.voucherHint')}
       </p>
     </div>
   );

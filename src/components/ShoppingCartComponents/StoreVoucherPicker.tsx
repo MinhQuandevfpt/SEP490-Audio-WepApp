@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import type { ShopVoucher } from './VoucherSection';
 import { showCenterError } from '../../utils/notification';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export interface AppliedStoreVoucher {
   code: string;
@@ -23,25 +24,25 @@ interface StoreVoucherPickerProps {
   onRemove: () => void;
 }
 
-const formatVoucherDesc = (voucher: ShopVoucher): string => {
+const formatVoucherDesc = (voucher: ShopVoucher, t: (key: string, params?: Record<string, string | number>) => string): string => {
   if (voucher.type === 'PERCENT' && voucher.discountPercent) {
-    let desc = `Giảm ${voucher.discountPercent}%`;
+    let desc = t('voucherPicker.percentDiscount', { percent: voucher.discountPercent });
     if (voucher.maxDiscountValue) {
-      desc += `, tối đa ${voucher.maxDiscountValue.toLocaleString('vi-VN')}đ`;
+      desc += `, ${t('voucherPicker.maxDiscount', { amount: voucher.maxDiscountValue.toLocaleString('vi-VN') })}`;
     }
     if (voucher.minOrderValue) {
-      desc += `, đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`;
+      desc += `, ${t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') })}`;
     }
     return desc;
   }
   if (voucher.type === 'FIXED' && voucher.discountValue) {
-    let desc = `Giảm ${voucher.discountValue.toLocaleString('vi-VN')}đ`;
+    let desc = t('voucherPicker.fixedDiscount', { amount: voucher.discountValue.toLocaleString('vi-VN') });
     if (voucher.minOrderValue) {
-      desc += `, đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`;
+      desc += `, ${t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') })}`;
     }
     return desc;
   }
-  return 'Voucher cửa hàng';
+  return t('voucherPicker.storeVoucher');
 };
 
 const calculateDiscountAmount = (voucher: ShopVoucher, storeTotal: number): number => {
@@ -70,6 +71,7 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
   onApply,
   onRemove,
 }) => {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
 
   const { usableVouchers, unusableVouchers } = useMemo(() => {
@@ -80,46 +82,46 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
       // Check if voucher is already used by another product
       const usedByProductId = voucherCodeToProductIdMap.get(voucher.code);
       if (usedByProductId && usedByProductId !== productId) {
-        const usedByProduct = productCache.get(usedByProductId);
-        const usedByProductName = usedByProduct?.name || 'sản phẩm khác';
-        unusable.push({
-          voucher,
-          reason: `Đã được sử dụng bởi ${usedByProductName}`,
-        });
-        return;
-      }
+      const usedByProduct = productCache.get(usedByProductId);
+      const usedByProductName = usedByProduct?.name || t('cart.product.other');
+      unusable.push({
+        voucher,
+        reason: t('voucherPicker.usedBy', { productName: usedByProductName }),
+      });
+      return;
+    }
 
-      // Check minOrderValue
-      if (voucher.minOrderValue && selectedTotal < voucher.minOrderValue) {
-        unusable.push({
-          voucher,
-          reason: `Đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`,
-        });
-        return;
-      }
+    // Check minOrderValue
+    if (voucher.minOrderValue && selectedTotal < voucher.minOrderValue) {
+      unusable.push({
+        voucher,
+        reason: t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') }),
+      });
+      return;
+    }
       usable.push(voucher);
     });
 
     return { usableVouchers: usable, unusableVouchers: unusable };
-  }, [vouchers, selectedTotal, productId, voucherCodeToProductIdMap, productCache]);
+  }, [vouchers, selectedTotal, productId, voucherCodeToProductIdMap, productCache, t]);
 
   const handleApply = (voucher: ShopVoucher) => {
     // Check if voucher is already used by another product
     const usedByProductId = voucherCodeToProductIdMap.get(voucher.code);
     if (usedByProductId && usedByProductId !== productId) {
       const usedByProduct = productCache.get(usedByProductId);
-      const usedByProductName = usedByProduct?.name || 'sản phẩm khác';
+      const usedByProductName = usedByProduct?.name || t('cart.product.other');
       showCenterError(
-        `Voucher ${voucher.code} đã được sử dụng cho ${usedByProductName}. Mỗi voucher chỉ có thể áp dụng cho một sản phẩm.`,
-        'Voucher'
+        t('voucherPicker.alreadyUsed', { code: voucher.code, productName: usedByProductName }),
+        t('cart.voucher.title')
       );
       return;
     }
 
     if (voucher.minOrderValue && selectedTotal < voucher.minOrderValue) {
       showCenterError(
-        `Đơn hàng của cửa hàng ${storeName} chưa đạt tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`,
-        'Voucher'
+        t('voucherPicker.storeMinOrder', { storeName, amount: voucher.minOrderValue.toLocaleString('vi-VN') }),
+        t('cart.voucher.title')
       );
       return;
     }
@@ -159,14 +161,14 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
       {appliedVoucher && (
         <div className="mt-2 flex items-center justify-between bg-orange-50 border border-orange-200 text-orange-800 px-3 py-2 rounded">
           <span className="text-xs font-medium">
-            {appliedVoucher.code} - Giảm {appliedVoucher.discountValue.toLocaleString('vi-VN')}đ
+            {appliedVoucher.code} - {t('voucherPicker.discount')} {appliedVoucher.discountValue.toLocaleString('vi-VN')}đ
           </span>
           <button
             type="button"
             onClick={onRemove}
             className="text-xs underline"
           >
-            Gỡ
+            {t('voucherPicker.remove')}
           </button>
         </div>
       )}
@@ -198,7 +200,7 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{voucher.title || voucher.code}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatVoucherDesc(voucher)}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatVoucherDesc(voucher, t)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-green-600 font-semibold">
@@ -206,7 +208,7 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
                       </p>
                       {isApplied && (
                         <span className="inline-flex items-center gap-1 text-xs text-orange-600 mt-1">
-                          Đang áp dụng
+                          {t('voucherPicker.applying')}
                           <X className="w-3 h-3" />
                         </span>
                       )}
@@ -221,7 +223,7 @@ const StoreVoucherPicker: React.FC<StoreVoucherPickerProps> = ({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-500">{voucher.title || voucher.code}</p>
-                    <p className="text-xs text-gray-400 mt-1">{formatVoucherDesc(voucher)}</p>
+                    <p className="text-xs text-gray-400 mt-1">{formatVoucherDesc(voucher, t)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-orange-500 font-semibold">

@@ -1,6 +1,7 @@
 import React from 'react';
 import { TicketPercent, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { StoreVoucher } from '../../services/seller/VoucherService';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export interface AppliedStoreWideVoucher {
   storeId: string;
@@ -29,6 +30,7 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
   onApply,
   onRemove,
 }) => {
+  const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   // Kiểm tra voucher có thể sử dụng được không
@@ -39,11 +41,11 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
     const endTime = new Date(voucher.endTime);
 
     if (now < startTime) {
-      return { usable: false, reason: 'Voucher chưa đến thời gian áp dụng' };
+      return { usable: false, reason: t('storeWideVoucher.errors.notStarted') };
     }
 
     if (now > endTime) {
-      return { usable: false, reason: 'Voucher đã hết hạn' };
+      return { usable: false, reason: t('storeWideVoucher.errors.expired') };
     }
 
     // Kiểm tra minOrderValue
@@ -51,7 +53,10 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
       if (storeTotal < voucher.minOrderValue) {
         return {
           usable: false,
-          reason: `Đơn hàng tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ. Hiện tại: ${storeTotal.toLocaleString('vi-VN')}đ`,
+          reason: t('storeWideVoucher.errors.minOrder', { 
+            min: voucher.minOrderValue.toLocaleString('vi-VN'), 
+            current: storeTotal.toLocaleString('vi-VN') 
+          }),
         };
       }
     }
@@ -80,22 +85,22 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
   // Format description cho voucher
   const formatVoucherDesc = (voucher: StoreVoucher): string => {
     if (voucher.type === 'PERCENT' && voucher.discountPercent) {
-      let desc = `Giảm ${voucher.discountPercent}%`;
+      let desc = t('voucherPicker.percentDiscount', { percent: voucher.discountPercent });
       if (voucher.maxDiscountValue) {
-        desc += `, tối đa ${voucher.maxDiscountValue.toLocaleString('vi-VN')}đ`;
+        desc += `, ${t('voucherPicker.maxDiscount', { amount: voucher.maxDiscountValue.toLocaleString('vi-VN') })}`;
       }
       if (voucher.minOrderValue) {
-        desc += `, đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`;
+        desc += `, ${t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') })}`;
       }
       return desc;
     } else if (voucher.type === 'FIXED' && voucher.discountValue) {
-      let desc = `Giảm ${voucher.discountValue.toLocaleString('vi-VN')}đ`;
+      let desc = t('voucherPicker.fixedDiscount', { amount: voucher.discountValue.toLocaleString('vi-VN') });
       if (voucher.minOrderValue) {
-        desc += `, đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`;
+        desc += `, ${t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') })}`;
       }
       return desc;
     }
-    return 'Voucher toàn shop';
+    return t('storeWideVoucher.storeWideVoucher');
   };
 
   const handleApply = (voucher: StoreVoucher) => {
@@ -116,7 +121,7 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
         <div className="flex items-center gap-2">
           <TicketPercent className="w-4 h-4 text-orange-600" />
           <p className="text-sm font-medium text-gray-800">
-            Voucher toàn shop: <span className="text-orange-600">{storeName}</span>
+            {t('storeWideVoucher.titleWithStore', { storeName })}
           </p>
         </div>
         {vouchers.length > 0 && (
@@ -126,12 +131,12 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
           >
             {isExpanded ? (
               <>
-                <span>Thu gọn</span>
+                <span>{t('storeWideVoucher.collapse')}</span>
                 <ChevronUp className="w-4 h-4" />
               </>
             ) : (
               <>
-                <span>Xem {vouchers.length} voucher</span>
+                <span>{t('storeWideVoucher.viewVouchers', { count: vouchers.length })}</span>
                 <ChevronDown className="w-4 h-4" />
               </>
             )}
@@ -143,10 +148,10 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
         <div className="mb-3 flex items-center justify-between bg-orange-50 border border-orange-200 text-orange-700 px-3 py-2 rounded-lg">
           <div className="flex-1">
             <span className="text-sm font-medium">
-              Đã áp dụng: {appliedVoucher.code}
+              {t('storeWideVoucher.appliedWithCode', { code: appliedVoucher.code })}
             </span>
             <span className="text-sm ml-2">
-              - Giảm {appliedVoucher.discountValue.toLocaleString('vi-VN')}đ
+              - {t('storeWideVoucher.discount')} {appliedVoucher.discountValue.toLocaleString('vi-VN')}đ
             </span>
           </div>
           <button
@@ -196,13 +201,13 @@ const StoreWideVoucherSection: React.FC<StoreWideVoucherSectionProps> = ({
                   )}
                   {check.usable && !isApplied && (
                     <p className="text-xs text-green-600 mt-1 font-medium">
-                      Giảm: {discountAmount.toLocaleString('vi-VN')}đ
+                      {t('voucherSection.discount')}: {discountAmount.toLocaleString('vi-VN')}đ
                     </p>
                   )}
                 </div>
                 {isApplied && (
                   <div className="ml-2 flex items-center gap-2">
-                    <span className="text-xs text-orange-600 font-medium">Đã chọn</span>
+                    <span className="text-xs text-orange-600 font-medium">{t('storeWideVoucher.selected')}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

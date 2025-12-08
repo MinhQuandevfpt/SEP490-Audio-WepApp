@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatCurrency } from '../../data/shoppingcart';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface SummaryBoxProps {
   subtotal: number;
@@ -26,36 +27,38 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
   disabled = false,
   selectedVoucherCodes = [],
 }) => {
+  const { t } = useLanguage();
+  
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
       <div className="flex justify-between text-gray-600">
-        <span>Tạm tính</span>
+        <span>{t('summaryBox.subtotal')}</span>
         <span>{formatCurrency(subtotal)}</span>
       </div>
       {discount > 0 && (
         <div className="flex justify-between text-gray-600">
-          <span>Giảm giá nền tảng</span>
+          <span>{t('summaryBox.platformDiscount')}</span>
           <span className="text-green-600">-{formatCurrency(discount)}</span>
         </div>
       )}
       <div className="flex justify-between text-gray-600 hidden">
-        <span>Phí vận chuyển</span>
+        <span>{t('checkout.summary.shippingFee')}</span>
         <span>{formatCurrency(shippingFee)}</span>
       </div>
       {voucherDiscount > 0 && (
         <div className="flex justify-between text-gray-600">
-          <span>Voucher</span>
+          <span>{t('summaryBox.voucher')}</span>
           <span className="text-green-600">-{formatCurrency(voucherDiscount)}</span>
         </div>
       )}
       <div className="h-px bg-gray-200" />
       <div className="flex justify-between items-end">
         <div className="text-gray-600">
-          <p className="text-sm">Tổng cộng</p>
-          <p className="text-xs">(Đã chọn {selectedCount} sản phẩm)</p>
+          <p className="text-sm">{t('summaryBox.total')}</p>
+          <p className="text-xs">{t('summaryBox.selectedProducts', { count: selectedCount })}</p>
           {selectedVoucherCodes.length > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              Đã áp dụng voucher: {selectedVoucherCodes.join(', ')}
+              {t('summaryBox.appliedVouchers', { codes: selectedVoucherCodes.join(', ') })}
             </p>
           )}
         </div>
@@ -68,7 +71,7 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
         disabled={disabled || selectedCount === 0 || isCheckingOut}
         onClick={onCheckout}
       >
-        {isCheckingOut ? 'Đang xử lý...' : 'Mua hàng'}
+        {isCheckingOut ? t('summaryBox.processing') : t('summaryBox.buyNow')}
       </button>
     </div>
   );

@@ -10,6 +10,7 @@ import { useServiceTypeCalculator } from '../../../hooks/useServiceTypeCalculato
 import { AddressService } from '../../../services/customer/AddressService';
 import { CustomerCartService } from '../../../services/customer/CartService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import type { CartItem as ApiCartItem } from '../../../types/cart';
 import type { CustomerAddressApiItem } from '../../../types/api';
 import { ProductVoucherService } from '../../../services/customer/ProductVoucherService';
@@ -20,6 +21,7 @@ import { Home, ChevronRight } from 'lucide-react';
 const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
 
 const ShoppingCart: React.FC = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { cart, isLoading, error, loadCart } = useCart();
   const [items, setItems] = useState<UICartItem[]>([]);
@@ -346,7 +348,10 @@ const ShoppingCart: React.FC = () => {
         if (matchedVoucher.minOrderValue && storeTotal < matchedVoucher.minOrderValue) {
           changed = true;
           messages.push(
-            `Voucher ${applied.code} đã được gỡ vì đơn hàng của cửa hàng không đạt tối thiểu ${matchedVoucher.minOrderValue.toLocaleString('vi-VN')}đ.`
+            t('cart.voucher.removedMinOrder', { 
+              code: applied.code, 
+              amount: matchedVoucher.minOrderValue.toLocaleString('vi-VN') 
+            })
           );
           return;
         }
@@ -368,7 +373,7 @@ const ShoppingCart: React.FC = () => {
       return next;
     });
 
-    messages.forEach(msg => showCenterError(msg, 'Voucher'));
+      messages.forEach(msg => showCenterError(msg, t('cart.voucher.title')));
   }, [items, productCache, productVouchersMapState]);
 
   // Calculate subtotal dựa trên giá gốc (để hiển thị giống HomePage: giá gốc + giảm giá)
@@ -418,10 +423,10 @@ const ShoppingCart: React.FC = () => {
     const existingProductId = voucherCodeToProductIdMap.get(voucher.code);
     if (existingProductId && existingProductId !== productId) {
       const existingProduct = productCache.get(existingProductId);
-      const existingProductName = existingProduct?.name || 'sản phẩm khác';
+      const existingProductName = existingProduct?.name || t('cart.product.other');
       showCenterError(
-        `Voucher ${voucher.code} đã được sử dụng cho ${existingProductName}. Mỗi voucher chỉ có thể áp dụng cho một sản phẩm.`,
-        'Voucher'
+        t('cart.voucher.alreadyUsed', { code: voucher.code, productName: existingProductName }),
+        t('cart.voucher.title')
       );
       return;
     }
@@ -458,7 +463,7 @@ const ShoppingCart: React.FC = () => {
     items.forEach(item => {
       const product = productCache.get(item.productId);
       const storeId = product?.storeId || `unknown-${item.productId}`;
-      const storeName = product?.storeName || 'Cửa hàng chưa xác định';
+      const storeName = product?.storeName || t('cart.store.unknown');
 
       if (!groups.has(storeId)) {
         groups.set(storeId, {
@@ -634,7 +639,7 @@ const ShoppingCart: React.FC = () => {
       const targetItem = items.find(item => item.id === cartItemId);
       if (!targetItem) {
         console.error('❌ [UPDATE QUANTITY] Item not found:', cartItemId);
-        showCenterError('Không tìm thấy sản phẩm trong giỏ hàng.', 'Lỗi');
+        showCenterError(t('cart.errors.productNotFound'), t('cart.errors.title'));
         return;
       }
 
@@ -720,19 +725,19 @@ const ShoppingCart: React.FC = () => {
       
       // Check for campaign usage exceeded warnings
       const updatedItem = resp.items.find(item => item.cartItemId === cartItemId);
-      if (updatedItem?.campaignUsageExceeded) {
+        if (updatedItem?.campaignUsageExceeded) {
         console.warn('⚠️ [UPDATE QUANTITY] Campaign usage exceeded for item:', updatedItem.name);
         showCenterError(
-          `Sản phẩm "${updatedItem.name}" đã vượt quá giới hạn sử dụng chiến dịch. Giá đã được cập nhật về giá gốc.`,
-          'Cảnh báo'
+          t('cart.campaign.exceeded', { productName: updatedItem.name }),
+          t('cart.warning.title')
         );
       } else {
         console.log('✅ [UPDATE QUANTITY] Quantity updated successfully');
       }
     } catch (error: any) {
       console.error('❌ [UPDATE QUANTITY] Error:', error);
-      const msg = CustomerCartService.formatCartError(error) || 'Không thể cập nhật số lượng. Vui lòng thử lại.';
-      showCenterError(msg, 'Lỗi');
+      const msg = CustomerCartService.formatCartError(error) || t('cart.errors.cannotUpdateQuantity');
+      showCenterError(msg, t('cart.errors.title'));
     }
   };
 
@@ -753,10 +758,10 @@ const ShoppingCart: React.FC = () => {
       const resp = await CustomerCartService.deleteItems([id]);
       // Preserve selection state when removing item
       applyCartResponseToUI(resp.items as unknown as ApiCartItem[], true);
-      showCenterSuccess('Đã xóa sản phẩm khỏi giỏ hàng', 'Thành công');
+      showCenterSuccess(t('cart.success.itemRemoved'), t('cart.success.title'));
     } catch (error: any) {
-      const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';
-      showCenterError(msg, 'Lỗi');
+      const msg = CustomerCartService.formatCartError(error) || t('cart.errors.cannotRemoveItem');
+      showCenterError(msg, t('cart.errors.title'));
     }
   };
 
@@ -765,17 +770,17 @@ const ShoppingCart: React.FC = () => {
     try {
       const resp = await CustomerCartService.deleteCart();
       applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
-      showCenterSuccess('Đã xóa toàn bộ giỏ hàng', 'Thành công');
+      showCenterSuccess(t('cart.success.cartCleared'), t('cart.success.title'));
     } catch (error: any) {
-      const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa giỏ hàng. Vui lòng thử lại.';
-      showCenterError(msg, 'Lỗi');
+      const msg = CustomerCartService.formatCartError(error) || t('cart.errors.cannotDeleteCart');
+      showCenterError(msg, t('cart.errors.title'));
     }
   };
 
   const handleProceedToCheckout = () => {
     const selectedItems = items.filter(item => item.isSelected);
     if (selectedItems.length === 0) {
-      showCenterError('Vui lòng chọn ít nhất một sản phẩm để mua.', 'Lỗi');
+      showCenterError(t('cart.errors.noItemsSelected'), t('cart.errors.title'));
       return;
     }
 
@@ -791,7 +796,7 @@ const ShoppingCart: React.FC = () => {
       navigate('/checkout');
     } catch (error) {
       console.error('Failed to cache checkout payload:', error);
-      showCenterError('Không thể chuẩn bị dữ liệu thanh toán. Vui lòng thử lại.', 'Lỗi');
+      showCenterError(t('cart.errors.cannotPrepareCheckout'), t('cart.errors.title'));
     }
   };
 
@@ -802,19 +807,19 @@ const ShoppingCart: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-5">
           <div className="flex items-center gap-2 px-6 py-4 text-sm text-gray-600">
             <Home className="w-4 h-4" />
-            <span className="font-medium text-gray-900">Giỏ hàng</span>
+            <span className="font-medium text-gray-900">{t('cart.breadcrumb.cart')}</span>
             <ChevronRight className="w-4 h-4" />
-            <span>Thanh toán</span>
+            <span>{t('cart.breadcrumb.checkout')}</span>
             <ChevronRight className="w-4 h-4" />
-            <span>Xác nhận</span>
+            <span>{t('cart.breadcrumb.confirm')}</span>
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Giỏ hàng</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">{t('cart.title')}</h1>
 
         {isLoading ? (
           <div className="py-16 text-center text-gray-500">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
-            <p className="mt-3">Đang tải giỏ hàng...</p>
+            <p className="mt-3">{t('cart.loading')}</p>
           </div>
         ) : error ? (
           <div className="py-16 text-center text-red-600">{error}</div>
