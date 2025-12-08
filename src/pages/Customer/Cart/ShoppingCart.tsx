@@ -81,6 +81,7 @@ const ShoppingCart: React.FC = () => {
       variant: apiItem.variantOptionValue || undefined,
       variantId: apiItem.variantId || null, // Lưu variantId từ API
       type: apiItem.type, // Store type to distinguish PRODUCT vs COMBO
+      campaignRemaining: apiItem.campaignRemaining, // Số lượng còn lại trong campaign
     };
   };
 

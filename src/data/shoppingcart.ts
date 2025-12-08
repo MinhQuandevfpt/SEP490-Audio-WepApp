@@ -14,6 +14,7 @@ export interface CartItem {
   maxQuantity?: number;
   shopName?: string;
   isSelected?: boolean;
+  campaignRemaining?: number; // Số lượng còn lại trong campaign (0 nếu hết)
 }
 
 export interface CartSummary {

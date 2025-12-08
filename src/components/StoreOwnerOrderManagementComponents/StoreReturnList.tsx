@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Typography, Space, Pagination, Empty, Spin, Button, message, Modal, Input } from 'antd';
-import { ZoomIn, Video as VideoIcon, X } from 'lucide-react';
+import { ZoomIn, Video as VideoIcon, X, Package } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReturnRequestResponse } from '../../types/api';
 import { formatDate, formatCurrency } from '../../utils/orderStatus';
 import { StoreReturnService } from '../../services/seller/StoreReturnService';
 import PickShiftModal from './PickShiftModal';
 import { GhnService } from '../../services/seller/GhnService';
+import { ProductListService } from '../../services/customer/ProductListService';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -94,6 +95,76 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     record: null,
   });
   const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [productCache, setProductCache] = useState<Map<string, { image?: string; variantOptionName?: string; variantOptionValue?: string; variantUrl?: string }>>(new Map());
+
+  // Load product details for all return requests
+  useEffect(() => {
+    const loadProductDetails = async () => {
+      const productIds = Array.from(new Set(data.map(item => item.productId)));
+      const missingIds = productIds.filter(id => !productCache.has(id));
+      
+      if (missingIds.length === 0) return;
+
+      try {
+        const productDetails = await Promise.all(
+          missingIds.map(async (productId) => {
+            try {
+              const response = await ProductListService.getProductById(productId);
+              const product = response.data;
+              return {
+                productId,
+                image: product.images?.[0] || undefined,
+                variantOptionName: undefined, // Will be loaded from order item if needed
+                variantOptionValue: undefined,
+                variantUrl: undefined,
+              };
+            } catch (error) {
+              console.error(`Failed to load product ${productId}:`, error);
+              return {
+                productId,
+                image: undefined,
+                variantOptionName: undefined,
+                variantOptionValue: undefined,
+                variantUrl: undefined,
+              };
+            }
+          })
+        );
+
+        const newCache = new Map(productCache);
+        productDetails.forEach(detail => {
+          newCache.set(detail.productId, {
+            image: detail.image,
+            variantOptionName: detail.variantOptionName,
+            variantOptionValue: detail.variantOptionValue,
+            variantUrl: detail.variantUrl,
+          });
+        });
+        setProductCache(newCache);
+      } catch (error) {
+        console.error('Error loading product details:', error);
+      }
+    };
+
+    if (data.length > 0) {
+      loadProductDetails();
+    }
+  }, [data, productCache]);
+
+  // Helper function to get product image from cache
+  const getProductImage = (record: ReturnRequestResponse): string | undefined => {
+    const cached = productCache.get(record.productId);
+    return cached?.image || cached?.variantUrl || undefined;
+  };
+
+  // Helper function to get variant label from cache
+  const getVariantLabel = (record: ReturnRequestResponse): string | undefined => {
+    const cached = productCache.get(record.productId);
+    if (cached?.variantOptionName && cached?.variantOptionValue) {
+      return `${cached.variantOptionName}: ${cached.variantOptionValue}`;
+    }
+    return undefined;
+  };
 
   const handleApprove = async (record: ReturnRequestResponse) => {
     try {
@@ -214,8 +285,39 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       title: 'Sản phẩm',
       dataIndex: 'productName',
       key: 'productName',
-      width: 220,
-      render: (value: string) => <Text strong>{value}</Text>,
+      width: 280,
+      render: (value: string, record: ReturnRequestResponse) => {
+        const productImage = getProductImage(record);
+        const variantLabel = getVariantLabel(record);
+        
+        return (
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
+              {productImage ? (
+                <img
+                  src={productImage}
+                  alt={value}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).parentElement?.classList.add('bg-gray-100');
+                  }}
+                />
+              ) : (
+                <Package className="w-6 h-6 text-gray-400" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <Text strong className="block text-sm leading-tight">{value}</Text>
+              {variantLabel && (
+                <Text type="secondary" className="text-xs mt-1 block">
+                  {variantLabel}
+                </Text>
+              )}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: 'Giá hoàn trả',

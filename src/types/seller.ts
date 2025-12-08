@@ -550,6 +550,8 @@ export interface StoreOrdersRequest {
   status?: StoreOrderStatus;
   search?: string;
   orderCodeKeyword?: string;
+  fromDate?: string; // Format: YYYY-MM-DD
+  toDate?: string;   // Format: YYYY-MM-DD
 }
 
 // Assign Delivery Staff Request
