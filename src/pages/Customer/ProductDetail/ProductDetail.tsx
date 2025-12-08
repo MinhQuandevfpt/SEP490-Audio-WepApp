@@ -10,8 +10,10 @@ import PurchaseActions from '../../../components/ProductDetailComponents/Purchas
 import ProductTabs from '../../../components/ProductDetailComponents/tabs/ProductTabs';
 import ProductVouchers from '../../../components/ProductDetailComponents/ProductVouchers';
 import { translatePlacementType } from '../../../components/CreateProductForSellerUIComponent/CategorySpecsSchema';
+import { useLanguage } from '../../../contexts/LanguageContext';
 
 const ProductDetail: React.FC = () => {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ const ProductDetail: React.FC = () => {
       const [productResponse, voucherResponse] = await Promise.all([
         ProductListService.getProductById(productId),
         ProductViewService.getProductVouchers(productId).catch(e => {
-          console.warn('Không thể tải voucher sản phẩm:', e);
+          console.warn(t('productDetail.voucherLoadError'), e);
           return null;
         })
       ]);
@@ -65,7 +67,7 @@ const ProductDetail: React.FC = () => {
       if (productResponse && productResponse.data) {
         setProduct(productResponse.data);
       } else {
-        setError('Không tìm thấy sản phẩm');
+        setError(t('productDetail.productNotFound'));
       }
 
       // Set voucher data
@@ -81,7 +83,7 @@ const ProductDetail: React.FC = () => {
       
     } catch (err) {
       console.error('Error loading product detail:', err);
-      setError('Không thể tải thông tin sản phẩm. Vui lòng thử lại sau.');
+      setError(t('productDetail.loadError'));
     } finally {
       setLoading(false);
       setVouchersLoading(false);
@@ -115,13 +117,13 @@ const ProductDetail: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              {error || 'Không tìm thấy sản phẩm'}
+              {error || t('productDetail.productNotFound')}
             </h2>
             <button
               onClick={() => window.history.back()}
               className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600"
             >
-              Quay lại
+              {t('productDetail.back')}
             </button>
           </div>
         </div>
@@ -134,19 +136,19 @@ const ProductDetail: React.FC = () => {
     : ['/images/placeholder-product.png'];
 
   const specs = [
-    { key: 'Danh mục', value: product.categoryName },
-    { key: 'Thương hiệu', value: product.brandName },
-    { key: 'Model', value: product.model || 'N/A' },
-    { key: 'Chất liệu', value: product.material || 'N/A' },
-    { key: 'Kích thước', value: product.dimensions || 'N/A' },
-    { key: 'Trọng lượng', value: product.weight ? `${product.weight} kg` : 'N/A' },
-    { key: 'SKU', value: product.sku || 'N/A' },
-    ...(product.frequencyResponse ? [{ key: 'Dải tần số', value: product.frequencyResponse }] : []),
-    ...(product.sensitivity ? [{ key: 'Độ nhạy', value: product.sensitivity }] : []),
-    ...(product.impedance ? [{ key: 'Trở kháng', value: product.impedance }] : []),
-    ...(product.connectionType ? [{ key: 'Kết nối', value: product.connectionType }] : []),
-    ...(product.warrantyPeriod ? [{ key: 'Bảo hành', value: product.warrantyPeriod }] : []),
-    ...(product.placementType ? [{ key: 'Vị trí đặt', value: translatePlacementType(product.placementType) }] : []),
+    { key: t('productDetail.specs.category'), value: product.categoryName },
+    { key: t('productDetail.specs.brand'), value: product.brandName },
+    { key: t('productDetail.specs.model'), value: product.model || 'N/A' },
+    { key: t('productDetail.specs.material'), value: product.material || 'N/A' },
+    { key: t('productDetail.specs.dimensions'), value: product.dimensions || 'N/A' },
+    { key: t('productDetail.specs.weight'), value: product.weight ? `${product.weight} kg` : 'N/A' },
+    { key: t('productDetail.specs.sku'), value: product.sku || 'N/A' },
+    ...(product.frequencyResponse ? [{ key: t('productDetail.specs.frequencyResponse'), value: product.frequencyResponse }] : []),
+    ...(product.sensitivity ? [{ key: t('productDetail.specs.sensitivity'), value: product.sensitivity }] : []),
+    ...(product.impedance ? [{ key: t('productDetail.specs.impedance'), value: product.impedance }] : []),
+    ...(product.connectionType ? [{ key: t('productDetail.specs.connectionType'), value: product.connectionType }] : []),
+    ...(product.warrantyPeriod ? [{ key: t('productDetail.specs.warrantyPeriod'), value: product.warrantyPeriod }] : []),
+    ...(product.placementType ? [{ key: t('productDetail.specs.placementType'), value: translatePlacementType(product.placementType) }] : []),
   ];
 
   // Calculate price with variants and platform vouchers

@@ -5,6 +5,7 @@ import { formatCurrency } from '../../data/shoppingcart';
 import StoreVoucherPicker from './StoreVoucherPicker';
 import type { ShopVoucher } from './VoucherSection';
 import type { AppliedStoreVoucher } from './StoreVoucherPicker';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface CartItemRowProps {
   item: CartItem;
@@ -42,6 +43,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
   onApplyVoucher,
   onRemoveVoucher,
 }) => {
+  const { t } = useLanguage();
   const [qty, setQty] = useState<number>(it.quantity);
   // Giá hiển thị sẽ lấy trực tiếp từ cart item (đã được backend áp dụng chiến dịch nếu có)
 
@@ -81,7 +83,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-gray-900 font-medium truncate" title={it.name}>{it.name}</p>
-              <p className="text-sm text-gray-500 mt-1">Phân loại: {it.variant || 'Mặc định'}</p>
+              <p className="text-sm text-gray-500 mt-1">{t('cartItemRow.variant')}: {it.variant || t('cartItemRow.default')}</p>
             </div>
             <button onClick={() => onRemove(it.id)} className="text-red-600 hover:text-red-700">
               <Trash2 className="w-5 h-5" />
@@ -112,7 +114,7 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
               {/* Campaign remaining message */}
               {it.campaignRemaining !== undefined && it.campaignRemaining > 0 && (
                 <p className="text-xs text-orange-600 font-medium">
-                  Bạn còn {it.campaignRemaining} lần sử dụng khuyến mãi cho sản phẩm này
+                  {t('cartItemRow.campaignRemaining', { count: it.campaignRemaining })}
                 </p>
               )}
             </div>

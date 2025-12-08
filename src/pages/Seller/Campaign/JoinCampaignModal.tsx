@@ -818,7 +818,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
         message="Chọn sản phẩm và cấu hình giảm giá"
         description={
           <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
-            <li>Chỉ hiển thị sản phẩm <strong>ACTIVE</strong> của cửa hàng bạn</li>
+            <li>Chỉ hiển thị sản phẩm <strong>Đang hoạt động</strong> của cửa hàng bạn</li>
             <li><strong>Tick chọn</strong> sản phẩm muốn tham gia, sau đó cấu hình giảm giá trực tiếp trên bảng</li>
             {isFlashSale && (
               <li className="text-orange-600 font-medium">

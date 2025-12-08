@@ -6,6 +6,7 @@ import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AddressFormProps {
   addresses: CustomerAddressApiItem[];
@@ -38,6 +39,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
   onSelect,
   onAddressesChange,
 }) => {
+  const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -107,12 +109,12 @@ const AddressForm: React.FC<AddressFormProps> = ({
       !formData.ward ||
       !formData.street
     ) {
-      showCenterError('Vui lòng điền đầy đủ thông tin địa chỉ', 'Lỗi');
+      showCenterError(t('address.errors.incomplete'), t('checkout.errors.title'));
       return false;
     }
 
     if (!formData.provinceCode || formData.districtId == null || !formData.wardCode) {
-      showCenterError('Thiếu mã địa lý: vui lòng chọn Tỉnh/Quận/Phường hợp lệ', 'Lỗi');
+      showCenterError(t('address.errors.incomplete'), t('checkout.errors.title'));
       return false;
     }
 
@@ -140,7 +142,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
           note: formData.note,
           isDefault: formData.isDefault,
         });
-        showCenterSuccess('Cập nhật địa chỉ thành công', 'Thành công');
+        showCenterSuccess(t('address.success.updated'), t('checkout.success.title'));
         await onAddressesChange();
         onSelect(editingAddressId);
       } else {
@@ -161,13 +163,13 @@ const AddressForm: React.FC<AddressFormProps> = ({
           districtId: formData.districtId!,
           wardCode: formData.wardCode,
         });
-        showCenterSuccess('Thêm địa chỉ thành công', 'Thành công');
+        showCenterSuccess(t('address.success.added'), t('checkout.success.title'));
         await onAddressesChange();
         onSelect(newAddress.id);
       }
       resetForm();
     } catch (error: any) {
-      showCenterError(error?.message || 'Không thể lưu địa chỉ', 'Lỗi');
+      showCenterError(error?.message || t('address.errors.cannotSave'), t('checkout.errors.title'));
     } finally {
       setIsSubmitting(false);
     }
@@ -196,12 +198,12 @@ const AddressForm: React.FC<AddressFormProps> = ({
   };
 
   const handleDelete = async (address: CustomerAddressApiItem) => {
-    const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa địa chỉ "${address.receiverName}"?`);
+    const confirmed = window.confirm(t('address.confirmDelete', { name: address.receiverName }));
     if (!confirmed) return;
     try {
       setIsSubmitting(true);
       await AddressService.deleteAddress(address.id);
-      showCenterSuccess('Xóa địa chỉ thành công', 'Thành công');
+      showCenterSuccess(t('address.success.deleted'), t('checkout.success.title'));
       const remaining = addresses.filter(a => a.id !== address.id);
       if (selectedAddressId === address.id) {
         const fallback = remaining.find(a => a.default) || remaining[0] || null;
@@ -209,7 +211,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
       }
       await onAddressesChange();
     } catch (error: any) {
-      showCenterError(error?.message || 'Không thể xóa địa chỉ', 'Lỗi');
+      showCenterError(error?.message || t('address.errors.cannotDelete'), t('checkout.errors.title'));
     } finally {
       setIsSubmitting(false);
     }
@@ -232,11 +234,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
         note: address.note,
         isDefault: true,
       });
-      showCenterSuccess('Đã đặt làm địa chỉ mặc định', 'Thành công');
+      showCenterSuccess(t('address.success.setDefault'), t('checkout.success.title'));
       await onAddressesChange();
       onSelect(address.id);
     } catch (error: any) {
-      showCenterError(error?.message || 'Không thể đặt mặc định', 'Lỗi');
+      showCenterError(error?.message || t('address.errors.cannotSetDefault'), t('checkout.errors.title'));
     } finally {
       setIsSubmitting(false);
     }
@@ -255,9 +257,9 @@ const AddressForm: React.FC<AddressFormProps> = ({
             <MapPin className="w-5 h-5 text-orange-500" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Địa chỉ nhận hàng</p>
+            <p className="font-semibold text-gray-900">{t('address.title')}</p>
             <p className="text-xs text-gray-500">
-              Chọn địa chỉ nhận hàng hoặc thêm địa chỉ mới để giao hàng nhanh chóng hơn.
+              {t('address.description')}
             </p>
           </div>
         </div>
@@ -271,7 +273,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
           className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 font-medium"
         >
           <Plus className="w-4 h-4" />
-          Thêm địa chỉ mới
+          {t('address.addNew')}
         </button>
       </div>
 
@@ -306,7 +308,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
             <div className="flex items-center gap-3 text-sm">
               {selectedAddress.default && (
                 <span className="px-2 py-0.5 rounded-full border border-red-200 text-red-500 text-xs font-medium">
-                  Mặc định
+                  {t('address.default')}
                 </span>
               )}
               <button
@@ -314,14 +316,14 @@ const AddressForm: React.FC<AddressFormProps> = ({
                 className="text-blue-600 hover:text-blue-700 font-medium"
                 onClick={() => setShowSelector(prev => !prev)}
               >
-                {showSelector ? 'Đóng' : 'Thay đổi'}
+                {showSelector ? t('address.close') : t('address.change')}
               </button>
             </div>
           </div>
         </div>
       ) : (
         <div className="border border-dashed border-gray-300 rounded-2xl p-6 text-center text-sm text-gray-500">
-          Chưa có địa chỉ nào. Vui lòng thêm địa chỉ mới.
+          {t('address.empty')}
         </div>
       )}
 
@@ -329,7 +331,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
         <div className="p-4 border border-gray-200 rounded-xl bg-gray-50 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-base font-semibold text-gray-900">
-              {editingAddressId ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
+              {editingAddressId ? t('address.editTitle') : t('address.add')}
             </p>
             <button
               type="button"
@@ -337,20 +339,20 @@ const AddressForm: React.FC<AddressFormProps> = ({
               className="text-sm text-gray-500 hover:text-gray-800"
               disabled={isSubmitting}
             >
-              Đóng
+              {t('address.close')}
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               className="border rounded px-3 py-2"
-              placeholder="Họ và tên *"
+              placeholder={t('address.fullName')}
               value={formData.receiverName}
               onChange={e => setFormData({ ...formData, receiverName: e.target.value })}
             />
             <input
               className="border rounded px-3 py-2"
-              placeholder="Số điện thoại *"
+              placeholder={t('address.phone')}
               value={formData.phoneNumber}
               onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })}
             />
@@ -359,9 +361,9 @@ const AddressForm: React.FC<AddressFormProps> = ({
               value={formData.label}
               onChange={e => setFormData({ ...formData, label: e.target.value as AddressLabel })}
             >
-              <option value="HOME">Nhà riêng</option>
-              <option value="WORK">Cơ quan</option>
-              <option value="OTHER">Khác</option>
+              <option value="HOME">{t('address.label.home')}</option>
+              <option value="WORK">{t('address.label.work')}</option>
+              <option value="OTHER">{t('address.label.other')}</option>
             </select>
             <input
               className="border rounded px-3 py-2 bg-gray-50 text-gray-500"
@@ -376,7 +378,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
               disabled={provincesLoading}
             >
               <option value="">
-                {provincesLoading ? 'Đang tải tỉnh/thành...' : 'Chọn Tỉnh/Thành *'}
+                {provincesLoading ? t('address.province.loading') : t('address.province.select')}
               </option>
               {provinces.map(p => (
                 <option key={p.ProvinceID} value={p.ProvinceName}>
@@ -393,10 +395,10 @@ const AddressForm: React.FC<AddressFormProps> = ({
             >
               <option value="">
                 {!formData.province
-                  ? 'Chọn tỉnh trước'
+                  ? t('address.district.selectFirst')
                   : districtsLoading
-                    ? 'Đang tải quận/huyện...'
-                    : 'Chọn Quận/Huyện *'}
+                    ? t('address.district.loading')
+                    : t('address.district.select')}
               </option>
               {districts.map(d => (
                 <option key={d.DistrictID} value={d.DistrictName}>
@@ -413,10 +415,10 @@ const AddressForm: React.FC<AddressFormProps> = ({
             >
               <option value="">
                 {!formData.district
-                  ? 'Chọn quận/huyện trước'
+                  ? t('address.ward.selectFirst')
                   : wardsLoading
-                    ? 'Đang tải phường/xã...'
-                    : 'Chọn Phường/Xã *'}
+                    ? t('address.ward.loading')
+                    : t('address.ward.select')}
               </option>
               {wards.map(w => (
                 <option key={w.WardCode} value={w.WardName}>
@@ -468,7 +470,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
               disabled={isSubmitting}
             >
               <Check className="w-4 h-4" />
-              {isSubmitting ? 'Đang lưu...' : editingAddressId ? 'Lưu thay đổi' : 'Thêm địa chỉ'}
+              {isSubmitting ? t('address.saving') : editingAddressId ? t('address.saveChanges') : t('address.addAddress')}
             </button>
             <button
               type="button"
@@ -476,7 +478,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
               className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               disabled={isSubmitting}
             >
-              Hủy
+              {t('address.cancel')}
             </button>
           </div>
         </div>
@@ -503,7 +505,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                     <span className="text-gray-500 text-sm">{address.phoneNumber}</span>
                     {address.default && (
                       <span className="px-2 py-0.5 border border-red-200 text-red-500 rounded-full text-xs font-medium">
-                        Mặc định
+                        {t('address.default')}
                       </span>
                     )}
                   </div>
@@ -526,11 +528,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
                   </p>
                   <div className="mt-2 flex items-center gap-3 text-xs text-blue-600">
                     <button type="button" className="hover:underline" onClick={() => handleEdit(address)}>
-                      Sửa
+                      {t('address.edit')}
                     </button>
                     {!address.default && (
                       <button type="button" className="hover:underline" onClick={() => handleSetDefault(address)}>
-                        Đặt mặc định
+                        {t('address.setDefault')}
                       </button>
                     )}
                     <button
@@ -538,7 +540,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
                       className="text-red-500 hover:underline"
                       onClick={() => handleDelete(address)}
                     >
-                      Xóa
+                      {t('address.delete')}
                     </button>
                   </div>
                 </div>
@@ -554,7 +556,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
           className="text-sm text-blue-600 hover:text-blue-700"
           onClick={() => setShowSelector(true)}
         >
-          Xem tất cả địa chỉ
+          {t('address.viewAll')}
         </button>
       )}
     </div>

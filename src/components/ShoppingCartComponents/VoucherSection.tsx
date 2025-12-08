@@ -3,6 +3,7 @@ import { TicketPercent, X, AlertCircle } from 'lucide-react';
 import type { CartItem } from '../../data/shoppingcart';
 import type { Product } from '../../services/customer/ProductListService';
 import { showCenterError } from '../../utils/notification';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export interface ShopVoucher {
   source: 'SHOP';
@@ -50,6 +51,8 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
   onChoose,
   onClear,
 }) => {
+  const { t } = useLanguage();
+  
   // Tính tổng tiền của các sản phẩm đã chọn theo storeId
   const calculateStoreTotal = (storeId: string): number => {
     const selectedItems = items.filter(it => it.isSelected);
@@ -74,7 +77,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
 
     // Nếu không có storeId, không thể kiểm tra
     if (!voucher.storeId) {
-      return { usable: false, reason: 'Không xác định được cửa hàng' };
+      return { usable: false, reason: t('voucherSection.errors.storeUnknown') };
     }
 
     // Tính tổng tiền của các sản phẩm cùng storeId
@@ -84,7 +87,10 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     if (storeTotal < voucher.minOrderValue) {
       return {
         usable: false,
-        reason: `Đơn hàng tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ. Hiện tại: ${storeTotal.toLocaleString('vi-VN')}đ`,
+        reason: t('voucherSection.errors.minOrder', { 
+          min: voucher.minOrderValue.toLocaleString('vi-VN'), 
+          current: storeTotal.toLocaleString('vi-VN') 
+        }),
       };
     }
 
@@ -113,20 +119,20 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
   const handleApply = () => {
     const code = voucherInput.trim().toUpperCase();
     if (!code) {
-      showCenterError('Vui lòng nhập mã voucher', 'Lỗi');
+      showCenterError(t('voucherSection.errors.enterCode'), t('checkout.errors.title'));
       return;
     }
 
     const found = availableVouchers.find(v => v.code.toUpperCase() === code);
     if (!found) {
-      showCenterError('Mã voucher không hợp lệ hoặc không tồn tại', 'Lỗi');
+      showCenterError(t('voucherSection.errors.invalidCode'), t('checkout.errors.title'));
       return;
     }
 
     // Kiểm tra voucher có thể sử dụng
     const check = isVoucherUsable(found);
     if (!check.usable) {
-      showCenterError(check.reason || 'Voucher không thể sử dụng', 'Lỗi');
+      showCenterError(check.reason || t('voucherSection.errors.cannotUse'), t('checkout.errors.title'));
       return;
     }
 
@@ -138,7 +144,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
     // Kiểm tra voucher có thể sử dụng
     const check = isVoucherUsable(voucher);
     if (!check.usable) {
-      showCenterError(check.reason || 'Voucher không thể sử dụng', 'Lỗi');
+      showCenterError(check.reason || t('voucherSection.errors.cannotUse'), t('checkout.errors.title'));
       return;
     }
 
@@ -148,28 +154,28 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
   // Format description cho voucher
   const formatVoucherDesc = (voucher: ShopVoucher): string => {
     if (voucher.type === 'PERCENT' && voucher.discountPercent) {
-      let desc = `Giảm ${voucher.discountPercent}%`;
+      let desc = t('voucherPicker.percentDiscount', { percent: voucher.discountPercent });
       if (voucher.maxDiscountValue) {
-        desc += `, tối đa ${voucher.maxDiscountValue.toLocaleString('vi-VN')}đ`;
+        desc += `, ${t('voucherPicker.maxDiscount', { amount: voucher.maxDiscountValue.toLocaleString('vi-VN') })}`;
       }
       if (voucher.minOrderValue) {
-        desc += `, đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`;
+        desc += `, ${t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') })}`;
       }
       return desc;
     } else if (voucher.type === 'FIXED' && voucher.discountValue) {
-      let desc = `Giảm ${voucher.discountValue.toLocaleString('vi-VN')}đ`;
+      let desc = t('voucherPicker.fixedDiscount', { amount: voucher.discountValue.toLocaleString('vi-VN') });
       if (voucher.minOrderValue) {
-        desc += `, đơn tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ`;
+        desc += `, ${t('voucherPicker.minOrder', { amount: voucher.minOrderValue.toLocaleString('vi-VN') })}`;
       }
       return desc;
     }
-    return 'Voucher cửa hàng';
+    return t('voucherPicker.storeVoucher');
   };
 
   return (
     <div className="pt-2">
       <p className="text-sm font-medium text-gray-800 mb-2 flex items-center gap-2">
-        <TicketPercent className="w-4 h-4 text-orange-600" /> Mã giảm giá
+        <TicketPercent className="w-4 h-4 text-orange-600" /> {t('voucherSection.title')}
       </p>
       <div className="flex gap-2">
         <input
@@ -180,14 +186,14 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
               handleApply();
             }
           }}
-          placeholder="Nhập mã voucher"
+          placeholder={t('voucherSection.placeholder')}
           className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
         />
         <button
           onClick={handleApply}
           className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-black"
         >
-          Áp dụng
+          {t('voucherSection.apply')}
         </button>
       </div>
 
@@ -222,7 +228,7 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
                 )}
                 {check.usable && (
                   <p className="text-xs text-green-600 mt-1">
-                    Giảm: {discountAmount.toLocaleString('vi-VN')}đ
+                    {t('voucherSection.discount')}: {discountAmount.toLocaleString('vi-VN')}đ
                   </p>
                 )}
               </div>
@@ -245,10 +251,13 @@ const VoucherSection: React.FC<VoucherSectionProps> = ({
       {appliedVoucher && (
         <div className="mt-2 flex items-center justify-between bg-orange-50 border border-orange-200 text-orange-700 px-3 py-2 rounded">
           <span className="text-sm">
-            Đã áp dụng: {appliedVoucher.code} - Giảm {appliedVoucher.discountValue.toLocaleString('vi-VN')}đ
+            {t('voucherSection.appliedMessage', { 
+              code: appliedVoucher.code, 
+              amount: appliedVoucher.discountValue.toLocaleString('vi-VN') 
+            })}
           </span>
           <button onClick={onClear} className="text-sm underline">
-            Gỡ
+            {t('voucherSection.remove')}
           </button>
         </div>
       )}

@@ -4,9 +4,11 @@ import { Eye, EyeOff, Mail, Lock, Phone, Loader2 } from 'lucide-react';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import { showCenterError } from '../../../utils/notification';
 import { GoogleLoginButton } from '../../../components/common';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import type { ApiError } from '../../../types/api';
 
 const Login: React.FC = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
@@ -46,18 +48,18 @@ const Login: React.FC = () => {
 
     // Basic validation
     if (!loginData.email) {
-      showCenterError('Vui lòng nhập email!', 'Thiếu thông tin');
+      showCenterError(t('login.errors.emailRequired'), t('login.errors.missingInfo'));
       return;
     }
     
     // Note: Phone login not supported by current API
     if (loginMethod === 'phone') {
-      showCenterError('Đăng nhập bằng số điện thoại chưa được hỗ trợ!', 'Chức năng chưa có');
+      showCenterError(t('login.errors.phoneNotSupported'), t('login.errors.featureNotAvailable'));
       return;
     }
     
     if (!loginData.password) {
-      showCenterError('Vui lòng nhập mật khẩu!', 'Thiếu thông tin');
+      showCenterError(t('login.errors.passwordRequired'), t('login.errors.missingInfo'));
       return;
     }
 
@@ -91,7 +93,7 @@ const Login: React.FC = () => {
     } catch (error) {
       const apiError = error as ApiError;
       const errorMessage = CustomerAuthService.formatApiError(apiError);
-      showCenterError(errorMessage, 'Lỗi đăng nhập');
+      showCenterError(errorMessage, t('login.errors.loginError'));
       console.error('Login error:', error);
     } finally {
       setIsLoading(false);
@@ -102,8 +104,8 @@ const Login: React.FC = () => {
     <div className="bg-white rounded-lg shadow-xl p-8">
       {/* Header */}
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Đăng nhập</h2>
-        <p className="text-gray-600">Chào mừng bạn quay trở lại!</p>
+        <h2 className="text-3xl font-bold text-gray-800 mb-2">{t('login.title')}</h2>
+        <p className="text-gray-600">{t('login.welcome')}</p>
       </div>
 
       {/* Login Method Toggle */}
@@ -118,7 +120,7 @@ const Login: React.FC = () => {
           }`}
         >
           <Mail className="w-4 h-4 inline mr-2" />
-          Email
+          {t('login.email')}
         </button>
         <button
           type="button"
@@ -130,7 +132,7 @@ const Login: React.FC = () => {
           }`}
         >
           <Phone className="w-4 h-4 inline mr-2" />
-          Số điện thoại
+          {t('login.phone')}
         </button>
       </div>
 
@@ -139,7 +141,7 @@ const Login: React.FC = () => {
         {/* Email/Phone Input */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {loginMethod === 'email' ? 'Email' : 'Số điện thoại'}
+            {loginMethod === 'email' ? t('login.email') : t('login.phone')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -157,8 +159,8 @@ const Login: React.FC = () => {
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder={
                 loginMethod === 'email' 
-                  ? 'Nhập email của bạn' 
-                  : 'Nhập số điện thoại'
+                  ? t('login.emailPlaceholder')
+                  : t('login.phonePlaceholder')
               }
               required
             />
@@ -168,7 +170,7 @@ const Login: React.FC = () => {
         {/* Password Input */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Mật khẩu
+            {t('login.password')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -180,7 +182,7 @@ const Login: React.FC = () => {
               value={formData.password}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Nhập mật khẩu"
+              placeholder={t('login.passwordPlaceholder')}
               required
             />
             <button
@@ -207,13 +209,13 @@ const Login: React.FC = () => {
               onChange={handleInputChange}
               className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
             />
-            <span className="ml-2 text-sm text-gray-600">Ghi nhớ đăng nhập</span>
+            <span className="ml-2 text-sm text-gray-600">{t('login.rememberMe')}</span>
           </label>
           <Link
             to="/auth/forgot-password"
             className="text-sm text-orange-500 hover:text-orange-600 font-medium"
           >
-            Quên mật khẩu?
+            {t('login.forgotPassword')}
           </Link>
         </div>
 
@@ -230,10 +232,10 @@ const Login: React.FC = () => {
           {isLoading ? (
             <div className="flex items-center justify-center">
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              <span>Đang đăng nhập...</span>
+              <span>{t('login.loggingIn')}</span>
             </div>
           ) : (
-            'Đăng nhập'
+            t('login.loginButton')
           )}
         </button>
 
@@ -243,7 +245,7 @@ const Login: React.FC = () => {
             <div className="w-full border-t border-gray-300" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Hoặc</span>
+            <span className="px-2 bg-white text-gray-500">{t('login.or')}</span>
           </div>
         </div>
 
@@ -258,12 +260,12 @@ const Login: React.FC = () => {
       {/* Register Link */}
       <div className="mt-8 text-center">
         <p className="text-gray-600">
-          Chưa có tài khoản?{' '}
+          {t('login.noAccount')}{' '}
           <Link
             to="/auth/register"
             className="text-orange-500 hover:text-orange-600 font-medium"
           >
-            Đăng ký ngay
+            {t('login.registerNow')}
           </Link>
         </p>
       </div>

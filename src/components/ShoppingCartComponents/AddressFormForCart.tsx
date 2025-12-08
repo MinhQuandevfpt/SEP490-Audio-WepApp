@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AddressFormForCartProps {
   selectedAddressId: string | null;
@@ -21,6 +22,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
   editingAddress,
   onCancel
 }) => {
+  const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = !!editingAddress;
   const [form, setForm] = useState<{
@@ -110,7 +112,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
 
   const submitForm = async () => {
     if (!form.receiverName || !form.phoneNumber || !form.province || !form.district || !form.ward || !form.street) {
-      toast.error('Vui lòng điền đầy đủ thông tin địa chỉ');
+      toast.error(t('addressFormCart.errors.incomplete'));
       return;
     }
 
@@ -121,7 +123,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
     // Validate new code fields for create
     if (!isEditMode) {
       if (!form.provinceCode || form.districtId == null || !form.wardCode) {
-        toast.error('Thiếu mã địa lý: vui lòng chọn Tỉnh/Quận/Phường hợp lệ');
+        toast.error(t('addressFormCart.errors.missingCodes'));
         return;
       }
     }
@@ -130,7 +132,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
       setIsSubmitting(true);
       if (isEditMode && editingAddress) {
         const updated = await AddressService.updateAddress(editingAddress.id, form);
-        toast.success('Cập nhật địa chỉ thành công!');
+        toast.success(t('addressFormCart.success.update'));
         onAddressesChange();
         if (updated.id === selectedAddressId) {
           onSelect(updated.id); // Refresh selection
@@ -154,13 +156,13 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
           districtId: form.districtId as number,
           wardCode: form.wardCode,
         });
-        toast.success('Thêm địa chỉ thành công!');
+        toast.success(t('addressFormCart.success.add'));
         onAddressesChange();
         onSelect(newAddress.id);
         if (onCancel) onCancel();
       }
     } catch (error: any) {
-      toast.error(error?.message || `Không thể ${isEditMode ? 'cập nhật' : 'thêm'} địa chỉ. Vui lòng thử lại.`);
+      toast.error(error?.message || (isEditMode ? t('addressFormCart.errors.cannotUpdate') : t('addressFormCart.errors.cannotAdd')));
     } finally {
       setIsSubmitting(false);
     }
@@ -169,27 +171,27 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
   return (
     <div className="border rounded-lg p-4 space-y-3 bg-gray-50">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">{isEditMode ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}</h3>
+        <h3 className="text-sm font-semibold text-gray-900">{isEditMode ? t('addressFormCart.editTitle') : t('addressFormCart.addTitle')}</h3>
         {onCancel && (
           <button 
             onClick={onCancel}
             className="text-sm text-gray-600 hover:text-gray-900"
             disabled={isSubmitting}
           >
-            Hủy
+            {t('addressFormCart.cancel')}
           </button>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <input 
-            placeholder="Họ tên *" 
+            placeholder={t('addressFormCart.fullName')} 
             className="border rounded px-3 py-2"
             value={form.receiverName} 
             onChange={(e) => setForm({ ...form, receiverName: e.target.value })} 
           />
           <input 
-            placeholder="Số điện thoại *" 
+            placeholder={t('addressFormCart.phone')} 
             className="border rounded px-3 py-2"
             value={form.phoneNumber} 
             onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} 
@@ -199,9 +201,9 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
             value={form.label}
             onChange={(e) => setForm({ ...form, label: e.target.value as AddressLabel })}
           >
-            <option value="HOME">Nhà riêng</option>
-            <option value="WORK">Cơ quan</option>
-            <option value="OTHER">Khác</option>
+            <option value="HOME">{t('addressFormCart.label.home')}</option>
+            <option value="WORK">{t('addressFormCart.label.work')}</option>
+            <option value="OTHER">{t('addressFormCart.label.other')}</option>
           </select>
           {/* Thành phố/Tỉnh */}
           <select
@@ -211,7 +213,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
               setForm({ ...form, province: e.target.value, district: '', ward: '' });
             }}
           >
-            <option value="" disabled>{provincesLoading ? 'Đang tải tỉnh/thành...' : 'Chọn tỉnh/thành phố *'}</option>
+            <option value="" disabled>{provincesLoading ? t('addressFormCart.province.loading') : t('addressFormCart.province.select')}</option>
             {provinces.map(p => (
               <option key={p.ProvinceID} value={p.ProvinceName}>{p.ProvinceName}</option>
             ))}
@@ -225,7 +227,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
             }}
             disabled={!form.province || districtsLoading}
           >
-            <option value="" disabled>{!form.province ? 'Chọn tỉnh trước' : (districtsLoading ? 'Đang tải quận/huyện...' : 'Chọn quận/huyện *')}</option>
+            <option value="" disabled>{!form.province ? t('addressFormCart.district.selectFirst') : (districtsLoading ? t('addressFormCart.district.loading') : t('addressFormCart.district.select'))}</option>
             {districts.map(d => (
               <option key={d.DistrictID} value={d.DistrictName}>{d.DistrictName}</option>
             ))}
@@ -237,33 +239,33 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
             onChange={(e) => setForm({ ...form, ward: e.target.value })}
             disabled={!form.district || wardsLoading}
           >
-            <option value="" disabled>{!form.district ? 'Chọn quận/huyện trước' : (wardsLoading ? 'Đang tải phường/xã...' : 'Chọn phường/xã *')}</option>
+            <option value="" disabled>{!form.district ? t('addressFormCart.ward.selectFirst') : (wardsLoading ? t('addressFormCart.ward.loading') : t('addressFormCart.ward.select'))}</option>
             {wards.map(w => (
               <option key={w.WardCode} value={w.WardName}>{w.WardName}</option>
             ))}
           </select>
           {/* Đường */}
           <input 
-            placeholder="Đường *" 
+            placeholder={t('addressFormCart.street')} 
             className="border rounded px-3 py-2"
             value={form.street} 
             onChange={(e) => setForm({ ...form, street: e.target.value })} 
           />
           {/* Số nhà/Địa chỉ chi tiết */}
           <input 
-            placeholder="Số nhà/Địa chỉ chi tiết *" 
+            placeholder={t('addressFormCart.addressLine')} 
             className="border rounded px-3 py-2"
             value={form.addressLine} 
             onChange={(e) => setForm({ ...form, addressLine: e.target.value })} 
           />
           <input 
-            placeholder="Mã bưu điện" 
+            placeholder={t('addressFormCart.postalCode')} 
             className="border rounded px-3 py-2"
             value={form.postalCode} 
             onChange={(e) => setForm({ ...form, postalCode: e.target.value })} 
           />
           <input 
-            placeholder="Ghi chú" 
+            placeholder={t('addressFormCart.note')} 
             className="border rounded px-3 py-2 md:col-span-2"
             value={form.note || ''} 
             onChange={(e) => setForm({ ...form, note: e.target.value })} 
@@ -275,7 +277,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
               checked={form.isDefault}
               onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
             />
-            <label htmlFor="isDefault" className="text-sm text-gray-700">Đặt làm địa chỉ mặc định</label>
+            <label htmlFor="isDefault" className="text-sm text-gray-700">{t('addressFormCart.setDefault')}</label>
           </div>
           <div className="md:col-span-2 flex gap-2">
             <button 
@@ -283,7 +285,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
               disabled={isSubmitting}
               className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded disabled:opacity-50"
             >
-              {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật địa chỉ' : 'Lưu địa chỉ'}
+              {isSubmitting ? t('addressFormCart.saving') : isEditMode ? t('addressFormCart.update') : t('addressFormCart.save')}
             </button>
             {onCancel && (
               <button 
@@ -291,7 +293,7 @@ const AddressFormForCart: React.FC<AddressFormForCartProps> = ({
                 className="px-4 py-2 border rounded"
                 disabled={isSubmitting}
               >
-                Hủy
+                {t('addressFormCart.cancel')}
               </button>
             )}
           </div>

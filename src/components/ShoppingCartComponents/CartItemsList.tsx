@@ -6,6 +6,7 @@ import type { AppliedStoreVoucher } from './StoreVoucherPicker';
 import AddressSelectorCompact from './AddressSelectorCompact';
 import SelectAllBar from './SelectAllBar';
 import CartItemRow from './CartItemRow';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface StoreGroup {
   storeId: string;
@@ -67,13 +68,15 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
   onApplyVoucher,
   onRemoveVoucher,
 }) => {
+  const { t } = useLanguage();
+  
   return (
     <div className="lg:col-span-2 space-y-4">
       {showAddress && (
         addressesLoading ? (
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto"></div>
-            <p className="text-center text-sm text-gray-500 mt-2">Đang tải địa chỉ...</p>
+            <p className="text-center text-sm text-gray-500 mt-2">{t('cartItemList.loadingAddresses')}</p>
           </div>
         ) : (
           <AddressSelectorCompact
@@ -98,7 +101,10 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
             <div>
               <p className="text-sm font-semibold text-gray-900">{group.storeName}</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Đã chọn {group.items.filter(it => it.isSelected).length}/{group.items.length} sản phẩm
+                {t('cartItemList.selectedProducts', { 
+                  selected: group.items.filter(it => it.isSelected).length, 
+                  total: group.items.length 
+                })}
               </p>
             </div>
           </div>

@@ -11,6 +11,7 @@ import { ProductVoucherService } from '../../services/customer/ProductVoucherSer
 import { ProductListService, type Product } from '../../services/customer/ProductListService';
 import { VoucherService, type StoreVoucher } from '../../services/seller/VoucherService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
+import { useLanguage } from '../../contexts/LanguageContext';
 import type { CustomerAddressApiItem } from '../../types/api';
 import type { CartItem as ApiCartItem, CheckoutCodRequest, CheckoutPayOSRequest, StoreVoucher as CheckoutStoreVoucher, ServiceTypeIds } from '../../types/cart';
 import type { CartItem } from '../../data/shoppingcart';
@@ -165,6 +166,7 @@ const buildServiceTypeIds = (items: CartItem[], productCache: Map<string, Produc
 };
 
 const CheckoutOrderContainer: React.FC = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [addresses, setAddresses] = useState<CustomerAddressApiItem[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -258,7 +260,7 @@ const CheckoutOrderContainer: React.FC = () => {
       const storeName =
         product?.storeName ||
         (productStoreId ? storeMetadata[productStoreId]?.storeName : undefined) ||
-        'Cửa hàng chưa xác định';
+        t('checkout.store.unknown');
 
       if (!groups.has(storeId)) {
         groups.set(storeId, {
@@ -351,7 +353,7 @@ const CheckoutOrderContainer: React.FC = () => {
       setAddresses(list);
       return list;
     } catch (error: any) {
-      setError(error?.message || 'Không thể tải danh sách địa chỉ.');
+      setError(error?.message || t('checkout.errors.cannotLoadData'));
       setAddresses([]);
       return [];
     }
@@ -365,7 +367,7 @@ const CheckoutOrderContainer: React.FC = () => {
     const init = async () => {
       const payloadRaw = sessionStorage.getItem(CHECKOUT_SESSION_KEY);
       if (!payloadRaw) {
-        showCenterError('Không tìm thấy thông tin giỏ hàng. Vui lòng chọn sản phẩm trước khi thanh toán.', 'Thông báo');
+        showCenterError(t('checkout.errors.cartNotFound'), t('checkout.notification.title'));
         window.location.href = '/cart';
         return;
       }
@@ -374,13 +376,13 @@ const CheckoutOrderContainer: React.FC = () => {
       try {
         payload = JSON.parse(payloadRaw) as CheckoutSessionPayload;
       } catch {
-        showCenterError('Thông tin giỏ hàng không hợp lệ. Vui lòng chọn lại sản phẩm.', 'Thông báo');
+        showCenterError(t('checkout.errors.invalidCart'), t('checkout.notification.title'));
         window.location.href = '/cart';
         return;
       }
 
       if (!payload.selectedCartItemIds || payload.selectedCartItemIds.length === 0) {
-        showCenterError('Giỏ hàng của bạn đang trống. Vui lòng chọn sản phẩm trước khi thanh toán.', 'Thông báo');
+        showCenterError(t('checkout.errors.emptyCart'), t('checkout.notification.title'));
         window.location.href = '/cart';
         return;
       }
@@ -409,7 +411,7 @@ const CheckoutOrderContainer: React.FC = () => {
         ) as ApiCartItem[];
 
         if (selectedCartItems.length === 0) {
-          showCenterError('Không tìm thấy sản phẩm đã chọn. Vui lòng kiểm tra lại giỏ hàng.', 'Thông báo');
+          showCenterError(t('checkout.errors.selectedItemsNotFound'), t('checkout.notification.title'));
           window.location.href = '/cart';
           return;
         }
@@ -418,7 +420,7 @@ const CheckoutOrderContainer: React.FC = () => {
         const mappedItems = mapApiItemsToCartItems(selectedCartItems);
         setCartItems(mappedItems);
       } catch (err: any) {
-        setError(err?.message || 'Không thể tải dữ liệu thanh toán. Vui lòng thử lại.');
+        setError(err?.message || t('checkout.errors.cannotLoadData'));
       } finally {
         setIsLoading(false);
       }
@@ -688,7 +690,7 @@ const CheckoutOrderContainer: React.FC = () => {
         // thì có thể voucher đã hết hạn hoặc không còn hợp lệ
         if (!voucher) {
           changed = true;
-          messages.push(`Voucher ${applied.code} không còn hợp lệ.`);
+          messages.push(t('checkout.voucher.invalid', { code: applied.code }));
           return;
         }
 
@@ -708,7 +710,10 @@ const CheckoutOrderContainer: React.FC = () => {
         if (voucher.minOrderValue && storeTotal < voucher.minOrderValue) {
           changed = true;
           messages.push(
-            `Voucher ${applied.code} đã được gỡ vì đơn hàng không đạt tối thiểu ${voucher.minOrderValue.toLocaleString('vi-VN')}đ.`
+            t('checkout.voucher.removedMinOrder', { 
+              code: applied.code, 
+              amount: voucher.minOrderValue.toLocaleString('vi-VN') 
+            })
           );
           return;
         }
@@ -731,7 +736,7 @@ const CheckoutOrderContainer: React.FC = () => {
       return next;
     });
 
-    messages.forEach(msg => showCenterError(msg, 'Voucher'));
+    messages.forEach(msg => showCenterError(msg, t('cart.voucher.title')));
   }, [cartItems, productCache, availableVouchers, platformVoucherDiscounts]);
 
   const applyCartResponseToUI = (respItems: ApiCartItem[]) => {
@@ -748,13 +753,13 @@ const CheckoutOrderContainer: React.FC = () => {
       const remainingIds = selectedCartItemIds.filter(itemId => itemId !== id);
       setSelectedCartItemIds(remainingIds);
       applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
-      showCenterSuccess('Đã xóa sản phẩm khỏi đơn hàng', 'Thành công');
+      showCenterSuccess(t('checkout.success.itemRemoved'), t('checkout.success.title'));
       if (remainingIds.length === 0) {
-        showCenterError('Giỏ hàng rỗng, quay lại để chọn sản phẩm.', 'Thông báo');
+        showCenterError(t('checkout.errors.emptyCartRedirect'), t('checkout.notification.title'));
         window.location.href = '/cart';
       }
     } catch (error: any) {
-      const msg = CustomerCartService.formatCartError(error) || 'Không thể xóa sản phẩm. Vui lòng thử lại.';
+      const msg = CustomerCartService.formatCartError(error) || t('checkout.errors.cannotRemoveItem');
       setError(msg);
     }
   };
@@ -763,19 +768,19 @@ const CheckoutOrderContainer: React.FC = () => {
 
   const handleSubmit = async () => {
     if (cartItems.length === 0) {
-      setError('Giỏ hàng của bạn đang trống.');
+      setError(t('checkout.errors.emptyCart'));
       return;
     }
     if (!selectedAddressId) {
-      setError('Vui lòng chọn địa chỉ nhận hàng.');
+      setError(t('checkout.errors.noAddress'));
       return;
     }
     if (!paymentMethod) {
-      setError('Vui lòng chọn phương thức thanh toán.');
+      setError(t('checkout.errors.noPaymentMethod'));
       return;
     }
     if (shippingFeeError) {
-      setError('Không thể tính phí vận chuyển. Vui lòng kiểm tra lại địa chỉ hoặc thử lại sau.');
+      setError(t('checkout.errors.shippingFeeError'));
       return;
     }
 
@@ -1037,12 +1042,12 @@ const CheckoutOrderContainer: React.FC = () => {
         console.log('═══════════════════════════════════════════════════════════════');
         if (response.status === 200) {
           sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
-          showCenterSuccess(response.message || 'Đặt hàng thành công!', 'Thành công', 4000);
+          showCenterSuccess(response.message || t('checkout.success.orderPlaced'), t('checkout.success.title'), 4000);
           setCartItems([]);
           // Redirect to orders page similar to old flow
           navigate('/orders', { replace: true });
         } else {
-          setError(response.message || 'Đặt hàng thất bại. Vui lòng thử lại.');
+          setError(response.message || t('checkout.errors.checkoutFailed'));
         }
       } else if (paymentMethod === 'payos') {
         const returnUrl = `${window.location.origin}/payment/success`;
@@ -1050,7 +1055,7 @@ const CheckoutOrderContainer: React.FC = () => {
         const request: CheckoutPayOSRequest = {
           addressId: selectedAddressId,
           message: message || undefined,
-          description: `Đơn hàng từ AudioShop - ${cartItems.length} sản phẩm`,
+          description: t('checkout.orderDescription', { count: cartItems.length }),
           items: checkoutItemsPayload,
           storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
           platformVouchers: platformVouchers.length > 0 ? platformVouchers : null,
@@ -1069,16 +1074,16 @@ const CheckoutOrderContainer: React.FC = () => {
           window.location.href = response.data.checkoutUrl;
           return;
         }
-        setError(response.message || 'Không thể tạo liên kết thanh toán PayOS. Vui lòng thử lại.');
+        setError(response.message || t('checkout.errors.cannotCreatePayOS'));
       } else {
-        setError('Phương thức thanh toán không hợp lệ.');
+        setError(t('checkout.errors.invalidPaymentMethod'));
       }
     } catch (err: any) {
       const msg =
         err?.message ||
         err?.data?.message ||
         CustomerCartService.formatCartError(err) ||
-        'Đã xảy ra lỗi khi đặt hàng. Vui lòng thử lại.';
+        t('checkout.errors.checkoutFailed');
       setError(msg);
     } finally {
       setIsSubmitting(false);
@@ -1092,25 +1097,25 @@ const CheckoutOrderContainer: React.FC = () => {
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-5">
             <div className="flex items-center gap-2 px-6 py-4 text-sm text-gray-600 border-b border-gray-100">
               <Home className="w-4 h-4" />
-              <span>Giỏ hàng</span>
+              <span>{t('checkout.breadcrumb.cart')}</span>
               <ChevronRight className="w-4 h-4" />
-              <span className="font-medium text-gray-900">Thanh toán</span>
+              <span className="font-medium text-gray-900">{t('checkout.breadcrumb.checkout')}</span>
               <ChevronRight className="w-4 h-4" />
-              <span>Xác nhận</span>
+              <span>{t('checkout.breadcrumb.confirm')}</span>
             </div>
           </div>
 
           {isLoading ? (
             <div className="py-16 text-center text-gray-500">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
-              <p className="mt-3">Đang tải dữ liệu thanh toán...</p>
+              <p className="mt-3">{t('checkout.loading')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-5">
                 <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
                   <div className="px-6 py-4 border-b border-gray-100">
-                    <p className="text-base font-semibold text-gray-900">Địa chỉ nhận hàng</p>
+                    <p className="text-base font-semibold text-gray-900">{t('checkout.sections.deliveryAddress')}</p>
                   </div>
                   <div className="px-6 py-4">
                     <AddressForm
@@ -1124,7 +1129,7 @@ const CheckoutOrderContainer: React.FC = () => {
 
                 <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
                   <div className="px-6 py-4 border-b border-gray-100">
-                    <p className="text-base font-semibold text-gray-900">Sản phẩm</p>
+                    <p className="text-base font-semibold text-gray-900">{t('checkout.sections.products')}</p>
                   </div>
                   <div className="px-6 py-4">
                     <CartItemList 
@@ -1179,7 +1184,7 @@ const CheckoutOrderContainer: React.FC = () => {
                 <div className="lg:sticky lg:top-24 space-y-5">
                   <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
                     <div className="px-5 py-4 border-b border-gray-100">
-                      <p className="text-base font-semibold text-gray-900">Phương thức thanh toán</p>
+                      <p className="text-base font-semibold text-gray-900">{t('checkout.sections.paymentMethod')}</p>
                     </div>
                     <div className="px-5 py-4">
                       <PaymentMethodDropdown value={paymentMethod} onChange={setPaymentMethod} />
@@ -1189,7 +1194,7 @@ const CheckoutOrderContainer: React.FC = () => {
                   <section className="bg-white rounded-2xl border border-gray-200 shadow-sm">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                       <div>
-                        <p className="text-base font-semibold text-gray-900">Đơn hàng</p>
+                        <p className="text-base font-semibold text-gray-900">{t('checkout.sections.order')}</p>
                       </div>
                       {error && (
                         <span className="text-xs text-red-500 font-medium">
@@ -1215,7 +1220,7 @@ const CheckoutOrderContainer: React.FC = () => {
                         selectedVoucherCodes={selectedVoucherCodes}
                       />
                       {isSubmitting && (
-                        <p className="text-xs text-gray-500 text-center mt-3">Đang gửi đơn hàng...</p>
+                        <p className="text-xs text-gray-500 text-center mt-3">{t('checkout.submitting')}</p>
                       )}
                     </div>
                   </section>

@@ -5,9 +5,11 @@ import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 import { GoogleLoginButton } from '../../../components/common';
 import { usePolicyCategories } from '../../../hooks/usePolicyCategories';
+import { useLanguage } from '../../../contexts/LanguageContext';
 import type { ApiError } from '../../../types/api';
 
 const Register: React.FC = () => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -52,12 +54,12 @@ const Register: React.FC = () => {
     
     // Basic validation
     if (formData.password !== formData.confirmPassword) {
-      showCenterError('Mật khẩu xác nhận không khớp!', 'Lỗi xác thực');
+      showCenterError(t('register.errors.passwordMismatch'), t('register.errors.validationError'));
       return;
     }
 
     if (!formData.agreeTerms) {
-      showCenterError('Bạn phải đồng ý với điều khoản dịch vụ để tiếp tục!', 'Thiếu thông tin');
+      showCenterError(t('register.errors.termsRequired'), t('register.errors.missingInfo'));
       return;
     }
 
@@ -72,7 +74,7 @@ const Register: React.FC = () => {
     // Client-side validation
     const validationErrors = CustomerAuthService.validateRegisterData(registerData);
     if (validationErrors.length > 0) {
-      showCenterError(validationErrors[0], 'Thông tin không hợp lệ');
+      showCenterError(validationErrors[0], t('register.errors.invalidInfo'));
       return;
     }
 
@@ -83,8 +85,8 @@ const Register: React.FC = () => {
       
       if (response.status === 201) {
         showCenterSuccess(
-          'Bạn sẽ được chuyển đến trang đăng nhập',
-          'Đăng ký thành công!',
+          t('register.success.message'),
+          t('register.success.title'),
           2000
         );
         
@@ -92,7 +94,7 @@ const Register: React.FC = () => {
         setTimeout(() => {
           navigate('/auth/login', { 
             state: { 
-              message: 'Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.', 
+              message: t('register.success.redirectMessage'), 
               email: response.data.email 
             } 
           });
@@ -101,7 +103,7 @@ const Register: React.FC = () => {
     } catch (error) {
       const apiError = error as ApiError;
       const errorMessage = CustomerAuthService.formatApiError(apiError);
-      showCenterError(errorMessage, 'Lỗi đăng ký');
+      showCenterError(errorMessage, t('register.errors.registerError'));
       console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
@@ -112,8 +114,8 @@ const Register: React.FC = () => {
     <div className="bg-white rounded-lg shadow-xl p-8">
       {/* Header */}
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-2">Đăng ký</h2>
-        <p className="text-gray-600">Tạo tài khoản để bắt đầu mua sắm!</p>
+        <h2 className="text-3xl font-bold text-gray-800 mb-2">{t('register.title')}</h2>
+        <p className="text-gray-600">{t('register.subtitle')}</p>
       </div>
 
       {/* Register Form */}
@@ -121,7 +123,7 @@ const Register: React.FC = () => {
         {/* Full Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Họ và tên *
+            {t('register.fullName')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -133,7 +135,7 @@ const Register: React.FC = () => {
               value={formData.name}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Nhập họ và tên của bạn"
+              placeholder={t('register.fullNamePlaceholder')}
               required
             />
           </div>
@@ -142,7 +144,7 @@ const Register: React.FC = () => {
         {/* Email */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Email *
+            {t('register.email')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -154,7 +156,7 @@ const Register: React.FC = () => {
               value={formData.email}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Nhập email của bạn"
+              placeholder={t('register.emailPlaceholder')}
               required
             />
           </div>
@@ -163,7 +165,7 @@ const Register: React.FC = () => {
         {/* Phone */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Số điện thoại *
+            {t('register.phone')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -175,7 +177,7 @@ const Register: React.FC = () => {
               value={formData.phone}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Nhập số điện thoại"
+              placeholder={t('register.phonePlaceholder')}
               required
             />
           </div>
@@ -184,7 +186,7 @@ const Register: React.FC = () => {
         {/* Password */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Mật khẩu *
+            {t('register.password')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -196,7 +198,7 @@ const Register: React.FC = () => {
               value={formData.password}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Nhập mật khẩu (ít nhất 6 ký tự)"
+              placeholder={t('register.passwordPlaceholder')}
               required
               minLength={6}
             />
@@ -217,7 +219,7 @@ const Register: React.FC = () => {
         {/* Confirm Password */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Xác nhận mật khẩu *
+            {t('register.confirmPassword')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -229,7 +231,7 @@ const Register: React.FC = () => {
               value={formData.confirmPassword}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder="Nhập lại mật khẩu"
+              placeholder={t('register.confirmPasswordPlaceholder')}
               required
             />
             <button
@@ -258,21 +260,21 @@ const Register: React.FC = () => {
               required
             />
             <span className="ml-3 text-sm text-gray-600">
-              Tôi đồng ý với{' '}
+              {t('register.agreeTerms')}{' '}
               <Link 
                 to={policyCategoryId ? `/policies/${policyCategoryId}?item=điều khoản` : '/policies'} 
                 className="text-orange-500 hover:text-orange-600 font-medium"
               >
-                Điều khoản dịch vụ
+                {t('register.termsOfService')}
               </Link>{' '}
-              và{' '}
+              {t('register.and')}{' '}
               <Link 
                 to={policyCategoryId ? `/policies/${policyCategoryId}?item=chính sách bảo mật` : '/policies'} 
                 className="text-orange-500 hover:text-orange-600 font-medium"
               >
-                Chính sách bảo mật
+                {t('register.privacyPolicy')}
               </Link>{' '}
-              của AudioShop *
+              {t('register.ofAudioShop')}
             </span>
           </label>
           
@@ -292,10 +294,10 @@ const Register: React.FC = () => {
           {isLoading ? (
             <div className="flex items-center justify-center">
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              <span>Đang đăng ký...</span>
+              <span>{t('register.registering')}</span>
             </div>
           ) : (
-            'Đăng ký'
+            t('register.registerButton')
           )}
         </button>
 
@@ -305,25 +307,25 @@ const Register: React.FC = () => {
             <div className="w-full border-t border-gray-300" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Hoặc đăng ký với</span>
+            <span className="px-2 bg-white text-gray-500">{t('register.orRegisterWith')}</span>
           </div>
         </div>
 
         {/* Social Register */}
         <div className="space-y-3">
-          <GoogleLoginButton text="Đăng ký với Google" />
+          <GoogleLoginButton text={t('register.registerWithGoogle')} />
         </div>
       </form>
 
       {/* Login Link */}
       <div className="mt-8 text-center">
         <p className="text-gray-600">
-          Đã có tài khoản?{' '}
+          {t('register.hasAccount')}{' '}
           <Link
             to="/auth/login"
             className="text-orange-500 hover:text-orange-600 font-medium"
           >
-            Đăng nhập ngay
+            {t('register.loginNow')}
           </Link>
         </p>
       </div>

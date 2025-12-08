@@ -1,20 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
 import CartDropdown from './CartDropdown';
 import NotificationDropdown from './NotificationDropdown';
+import LanguageSwitcher from './LanguageSwitcher';
+import { useLanguage } from '../../contexts/LanguageContext';
 import type { CategoryItem } from '../../types/api';
 
 const Header: React.FC = () => {
   const location = useLocation();
+  const { t } = useLanguage();
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   // Check if current page is account page
   const isAccountPage = location.pathname.startsWith('/account');
+
+  // Set search keyword from URL params when on search page
+  useEffect(() => {
+    if (location.pathname === '/search') {
+      const params = new URLSearchParams(location.search);
+      const keyword = params.get('keyword');
+      if (keyword) {
+        setSearchKeyword(keyword);
+      }
+    }
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -89,6 +105,14 @@ const Header: React.FC = () => {
       return '';
     }
   };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchKeyword.trim()) {
+      navigate(`/search?keyword=${encodeURIComponent(searchKeyword.trim())}`);
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200">
       {/* Top bar */}
@@ -97,41 +121,44 @@ const Header: React.FC = () => {
           <div className="flex justify-between items-center py-2 text-sm">
             <div className="flex space-x-6">
               <a href="/seller" className="text-blue-600 hover:text-gray-900">
-                Chăm sóc khách hàng
+                {t('header.customerService')}
               </a>
               <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
-                Bán hàng cùng AudioShop
+                {t('header.sellWithUs')}
               </Link>
               <Link to="/3d-room" className="text-blue-600 hover:text-gray-900">
-                Trải nghiệm phòng âm thanh
+                {t('header.experienceRoom')}
               </Link>
             </div>
-            <div className="flex space-x-6">
+            <div className="flex items-center space-x-4">
               <Link to="/policies" className="text-gray-600 hover:text-gray-900">
-                Hỗ trợ
+                {t('header.support')}
               </Link>
+              
+              {/* Language Switcher */}
+              <LanguageSwitcher />
               
               {isAuthenticated ? (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-600">
-                    Xin chào, <span className="font-medium text-gray-800">{currentUser?.full_name}</span>
+                    {t('header.hello')}, <span className="font-medium text-gray-800">{currentUser?.full_name}</span>
                   </span>
                   <button
                     onClick={handleLogout}
                     className="flex items-center text-gray-600 hover:text-red-600 transition-colors"
                   >
                     <LogOut className="w-4 h-4 mr-1" />
-                    <span className="text-sm">Đăng xuất</span>
+                    <span className="text-sm">{t('header.logout')}</span>
                   </button>
                 </div>
               ) : (
                 <>
                   <Link to="/auth/login" className="font-black text-black hover:text-gray-900">
-                    Đăng nhập
+                    {t('header.login')}
                   </Link>
                   <span className="text-gray-400">/</span>
                   <Link to="/auth/register" className="font-black text-black hover:text-gray-900">
-                    Đăng ký
+                    {t('header.register')}
                   </Link>
                 </>
               )}
@@ -155,18 +182,23 @@ const Header: React.FC = () => {
 
           {/* Search bar */}
           <div className="flex-1 max-w-2xl mx-8">
-            <div className="relative">
+            <form onSubmit={handleSearch} className="relative">
               <input
                 type="text"
-                placeholder="Tìm kiếm tai nghe, loa, micro..."
+                placeholder={t('header.searchPlaceholder')}
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
-              <button className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">
+              <button 
+                type="submit"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
-            </div>
+            </form>
 
             {/* Navigation categories below search */}
             <div className="mt-3">
@@ -185,7 +217,7 @@ const Header: React.FC = () => {
                   ))
                 ) : (
                   // Fallback while loading
-                  <span className="text-gray-400 text-sm">Đang tải danh mục...</span>
+                  <span className="text-gray-400 text-sm">{t('header.loadingCategories')}</span>
                 )}
               </nav>
             </div>
@@ -203,7 +235,7 @@ const Header: React.FC = () => {
               }`}
             >
               <User className="w-5 h-5" />
-              <span className="text-sm">Tài khoản</span>
+              <span className="text-sm">{t('header.account')}</span>
             </Link>
 
             {/* Divider */}
@@ -222,31 +254,31 @@ const Header: React.FC = () => {
       <div className="bg-gray-50 border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center space-x-8 py-3">
-            <span className="text-blue-600 font-semibold">Cam kết:</span>
+            <span className="text-blue-600 font-semibold">{t('header.commitment')}</span>
 
             <div className="flex items-center space-x-2 text-gray-700">
               <Shield className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">100% hàng thật</span>
+              <span className="text-sm font-medium">{t('header.authentic')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
               <Truck className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">Vận chuyển nhanh chóng</span>
+              <span className="text-sm font-medium">{t('header.fastShipping')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
               <RotateCcw className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">Hoàn 200% nếu hàng giả</span>
+              <span className="text-sm font-medium">{t('header.refund')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
               <Clock className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">7 ngày đổi trả</span>
+              <span className="text-sm font-medium">{t('header.return')}</span>
             </div>
 
            <div className="flex items-center space-x-2 text-gray-700">
               <DollarSign className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">Giá siêu rẻ</span>
+              <span className="text-sm font-medium">{t('header.cheapPrice')}</span>
             </div>
           </div>
         </div>
