@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
@@ -12,12 +12,25 @@ import type { CategoryItem } from '../../types/api';
 const Header: React.FC = () => {
   const location = useLocation();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   // Check if current page is account page
   const isAccountPage = location.pathname.startsWith('/account');
+
+  // Set search keyword from URL params when on search page
+  useEffect(() => {
+    if (location.pathname === '/search') {
+      const params = new URLSearchParams(location.search);
+      const keyword = params.get('keyword');
+      if (keyword) {
+        setSearchKeyword(keyword);
+      }
+    }
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     const checkAuth = () => {
@@ -92,6 +105,14 @@ const Header: React.FC = () => {
       return '';
     }
   };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchKeyword.trim()) {
+      navigate(`/search?keyword=${encodeURIComponent(searchKeyword.trim())}`);
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200">
       {/* Top bar */}
@@ -161,18 +182,23 @@ const Header: React.FC = () => {
 
           {/* Search bar */}
           <div className="flex-1 max-w-2xl mx-8">
-            <div className="relative">
+            <form onSubmit={handleSearch} className="relative">
               <input
                 type="text"
                 placeholder={t('header.searchPlaceholder')}
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
-              <button className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">
+              <button 
+                type="submit"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
-            </div>
+            </form>
 
             {/* Navigation categories below search */}
             <div className="mt-3">
