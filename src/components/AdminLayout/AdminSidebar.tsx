@@ -67,6 +67,7 @@ const AdminSidebar: React.FC = () => {
       children: [
         { name: 'Mục lục sản phẩm', href: '/admin/categories', icon: null },
         { name: 'Tất cả cửa hàng', href: '/admin/stores/all', icon: null },
+        { name: 'Quản lý sản phẩm', href: '/admin/products', icon: null },
         { name: 'Yêu cầu KYC', href: '/admin/stores/kyc', icon: null },
         { name: 'Cửa hàng đã duyệt', href: '/admin/stores/approved', icon: null },
         { name: 'Cửa hàng bị khóa', href: '/admin/stores/blocked', icon: null }

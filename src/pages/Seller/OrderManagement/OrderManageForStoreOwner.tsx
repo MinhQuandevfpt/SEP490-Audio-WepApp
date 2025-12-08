@@ -59,6 +59,10 @@ const OrderManageForStoreOwner: React.FC = () => {
     setStatus,
     search,
     setSearch,
+    fromDate,
+    setFromDate,
+    toDate,
+    setToDate,
     page,
     setPage,
     pageSize,
@@ -361,6 +365,12 @@ const OrderManageForStoreOwner: React.FC = () => {
         onStatusChange={setStatus}
         search={search}
         onSearchChange={setSearch}
+        fromDate={fromDate}
+        toDate={toDate}
+        onDateRangeChange={(from, to) => {
+          setFromDate(from);
+          setToDate(to);
+        }}
       />
 
       {/* Action Buttons for GHN */}

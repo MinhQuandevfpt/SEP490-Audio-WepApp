@@ -349,7 +349,7 @@ export interface ReturnRequestResponse {
   reason: string;
   customerImageUrls: string[];
   customerVideoUrl?: string | null;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'AUTO_REFUNDED' | string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'CANCELED' | 'AUTO_REFUNDED' | 'SHIPPING' | 'RECEIVED' | 'DISPUTE' | 'DISPUTE_ESCALATED' | 'DISPUTE_RESOLVED_SHOP' | 'DISPUTE_RESOLVED_CUSTOMER' | 'REFUNDED' | 'RETURN_DONE' | string;
   /**
    * Flag/metadata when system auto-approves after SLA (e.g., 48h no response)
    * Optional to keep backward compatibility with backend response

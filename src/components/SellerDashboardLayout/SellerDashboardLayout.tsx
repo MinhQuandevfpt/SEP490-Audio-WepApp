@@ -16,7 +16,6 @@ import {
   MessageSquare,
   FileText,
   Tag,
-  Users,
   ShieldCheck,
   Building2,
   Bell,
@@ -266,17 +265,23 @@ const SellerDashboardLayout: React.FC = () => {
       ]
     },
     {
+      icon: Tag,
+      label: 'Marketing',
+      path: '/seller/dashboard/marketing',
+      badge: null,
+      subItems: [
+        { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
+        // { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
+        { label: 'Voucher toàn shop', path: '/seller/dashboard/shop-wide-voucher' }
+      ]
+    },
+    {
       icon: ShoppingCart,
       label: 'Quản lý đơn hàng',
       path: '/seller/dashboard/orders',
       badge: storeInfo?.id ? '5' : null, // Mock badge for demo
       subItems: [
         { label: 'Tất cả đơn hàng', path: '/seller/dashboard/orders' },
-        { label: 'Chờ xác nhận', path: '/seller/dashboard/orders/pending' },
-        { label: 'Chờ lấy hàng', path: '/seller/dashboard/orders/processing' },
-        { label: 'Đang giao', path: '/seller/dashboard/orders/shipping' },
-        { label: 'Đã giao', path: '/seller/dashboard/orders/delivered' },
-        { label: 'Đơn hủy', path: '/seller/dashboard/orders/cancelled' },
         { label: 'Hoàn trả sản phẩm', path: '/seller/dashboard/returns' }
       ]
     },
@@ -287,28 +292,10 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null
     },
     {
-      icon: Users,
-      label: 'Quản lý nhân viên',
-      path: '/seller/dashboard/staff',
-      badge: null,
-      subItems: [
-        { label: 'Danh sách nhân viên', path: '/seller/dashboard/staff' },
-        { label: 'Tạo nhân viên', path: '/seller/dashboard/staff/create' },
-        { label: 'Cập nhật nhân viên', path: '/seller/dashboard/staff/update' },
-        { label: 'Xóa thông tin nhân viên', path: '/seller/dashboard/staff/delete' }
-      ]
-    },
-    {
-      icon: BarChart3,
-      label: 'Báo cáo & Phân tích',
-      path: '/seller/dashboard/analytics',
+      icon: FileText,
+      label: 'Đánh giá sản phẩm',
+      path: '/seller/dashboard/reviews',
       badge: null
-    },
-    {
-      icon: Wallet,
-      label: 'Tài chính',
-      path: '/seller/dashboard/finance',
-      badge: null,
     },
     {
       icon: Store,
@@ -317,20 +304,25 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Hồ sơ shop', path: '/seller/dashboard/profile' },
-        { label: 'Địa chỉ cửa hàng', path: '/seller/dashboard/store-address' },
-        { label: 'Cài đặt cửa hàng', path: '/seller/dashboard/settings' }
+        { label: 'Địa chỉ cửa hàng', path: '/seller/dashboard/store-address' }
+        // { label: 'Cài đặt cửa hàng', path: '/seller/dashboard/settings' }
       ]
     },
     {
-      icon: Tag,
-      label: 'Marketing',
-      path: '/seller/dashboard/marketing',
+      icon: Wallet,
+      label: 'Tài chính',
+      path: '/seller/dashboard/finance',
       badge: null,
       subItems: [
-        { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
-        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
-        { label: 'Voucher toàn shop', path: '/seller/dashboard/shop-wide-voucher' }
+        { label: 'Ví cửa hàng', path: '/seller/dashboard/finance' },
+        { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
       ]
+    },
+    {
+      icon: BarChart3,
+      label: 'Báo cáo & Phân tích',
+      path: '/seller/dashboard/analytics',
+      badge: null
     },
     {
       icon: MessageSquare,
@@ -342,12 +334,6 @@ const SellerDashboardLayout: React.FC = () => {
       label: 'Thông báo',
       path: '/seller/dashboard/notifications',
       badge: notificationCount > 0 ? (notificationCount > 9 ? '9+' : String(notificationCount)) : null
-    },
-    {
-      icon: FileText,
-      label: 'Đánh giá sản phẩm',
-      path: '/seller/dashboard/reviews',
-      badge: null
     }
   ], [notificationCount, storeInfo?.id]);
 

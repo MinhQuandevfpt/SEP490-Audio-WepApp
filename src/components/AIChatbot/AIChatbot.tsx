@@ -692,11 +692,14 @@ const AIChatbot: React.FC = () => {
         setMessages((prev) => [...prev, userMessage]);
         
         // AI Chat
-        const response = await AIChatService.sendMessage({
+        const aiRequestPayload = {
           userId: getUserId(),
           message: messageToSend,
           userName: 'Guest',
-        });
+        };
+        console.info('[AIChat] request /api/ai/chat', aiRequestPayload);
+        const response = await AIChatService.sendMessage(aiRequestPayload);
+        console.info('[AIChat] response /api/ai/chat', response);
 
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),

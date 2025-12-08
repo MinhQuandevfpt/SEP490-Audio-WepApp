@@ -56,6 +56,12 @@ export class StoreOrderService {
       if (params?.orderCodeKeyword) {
         queryParams.append('orderCodeKeyword', params.orderCodeKeyword);
       }
+      if (params?.fromDate) {
+        queryParams.append('fromDate', params.fromDate);
+      }
+      if (params?.toDate) {
+        queryParams.append('toDate', params.toDate);
+      }
 
       const endpoint = `/api/v1/stores/${storeId}/orders?${queryParams.toString()}`;
       

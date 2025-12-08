@@ -89,23 +89,31 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
           </div>
 
           <div className="mt-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {it.originalPrice !== undefined && it.originalPrice > it.price ? (
-                <>
-                  {/* Giá sau giảm – làm nổi bật giống HomePage */}
-                  <span className="text-lg font-semibold text-red-600">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                {it.originalPrice !== undefined && it.originalPrice > it.price ? (
+                  <>
+                    {/* Giá sau giảm – làm nổi bật giống HomePage */}
+                    <span className="text-lg font-semibold text-red-600">
+                      {formatCurrency(it.price)}
+                    </span>
+                    {/* Giá gốc gạch ngang */}
+                    <span className="text-sm text-gray-400 line-through">
+                      {formatCurrency(it.originalPrice)}
+                    </span>
+                  </>
+                ) : (
+                  // Không có giảm giá: hiển thị giá gốc màu cam
+                  <span className="text-lg font-semibold text-orange-600">
                     {formatCurrency(it.price)}
                   </span>
-                  {/* Giá gốc gạch ngang */}
-                  <span className="text-sm text-gray-400 line-through">
-                    {formatCurrency(it.originalPrice)}
-                  </span>
-                </>
-              ) : (
-                // Không có giảm giá: hiển thị giá gốc màu cam
-                <span className="text-lg font-semibold text-orange-600">
-                  {formatCurrency(it.price)}
-                </span>
+                )}
+              </div>
+              {/* Campaign remaining message */}
+              {it.campaignRemaining !== undefined && it.campaignRemaining > 0 && (
+                <p className="text-xs text-orange-600 font-medium">
+                  Bạn còn {it.campaignRemaining} lần sử dụng khuyến mãi cho sản phẩm này
+                </p>
               )}
             </div>
 

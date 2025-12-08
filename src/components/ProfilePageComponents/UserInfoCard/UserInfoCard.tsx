@@ -3,6 +3,7 @@ import { User as UserIcon, Camera, Upload, X, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import ProfileCustomerService from '../../../services/customer/Profilecustomer';
+import { FileUploadService } from '../../../services/FileUploadService';
 import { loadProfileData, saveProfileData, type ProfileData } from '../../../data/profiledata';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import LoadingSkeleton from '../../common/LoadingSkeleton';
@@ -82,33 +83,51 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
   };
 
   // Avatar upload functions
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      alert('Vui lòng chọn file hình ảnh hợp lệ');
+      showCenterError('Vui lòng chọn file hình ảnh hợp lệ', 'Lỗi');
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Kích thước file không được vượt quá 5MB');
+      showCenterError('Kích thước file không được vượt quá 5MB', 'Lỗi');
       return;
     }
 
     setIsUploadingAvatar(true);
 
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      setAvatarPreview(result);
-      setForm(prev => ({ ...prev, avatar: result }));
+    try {
+      // Create preview first
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const previewResult = e.target?.result as string;
+        setAvatarPreview(previewResult);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload image to Cloudinary via API
+      const uploaded = await FileUploadService.uploadImage(file);
+      
+      if (uploaded && uploaded.url) {
+        // Save Cloudinary URL (not base64)
+        setAvatarPreview(uploaded.url);
+        setForm(prev => ({ ...prev, avatar: uploaded.url }));
+        showCenterSuccess('Upload ảnh đại diện thành công', 'Thành công');
+      } else {
+        throw new Error('Upload failed: No URL returned');
+      }
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      showCenterError(error?.message || 'Không thể upload ảnh. Vui lòng thử lại.', 'Lỗi');
+      setAvatarPreview(null);
+    } finally {
       setIsUploadingAvatar(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleRemoveAvatar = () => {

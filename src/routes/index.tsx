@@ -46,6 +46,8 @@ import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/Camp
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
+import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
+import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
@@ -53,6 +55,8 @@ import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
+import PayoutRevenue from '../pages/Seller/Dashboard/PayoutRevenue';
+import PayoutRevenueDetail from '../pages/Seller/Dashboard/PayoutRevenueDetail';
 import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
 import CreateStaff from '../pages/Seller/CreateStaff/CreateStaff';
 import StaffList from '../pages/Seller/StaffList/StaffList';
@@ -402,6 +406,14 @@ export const router = createBrowserRouter([
         element: <FinancePage />
       },
       {
+        path: 'revenue',
+        element: <PayoutRevenue />
+      },
+      {
+        path: 'revenue/:billId',
+        element: <PayoutRevenueDetail />
+      },
+      {
         path: 'store-address',
         element: <StoreAddressPage />
       },
@@ -550,11 +562,23 @@ export const router = createBrowserRouter([
       },
       {
         path: 'stores',
-        element: <div>Store Management Page (Coming Soon)</div>
+        element: <StoreManagement />
       },
       {
         path: 'stores/all',
-        element: <div>All Stores Page (Coming Soon)</div>
+        element: <StoreManagement />
+      },
+      {
+        path: 'stores/:storeId',
+        element: <StoreDetail />
+      },
+      {
+        path: 'products',
+        element: <AdminProductManagement />
+      },
+      {
+        path: 'products/:productId',
+        element: <AdminProductDetail />
       },
       {
         path: 'kyc',

@@ -4,14 +4,14 @@ import { UserInfoCard } from '../../../components/ProfilePageComponents/UserInfo
 import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHistory';
 import { AddressBook } from '../../../components/ProfilePageComponents/AddressBook';
 import { ChangePassword } from '../../../components/ProfilePageComponents/ChangePassword';
-import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect';
+// import { BankConnect } from '../../../components/ProfilePageComponents/BankConnect'; // Commented out - Bank card feature disabled
 import WarrantyComponent from '../../../components/ProfilePageComponents/Warranty/Warranty';
 import ReturnHistoryCard from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistoryCard';
 import { ReviewProductPage } from '../ReviewFolder';
 import { WalletPage } from '../../../components/CustomerWalletComponents';
 import { NotificationPage } from '../../../components/ProfilePageComponents/Notifications';
-import { loadProfileData, updatePassword, addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, type ProfileData } from '../../../data/profiledata';
-import { User, Package, MapPinned, Lock, CreditCard, Shield, Star, Wallet, Bell } from 'lucide-react';
+import { loadProfileData, updatePassword, /* addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, */ type ProfileData } from '../../../data/profiledata'; // Bank card functions commented out - Bank card feature disabled
+import { User, Package, MapPinned, Lock, /* CreditCard, */ Shield, Star, Wallet, Bell } from 'lucide-react'; // CreditCard commented out - Bank card feature disabled
 import { profileCache } from '../../../services/cache/ProfileCache';
 import useCustomerReturns from '../../../hooks/useCustomerReturns';
 import { useNavigate } from 'react-router-dom';
@@ -102,26 +102,26 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
     setData(loadProfileData());
   };
 
-  // Bank card management functions
-  const handleAddBankCard = (card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>) => {
-    addBankCard(card);
-    setData(loadProfileData());
-  };
+  // Bank card management functions - Commented out - Bank card feature disabled
+  // const handleAddBankCard = (card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>) => {
+  //   addBankCard(card);
+  //   setData(loadProfileData());
+  // };
 
-  const handleEditBankCard = (id: string, card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>) => {
-    updateBankCard(id, card);
-    setData(loadProfileData());
-  };
+  // const handleEditBankCard = (id: string, card: Omit<NonNullable<ProfileData['bankCards']>[0], 'id'>) => {
+  //   updateBankCard(id, card);
+  //   setData(loadProfileData());
+  // };
 
-  const handleDeleteBankCard = (id: string) => {
-    deleteBankCard(id);
-    setData(loadProfileData());
-  };
+  // const handleDeleteBankCard = (id: string) => {
+  //   deleteBankCard(id);
+  //   setData(loadProfileData());
+  // };
 
-  const handleSetDefaultBankCard = (id: string) => {
-    setDefaultBankCard(id);
-    setData(loadProfileData());
-  };
+  // const handleSetDefaultBankCard = (id: string) => {
+  //   setDefaultBankCard(id);
+  //   setData(loadProfileData());
+  // };
 
   const [active, setActive] = useState<ProfileTab>(initialTab);
 
@@ -132,15 +132,15 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
   const navItems = useMemo(
     () => [
       { key: 'info' as const, label: 'Thông tin cá nhân', icon: User },
-      { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
       { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: MapPinned },
+      { key: 'orders' as const, label: 'Đơn hàng', icon: Package },
       { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
       { key: 'reviews' as const, label: 'Đánh giá sản phẩm', icon: Star },
+      { key: 'returns' as const, label: 'Lịch sử hoàn trả', icon: Package },
       { key: 'wallet' as const, label: 'Ví nền tảng', icon: Wallet },
       { key: 'notifications' as const, label: 'Thông báo', icon: Bell },
       { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
-      { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard },
-      { key: 'returns' as const, label: 'Lịch sử hoàn trả', icon: Package },
+      // { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard }, // Commented out - Bank card feature disabled
     ],
     []
   );
@@ -224,7 +224,8 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
                 />
               </div>
 
-              <div className={active === 'bank' ? 'block' : 'hidden'}>
+              {/* Bank card feature disabled */}
+              {/* <div className={active === 'bank' ? 'block' : 'hidden'}>
                 <BankConnect 
                   bankCards={data.bankCards || []}
                   onAddCard={handleAddBankCard}
@@ -232,7 +233,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
                   onDeleteCard={handleDeleteBankCard}
                   onSetDefault={handleSetDefaultBankCard}
                 />
-              </div>
+              </div> */}
 
               <div className={active === 'reviews' ? 'block' : 'hidden'}>
                 <ReviewProductPage />

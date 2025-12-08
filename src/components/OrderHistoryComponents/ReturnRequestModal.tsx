@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal, Select, Input, message, Alert } from 'antd';
-import { Upload, X, Video, Loader2 } from 'lucide-react';
+import { Upload, X, Video, Loader2, Package } from 'lucide-react';
 import type { CustomerOrder, OrderItem, ReturnReasonType } from '../../types/api';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { formatCurrency } from '../../utils/orderStatus';
@@ -9,6 +9,20 @@ import { FileUploadService } from '../../services/FileUploadService';
 
 const { Option } = Select;
 const { TextArea } = Input;
+
+// Helper function to resolve product image (prefer variantUrl, then image)
+const resolveOrderItemImage = (item: OrderItem): string | undefined => {
+  if (item.variantId) {
+    return item.variantUrl || item.image || undefined;
+  }
+  return item.image || item.variantUrl || undefined;
+};
+
+// Helper function to format variant label
+const formatVariantLabel = (item: OrderItem): string | null => {
+  if (!item.variantOptionName || !item.variantOptionValue) return null;
+  return `${item.variantOptionName}: ${item.variantOptionValue}`;
+};
 
 interface ReturnRequestModalProps {
   open: boolean;
@@ -186,13 +200,71 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ open, order, on
               onChange={(value) => setSelectedItemId(value)}
               className="w-full"
               disabled={orderItems.length === 0}
+              optionLabelProp="label"
             >
-              {orderItems.map((item) => (
-                <Option key={item.id} value={item.id}>
-                  {item.name} • SL: {item.quantity}
-                </Option>
-              ))}
+              {orderItems.map((item) => {
+                const itemImage = resolveOrderItemImage(item);
+                const variantLabel = formatVariantLabel(item);
+                return (
+                  <Option key={item.id} value={item.id} label={item.name}>
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
+                        {itemImage ? (
+                          <img
+                            src={itemImage}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement?.classList.add('bg-gray-100');
+                            }}
+                          />
+                        ) : (
+                          <Package className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                        {variantLabel && (
+                          <p className="text-xs text-gray-500 mt-0.5">{variantLabel}</p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-0.5">SL: {item.quantity}</p>
+                      </div>
+                    </div>
+                  </Option>
+                );
+              })}
             </Select>
+            
+            {/* Selected Product Preview */}
+            {selectedItem && (
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
+                    {resolveOrderItemImage(selectedItem) ? (
+                      <img
+                        src={resolveOrderItemImage(selectedItem)}
+                        alt={selectedItem.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).parentElement?.classList.add('bg-gray-100');
+                        }}
+                      />
+                    ) : (
+                      <Package className="w-6 h-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{selectedItem.name}</p>
+                    {formatVariantLabel(selectedItem) && (
+                      <p className="text-xs text-gray-600 mt-1">{formatVariantLabel(selectedItem)}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">Số lượng: {selectedItem.quantity}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

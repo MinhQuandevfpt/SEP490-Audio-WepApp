@@ -5,6 +5,8 @@ import { StoreOrderService } from '../services/seller/OrderService';
 export const useStoreOrders = () => {
   const [status, setStatus] = useState<StoreOrderStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
+  const [fromDate, setFromDate] = useState<string | undefined>(undefined);
+  const [toDate, setToDate] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [orders, setOrders] = useState<StoreOrder[]>([]);
@@ -27,6 +29,8 @@ export const useStoreOrders = () => {
         status: status === 'ALL' ? undefined : status,
         search: keyword || undefined,
         orderCodeKeyword: keyword || undefined,
+        fromDate: fromDate,
+        toDate: toDate,
         page: backendPage,
         size: pageSize,
       });
@@ -42,7 +46,7 @@ export const useStoreOrders = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [status, search, page, pageSize]);
+  }, [status, search, fromDate, toDate, page, pageSize]);
 
   useEffect(() => { 
     load(); 
@@ -52,6 +56,11 @@ export const useStoreOrders = () => {
   useEffect(() => {
     setPage(1);
   }, [pageSize]);
+
+  // Reset to page 1 when date range changes
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate]);
 
   const viewDetail = async (orderId: string) => {
     try {
@@ -92,6 +101,10 @@ export const useStoreOrders = () => {
     setStatus,
     search,
     setSearch,
+    fromDate,
+    setFromDate,
+    toDate,
+    setToDate,
     page,
     setPage,
     pageSize,

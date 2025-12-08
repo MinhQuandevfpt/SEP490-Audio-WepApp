@@ -22,19 +22,33 @@ const statusColorMap: Record<string, string> = {
   APPROVED: 'green',
   REJECTED: 'red',
   CANCELLED: 'gray',
+  CANCELED: 'gray',
   AUTO_REFUNDED: 'blue',
   SHIPPING: 'blue',
+  RECEIVED: 'cyan',
+  DISPUTE: 'orange',
+  DISPUTE_ESCALATED: 'purple',
+  DISPUTE_RESOLVED_SHOP: 'red',
+  DISPUTE_RESOLVED_CUSTOMER: 'green',
   REFUNDED: 'green',
+  RETURN_DONE: 'blue',
 };
 
 const statusLabelMap: Record<string, string> = {
   PENDING: 'Chờ shop phản hồi',
-  APPROVED: 'Đã duyệt yêu cầu',
+  APPROVED: 'Đã duyệt yêu cầu – Vui lòng gửi hàng',
   REJECTED: 'Từ chối yêu cầu',
-  CANCELLED: 'Đã huỷ',
+  CANCELLED: 'Đã huỷ (khách không gửi hàng)',
+  CANCELED: 'Đã huỷ yêu cầu',
   AUTO_REFUNDED: 'Đã hoàn tiền (tự động)',
-  SHIPPING: 'Đang hoàn trả',
-  REFUNDED: 'Đã hoàn trả',
+  SHIPPING: 'GHN đang vận chuyển',
+  RECEIVED: 'Shop đã xác nhận nhận hàng',
+  DISPUTE: 'Đang khiếu nại',
+  DISPUTE_ESCALATED: 'Khiếu nại đã được đưa lên sàn xử lý',
+  DISPUTE_RESOLVED_SHOP: 'Khiếu nại đã được giải quyết có lợi cho shop',
+  DISPUTE_RESOLVED_CUSTOMER: 'Khiếu nại đã được giải quyết có lợi cho bạn',
+  REFUNDED: 'Đã hoàn tiền',
+  RETURN_DONE: 'Hoàn tất quy trình trả hàng',
 };
 
 const ReturnHistoryCard: React.FC<ReturnHistoryCardProps> = ({

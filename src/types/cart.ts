@@ -46,6 +46,7 @@ export interface CartItem {
   platformCampaignPrice?: number;  // Giá sau campaign (nếu có)
   inPlatformCampaign?: boolean;  // Có đang nằm trong campaign không
   campaignUsageExceeded?: boolean;  // Đã vượt giới hạn sử dụng campaign chưa
+  campaignRemaining?: number;  // Số lượng còn lại trong campaign (0 nếu hết)
 }
 
 // Cart Response
