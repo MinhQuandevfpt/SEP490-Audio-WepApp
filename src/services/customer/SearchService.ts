@@ -60,6 +60,7 @@ export interface StoreInfo {
   provinceCode: string;
   districtCode: string;
   wardCode: string;
+  logoUrl?: string | null;
 }
 
 export interface PlatformVoucher {

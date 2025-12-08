@@ -19,10 +19,15 @@ import {
 import Layout from '../../../components/Layout';
 import { SearchService, type SearchFilters, type ProductThumbnail, type StoreInfo } from '../../../services/customer/SearchService';
 import { CustomerCategoryService } from '../../../services/customer/CategoryService';
+import { CustomerStoreService } from '../../../services/customer/StoreService';
 import type { CategoryItem } from '../../../types/api';
 import { showError } from '../../../utils/notification';
 
 const { Text } = Typography;
+
+interface StoreInfoWithLogo extends StoreInfo {
+  logoUrl?: string | null;
+}
 
 const SearchResultPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,7 +35,7 @@ const SearchResultPage: React.FC = () => {
   
   // State
   const [products, setProducts] = useState<ProductThumbnail[]>([]);
-  const [relatedStores, setRelatedStores] = useState<StoreInfo[]>([]);
+  const [relatedStores, setRelatedStores] = useState<StoreInfoWithLogo[]>([]);
   const [allCategories, setAllCategories] = useState<CategoryItem[]>([]);
   const [availableCategories, setAvailableCategories] = useState<Array<{id: string, name: string}>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,7 +143,21 @@ const SearchResultPage: React.FC = () => {
       
       // Extract related stores
       const stores = SearchService.extractStoresFromResults(response.data);
-      setRelatedStores(stores);
+      
+      // Fetch store details to get logoUrl
+      const storesWithLogos = await Promise.all(
+        stores.map(async (store) => {
+          try {
+            const storeDetail = await CustomerStoreService.getStoreById(store.id);
+            return { ...store, logoUrl: storeDetail.logoUrl };
+          } catch (error) {
+            console.error(`Failed to fetch store detail for ${store.id}:`, error);
+            return store;
+          }
+        })
+      );
+      
+      setRelatedStores(storesWithLogos);
     } catch (error: any) {
       showError(error?.message || 'Không thể tải kết quả tìm kiếm');
       setProducts([]);
@@ -224,8 +243,9 @@ const SearchResultPage: React.FC = () => {
   };
 
   const handleRatingFilter = (rating: number) => {
-    setSelectedRating(rating);
-    updateFilters({ minRating: rating });
+    const newRating = selectedRating === rating ? undefined : rating;
+    setSelectedRating(newRating);
+    updateFilters({ minRating: newRating });
   };
 
   const handleClearFilters = () => {
@@ -385,7 +405,7 @@ const SearchResultPage: React.FC = () => {
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-4 w-full">
                   <p className="text-sm font-semibold text-gray-800 mb-4">Đánh giá</p>
                   <div className="space-y-2">
-                    {[5, 4, 3].map(rating => (
+                    {[5, 4, 3, 2, 1].map(rating => (
                       <button
                         key={rating}
                         type="button"
@@ -403,6 +423,16 @@ const SearchResultPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
+                
+                {/* Clear All Filters Button - Outside the card */}
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  disabled={isLoading}
+                  className="w-full mt-4 mb-8 px-4 py-2.5 text-sm font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  Xóa tất cả bộ lọc
+                </button>
               </div>
             </div>
           </aside>
@@ -428,13 +458,21 @@ const SearchResultPage: React.FC = () => {
                         onClick={() => navigate(`/store/${store.id}`)}
                         style={{ textAlign: 'center' }}
                       >
-                        <Avatar
-                          size={64}
-                          icon={<ShopOutlined />}
-                          style={{ backgroundColor: '#1890ff', marginBottom: '8px' }}
-                        >
-                          {store.name.charAt(0).toUpperCase()}
-                        </Avatar>
+                        {store.logoUrl ? (
+                          <Avatar
+                            size={64}
+                            src={store.logoUrl}
+                            style={{ marginBottom: '8px' }}
+                          />
+                        ) : (
+                          <Avatar
+                            size={64}
+                            icon={<ShopOutlined />}
+                            style={{ backgroundColor: '#1890ff', marginBottom: '8px' }}
+                          >
+                            {store.name.charAt(0).toUpperCase()}
+                          </Avatar>
+                        )}
                         <Text strong ellipsis style={{ display: 'block' }}>
                           {store.name}
                         </Text>
