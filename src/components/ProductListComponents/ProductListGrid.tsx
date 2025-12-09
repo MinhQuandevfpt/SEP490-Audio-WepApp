@@ -31,14 +31,17 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
       {products.map((product) => {
         const productId = product.productId || product.id;
         const key = productId;
+        // Support new API structure: thumbnailUrl, or fallback to old structure
         const firstImage =
+          product.thumbnailUrl ||
           product.image ||
           product.thumbnail ||
           (Array.isArray(product.images) ? product.images[0] : undefined);
         const isVariantProduct = Array.isArray(product.variants) && product.variants.length > 0;
+        // Support new variant structure: price field, or old structure: variantPrice
         const price = isVariantProduct
-          ? product.variants[0]?.variantPrice
-          : product.finalPrice ?? product.price;
+          ? (product.variants[0]?.price ?? product.variants[0]?.variantPrice ?? null)
+          : (product.finalPrice ?? product.price ?? null);
         const isSelected = selectedProductIds.includes(productId);
 
         const handleCardClick = () => {
@@ -70,9 +73,28 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
               <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[3rem]">
                 {product.name}
               </h3>
-              <p className="text-orange-600 font-bold mt-2">
-                {price ? price.toLocaleString('vi-VN') : '0'}đ
-              </p>
+              {/* Price Section - Show original and discounted price if has discount */}
+              <div className="mt-2">
+                {product.finalPrice !== null && product.price !== null && product.finalPrice < product.price ? (
+                  <div className="space-y-1">
+                    {/* Discounted Price - Red color when has discount */}
+                    <div className="text-lg font-bold text-red-600">
+                      {product.finalPrice.toLocaleString('vi-VN')}đ
+                    </div>
+                    {/* Original Price - Strikethrough */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 line-through">
+                        {product.price.toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  // Original price when no discount - orange color
+                  <div className="text-lg font-bold text-orange-600">
+                    {price ? price.toLocaleString('vi-VN') : '0'}đ
+                  </div>
+                )}
+              </div>
 
               {onToggleCompare && (
                 <button

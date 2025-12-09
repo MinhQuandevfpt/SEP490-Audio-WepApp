@@ -78,9 +78,16 @@ const StorePage: React.FC = () => {
       });
 
       // Access data.content from normalized response
-      const productsData = Array.isArray(response.data) 
-        ? response.data 
-        : response.data.content || [];
+      let productsData: any[] = [];
+      if (Array.isArray(response.data)) {
+        productsData = response.data;
+      } else if ('data' in response.data && 'page' in response.data) {
+        // New API structure: { data: Product[], page: {...} }
+        productsData = response.data.data || [];
+      } else if ('content' in response.data) {
+        // Old pagination structure: { content: Product[], ... }
+        productsData = response.data.content || [];
+      }
 
       if (productsData.length > 0) {
         // Set store name from first product
@@ -89,7 +96,7 @@ const StorePage: React.FC = () => {
         }
 
         // Filter out INACTIVE products and process remaining products
-        const activeProducts = productsData.filter(p => p.status !== 'INACTIVE');
+        const activeProducts = productsData.filter((p: any) => p.status !== 'INACTIVE');
         const processedProducts = activeProducts.map(processProduct);
 
         if (append) {
@@ -99,9 +106,17 @@ const StorePage: React.FC = () => {
         }
 
         // Check if it's the last page
-        const isLast = Array.isArray(response.data) 
-          ? productsData.length < 20 
-          : response.data.last || false;
+        let isLast = false;
+        if (Array.isArray(response.data)) {
+          isLast = productsData.length < 20;
+        } else if ('data' in response.data && 'page' in response.data) {
+          // New API structure
+          const pageInfo = response.data.page;
+          isLast = pageInfo.pageNumber >= pageInfo.totalPages - 1;
+        } else if ('last' in response.data) {
+          // Old pagination structure
+          isLast = response.data.last || false;
+        }
         
         setHasMore(!isLast);
       } else {

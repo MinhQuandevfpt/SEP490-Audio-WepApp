@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ProductListService } from '../services/customer/ProductListService';
+import { ProductListService, type Product } from '../services/customer/ProductListService';
 import type { ProductListParams, ProductListResponse } from '../services/customer/ProductListService';
 import type { ProductListFilters, ProductListPagination, ProductListSort, ProductListState, ProductListActions } from '../types/productList';
 import { showError } from '../utils/notification';
+import { applyDiscountToProduct } from '../utils/productPriceCalculator';
 
 const initialFilters: ProductListFilters = {
   categoryName: undefined,
@@ -61,7 +62,9 @@ export const useProductList = () => {
       const params: ProductListParams = {
         page: state.pagination.page,
         size: state.pagination.size,
-        categoryName: state.filters.categoryName,
+        // Use categoryId if available, otherwise fallback to categoryName
+        ...(state.filters.categoryId ? { categoryId: state.filters.categoryId } : {}),
+        ...(state.filters.categoryName && !state.filters.categoryId ? { categoryName: state.filters.categoryName } : {}),
         storeId: state.filters.storeId,
         keyword: state.filters.keyword,
         // Only send status if it's explicitly set and not undefined
@@ -73,20 +76,51 @@ export const useProductList = () => {
 
       const response: ProductListResponse = await ProductListService.getProducts(params);
       
-      // Handle both array and object response
-      const responseData = Array.isArray(response.data) 
-        ? {
-            content: response.data,
-            totalPages: 1,
-            totalElements: response.data.length,
-            last: true,
-            first: true,
-          }
-        : response.data;
+      // Handle different response structures
+      let responseData: {
+        content: Product[];
+        totalPages: number;
+        totalElements: number;
+        last: boolean;
+        first: boolean;
+      };
       
+      if (Array.isArray(response.data)) {
+        // Array response
+        responseData = {
+          content: response.data,
+          totalPages: 1,
+          totalElements: response.data.length,
+          last: true,
+          first: true,
+        };
+      } else if ('data' in response.data && 'page' in response.data) {
+        // New API structure: { data: Product[], page: {...} }
+        const pageInfo = response.data.page;
+        responseData = {
+          content: response.data.data,
+          totalPages: pageInfo.totalPages,
+          totalElements: pageInfo.totalElements,
+          last: pageInfo.pageNumber >= pageInfo.totalPages - 1,
+          first: pageInfo.pageNumber === 0,
+        };
+      } else {
+        // Old pagination structure: { content: Product[], ... }
+        responseData = {
+          content: response.data.content,
+          totalPages: response.data.totalPages,
+          totalElements: response.data.totalElements,
+          last: response.data.last,
+          first: response.data.first,
+        };
+      }
+      
+      // Apply discount calculation to products (from platform vouchers)
+      const productsWithDiscount = responseData.content.map(applyDiscountToProduct);
+
       setState(prev => ({
         ...prev,
-        products: responseData.content,
+        products: productsWithDiscount,
         pagination: {
           ...prev.pagination,
           totalPages: responseData.totalPages,

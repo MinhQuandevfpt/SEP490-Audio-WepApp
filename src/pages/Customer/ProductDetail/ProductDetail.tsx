@@ -136,8 +136,8 @@ const ProductDetail: React.FC = () => {
     : ['/images/placeholder-product.png'];
 
   const specs = [
-    { key: t('productDetail.specs.category'), value: product.categoryName },
-    { key: t('productDetail.specs.brand'), value: product.brandName },
+    { key: t('productDetail.specs.category'), value: product.category ?? product.categoryName ?? 'N/A' },
+    { key: t('productDetail.specs.brand'), value: product.brandName ?? 'N/A' },
     { key: t('productDetail.specs.model'), value: product.model || 'N/A' },
     { key: t('productDetail.specs.material'), value: product.material || 'N/A' },
     { key: t('productDetail.specs.dimensions'), value: product.dimensions || 'N/A' },
@@ -149,13 +149,13 @@ const ProductDetail: React.FC = () => {
     ...(product.connectionType ? [{ key: t('productDetail.specs.connectionType'), value: product.connectionType }] : []),
     ...(product.warrantyPeriod ? [{ key: t('productDetail.specs.warrantyPeriod'), value: product.warrantyPeriod }] : []),
     ...(product.placementType ? [{ key: t('productDetail.specs.placementType'), value: translatePlacementType(product.placementType) }] : []),
-  ];
+  ].filter(spec => spec.value !== undefined && spec.value !== null) as Array<{ key: string; value: string }>;
 
   // Calculate price with variants and platform vouchers
   const calculateFinalPrice = () => {
     const hasVariants = product.variants && product.variants.length > 0;
-    let originalPrice = product.price;
-    let displayPrice = product.price;
+    let originalPrice: number = product.price ?? 0;
+    let displayPrice: number = product.price ?? 0;
     let priceRangeText: string | null = null;
     let discountedPriceRangeText: string | null = null;
     
@@ -220,34 +220,42 @@ const ProductDetail: React.FC = () => {
     if (hasVariants) {
       if (selectedVariant) {
         // Show selected variant price
-        originalPrice = selectedVariant.variantPrice;
+        originalPrice = selectedVariant.variantPrice ?? selectedVariant.price ?? 0;
         displayPrice = applyDiscount(originalPrice);
       } else {
         // Show price range for both original and discounted
-        const prices = product.variants!.map(v => v.variantPrice);
-        const minPrice = Math.min(...prices);
-        const maxPrice = Math.max(...prices);
-        
-        if (minPrice === maxPrice) {
-          originalPrice = minPrice;
-          displayPrice = applyDiscount(minPrice);
+        const prices = product.variants!.map(v => v.variantPrice ?? v.price ?? 0).filter(p => p > 0);
+        if (prices.length === 0) {
+          originalPrice = 0;
+          displayPrice = 0;
         } else {
-          // Always show original price range
-          priceRangeText = `${minPrice.toLocaleString('vi-VN')}₫ - ${maxPrice.toLocaleString('vi-VN')}₫`;
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
           
-          // Only calculate discounted price range if there's an active discount
-          if (voucherType) {
-            const minDiscountedPrice = applyDiscount(minPrice);
-            const maxDiscountedPrice = applyDiscount(maxPrice);
-            discountedPriceRangeText = `${minDiscountedPrice.toLocaleString('vi-VN')}₫ - ${maxDiscountedPrice.toLocaleString('vi-VN')}₫`;
+          if (minPrice === maxPrice) {
+            originalPrice = minPrice;
+            displayPrice = applyDiscount(minPrice);
+          } else {
+            // Always show original price range
+            priceRangeText = `${minPrice.toLocaleString('vi-VN')}₫ - ${maxPrice.toLocaleString('vi-VN')}₫`;
+            
+            // Only calculate discounted price range if there's an active discount
+            if (voucherType) {
+              const minDiscountedPrice = applyDiscount(minPrice);
+              const maxDiscountedPrice = applyDiscount(maxPrice);
+              discountedPriceRangeText = `${minDiscountedPrice.toLocaleString('vi-VN')}₫ - ${maxDiscountedPrice.toLocaleString('vi-VN')}₫`;
+            }
+            
+            originalPrice = minPrice;
+            displayPrice = applyDiscount(minPrice);
           }
-          
-          originalPrice = minPrice;
-          displayPrice = applyDiscount(minPrice);
         }
       }
     } else {
       // Single product without variants
+      if (originalPrice === null || originalPrice === undefined) {
+        originalPrice = 0;
+      }
       displayPrice = applyDiscount(originalPrice);
     }
 
@@ -295,7 +303,7 @@ const ProductDetail: React.FC = () => {
   const hasVariants = product.variants && product.variants.length > 0;
   
   // Backend already calculates total stock (sum of variants if has variants, or stockQuantity)
-  const totalStock = product.stockQuantity;
+  const totalStock = product.stockQuantity ?? 0;
   const isInStock = totalStock > 0;
 
   return (
@@ -319,7 +327,7 @@ const ProductDetail: React.FC = () => {
               rating={product.ratingAverage || 0}
               reviewsCount={product.reviewCount || 0}
               soldCount={0} // API doesn't provide this
-              price={priceInfo.originalPrice}
+              price={priceInfo.originalPrice ?? 0}
               priceRange={priceInfo.priceRangeText}
               discountedPriceRange={priceInfo.discountedPriceRangeText}
               salePrice={priceInfo.hasDiscount ? priceInfo.finalPrice : undefined}
@@ -350,8 +358,8 @@ const ProductDetail: React.FC = () => {
 
        
         <StoreInfo 
-          storeId={product.storeId}
-          storeName={product.storeName}
+          storeId={product.storeId ?? product.store?.id ?? ''}
+          storeName={product.storeName ?? product.store?.name ?? ''}
           storeAvatar={undefined} 
         />
 
