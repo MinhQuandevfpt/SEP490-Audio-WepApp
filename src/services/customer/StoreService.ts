@@ -20,6 +20,35 @@ export interface StoreDetailResponse {
   updatedAt: string;
 }
 
+export interface StoreSearchItem {
+  storeId: string;
+  storeName: string;
+  logoUrl?: string | null;
+  email?: string;
+  phoneNumber?: string;
+  status: string;
+  rating?: number | null;
+  provinceCode?: string;
+  districtCode?: string;
+  wardCode?: string;
+  address?: string;
+  addressId?: string;
+}
+
+export interface StoreSearchResponse {
+  status: number;
+  message: string;
+  data: {
+    stores: StoreSearchItem[];
+    pagination: {
+      totalElements: number;
+      totalPages: number;
+      pageSize: number;
+      pageNumber: number;
+    };
+  };
+}
+
 export class CustomerStoreService {
   /**
    * Get store detail by store ID (public endpoint for customers)
@@ -72,6 +101,41 @@ export class CustomerStoreService {
    */
   static getDefaultAvatar(storeName: string): string {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(storeName)}&background=ff6b35&color=fff&size=128`;
+  }
+
+  /**
+   * Search stores by keyword (prefix match)
+   */
+  static async searchStores(params: {
+    keyword: string;
+    page?: number;
+    size?: number;
+  }): Promise<StoreSearchResponse> {
+    try {
+      const { keyword, page = 0, size = 10 } = params;
+      
+      console.log('🔍 Searching stores with keyword:', keyword);
+
+      const queryParams = new URLSearchParams({
+        keyword,
+        page: page.toString(),
+        size: size.toString(),
+      });
+
+      const response = await HttpInterceptor.get<StoreSearchResponse>(
+        `${API_URL}/stores/search?${queryParams.toString()}`,
+        {
+          userType: 'customer',
+        }
+      );
+
+      console.log('✅ Store search results:', response);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error searching stores:', error);
+      throw error;
+    }
   }
 }
 

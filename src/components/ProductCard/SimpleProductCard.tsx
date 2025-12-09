@@ -26,11 +26,10 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
   return (
     <div 
       onClick={handleClick}
-      className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-lg transition-shadow duration-200 cursor-pointer group flex flex-col"
-      style={{ height: '310px' }} // Giảm height để gọn hơn
+      className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer group flex flex-col h-full"
     >
       {/* Product Image */}
-      <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden relative flex-shrink-0">
+      <div className="aspect-square bg-gray-100 overflow-hidden relative flex-shrink-0">
         <img 
           src={primaryImage} 
           alt={product.name} 
@@ -42,8 +41,8 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
         />
       </div>
 
-      {/* Product Info - Fixed structure */}
-      <div className="flex flex-col flex-1">
+      {/* Product Info - Fixed structure with padding */}
+      <div className="flex flex-col flex-1 p-3">
         {/* Product Name - Always 2 lines height */}
         <h3 
           className="text-sm font-medium text-gray-900 mb-2 overflow-hidden"
@@ -51,32 +50,32 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
-            minHeight: '2.5rem', // 2 lines minimum
+            height: '2.5rem', // Fixed 2 lines
             lineHeight: '1.25rem'
           }}
         >
           {product.name}
         </h3>
 
-        {/* Price Section - Reduced spacing */}
-        <div className="mt-1">
+        {/* Price Section - Compact layout */}
+        <div className="mt-auto">
           {product.finalPrice !== null && product.price !== null && product.finalPrice < product.price ? (
-            <div className="space-y-1">
+            <div>
               {/* Discounted Price - Red color when has discount */}
-              <div className="text-xl font-bold text-red-600">
+              <div className="text-lg font-bold text-red-600 truncate">
                 {formatPrice(product.finalPrice)}
               </div>
               
-              {/* Original Price - On same line */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 line-through">
+              {/* Original Price - Smaller */}
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-xs text-gray-400 line-through truncate">
                   {formatPrice(product.price)}
                 </span>
               </div>
             </div>
           ) : (
             // Giá gốc khi không giảm - màu cam
-            <div className="text-xl font-bold text-orange-500">
+            <div className="text-lg font-bold text-orange-500 truncate">
               {formatPrice(product.price ?? product.finalPrice ?? 0)}
             </div>
           )}

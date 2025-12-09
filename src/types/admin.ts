@@ -303,6 +303,22 @@ export interface PayoutBillListParams {
   billCode?: string;
 }
 
+export interface AutoCreateBillResult {
+  storeId: string;
+  storeName?: string;
+  billId: string;
+  billCode: string;
+  totalNetPayout: number;
+  success: boolean;
+  message?: string;
+}
+
+export interface AutoCreateBillsResponse {
+  totalStoresProcessed: number;
+  billsCreated: number;
+  results: AutoCreateBillResult[];
+}
+
 export interface PayoutBillListResponse {
   status: number;
   message: string;
