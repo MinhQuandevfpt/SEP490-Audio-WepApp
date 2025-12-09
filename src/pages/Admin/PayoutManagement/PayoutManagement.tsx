@@ -27,7 +27,7 @@ import type { Dayjs } from 'dayjs';
 import { AdminPayoutService } from '../../../services/admin/AdminPayoutService';
 import { AdminStoreService } from '../../../services/admin/AdminStoreService';
 import { FileUploadService } from '../../../services/FileUploadService';
-import type { PayoutBill, PayoutBillStatus, PayoutBillListParams } from '../../../types/admin';
+import type { PayoutBill, PayoutBillStatus, PayoutBillListParams, AutoCreateBillsResponse } from '../../../types/admin';
 import { showCenterError, showSuccess, showError } from '../../../utils/notification';
 
 const { RangePicker } = DatePicker;
@@ -67,6 +67,7 @@ const PayoutManagement: React.FC = () => {
   const [markPaidForm] = Form.useForm();
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string>('');
+  const [autoCreatingBills, setAutoCreatingBills] = useState(false);
   const [allStores, setAllStores] = useState<SimpleStoreInfo[]>([]);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
@@ -281,6 +282,68 @@ const PayoutManagement: React.FC = () => {
       setCreatingBill(false);
     }
   }, [selectedStoreForCreate, selectedStatus, dateRange, searchBillCode, storeId, navigate]);
+
+  const handleAutoCreateBills = useCallback(async () => {
+    Modal.confirm({
+      title: 'Xác nhận tạo bill tự động',
+      content: (
+        <div>
+          <p>Bạn có chắc chắn muốn tạo bill payout tự động cho TẤT CẢ các cửa hàng?</p>
+          <div className="mt-3 text-sm text-gray-600">
+            <p>Hệ thống sẽ:</p>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>Kiểm tra tất cả cửa hàng trong hệ thống</li>
+              <li>Chỉ tạo bill nếu shop có dữ liệu payout chưa thanh toán</li>
+              <li>Bỏ qua các shop không có dữ liệu hoặc đã có bill PENDING</li>
+            </ul>
+          </div>
+        </div>
+      ),
+      okText: 'Xác nhận tạo',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setAutoCreatingBills(true);
+        try {
+          const result: AutoCreateBillsResponse = await AdminPayoutService.autoCreatePayoutBills();
+          
+          if (result.billsCreated > 0) {
+            Modal.success({
+              title: 'Tạo bill thành công',
+              content: (
+                <div>
+                  <p>Đã tạo thành công {result.billsCreated} bill cho {result.totalStoresProcessed} cửa hàng</p>
+                  {result.results && result.results.length > 0 && (
+                    <div className="mt-3">
+                      <p className="font-semibold mb-2">Chi tiết:</p>
+                      <ul className="text-sm space-y-1 max-h-64 overflow-y-auto">
+                        {result.results.map((r, idx) => (
+                          <li key={idx} className={r.success ? 'text-green-600' : 'text-red-600'}>
+                            {r.success ? '✓' : '✗'} {r.storeName || r.storeId}: 
+                            {r.success ? ` ${r.billCode} (${(r.totalNetPayout || 0).toLocaleString('vi-VN')} ₫)` : ` ${r.message}`}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ),
+            });
+          } else {
+            showSuccess(`Đã kiểm tra ${result.totalStoresProcessed} cửa hàng. Không có shop nào cần tạo bill.`);
+          }
+          
+          // Refresh list
+          await fetchPayoutBills();
+        } catch (error: any) {
+          const errorMessage = error?.message || 'Không thể tạo bill tự động';
+          showCenterError(errorMessage, 'Lỗi tạo bill tự động');
+        } finally {
+          setAutoCreatingBills(false);
+        }
+      },
+    });
+  }, [fetchPayoutBills]);
 
   const handleStoreNameChange = useCallback((storeName: string) => {
     setSelectedStoreName(storeName);
@@ -710,14 +773,30 @@ const PayoutManagement: React.FC = () => {
             Xem và quản lý các hóa đơn thanh toán payout cho cửa hàng
           </Typography.Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          size="large"
-          onClick={() => setShowCreateModal(true)}
-        >
-          Tạo bill mới
-        </Button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <Button
+            type="default"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={handleAutoCreateBills}
+            loading={autoCreatingBills}
+            style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              border: 'none'
+            }}
+          >
+            Tạo tự động cho tất cả shop
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={() => setShowCreateModal(true)}
+          >
+            Tạo bill mới
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

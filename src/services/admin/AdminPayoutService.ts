@@ -3,7 +3,8 @@ import type {
   PayoutBill,
   PayoutBillListParams,
   PayoutBillListResponse,
-  PayoutBillDetailResponse
+  PayoutBillDetailResponse,
+  AutoCreateBillsResponse
 } from '../../types/admin';
 import type { ApiError } from '../../types/api';
 
@@ -224,6 +225,39 @@ export class AdminPayoutService {
     );
     
     return normalizePayoutBill(response);
+  }
+
+  /**
+   * Auto create payout bills for ALL stores
+   * POST /api/admin/payout-bill/auto-create
+   * Tự động tạo bill payout cho TẤT CẢ SHOP
+   * - Chỉ tạo bill nếu shop có dữ liệu payout:
+   *   + OrderItem eligibleForPayout = true
+   *   + ShippingFee paidByShop = false
+   *   + ReturnShippingFee paidByShop = false
+   * - Trả về danh sách bill đã tạo
+   */
+  static async autoCreatePayoutBills(): Promise<AutoCreateBillsResponse> {
+    const response: any = await adminHttpClient.post<any>(
+      `/api/admin/payout-bill/auto-create`
+    );
+    
+    // Handle response format
+    if (response && typeof response === 'object') {
+      // If wrapped in data field
+      if ('data' in response && response.data) {
+        return response.data as AutoCreateBillsResponse;
+      }
+      // If direct response
+      return response as AutoCreateBillsResponse;
+    }
+    
+    // Default empty response
+    return {
+      totalStoresProcessed: 0,
+      billsCreated: 0,
+      results: []
+    };
   }
 
   /**
