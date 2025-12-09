@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ProductListFilters } from '../../types/productList';
-import { PRODUCT_CATEGORIES } from '../../types/productList';
+import { useCategories } from '../../hooks/useCategories';
+import type { CategoryItem } from '../../types/api';
 
 interface ProductListFilterProps {
   filters: ProductListFilters;
@@ -15,6 +16,7 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
   onReset,
   loading = false,
 }) => {
+  const { categories, loading: categoriesLoading } = useCategories();
   const [minPriceInput, setMinPriceInput] = useState<string>(
     filters.minPrice?.toString() || ''
   );
@@ -30,11 +32,17 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
     setPriceError(''); // Clear error when filters change from outside
   }, [filters.minPrice, filters.maxPrice]);
 
-  const handleSelectCategory = (category: string) => {
-    if (loading) return;
+  const handleSelectCategory = (categoryId: string, categoryName: string) => {
+    if (loading || categoriesLoading) return;
 
-    const nextValue = filters.categoryName === category ? undefined : category;
-    onFiltersChange({ categoryName: nextValue });
+    // If already selected, deselect it
+    const nextCategoryId = filters.categoryId === categoryId ? undefined : categoryId;
+    const nextCategoryName = filters.categoryId === categoryId ? undefined : categoryName;
+    
+    onFiltersChange({ 
+      categoryId: nextCategoryId,
+      categoryName: nextCategoryName, // Keep for backward compatibility and display
+    });
   };
 
   const handleApplyPriceFilter = () => {
@@ -118,26 +126,32 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
 
         <div>
           <p className="text-sm font-semibold text-gray-800 mb-4">Danh mục</p>
-          <div className="grid grid-cols-2 gap-3">
-            {PRODUCT_CATEGORIES.map((category) => {
-              const isActive = filters.categoryName === category;
-              return (
-                <button
-                  key={category}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleSelectCategory(category)}
-                  className={`w-full px-4 py-3 text-sm font-medium rounded-lg border-2 transition-all duration-200 ${
-                    isActive
-                      ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200'
-                      : 'text-gray-700 border-gray-200 bg-white hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {category}
-                </button>
-              );
-            })}
-          </div>
+          {categoriesLoading ? (
+            <div className="text-center py-4 text-gray-500 text-sm">Đang tải danh mục...</div>
+          ) : categories.length === 0 ? (
+            <div className="text-center py-4 text-gray-500 text-sm">Không có danh mục</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {categories.map((category: CategoryItem) => {
+                const isActive = filters.categoryId === category.categoryId;
+                return (
+                  <button
+                    key={category.categoryId}
+                    type="button"
+                    disabled={loading || categoriesLoading}
+                    onClick={() => handleSelectCategory(category.categoryId, category.name)}
+                    className={`w-full px-4 py-3 text-sm font-medium rounded-lg border-2 transition-all duration-200 ${
+                      isActive
+                        ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200'
+                        : 'text-gray-700 border-gray-200 bg-white hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

@@ -9,7 +9,7 @@ const GoogleLoginButton = ({
 }: GoogleLoginButtonProps) => {
   const handleGoogleLogin = () => {
     // Cách đơn giản nhất: chỉ redirect với timestamp để buộc fresh session
-    const authUrl = 'http://localhost:8080/oauth2/authorization/google';
+    const authUrl = 'https://audioe-commerce-production.up.railway.app/oauth2/authorization/google';
     const timestamp = Date.now();
     
     // Clear local storage để đảm bảo fresh session

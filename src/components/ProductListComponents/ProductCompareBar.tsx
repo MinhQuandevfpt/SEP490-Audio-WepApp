@@ -43,8 +43,8 @@ export const ProductCompareBar: React.FC<ProductCompareBarProps> = ({
               className="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 min-w-[160px]"
             >
               <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center overflow-hidden">
-                {item.image ? (
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                {(item.image || item.thumbnailUrl) ? (
+                  <img src={item.thumbnailUrl || item.image} alt={item.name} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-xs text-gray-400">No image</span>
                 )}

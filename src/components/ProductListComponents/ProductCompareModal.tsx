@@ -29,7 +29,7 @@ const parseWarrantyToMonths = (text?: string | null) => {
 };
 
 const compareFields: CompareField[] = [
-  { key: 'category', label: 'Danh mục', extractor: (p) => ({ display: p.categoryName || '-' }) },
+  { key: 'category', label: 'Danh mục', extractor: (p) => ({ display: p.category || p.categoryName || '-' }) },
   { key: 'brand', label: 'Thương hiệu', extractor: (p) => ({ display: p.brandName || '-' }) },
   { key: 'model', label: 'Model', extractor: (p) => ({ display: p.model || '-' }) },
   { key: 'material', label: 'Chất liệu', extractor: (p) => ({ display: p.material || '-' }) },
@@ -51,16 +51,20 @@ const compareFields: CompareField[] = [
     highlight: 'min',
     extractor: (p) => {
       if (p.variants?.length) {
-        const variantPrices = p.variants.map((v) => v.variantPrice).filter((v) => typeof v === 'number');
+        // Support new variant structure: price field, or old structure: variantPrice
+        const variantPrices = p.variants.map((v) => v.price ?? v.variantPrice).filter((v) => typeof v === 'number');
         const minVariant = variantPrices.length ? Math.min(...(variantPrices as number[])) : undefined;
         return {
           display: (
             <div className="space-y-1">
-              {p.variants.slice(0, 3).map((variant) => (
-                <div key={variant.variantId}>
-                  <span className="font-medium">{variant.optionValue}</span>: {formatCurrency(variant.variantPrice)}
-                </div>
-              ))}
+              {p.variants.slice(0, 3).map((variant) => {
+                const variantPrice = variant.price ?? variant.variantPrice ?? 0;
+                return (
+                  <div key={variant.variantId}>
+                    <span className="font-medium">{variant.optionValue}</span>: {formatCurrency(variantPrice)}
+                  </div>
+                );
+              })}
             </div>
           ),
           numericValue: minVariant ?? null,
@@ -176,9 +180,9 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
                     >
                       <div className="flex flex-col items-center gap-3 max-w-[200px]">
                         <div className="w-20 h-20 rounded-lg border-2 border-gray-300 overflow-hidden flex-shrink-0 bg-white">
-                          {product.images?.[0] ? (
+                          {(product.thumbnailUrl || (product.images && product.images.length > 0 && product.images[0])) ? (
                             <img
-                              src={product.images[0]}
+                              src={product.thumbnailUrl || (product.images?.[0] || '')}
                               alt={product.name}
                               className="w-full h-full object-cover"
                             />

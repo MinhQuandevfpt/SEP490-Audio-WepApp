@@ -51,16 +51,18 @@ const ProductListPage: React.FC = () => {
 
   // Initialize filters from URL params
   React.useEffect(() => {
-    const categoryName = searchParams.get('category');
+    const categoryId = searchParams.get('categoryId');
+    const categoryName = searchParams.get('category'); // Keep for backward compatibility
     const keyword = searchParams.get('search');
     const page = searchParams.get('page');
     const size = searchParams.get('size');
     const status = searchParams.get('status');
     const brandName = searchParams.get('brandName');
 
-    if (categoryName || keyword || page || size || status || brandName) {
+    if (categoryId || categoryName || keyword || page || size || status || brandName) {
       setFilters({
-        categoryName: categoryName || undefined,
+        categoryId: categoryId || undefined,
+        categoryName: categoryName || undefined, // Keep for backward compatibility
         keyword: keyword || undefined,
         status: status ? (status.toUpperCase() as any) : undefined, // Convert to uppercase
         brandName: brandName || undefined,
@@ -80,7 +82,12 @@ const ProductListPage: React.FC = () => {
   React.useEffect(() => {
     const params = new URLSearchParams();
     
-    if (filters.categoryName) params.set('category', filters.categoryName);
+    // Use categoryId if available, otherwise fallback to categoryName for backward compatibility
+    if (filters.categoryId) {
+      params.set('categoryId', filters.categoryId);
+    } else if (filters.categoryName) {
+      params.set('category', filters.categoryName);
+    }
     if (filters.keyword) params.set('search', filters.keyword);
     if (filters.status) params.set('status', filters.status);
     if (filters.brandName) params.set('brandName', filters.brandName);

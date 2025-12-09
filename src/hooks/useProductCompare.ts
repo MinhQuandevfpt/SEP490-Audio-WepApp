@@ -6,7 +6,9 @@ export interface ComparePreview {
   productId: string;
   name: string;
   image?: string;
+  thumbnailUrl?: string; // Support new API structure
   categoryName?: string;
+  category?: string; // Support new API structure
 }
 
 export const useProductCompare = () => {
@@ -18,6 +20,7 @@ export const useProductCompare = () => {
   const toggleProduct = (product: any) => {
     const productId = product.productId || product.id;
     const image =
+      product.thumbnailUrl || // New API structure
       product.image ||
       product.thumbnail ||
       (Array.isArray(product.images) ? product.images[0] : undefined);
@@ -35,11 +38,12 @@ export const useProductCompare = () => {
       return;
     }
 
+    const currentCategory = product.category || product.categoryName;
     if (
       selectedProducts.length > 0 &&
       selectedProducts[0].categoryName &&
-      product.categoryName &&
-      selectedProducts[0].categoryName !== product.categoryName
+      currentCategory &&
+      selectedProducts[0].categoryName !== currentCategory
     ) {
       showError('Không thể so sánh', 'Chỉ có thể so sánh các sản phẩm cùng danh mục.');
       return;
@@ -51,7 +55,9 @@ export const useProductCompare = () => {
         productId,
         name: product.name,
         image,
-        categoryName: product.categoryName,
+        thumbnailUrl: product.thumbnailUrl,
+        categoryName: product.category || product.categoryName,
+        category: product.category,
       },
     ]);
   };

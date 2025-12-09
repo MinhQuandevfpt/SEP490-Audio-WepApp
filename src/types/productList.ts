@@ -1,5 +1,6 @@
 export interface ProductListFilters {
-  categoryName?: string;
+  categoryName?: string; // Keep for backward compatibility
+  categoryId?: string; // New: use categoryId instead of categoryName
   storeId?: string;
   keyword?: string;
   status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED';

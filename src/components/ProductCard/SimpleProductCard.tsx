@@ -9,7 +9,8 @@ interface SimpleProductCardProps {
 const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
   const navigate = useNavigate();
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | null) => {
+    if (price === null || price === undefined) return '0đ';
     return new Intl.NumberFormat('vi-VN').format(price) + 'đ';
   };
 
@@ -59,7 +60,7 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
 
         {/* Price Section - Reduced spacing */}
         <div className="mt-1">
-          {product.finalPrice && product.finalPrice < product.price ? (
+          {product.finalPrice !== null && product.price !== null && product.finalPrice < product.price ? (
             <div className="space-y-1">
               {/* Discounted Price - Red color when has discount */}
               <div className="text-xl font-bold text-red-600">
@@ -76,7 +77,7 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
           ) : (
             // Giá gốc khi không giảm - màu cam
             <div className="text-xl font-bold text-orange-500">
-              {formatPrice(product.price)}
+              {formatPrice(product.price ?? product.finalPrice ?? 0)}
             </div>
           )}
         </div>
