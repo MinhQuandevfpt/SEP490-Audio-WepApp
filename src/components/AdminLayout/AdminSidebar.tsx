@@ -11,7 +11,8 @@ import {
   LogOut,
   Zap,
   Image,
-  FileText
+  FileText,
+  DollarSign
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -108,6 +109,11 @@ const AdminSidebar: React.FC = () => {
       name: 'Quản lý Chính Sách',
       href: '/admin/policies',
       icon: <FileText className="w-6 h-6" />
+    },
+    {
+      name: 'Phí nền tảng',
+      href: '/admin/platform-fees',
+      icon: <DollarSign className="w-6 h-6" />
     },
     {
       name: 'Báo cáo & Thống kê',

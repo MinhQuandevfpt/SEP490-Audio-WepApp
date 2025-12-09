@@ -49,6 +49,7 @@ import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
 import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
 import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
+import PlatformFeeManagement from '../pages/Admin/PlatformFeeManagement/PlatformFeeManagement';
 import SellerDashboardHome from '../pages/Seller/Dashboard';
 import { ProductManagement } from '../pages/Seller/Dashboard';
 import StoreProfile from '../pages/Seller/Dashboard/StoreProfile';
@@ -640,6 +641,10 @@ export const router = createBrowserRouter([
       {
         path: 'policies',
         element: <PolicyManagement />
+      },
+      {
+        path: 'platform-fees',
+        element: <PlatformFeeManagement />
       },
       {
         path: 'orders',

@@ -315,3 +315,36 @@ export interface PayoutBillDetailResponse {
   data: PayoutBill;
 }
 
+// Platform Fee Management Types
+export interface PlatformFee {
+  feeId: string;
+  percentage: number;
+  effectiveDate: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PlatformFeeListResponse = PlatformFee[];
+
+export interface CreatePlatformFeeRequest {
+  feeId: string; // Mặc định là "" (rỗng)
+  percentage: number;
+  effectiveDate: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlatformFeeResponse {
+  feeId: string;
+  percentage: number;
+  effectiveDate: string;
+  description: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
