@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Store, MessageCircle, Search } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import SimpleProductCard from '../../../components/ProductCard/SimpleProductCard';
-import { ProductListService, type Product } from '../../../services/customer/ProductListService';
+import { type Product } from '../../../services/customer/ProductListService';
+import { ProductViewService, type ProductViewItem } from '../../../services/customer/ProductViewService';
 import { CustomerStoreService, type StoreDetailResponse } from '../../../services/customer/StoreService';
 import { useChatContext } from '../../../contexts/ChatContext';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
@@ -22,47 +23,113 @@ const StorePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Process product to handle variants and calculate prices (similar to ProductSuggestions)
-  const processProduct = (product: Product): Product => {
-    let originalPrice = product.price || 0;
-    let discountedPrice: number | null = product.discountPrice;
+  // Map ProductViewItem to Product (similar to ProductSuggestions)
+  const mapToProduct = (item: ProductViewItem): Product => {
+    // Calculate discount ONLY from platform vouchers (Flash Sale, Mega Sale, etc.)
+    // Ignore shop vouchers for display
+    let discountPercent = 0;
+    let discountedPrice = item.price ?? 0;
+    let originalPrice = item.price ?? 0;
     
-    // If product has variants, calculate from variants
-    if (product.variants && product.variants.length > 0) {
-      const variantPrices = product.variants
-        .map(v => v.variantPrice)
-        .filter(price => price > 0);
-      
-      if (variantPrices.length > 0) {
-        const minVariantPrice = Math.min(...variantPrices);
-        originalPrice = minVariantPrice;
+    // Check if product has variants and calculate min price
+    if (item.variants && item.variants.length > 0) {
+      // Get minimum price from variants
+      const variantPrices = item.variants.map(v => v.price);
+      const minVariantPrice = Math.min(...variantPrices);
+      originalPrice = minVariantPrice;
+      discountedPrice = minVariantPrice;
+    }
+    
+    // Check platform vouchers ONLY (Flash Sale, etc.)
+    if (item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0) {
+      const campaign = item.vouchers.platformVouchers[0];
+      if (campaign.vouchers && campaign.vouchers.length > 0) {
+        const voucher = campaign.vouchers[0];
+        
+        // Check if voucher is active (within time range)
+        const now = new Date();
+        let isActive = false;
+        
+        if (voucher.slotOpenTime && voucher.slotCloseTime) {
+          // Flash Sale: check slot time and slot status
+          isActive = 
+            now >= new Date(voucher.slotOpenTime) && 
+            now <= new Date(voucher.slotCloseTime) &&
+            voucher.slotStatus === 'ACTIVE';
+        } else {
+          // Regular campaign: check voucher time
+          isActive = 
+            now >= new Date(voucher.startTime) && 
+            now <= new Date(voucher.endTime) && 
+            voucher.status === 'ACTIVE';
+        }
+        
+        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
+          discountPercent = voucher.discountPercent;
+          discountedPrice = originalPrice * (1 - discountPercent / 100);
+        } else if (isActive && voucher.type === 'FIXED' && voucher.discountValue) {
+          discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
+          if (originalPrice > 0) {
+            discountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+          }
+        }
       }
     }
     
-    // If originalPrice is still 0, try to use discountPrice as fallback
-    if (originalPrice === 0 && discountedPrice && discountedPrice > 0) {
-      originalPrice = discountedPrice;
-      discountedPrice = null;
-    }
-    
-    // Validate discountPrice - must be less than originalPrice
-    let finalDiscountedPrice: number | null = null;
-    let finalDiscountPercent: number | null = null;
-    
-    if (discountedPrice && discountedPrice < originalPrice && originalPrice > 0) {
-      finalDiscountedPrice = discountedPrice;
-      finalDiscountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
-    }
-    
-    // Update product with processed prices
+    // DO NOT check shop voucher - only show original price for shop vouchers
+
+    const hasDiscount = discountPercent > 0;
+
     return {
-      ...product,
+      productId: item.productId,
+      storeId: item.store?.id || '',
+      storeName: item.store?.name || '',
+      categoryId: '',
+      categoryName: item.category || '',
+      brandName: item.brandName || '',
+      name: item.name,
+      slug: '',
+      shortDescription: '',
+      description: '',
+      model: '',
+      color: '',
+      material: '',
+      dimensions: '',
+      weight: 0,
+      variants: [],
+      images: item.thumbnailUrl ? [item.thumbnailUrl] : [],
+      videoUrl: null,
+      sku: '',
       price: originalPrice,
-      discountPrice: finalDiscountedPrice,
-      promotionPercent: finalDiscountPercent,
-      finalPrice: finalDiscountedPrice || originalPrice,
-      priceAfterPromotion: finalDiscountedPrice || originalPrice,
-    };
+      discountPrice: hasDiscount ? discountedPrice : null,
+      promotionPercent: hasDiscount ? discountPercent : null,
+      priceAfterPromotion: hasDiscount ? discountedPrice : originalPrice,
+      priceBeforeVoucher: originalPrice,
+      voucherAmount: null,
+      finalPrice: hasDiscount ? discountedPrice : originalPrice,
+      platformFeePercent: null,
+      currency: 'VND',
+      stockQuantity: 0,
+      warehouseLocation: null,
+      provinceCode: item.store?.provinceCode || null,
+      districtCode: item.store?.districtCode || null,
+      wardCode: item.store?.wardCode || null,
+      shippingAddress: null,
+      shippingFee: null,
+      supportedShippingMethodIds: [],
+      bulkDiscounts: [],
+      status: item.store?.status || 'ACTIVE',
+      isFeatured: false,
+      ratingAverage: item.ratingAverage ?? null,
+      reviewCount: item.reviewCount ?? null,
+      viewCount: null,
+      createdAt: '',
+      updatedAt: '',
+      lastUpdatedAt: '',
+      lastUpdateIntervalDays: 0,
+      createdBy: '',
+      updatedBy: '',
+    } as Product;
   };
 
   const loadProducts = async (pageNum: number = 0, append: boolean = false) => {
@@ -70,57 +137,36 @@ const StorePage: React.FC = () => {
 
     try {
       setLoading(true);
-      const response = await ProductListService.getProducts({
+      const response = await ProductViewService.getProductViews({
         storeId,
         page: pageNum,
         size: 20,
         status: 'ACTIVE'
       });
 
-      // Access data.content from normalized response
-      let productsData: any[] = [];
-      if (Array.isArray(response.data)) {
-        productsData = response.data;
-      } else if ('data' in response.data && 'page' in response.data) {
-        // New API structure: { data: Product[], page: {...} }
-        productsData = response.data.data || [];
-      } else if ('content' in response.data) {
-        // Old pagination structure: { content: Product[], ... }
-        productsData = response.data.content || [];
-      }
+      console.log('📦 API Response:', response);
 
-      if (productsData.length > 0) {
+      if (response && response.data) {
+        const items = response.data.data || [];
+        const pageInfo = response.data.page;
+
         // Set store name from first product
-        if (!append && productsData[0].storeName) {
-          setStoreName(productsData[0].storeName);
+        if (!append && items.length > 0 && items[0].store?.name) {
+          setStoreName(items[0].store.name);
         }
 
-        // Filter out INACTIVE products and process remaining products
-        const activeProducts = productsData.filter((p: any) => p.status !== 'INACTIVE');
-        const processedProducts = activeProducts.map(processProduct);
+        // Map to Product format
+        const newProducts: Product[] = items.map(mapToProduct);
 
         if (append) {
-          setProducts(prev => [...prev, ...processedProducts]);
+          setProducts(prev => [...prev, ...newProducts]);
         } else {
-          setProducts(processedProducts);
+          setProducts(newProducts);
         }
 
         // Check if it's the last page
-        let isLast = false;
-        if (Array.isArray(response.data)) {
-          isLast = productsData.length < 20;
-        } else if ('data' in response.data && 'page' in response.data) {
-          // New API structure
-          const pageInfo = response.data.page;
-          isLast = pageInfo.pageNumber >= pageInfo.totalPages - 1;
-        } else if ('last' in response.data) {
-          // Old pagination structure
-          isLast = response.data.last || false;
-        }
-        
+        const isLast = pageInfo.pageNumber >= pageInfo.totalPages - 1;
         setHasMore(!isLast);
-      } else {
-        setHasMore(false);
       }
     } catch (error) {
       console.error('Error loading store products:', error);
@@ -307,11 +353,7 @@ const StorePage: React.FC = () => {
                               </span>
                             </div>
                           )}
-                          <div className="hidden md:flex items-center gap-1 md:gap-2 bg-white/20 backdrop-blur-sm px-2 md:px-3 py-1 md:py-1.5 rounded-full">
-                            <span className="text-white font-medium">
-                              📅 {storeData?.createdAt ? new Date(storeData.createdAt).toLocaleDateString('vi-VN') : 'N/A'}
-                            </span>
-                          </div>
+                          
                         </div>
                       </>
                     )}
