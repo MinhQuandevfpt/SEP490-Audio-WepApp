@@ -6,15 +6,14 @@ import ImageVideoSection from './ImageVideoSection';
 import BasicInfoSection from './BasicInfoSection';
 import ContentCheckPanel from './ContentCheckPanel';
 import { CategoryService } from '../../services/seller/CategoryService';
-import { ShippingService } from '../../services/seller/ShippingService';
 import { FileUploadService } from '../../services/FileUploadService';
 import { ProductService } from '../../services/seller/ProductService';
 import { useProvinces } from '../../hooks/useProvinces';
 import { useDistricts } from '../../hooks/useDistricts';
 import { useWards } from '../../hooks/useWards';
 import { StoreAddressService } from '../../services/seller/StoreAddressService';
-import type { Category, ShippingMethod, Province, District, Ward, StoreAddress, Product } from '../../types/seller';
-import { CATEGORY_SPECS, type CategoryKey, translatePlacementType } from './CategorySpecsSchema';
+import type { Category, Province, District, Ward, StoreAddress, Product, CategoryAttribute } from '../../types/seller';
+// translatePlacementType no longer needed (dynamic attributes)
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
 
 type ProductImage = { id: string; url: string; file?: File };
@@ -38,7 +37,7 @@ interface FormState {
   // Basic
   name: string;
   brandName: string;
-  category: string;
+  categoryIds: string[];
   shortDescription: string;
   description: string;
   model: string;
@@ -82,7 +81,7 @@ interface FormState {
 const defaultForm: FormState = {
   name: '',
   brandName: '',
-  category: '',
+  categoryIds: [],
   shortDescription: '',
   description: '',
   model: '',
@@ -114,11 +113,8 @@ const defaultForm: FormState = {
   highlights: '',
 };
 
-const SPEC_KEYS = Array.from(
-  new Set(
-    Object.values(CATEGORY_SPECS).flatMap(specs => specs.map(spec => spec.key))
-  )
-);
+// Dynamic attributes: no static spec keys
+const SPEC_KEYS: string[] = [];
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -143,6 +139,9 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
+  
+  // Address fields are always read-only (cannot be edited in create or update mode)
+  const isAddressReadOnly = true;
   
   // Form state
   const [form, setForm] = useState<FormState>(defaultForm);
@@ -179,8 +178,9 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   // Data loading state
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
-  const [shippingLoading, setShippingLoading] = useState(true);
+  const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>([]);
+  const [categoryAttributesLoading, setCategoryAttributesLoading] = useState(false);
+  const [categoryAttributesError, setCategoryAttributesError] = useState<string | null>(null);
   const [locationPrefill, setLocationPrefill] = useState<{
     provinceCode?: string;
     districtCode?: string;
@@ -227,7 +227,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       basic: {
         name: (form.name || '').trim().length >= 10 && (form.name || '').trim().length <= 100,
         brandName: (form.brandName || '').trim().length >= 2,
-        category: (form.category || '').trim().length > 0,
+        category: Array.isArray(form.categoryIds) && form.categoryIds.length > 0,
         weight: (form.weight || '').trim().length > 0 && !Number.isNaN(Number(form.weight)) && Number(form.weight) > 0,
         specs: specsCount >= 3, // Ít nhất 3 thông số kỹ thuật
         sku: (form.sku || '').trim().length > 0 // SKU sản phẩm LUÔN bắt buộc (không phụ thuộc vào phân loại)
@@ -274,22 +274,53 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
     const loadData = async () => {
       try {
         setCategoriesLoading(true);
-        setShippingLoading(true);
-        const [catRes, shipRes] = await Promise.all([
-          CategoryService.getCategories(),
-          ShippingService.getShippingMethods()
+        const [catRes] = await Promise.all([
+          CategoryService.getCategories()
         ]);
         setCategories(catRes.data || []);
-        setShippingMethods(shipRes.data || []);
       } catch (e) {
-        showCenterError('Không thể tải danh mục hoặc phương thức vận chuyển');
+        showCenterError('Không thể tải danh mục');
       } finally {
         setCategoriesLoading(false);
-        setShippingLoading(false);
       }
     };
     loadData();
   }, []);
+
+  // Load attributes for selected categories
+  useEffect(() => {
+    const loadAttributes = async () => {
+      if (!Array.isArray(form.categoryIds) || form.categoryIds.length === 0) {
+        setCategoryAttributes([]);
+        return;
+      }
+      setCategoryAttributesLoading(true);
+      setCategoryAttributesError(null);
+      try {
+        const results = await Promise.all(
+          form.categoryIds.map(id =>
+            CategoryService.getCategoryDetail(id).catch(err => {
+              console.error('Error fetching category detail', id, err);
+              return null;
+            })
+          )
+        );
+        const merged: Record<string, CategoryAttribute> = {};
+        results.forEach(res => {
+          const attrs = res?.data?.attributes || [];
+          attrs.forEach((attr: CategoryAttribute) => {
+            merged[attr.attributeId] = attr;
+          });
+        });
+        setCategoryAttributes(Object.values(merged));
+      } catch (e: any) {
+        setCategoryAttributesError(e?.message || 'Không thể tải thuộc tính danh mục');
+      } finally {
+        setCategoryAttributesLoading(false);
+      }
+    };
+    loadAttributes();
+  }, [form.categoryIds]);
 
   // State to track default address loading
   const [defaultAddressLoaded, setDefaultAddressLoaded] = useState(false);
@@ -381,7 +412,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       ...defaultForm,
       name: product.name || '',
       brandName: product.brandName || '',
-      category: product.categoryName || '',
+      categoryIds: (product as any)?.categoryIds || [],
       shortDescription: product.shortDescription || '',
       description: product.description || '',
       model: product.model || '',
@@ -602,20 +633,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
     }
   }, [wards, wardsLoading, pendingDefaultAddress, selectedDistrict]);
 
-  // Reload shipping methods without showing success popup
-  const reloadShippingMethods = async () => {
-    try {
-      setShippingLoading(true);
-      const shipRes = await ShippingService.getShippingMethods();
-      setShippingMethods(shipRes.data || []);
-      // Không hiển thị popup khi reload thành công
-    } catch (e) {
-      showCenterError('Không thể tải lại phương thức vận chuyển');
-    } finally {
-      setShippingLoading(false);
-    }
-  };
-
   // Reload default store address and set to form
   const reloadDefaultAddress = async () => {
     try {
@@ -692,24 +709,24 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   // ============================================================================
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    if (type === 'checkbox') {
+    // Không destructure selectedOptions trực tiếp để tránh lỗi với synthetic event tùy chỉnh
+    const target = e.target as HTMLInputElement & HTMLSelectElement;
+    const { name, value, multiple } = target;
+    const inputType = (target as HTMLInputElement).type;
+    const selectedOptions = (target as HTMLSelectElement).selectedOptions;
+    if (inputType === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setForm(prev => ({ ...prev, [name]: checked.toString() }));
       return;
     }
+    if (multiple && selectedOptions) {
+      const values = Array.from(selectedOptions).map(opt => opt.value);
+      setForm(prev => ({ ...prev, [name]: values }));
+      if (name === 'categoryIds') setExtraSpecs({});
+      return;
+    }
     setForm(prev => ({ ...prev, [name]: value }));
-    if (name === 'category') setExtraSpecs({});
-  };
-
-  const onSelectShipping = (shippingMethodId: string) => {
-    setForm(prev => {
-      const isSelected = prev.selectedShippingMethodIds.includes(shippingMethodId);
-      const next = isSelected
-        ? prev.selectedShippingMethodIds.filter(id => id !== shippingMethodId)
-        : [...prev.selectedShippingMethodIds, shippingMethodId];
-      return { ...prev, selectedShippingMethodIds: next };
-    });
+    if (name === 'categoryIds') setExtraSpecs({});
   };
 
   // ==========================================================================
@@ -1145,7 +1162,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       // Validate basic info - CHỈ hiển thị thông báo chung
       const nameValid = (form.name || '').trim().length >= 10 && (form.name || '').trim().length <= 100;
       const brandValid = (form.brandName || '').trim().length >= 2;
-      const categoryValid = (form.category || '').trim().length > 0;
+      const categoryValid = Array.isArray(form.categoryIds) && form.categoryIds.length > 0;
       const imagesValid = images.length > 0;
       
       if (!nameValid || !brandValid || !categoryValid || !imagesValid) {
@@ -1288,8 +1305,24 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       };
     }
 
+    const findCategoryNameById = (id: string): string => {
+      const stack = [...categories];
+      while (stack.length) {
+        const current = stack.pop();
+        if (!current) continue;
+        if (current.categoryId === id) return current.name;
+        if (current.children) stack.push(...current.children);
+      }
+      return '';
+    };
+    const categoryNames = Array.isArray(form.categoryIds)
+      ? form.categoryIds.map(findCategoryNameById).filter(Boolean)
+      : [];
+
     const payload: Record<string, any> = {
-      categoryName: form.category,
+      categoryIds: form.categoryIds,
+      categoryNames,
+      categoryName: categoryNames[0] || '',
       brandName: form.brandName,
       sku: form.sku,
       name: form.name,
@@ -1341,6 +1374,23 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       if (k === 'discountPrice') return;
       if (payload[k] === '' || payload[k] === undefined) delete payload[k];
     });
+
+    // Map category attributes -> attributeValues for API
+    const attributeValues = categoryAttributes
+      .map((attr) => {
+        const raw = extraSpecs[attr.attributeName];
+        if (raw === undefined || raw === null || raw === '') return null;
+        return {
+          attributeId: attr.attributeId,
+          value: String(raw),
+        };
+      })
+      .filter(Boolean);
+
+    if (attributeValues.length > 0) {
+      payload.attributeValues = attributeValues;
+    }
+
     return payload;
   };
 
@@ -1430,9 +1480,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   };
 
   // Draft flow removed per requirement
-
-  const currentCategory = form.category as CategoryKey;
-  const specDefs = CATEGORY_SPECS[currentCategory] || [];
 
   // ============================================================================
   // RENDER
@@ -1531,6 +1578,10 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         getDimensionParts={getDimensionParts}
         touchedFields={touchedFields}
         onChange={onChange}
+        onCategoryChange={(ids) => {
+          setForm(prev => ({ ...prev, categoryIds: ids }));
+          setExtraSpecs({});
+        }}
         onDescriptionChange={(content) => setForm(prev => ({ ...prev, description: content }))}
         onDimensionChange={setDimensionPart}
         onBlur={(fieldName) => setTouchedFields(prev => ({ ...prev, [fieldName]: true }))}
@@ -1883,18 +1934,20 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             {/* Header with reload button */}
             <div className="flex items-center justify-between mb-4">
               <label className="block text-sm font-semibold text-gray-800">Địa chỉ kho <span className="text-red-500">*</span></label>
-              <button
-                type="button"
-                onClick={reloadDefaultAddress}
-                disabled={addressReloading || provincesLoading}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-300"
-                title="Tải lại địa chỉ kho mặc định"
-              >
-                <RefreshCw 
-                  className={`h-4 w-4 text-gray-600 ${addressReloading ? 'animate-spin' : ''}`} 
-                />
-                <span className="text-gray-700">Tải lại địa chỉ</span>
-              </button>
+              {!isAddressReadOnly && (
+                <button
+                  type="button"
+                  onClick={reloadDefaultAddress}
+                  disabled={addressReloading || provincesLoading}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-300"
+                  title="Tải lại địa chỉ kho mặc định"
+                >
+                  <RefreshCw 
+                    className={`h-4 w-4 text-gray-600 ${addressReloading ? 'animate-spin' : ''}`} 
+                  />
+                  <span className="text-gray-700">Tải lại địa chỉ</span>
+                </button>
+              )}
             </div>
             {/* Thứ tự mới: Tỉnh/Thành phố -> Quận/Huyện -> Phường/Xã -> Địa chỉ kho */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1905,9 +1958,9 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 <button
                   type="button"
                   onClick={toggleProvinceDropdown}
-                  disabled={provincesLoading || defaultAddressLoaded}
+                  disabled={provincesLoading || defaultAddressLoaded || isAddressReadOnly}
                   className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors ${
-                    provincesLoading || defaultAddressLoaded
+                    provincesLoading || defaultAddressLoaded || isAddressReadOnly
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedProvince 
                         ? 'border-gray-300 bg-white' 
@@ -1924,7 +1977,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                       }
                     </span>
                     <div className="flex items-center gap-2">
-                      {selectedProvince && !defaultAddressLoaded && (
+                      {selectedProvince && !defaultAddressLoaded && !isAddressReadOnly && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1949,7 +2002,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 </button>
 
                 {/* Province Dropdown */}
-                {showProvinceDropdown && !provincesLoading && !defaultAddressLoaded && (
+                {showProvinceDropdown && !provincesLoading && !defaultAddressLoaded && !isAddressReadOnly && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-200">
@@ -2018,9 +2071,9 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 <button
                   type="button"
                   onClick={toggleDistrictDropdown}
-                  disabled={districtsLoading || !selectedProvince || defaultAddressLoaded}
+                  disabled={districtsLoading || !selectedProvince || defaultAddressLoaded || isAddressReadOnly}
                   className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors ${
-                    districtsLoading || !selectedProvince || defaultAddressLoaded
+                    districtsLoading || !selectedProvince || defaultAddressLoaded || isAddressReadOnly
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedDistrict 
                         ? 'border-gray-300 bg-white' 
@@ -2039,7 +2092,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                       }
                     </span>
                     <div className="flex items-center gap-2">
-                      {selectedDistrict && !defaultAddressLoaded && (
+                      {selectedDistrict && !defaultAddressLoaded && !isAddressReadOnly && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -2064,7 +2117,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 </button>
 
                 {/* District Dropdown */}
-                {showDistrictDropdown && !districtsLoading && selectedProvince && !defaultAddressLoaded && (
+                {showDistrictDropdown && !districtsLoading && selectedProvince && !defaultAddressLoaded && !isAddressReadOnly && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-200">
@@ -2133,9 +2186,9 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 <button
                   type="button"
                   onClick={toggleWardDropdown}
-                  disabled={wardsLoading || !selectedDistrict || defaultAddressLoaded}
+                  disabled={wardsLoading || !selectedDistrict || defaultAddressLoaded || isAddressReadOnly}
                   className={`w-full px-3 py-2 text-left border rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors ${
-                    wardsLoading || !selectedDistrict || defaultAddressLoaded
+                    wardsLoading || !selectedDistrict || defaultAddressLoaded || isAddressReadOnly
                       ? 'bg-gray-100 cursor-not-allowed border-gray-300' 
                       : selectedWard 
                         ? 'border-gray-300 bg-white' 
@@ -2154,7 +2207,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                       }
                     </span>
                     <div className="flex items-center gap-2">
-                      {selectedWard && !defaultAddressLoaded && (
+                      {selectedWard && !defaultAddressLoaded && !isAddressReadOnly && (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -2179,7 +2232,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 </button>
 
                 {/* Ward Dropdown */}
-                {showWardDropdown && !wardsLoading && selectedDistrict && !defaultAddressLoaded && (
+                {showWardDropdown && !wardsLoading && selectedDistrict && !defaultAddressLoaded && !isAddressReadOnly && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
                     {/* Search Input */}
                     <div className="p-2 border-b border-gray-200">
@@ -2251,9 +2304,10 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 onChange={onChange} 
                 type="text" 
                 placeholder="VD: 123/5F, đường Nguyễn Huệ"
-                disabled={defaultAddressLoaded}
+                disabled={defaultAddressLoaded || isAddressReadOnly}
+                readOnly={isAddressReadOnly}
                 className={`mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-colors ${
-                  defaultAddressLoaded ? 'bg-gray-100 cursor-not-allowed' : ''
+                  defaultAddressLoaded || isAddressReadOnly ? 'bg-gray-100 cursor-not-allowed' : ''
                 }`}
               />
               <p className="mt-1 text-xs text-gray-500">Nhập số nhà, tên đường để xác định địa điểm xuất kho.</p>
@@ -2262,283 +2316,92 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-semibold text-gray-800">Phương thức vận chuyển</label>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Chọn các phương thức hỗ trợ đơn này</span>
-                <button
-                  type="button"
-                  onClick={reloadShippingMethods}
-                  disabled={shippingLoading}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Tải lại phương thức vận chuyển"
-                >
-                  <RefreshCw 
-                    className={`h-4 w-4 text-gray-600 ${shippingLoading ? 'animate-spin' : ''}`} 
-                  />
-                </button>
-              </div>
-            </div>
-            {shippingLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
-                <span className="ml-2 text-sm text-gray-500">Đang tải phương thức vận chuyển...</span>
-              </div>
-            ) : shippingMethods.length === 0 ? (
-              <div className="text-center py-4 text-gray-500 text-sm">Không có phương thức vận chuyển nào</div>
-            ) : (
-              <div className="space-y-3">
-                {shippingMethods.map((method) => {
-                  const selected = form.selectedShippingMethodIds.includes(method.shippingMethodId);
-                  return (
-                    <div 
-                      key={method.shippingMethodId}
-                      className={`relative flex items-start p-4 border rounded-xl cursor-pointer transition-all duration-200 ${selected ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
-                      onClick={() => onSelectShipping(method.shippingMethodId)}
-                    >
-                      <div className="flex items-center h-5">
-                        <input type="checkbox" checked={selected} onChange={() => {}} className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded" />
-                      </div>
-                      <div className="ml-3 flex-1">
-                        <div className="flex items-center space-x-3">
-                          {method.logoUrl && (
-                            <img src={method.logoUrl} alt={method.name} className="h-8 w-8 object-contain rounded" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                          )}
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-900">{method.name}</h3>
-                            <p className="text-xs text-gray-500">{method.description || 'Phương thức vận chuyển'}</p>
-                          </div>
-                        </div>
-                      </div>
-                      {selected && (
-                        <span className="absolute top-2 right-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-800">Đã chọn</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {form.selectedShippingMethodIds.length > 0 && (
-              <div className="mt-4 p-3 bg-orange-50 rounded-lg">
-                <p className="text-sm font-medium text-orange-900 mb-2">Đã chọn {form.selectedShippingMethodIds.length} phương thức vận chuyển:</p>
-                <div className="flex flex-wrap gap-2">
-                  {form.selectedShippingMethodIds.map(id => {
-                    const m = shippingMethods.find(x => x.shippingMethodId === id);
-                    return (
-                      <span key={id} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
-                        {m?.name || id}
-                        <button type="button" onClick={(e) => { e.stopPropagation(); onSelectShipping(id); }} className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-orange-200 transition-colors">×</button>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </SectionCard>
 
       <SectionCard title="Thông số kỹ thuật theo danh mục" description="Các thuộc tính chỉ hiển thị khi đã chọn danh mục">
-        {form.category ? (
+        {form.categoryIds.length === 0 && (
+          <p className="text-sm text-gray-500">Hãy chọn danh mục để nhập thông số kỹ thuật phù hợp.</p>
+        )}
+        {form.categoryIds.length > 0 && categoryAttributesLoading && (
+          <p className="text-sm text-gray-500">Đang tải thuộc tính danh mục...</p>
+        )}
+        {categoryAttributesError && (
+          <p className="text-sm text-red-600">{categoryAttributesError}</p>
+        )}
+        {form.categoryIds.length > 0 && !categoryAttributesLoading && !categoryAttributesError && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {specDefs.length === 0 && (
+            {categoryAttributes.length === 0 && (
               <p className="text-sm text-gray-500">Danh mục này chưa có thông số riêng.</p>
             )}
-            {specDefs.map((spec) => {
-              // Common suggestions for different spec types
-              const getSuggestions = (key: string) => {
-                const suggestions: Record<string, string[]> = {
-                  frequencyResponse: ['20Hz-20kHz', '20Hz-18kHz', '15Hz-22kHz', '30Hz-15kHz'],
-                  sensitivity: ['88dB', '90dB', '92dB', '95dB', '100dB', '105dB'],
-                  impedance: ['8Ω', '16Ω', '32Ω', '64Ω', '150Ω', '300Ω'],
-                  powerHandling: ['50W RMS', '100W RMS', '200W RMS', '500W RMS'],
-                  connectionType: ['Bluetooth 5.0', 'Bluetooth 4.2', 'USB-C', '3.5mm', 'XLR', 'RCA', 'USB'],
-                  voltageInput: ['5V/2A', '12V/1A', '24V/0.5A', '110V', '220V'],
-                  driverConfiguration: ['2-way', '3-way', '4-way', 'Single driver'],
-                  driverSize: ['6.5 inch', '8 inch', '10 inch', '12 inch', '1 inch tweeter'],
-                  enclosureType: ['Bass Reflex', 'Sealed', 'Port', 'Passive radiator'],
-                  coveragePattern: ['180° x 180°', '120° x 120°', '90° x 90°', '60° x 60°'],
-                  crossoverFrequency: ['2.5kHz', '3kHz', '4kHz', '5kHz'],
-                  headphoneType: ['Over-ear', 'On-ear', 'In-ear', 'True wireless', 'Earbuds', 'Gaming headset'],
-                  compatibleDevices: ['iPhone', 'Android', 'PC', 'Mac', 'PS5', 'Xbox', 'Nintendo Switch', 'iPad'],
-                  headphoneFeatures: ['ANC', 'Touch Control', 'EQ App', 'Voice Assistant', 'Wireless Charging', 'Fast Charge'],
-                  batteryCapacity: ['500mAh', '1000mAh', '1500mAh', '2000mAh', '3000mAh', '4000mAh'],
-                  micType: ['Dynamic', 'Condenser', 'Lavalier', 'Shotgun', 'USB'],
-                  polarPattern: ['Cardioid', 'Supercardioid', 'Omni', 'Figure-8', 'Bidirectional'],
-                  maxSPL: ['120dB', '130dB', '140dB', '150dB', '160dB', '170dB'],
-                  micOutputImpedance: ['150Ω', '200Ω', '300Ω', '600Ω', '50Ω', '100Ω'],
-                  micSensitivity: ['-40dB', '-45dB', '-50dB', '-55dB', '-35dB', '-60dB'],
-                  dacChipset: ['ESS Sabre ES9038', 'AKM AK4499', 'Cirrus Logic CS43198', 'TI PCM1794A'],
-                  sampleRate: ['44.1kHz/16bit', '48kHz/24bit', '96kHz/24bit', '192kHz/24bit', '384kHz/32bit'],
-                  bitDepth: ['16-bit', '24-bit', '32-bit'],
-                  thd: ['0.01%', '0.05%', '0.1%', '0.2%', '0.001%', '0.5%'],
-                  snr: ['90dB', '100dB', '110dB', '120dB', '80dB', '130dB'],
-                  amplifierType: ['Class D', 'Class A', 'Class AB', 'Class A/B', 'AV Receiver'],
-                  totalPowerOutput: ['50W (8Ω)', '100W (8Ω)', '200W (8Ω)', '500W (8Ω)', '25W (8Ω)', '1000W (8Ω)'],
-                  platterMaterial: ['Aluminum', 'Acrylic', 'Glass', 'Steel', 'Carbon fiber', 'Wood', 'Plastic'],
-                  motorType: ['Direct Drive', 'Belt Drive', 'Idler Drive', 'Magnetic Drive', 'Servo Drive'],
-                  tonearmType: ['S-shaped', 'Straight', 'J-shaped', 'Carbon fiber', 'Aluminum', 'Wood'],
-                  comboType: ['Amp + Speaker', 'DAC + Amp', 'Mixer + Interface', 'Preamp + Power amp', 'DAC + Headphone Amp', 'Streamer + DAC']
-                };
-                return suggestions[key] || [];
-              };
+            {categoryAttributes.map((attr) => {
+              const value = extraSpecs[attr.attributeName] || '';
+              if (attr.dataType === 'BOOLEAN') {
+                const checked = String(value) === 'true';
+                return (
+                  <div key={attr.attributeId} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`attr-${attr.attributeId}`}
+                      checked={!!checked}
+                      onChange={(e) =>
+                        setExtraSpecs((prev) => ({
+                          ...prev,
+                          [attr.attributeName]: e.target.checked ? 'true' : 'false',
+                        }))
+                      }
+                      className="h-4 w-4 text-orange-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor={`attr-${attr.attributeId}`} className="text-sm text-gray-700">
+                      {attr.attributeLabel}
+                    </label>
+                  </div>
+                );
+              }
 
-              // Fields that support multiple selection
-              const multiSelectFields = new Set([
-                'connectionType', 'compatibleDevices', 'headphoneFeatures', 'micType', 'polarPattern',
-                'dacChipset', 'sampleRate', 'bitDepth', 'amplifierType', 'platterMaterial', 'motorType',
-                'tonearmType', 'comboType', 'driverConfiguration', 'enclosureType', 'headphoneType',
-                'batteryCapacity', 'maxSPL', 'micOutputImpedance', 'micSensitivity', 'thd', 'snr',
-                'totalPowerOutput', 'coveragePattern', 'crossoverFrequency'
-              ]);
+              if (attr.dataType === 'NUMBER') {
+                return (
+                  <div key={attr.attributeId}>
+                    <label className="block text-sm font-medium text-gray-700">
+                      {attr.attributeLabel}
+                    </label>
+                    <input
+                      type="number"
+                      value={value}
+                      onChange={(e) =>
+                        setExtraSpecs((prev) => ({
+                          ...prev,
+                          [attr.attributeName]: e.target.value,
+                        }))
+                      }
+                      placeholder="Nhập giá trị"
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                );
+              }
 
-              const suggestions = getSuggestions(spec.key);
-              const isMultiSelect = multiSelectFields.has(spec.key);
-              const currentValue = extraSpecs[spec.key] || '';
-              const currentValues = isMultiSelect ? currentValue.split(',').map(v => v.trim()).filter(Boolean) : [currentValue];
-              
-              // Debug log
-              console.log('Spec:', spec.key, 'isMultiSelect:', isMultiSelect, 'suggestions:', suggestions.length, 'currentValue:', currentValue);
-
-              const handleSuggestionClick = (suggestion: string) => {
-                if (isMultiSelect) {
-                  const values = currentValue.split(',').map(v => v.trim()).filter(Boolean);
-                  if (values.includes(suggestion)) {
-                    // Remove if already selected
-                    const newValues = values.filter(v => v !== suggestion);
-                    setExtraSpecs(prev => ({ ...prev, [spec.key]: newValues.join(', ') }));
-                  } else {
-                    // Add if not selected
-                    const newValues = [...values, suggestion];
-                    setExtraSpecs(prev => ({ ...prev, [spec.key]: newValues.join(', ') }));
-                  }
-                } else {
-                  setExtraSpecs(prev => ({ ...prev, [spec.key]: suggestion }));
-                }
-              };
-
-              const isSuggestionSelected = (suggestion: string) => {
-                return isMultiSelect ? currentValues.includes(suggestion) : currentValue === suggestion;
-              };
-              
               return (
-                <div key={spec.key}>
+                <div key={attr.attributeId}>
                   <label className="block text-sm font-medium text-gray-700">
-                    {spec.label}
-                    {isMultiSelect && <span className="text-xs text-gray-500 ml-1">(có thể chọn nhiều)</span>}
+                    {attr.attributeLabel}
                   </label>
-                  {spec.type === 'select' ? (
-                    <div className="relative">
-                      <select 
-                        value={extraSpecs[spec.key] || ''} 
-                        onChange={(e) => setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }))} 
-                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-colors"
-                      >
-                        <option value="">Chọn {spec.label.toLowerCase()}</option>
-                        {(spec.options || []).map(opt => (
-                          <option key={opt} value={opt}>
-                            {spec.key === 'placementType' ? translatePlacementType(opt) : opt}
-                          </option>
-                        ))}
-                      </select>
-                      {spec.key === 'placementType' && extraSpecs[spec.key] && (
-                        <div className="mt-1 text-xs text-gray-500">
-                          Đã chọn: <span className="font-medium text-gray-700">{translatePlacementType(extraSpecs[spec.key])}</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <input 
-                        type={spec.type === 'number' ? 'number' : 'text'} 
-                        value={extraSpecs[spec.key] || ''} 
-                        onChange={(e) => {
-                          console.log('Input changed for field:', spec.key, 'value:', e.target.value);
-                          setExtraSpecs(prev => ({ ...prev, [spec.key]: e.target.value }));
-                        }} 
-                        placeholder={isMultiSelect ? `${spec.placeholder} (cách nhau bằng dấu phẩy)` : spec.placeholder} 
-                        list={`suggestions-${spec.key}`}
-                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
-                      />
-                      {suggestions.length > 0 && (
-                        <datalist id={`suggestions-${spec.key}`}>
-                          {suggestions.map((suggestion, idx) => (
-                            <option key={idx} value={suggestion} />
-                          ))}
-                        </datalist>
-                      )}
-                    </div>
-                  )}
-                  {spec.helpText && <p className="mt-1 text-xs text-gray-500">{spec.helpText}</p>}
-                  
-                  {/* Show selected values for multi-select fields */}
-                  {isMultiSelect && (
-                    <div className="mt-2">
-                      {currentValues.length > 0 ? (
-                        <>
-                          <p className="text-xs text-gray-500 mb-1">Đã chọn:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {currentValues.map((value, idx) => (
-                              <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded border">
-                                {value}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    console.log('Removing value:', value, 'from field:', spec.key);
-                                    handleSuggestionClick(value);
-                                  }}
-                                  className="text-orange-600 hover:text-orange-800"
-                                >
-                                  ×
-                                </button>
-                              </span>
-                            ))}
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-xs text-gray-400">Chưa chọn gì</p>
-                      )}
-                    </div>
-                  )}
-
-                  {suggestions.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">
-                        Gợi ý nhanh {isMultiSelect ? '(click để chọn/bỏ chọn)' : '(click để chọn)'}:
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {suggestions.slice(0, 6).map((suggestion, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              console.log('Clicked suggestion:', suggestion, 'for field:', spec.key);
-                              handleSuggestionClick(suggestion);
-                            }}
-                            className={`px-2 py-1 text-xs rounded border transition-colors ${
-                              isSuggestionSelected(suggestion)
-                                ? 'bg-orange-100 text-orange-800 border-orange-300'
-                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300'
-                            }`}
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </div>
-                      {suggestions.length > 6 && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          +{suggestions.length - 6} gợi ý khác (nhập thủ công)
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={(e) =>
+                      setExtraSpecs((prev) => ({
+                        ...prev,
+                        [attr.attributeName]: e.target.value,
+                      }))
+                    }
+                    placeholder="Nhập giá trị"
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+                  />
                 </div>
               );
             })}
           </div>
-        ) : (
-          <p className="text-sm text-gray-500">Hãy chọn danh mục để nhập thông số kỹ thuật phù hợp.</p>
         )}
       </SectionCard>
 

@@ -1,7 +1,7 @@
 import { translateError } from '../../utils/errorTranslation';
 import { RefreshTokenService } from '../RefreshTokenService';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 export interface AdminUser {
   email: string;

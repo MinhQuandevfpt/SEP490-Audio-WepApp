@@ -2,12 +2,12 @@
 import { adminHttpClient } from './AdminStoreService';
 
 export interface ProductFilters {
-  categoryName?: string;
+  categoryName?: string; // accept single or comma-separated for multi-filter UI
   storeId?: string;
   keyword?: string;
   page?: number;
   size?: number;
-  status?: 'ACTIVE' | 'INACTIVE';
+  status?: string; // accept single or comma-separated statuses
   minPrice?: number;
   maxPrice?: number;
 }
@@ -114,6 +114,26 @@ export class AdminProductService {
       return response?.data || null;
     } catch (error) {
       console.error('Error fetching product detail:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Approve or reject a product
+   * PUT /api/products/admin/approve/{productId}
+   */
+  static async approveProduct(productId: string, payload: { approved: boolean; reason?: string }) {
+    try {
+      const response: any = await adminHttpClient.put<any>(
+        `/api/products/admin/approve/${productId}`,
+        payload,
+        {
+          'Content-Type': 'application/json',
+        }
+      );
+      return response?.data || null;
+    } catch (error) {
+      console.error('Error approving product:', error);
       throw error;
     }
   }

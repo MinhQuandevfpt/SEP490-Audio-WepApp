@@ -277,6 +277,7 @@ export interface Product {
   supportedShippingMethodIds: string[];
   bulkDiscounts: BulkDiscount[];
   status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING' | 'REJECTED';
+  approvalReason: string | null;
   isFeatured: boolean;
   ratingAverage: number | null;
   reviewCount: number | null;
@@ -378,12 +379,31 @@ export interface Category {
   description: string;
   iconUrl: string | null;
   sortOrder: number;
+  children?: Category[];
 }
 
 export interface CategoryListResponse {
   status: number;
   message: string;
   data: Category[];
+}
+
+export interface CategoryAttribute {
+  attributeId: string;
+  attributeName: string;
+  attributeLabel: string;
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN';
+}
+
+export interface CategoryDetailResponse {
+  status: number;
+  message: string;
+  data: {
+    categoryId: string;
+    name: string;
+    parentId: string | null;
+    attributes: CategoryAttribute[];
+  };
 }
 
 export interface ShippingMethod {

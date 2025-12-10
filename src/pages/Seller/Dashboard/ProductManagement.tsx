@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Image, Tag, Space, Button, Tooltip, Modal } from 'antd';
+import { Table, Image, Tag, Space, Button, Tooltip, Modal, Popover, Typography } from 'antd';
+import { SyncOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import {
   Search,
@@ -13,16 +14,17 @@ import {
   Check
 } from 'lucide-react';
 import { ProductService } from '../../../services/seller/ProductService';
-import type { Product, ProductQueryParams } from '../../../types/seller';
+import { CategoryService } from '../../../services/seller/CategoryService';
+import type { Product, Category } from '../../../types/seller';
 import ProductDetailDrawer from './ProductDetailDrawer';
 import { StoreAddressService } from '../../../services/seller/StoreAddressService';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
+import { useSellerProducts } from '../../../hooks/useSellerProducts';
+
+const { Text } = Typography;
 
 const ProductManagement: React.FC = () => {
   const navigate = useNavigate();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   
   // Detail Drawer state
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -34,78 +36,61 @@ const ProductManagement: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(15);
-  const [totalProducts, setTotalProducts] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
-  // Memoized load products function
-  const loadProducts = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const params: ProductQueryParams = {
-        page: currentPage - 1, // Ant Design uses 1-based pagination, backend uses 0-based
-        size: pageSize,
-      };
-
-      if (keyword.trim()) {
-        params.keyword = keyword.trim();
-      }
-
-      if (selectedStatus) {
-        params.status = selectedStatus;
-      }
-
-      if (selectedCategory) {
-        params.categoryName = selectedCategory;
-      }
-
-      const response = await ProductService.getMyProducts(params);
-      
-      // Handle API response structure - data.content contains the products array
-      let productsData: Product[] = [];
-      let totalCount = 0;
-      
-      if (response && response.data) {
-        // Check if response.data has content property (pagination structure)
-        if (response.data.content && Array.isArray(response.data.content)) {
-          productsData = response.data.content;
-          totalCount = response.data.totalElements || response.data.content.length;
-        } 
-        // Fallback: check if response.data is directly an array (legacy structure)
-        else if (Array.isArray(response.data)) {
-          productsData = response.data;
-          totalCount = response.data.length;
-        } else {
-          console.warn('⚠️ API returned unexpected data structure:', response.data);
-          productsData = [];
-          totalCount = 0;
-        }
-      } else {
-        console.warn('⚠️ API response missing data field:', response);
-        productsData = [];
-        totalCount = 0;
-      }
-      
-      setProducts(productsData);
-      setTotalProducts(totalCount);
-      
-    } catch (err) {
-      console.error('Error loading products:', err);
-      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi tải sản phẩm');
-      setProducts([]);
-      setTotalProducts(0);
-    } finally {
-      setIsLoading(false);
+  // Use React Query hook for products with background polling
+  const {
+    products,
+    totalProducts,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useSellerProducts(
+    {
+      page: currentPage,
+      size: pageSize,
+      keyword,
+      status: selectedStatus,
+      categoryName: selectedCategory,
+    },
+    {
+      refetchInterval: 15_000, // 15 seconds
+      enabled: true,
     }
-  }, [currentPage, pageSize, keyword, selectedStatus, selectedCategory]);
+  );
 
+  // Load category list (tree) for filter
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const res = await CategoryService.getCategories();
+        setCategories(res.data || []);
+      } catch (err) {
+        console.error('Error loading categories:', err);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    loadCategories();
+  }, []);
 
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+  const flattenCategories = useCallback((list: Category[], acc: { value: string; label: string }[] = []) => {
+    list.forEach((cat) => {
+      acc.push({ value: cat.name, label: cat.name });
+      if (cat.children && cat.children.length > 0) {
+        flattenCategories(cat.children, acc);
+      }
+    });
+    return acc;
+  }, []);
+
+  const categoryOptions = useMemo(() => {
+    const opts = flattenCategories(categories);
+    return [{ value: '', label: 'Tất cả danh mục' }, ...opts];
+  }, [categories, flattenCategories]);
 
   const handleSearch = useCallback(() => {
     setCurrentPage(1);
@@ -192,7 +177,7 @@ const ProductManagement: React.FC = () => {
           }
           
           // Reload products to reflect changes
-          loadProducts();
+          refetch();
         } catch (error) {
           console.error('Error toggling product status:', error);
           showCenterError(
@@ -202,7 +187,7 @@ const ProductManagement: React.FC = () => {
         }
       },
     });
-  }, [loadProducts]);
+  }, [refetch]);
 
   // Memoized stats calculations
   const stats = useMemo(() => {
@@ -384,11 +369,65 @@ const ProductManagement: React.FC = () => {
           'PENDING': 'orange',
           'REJECTED': 'red',
         };
-        return (
+        
+        const approvalReason = (record.originalProduct as any)?.approvalReason;
+        const statusTag = (
           <Tag color={statusColors[status] || 'default'} className="text-xs">
             {ProductService.getStatusLabel(status)}
           </Tag>
         );
+        
+        // Nếu có lý do từ chối, hiển thị trong popover (bất kể status nào)
+        if (approvalReason && approvalReason.trim()) {
+          return (
+            <Popover
+              content={
+                <div style={{ maxWidth: 300 }}>
+                  <Text strong>Lý do:</Text>
+                  <br />
+                  <Text>{approvalReason}</Text>
+                </div>
+              }
+              title="Lý do từ chối"
+              trigger="hover"
+            >
+              {statusTag}
+            </Popover>
+          );
+        }
+        
+        return statusTag;
+      },
+    },
+    {
+      title: 'Lý do từ chối',
+      key: 'approvalReason',
+      width: 150,
+      align: 'left',
+      render: (_, record) => {
+        // Don't show for variant rows
+        if (record.isVariant) return null;
+        
+        const approvalReason = (record.originalProduct as any)?.approvalReason;
+        // Hiển thị approvalReason nếu có giá trị (bất kể status nào)
+        if (approvalReason && approvalReason.trim()) {
+          return (
+            <Tooltip title={approvalReason}>
+              <Text
+                ellipsis
+                style={{
+                  color: '#ff4d4f',
+                  fontSize: '12px',
+                  maxWidth: 140,
+                  display: 'block',
+                }}
+              >
+                {approvalReason}
+              </Text>
+            </Tooltip>
+          );
+        }
+        return <span className="text-gray-400 text-xs">-</span>;
       },
     },
     {
@@ -443,11 +482,41 @@ const ProductManagement: React.FC = () => {
     { value: 'INACTIVE', label: 'Ngưng bán' },
     { value: 'OUT_OF_STOCK', label: 'Hết hàng' },
     { value: 'PENDING', label: 'Chờ duyệt' },
-    { value: 'REJECTED', label: 'Bị từ chối' }
+    { value: 'REJECTED', label: 'Bị từ chối' },
+    { value: 'DRAFT', label: 'Nháp' },
+    { value: 'DISCONTINUED', label: 'Ngưng sản xuất' },
+    { value: 'UNLISTED', label: 'Ẩn danh sách' },
+    { value: 'SUSPENDED', label: 'Tạm khóa' },
+    { value: 'DELETED', label: 'Đã xóa' },
+    { value: 'BANNED', label: 'Cấm' },
   ];
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div className="w-full overflow-x-hidden" style={{ position: 'relative' }}>
+      {/* Small background refresh indicator (non-blocking) */}
+      {isFetching && !isLoading && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 80,
+            right: 24,
+            zIndex: 1000,
+            background: '#fff',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '12px',
+            color: '#1890ff',
+          }}
+        >
+          <SyncOutlined spin />
+          <span>Đang cập nhật...</span>
+        </div>
+      )}
+
       {/* Custom CSS for expand icon alignment */}
       <style>{`
         .ant-table-row-expand-icon {
@@ -512,6 +581,25 @@ const ProductManagement: React.FC = () => {
               >
                 {statusOptions.map((option) => (
                   <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Category Filter */}
+            <div className="md:col-span-3">
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                disabled={categoriesLoading}
+              >
+                {categoryOptions.map((option) => (
+                  <option key={option.value || 'all'} value={option.value}>
                     {option.label}
                   </option>
                 ))}
@@ -601,7 +689,7 @@ const ProductManagement: React.FC = () => {
       {/* Error Message */}
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+          <p className="text-red-800">{error.message || 'Có lỗi xảy ra khi tải sản phẩm'}</p>
         </div>
       )}
 

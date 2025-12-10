@@ -9,7 +9,7 @@ import type {
 import type { ApiError } from '../../types/api';
 
 // Base API configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const API_TIMEOUT = 10000; // 10 seconds
 
 // HTTP Client class for Admin operations

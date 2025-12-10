@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import SectionCard from './SectionCard';
 import { TinyMCEEditor } from '../common';
 
 interface FormState {
   name: string;
   brandName: string;
-  category: string;
+  categoryIds: string[];
   shortDescription: string;
   description: string;
   model: string;
@@ -20,6 +20,7 @@ interface FormState {
 interface Category {
   categoryId: string;
   name: string;
+  children?: Category[];
 }
 
 interface BasicInfoSectionProps {
@@ -29,6 +30,7 @@ interface BasicInfoSectionProps {
   getDimensionParts: { l: string; w: string; h: string };
   touchedFields?: Record<string, boolean>;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
+  onCategoryChange: (ids: string[]) => void;
   onDescriptionChange: (content: string) => void;
   onDimensionChange: (part: 'l' | 'w' | 'h', value: string) => void;
   onBlur?: (fieldName: string) => void;
@@ -41,10 +43,69 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
   getDimensionParts,
   touchedFields = {},
   onChange,
+  onCategoryChange,
   onDescriptionChange,
   onDimensionChange,
   onBlur,
 }) => {
+  // Giữ lựa chọn tạm thời trên dropdown, chỉ áp dụng khi bấm "Áp dụng"
+  const [pendingCategoryIds, setPendingCategoryIds] = useState<string[]>(form.categoryIds || []);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  useEffect(() => {
+    setPendingCategoryIds(form.categoryIds || []);
+  }, [form.categoryIds]);
+
+  const findCategoryNameById = (id: string): string => {
+    const stack = [...categories];
+    while (stack.length) {
+      const current = stack.pop();
+      if (!current) continue;
+      if (current.categoryId === id) return current.name;
+      if (current.children) stack.push(...current.children);
+    }
+    return '';
+  };
+
+  const appliedCategoryNames = useMemo(
+    () => (form.categoryIds || []).map(findCategoryNameById).filter(Boolean),
+    [form.categoryIds, categories]
+  );
+
+  const toggleCategory = (id: string) => {
+    setPendingCategoryIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const renderCategoryCheckboxes = (list: Category[], level = 0): React.ReactNode[] => {
+    const items: React.ReactNode[] = [];
+    list.forEach((cat) => {
+      items.push(
+        <div key={cat.categoryId} className="flex items-center gap-2 py-1">
+          <input
+            type="checkbox"
+            id={`cat-${cat.categoryId}`}
+            checked={pendingCategoryIds.includes(cat.categoryId)}
+            onChange={() => toggleCategory(cat.categoryId)}
+            className="h-4 w-4 text-orange-600 border-gray-300 rounded"
+          />
+          <label
+            htmlFor={`cat-${cat.categoryId}`}
+            className="text-sm text-gray-700"
+            style={{ paddingLeft: level * 12 }}
+          >
+            {cat.name}
+          </label>
+        </div>
+      );
+      if (cat.children && cat.children.length > 0) {
+        items.push(...renderCategoryCheckboxes(cat.children, level + 1));
+      }
+    });
+    return items;
+  };
+
   return (
     <SectionCard title="Thông tin chung" description="Nhập thông tin cơ bản cho sản phẩm">
       <div className="space-y-4">
@@ -121,22 +182,45 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
             <label className="block text-sm font-medium text-gray-700">
               <span className="text-red-500">* </span>Danh mục
             </label>
-            <select
-              name="category"
-              value={form.category}
-              onChange={onChange}
-              disabled={categoriesLoading}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">
-                {categoriesLoading ? 'Đang tải danh mục...' : 'Chọn danh mục'}
-              </option>
-              {categories.map((c) => (
-                <option key={c.categoryId} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-start gap-2 relative">
+              <button
+                type="button"
+                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                disabled={categoriesLoading}
+                className="mt-1 px-3 py-2 w-full text-left border border-gray-300 rounded-lg shadow-sm bg-white focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                {pendingCategoryIds.length > 0
+                  ? `Đang chọn ${pendingCategoryIds.length} danh mục`
+                  : categoriesLoading
+                    ? 'Đang tải danh mục...'
+                    : 'Chọn danh mục'}
+              </button>
+              {showCategoryDropdown && !categoriesLoading && (
+                <div className="absolute z-20 mt-12 w-full max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg p-2">
+                  {categories.length === 0 ? (
+                    <p className="text-sm text-gray-500 px-2 py-1">Không có dữ liệu danh mục</p>
+                  ) : (
+                    renderCategoryCheckboxes(categories)
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  onCategoryChange(pendingCategoryIds);
+                  setShowCategoryDropdown(false);
+                }}
+                className="mt-1 px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+                disabled={categoriesLoading}
+              >
+                Áp dụng
+              </button>
+            </div>
+            <p className="mt-1 text-xs italic text-gray-500">
+              {appliedCategoryNames.length > 0
+                ? `Đã chọn: ${appliedCategoryNames.join(', ')}`
+                : 'Chưa chọn danh mục'}
+            </p>
           </div>
         </div>
 

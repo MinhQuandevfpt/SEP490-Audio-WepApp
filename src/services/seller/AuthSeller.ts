@@ -8,7 +8,7 @@ import type {
   SellerLoginResponse
 } from '../../types/seller';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';  
 const API_BASE_URL = API_BASE.endsWith('/api') ? API_BASE : `${API_BASE}/api`;
 
 export class SellerAuthService {

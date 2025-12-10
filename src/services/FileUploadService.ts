@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+import { RefreshTokenService } from './RefreshTokenService';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 export interface UploadResponse {
   url: string;
@@ -42,61 +43,27 @@ export class FileUploadService {
         throw new Error(validation.error);
       }
 
-      // Try different API endpoints - add /api prefix
-      const endpoints = [
-        `${API_BASE_URL}/api/v1/uploads/images`,   // Primary endpoint
-        `${API_BASE_URL}/api/uploads/images`,      // Fallback
-      ];
+      // Tạo FormData để upload file
+      // Backend expects field name 'files' (plural), not 'file'
+      const formData = new FormData();
+      formData.append('files', file);
+      // Note: folder parameter is handled by backend automatically
 
-      let lastError = null;
+      const responseData = await this.uploadWithRetry(formData);
 
-      for (const endpoint of endpoints) {
-        try {
-          // Tạo FormData để upload file
-          // Backend expects field name 'files' (plural), not 'file'
-          const formData = new FormData();
-          formData.append('files', file);
-          // Note: folder parameter is handled by backend automatically
-
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              // Don't set Content-Type for FormData - browser will set it automatically with boundary
-            },
-            body: formData,
-          });
-
-          if (response.ok) {
-            const responseData = await response.json();
-            
-            // Backend trả về array format: [{"url": "https://...", "resourceType": "image", "publicId": null}]
-            // Since we're uploading single file, take first item from array
-            const firstItem = Array.isArray(responseData) ? responseData[0] : responseData;
-            
-            if (!firstItem || !firstItem.url) {
-              throw new Error('Invalid response format from server');
-            }
-            
-            return {
-              url: firstItem.url,
-              fileName: file.name,
-              fileSize: file.size,
-              cloudName: 'doopw2ezr',
-              publicId: firstItem.publicId || undefined,
-            };
-          } else {
-            // Log error for this endpoint but continue trying others
-            const errorText = await response.text().catch(() => 'Unknown error');
-            lastError = new Error(`Upload failed with status: ${response.status} - ${errorText}`);
-          }
-        } catch (error) {
-          lastError = error;
-        }
+      const firstItem = Array.isArray(responseData) ? responseData[0] : responseData;
+      
+      if (!firstItem || !firstItem.url) {
+        throw new Error('Invalid response format from server');
       }
-
-      // If all endpoints failed, throw the last error
-      throw lastError || new Error('All upload endpoints failed');
+      
+      return {
+        url: firstItem.url,
+        fileName: file.name,
+        fileSize: file.size,
+        cloudName: 'doopw2ezr',
+        publicId: firstItem.publicId || undefined,
+      };
 
     } catch (error) {
       console.error('Error uploading image to Cloudinary:', error);
@@ -142,28 +109,9 @@ export class FileUploadService {
         formData.append('files', file);
       });
 
-      // Use the correct endpoint with /api prefix
-      const response = await fetch(`${API_BASE_URL}/api/v1/uploads/images`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      const responseData = await this.uploadWithRetry(formData);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Upload failed with status: ${response.status}`);
-      }
-
-      const responseData = await response.json();
-      
-      // Backend returns array of upload results
-      if (!Array.isArray(responseData)) {
-        throw new Error('Expected array response from server');
-      }
-
-      // Map response to our format
+      // Map response to our format (responseData expected array)
       return responseData.map((item: any, index: number) => ({
         url: item.url,
         fileName: files[index]?.name || `file_${index}`,
@@ -327,6 +275,63 @@ export class FileUploadService {
       console.error('Error uploading video:', error);
       throw error;
     }
+  }
+
+  /**
+   * Upload helper with token refresh retry (seller)
+   */
+  private static async uploadWithRetry(formData: FormData) {
+    const endpoints = [
+      `${API_BASE_URL}/api/v1/uploads/images`,   // Primary endpoint
+      `${API_BASE_URL}/api/uploads/images`,      // Fallback
+    ];
+
+    let lastError: any = null;
+
+    const doFetch = async (endpoint: string, token: string) => {
+      return fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+    };
+
+    for (const endpoint of endpoints) {
+      try {
+        let token = this.getAccessToken();
+        if (!token) throw new Error('Access token not found. Please login again.');
+
+        let response = await doFetch(endpoint, token);
+
+        if (response.status === 401) {
+          // Try refresh token (seller)
+          const refreshed = await RefreshTokenService.refreshUserToken('STOREOWNER');
+          if (refreshed?.accessToken) {
+            token = refreshed.accessToken;
+            response = await doFetch(endpoint, token);
+          }
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          lastError = new Error(`Upload failed with status: ${response.status} - ${errorText}`);
+          continue;
+        }
+
+        const responseData = await response.json();
+        // Backend returns array (single upload also returns array with 1 item)
+        if (!Array.isArray(responseData)) {
+          return [responseData];
+        }
+        return responseData;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error('All upload endpoints failed');
   }
 }
 
