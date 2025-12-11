@@ -131,7 +131,7 @@ export interface ProductListParams {
   categoryId?: string; // New: use categoryId instead of categoryName
   storeId?: string;
   keyword?: string;
-  status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED';
+  status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED' | 'REJECT' | 'PENDING_APPROVAL';
   minPrice?: number;
   maxPrice?: number;
 }

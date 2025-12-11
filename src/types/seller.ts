@@ -276,7 +276,7 @@ export interface Product {
   shippingFee: number | null;
   supportedShippingMethodIds: string[];
   bulkDiscounts: BulkDiscount[];
-  status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING' | 'REJECTED';
+  status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING' | 'REJECTED' | 'REJECT' | 'PENDING_APPROVAL';
   approvalReason: string | null;
   isFeatured: boolean;
   ratingAverage: number | null;

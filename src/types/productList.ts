@@ -3,7 +3,7 @@ export interface ProductListFilters {
   categoryId?: string; // New: use categoryId instead of categoryName
   storeId?: string;
   keyword?: string;
-  status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED';
+  status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED' | 'REJECT' | 'PENDING_APPROVAL';
   minPrice?: number;
   maxPrice?: number;
   brandName?: string;
@@ -64,7 +64,9 @@ export const PRODUCT_STATUSES = [
   { value: 'DISCONTINUED', label: 'Ngừng sản xuất' },
   { value: 'UNLISTED', label: 'Không hiển thị' },
   { value: 'SUSPENDED', label: 'Tạm khóa' },
-  { value: 'BANNED', label: 'Bị cấm' }
+  { value: 'BANNED', label: 'Bị cấm' },
+  { value: 'REJECT', label: 'Bị từ chối' },
+  { value: 'PENDING_APPROVAL', label: 'Chờ duyệt' },
 ] as const;
 
 export const SORT_OPTIONS = [
