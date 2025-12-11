@@ -139,7 +139,7 @@ export interface ProductListParams {
 export interface ProductVariant {
   variantId?: string;
   optionName: string;
-  optionValue: string;
+  optionValue: string;  
   variantPrice: number;
   variantStock: number;
   variantUrl: string;
