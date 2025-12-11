@@ -81,6 +81,7 @@ import CreateCombo from '../pages/Seller/Combo/CreateCombo';
 import ComboManagement from '../pages/Seller/Combo/ComboManagement';
 import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
 import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
+import SetupStorePage from '../pages/Seller/SetupStore';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -422,6 +423,10 @@ export const router = createBrowserRouter([
       {
         path: 'store-address',
         element: <StoreAddressPage />
+      },
+      {
+        path: 'setup-store',
+        element: <SetupStorePage />
       },
       {
         path: 'profile',

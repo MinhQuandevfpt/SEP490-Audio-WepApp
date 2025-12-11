@@ -83,7 +83,7 @@ export interface KycResponse {
 }
 
 // Store Status Types
-export type StoreStatus = 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE';
+export type StoreStatus = 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE' | 'PAUSED';
 
 export interface StoreInfo {
   id: string;
@@ -153,6 +153,14 @@ export interface UpdateStoreRequest {
 }
 
 export interface UpdateStoreResponse extends ApiResponse<StoreDetail> {}
+
+// Toggle Store Status Types
+export interface ToggleStoreStatusRequest {
+  status: 'ACTIVE' | 'PAUSED';
+  reason: string;
+}
+
+export interface ToggleStoreStatusResponse extends ApiResponse<StoreDetail> {}
 
 // Dashboard Statistics Types
 export interface DashboardStats {

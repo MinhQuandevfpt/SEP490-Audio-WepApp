@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video } from 'lucide-react';
+import { Send, Bot, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AIChatService from '../../services/ai/AIChatService';
+import AIProductSearchService, { type ProductSearchResponse } from '../../services/ai/AIProductSearchService';
 import ChatService, { type CustomerConversation } from '../../services/customer/ChatService';
 import { useChatContext } from '../../contexts/ChatContext';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerStoreService } from '../../services/customer/StoreService';
 import FirestoreChatService from '../../services/FirestoreChatService';
 import FileUploadService from '../../services/FileUploadService';
+import { getCustomerId } from '../../utils/authHelper';
 
 interface Message {
   id: string;
@@ -17,6 +19,16 @@ interface Message {
   messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
   mediaUrl?: string | Array<{ url: string; type?: string }>;
   read?: boolean; // Message read status
+  type?: 'text' | 'product_search' | 'advice' | 'none'; // For AI agent responses
+  products?: Array<{
+    effectivePrice: string;
+    productId: string;
+    rating: string;
+    brand: string;
+    name: string;
+    summary: string;
+  }>;
+  productCount?: number;
 }
 
 type ChatMode = 'ai' | 'store' | 'list';
@@ -33,12 +45,14 @@ const AIChatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showModeSelector, setShowModeSelector] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
+  const [aiType, setAiType] = useState<'assistant' | 'agent'>('assistant'); // New state for AI type selection
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
       role: 'assistant',
       content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
       timestamp: new Date(),
+      type: 'text',
     },
   ]);
   const [inputMessage, setInputMessage] = useState('');
@@ -276,7 +290,7 @@ const AIChatbot: React.FC = () => {
     };
     }, [isOpen, chatMode, isAuthenticated, conversations.map(c => c.storeId).join(','), formatLastMessage]);
 
-  // Get or generate userId
+  // Get or generate userId for AI chat
   const getUserId = () => {
     let userId = localStorage.getItem('aiChatUserId');
     if (!userId) {
@@ -284,6 +298,16 @@ const AIChatbot: React.FC = () => {
       localStorage.setItem('aiChatUserId', userId);
     }
     return userId;
+  };
+
+  // Get userId for Agent (first 4 characters of customerId)
+  const getAgentUserId = (): string => {
+    const customerId = getCustomerId();
+    if (!customerId) {
+      throw new Error('Customer ID not found. Please login.');
+    }
+    // Get first 4 characters of customerId
+    return customerId.substring(0, 4);
   };
 
   // Auto-scroll to bottom
@@ -618,11 +642,15 @@ const AIChatbot: React.FC = () => {
     chatContext.openChat(mode === 'store' ? mode : 'ai', storeId || undefined);
     
     if (mode === 'ai') {
+      const welcomeMessage = aiType === 'agent' 
+        ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+        : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
       setMessages([{
         id: '0',
         role: 'assistant',
-        content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
+        content: welcomeMessage,
         timestamp: new Date(),
+        type: 'text',
       }]);
     } else if (mode === 'store') {
       if (storeId) {
@@ -688,27 +716,118 @@ const AIChatbot: React.FC = () => {
           role: 'user',
           content: messageToSend,
           timestamp: new Date(),
+          type: 'text',
         };
         setMessages((prev) => [...prev, userMessage]);
         
-        // AI Chat
-        const aiRequestPayload = {
-          userId: getUserId(),
-          message: messageToSend,
-          userName: 'Guest',
-        };
-        console.info('[AIChat] request /api/ai/chat', aiRequestPayload);
-        const response = await AIChatService.sendMessage(aiRequestPayload);
-        console.info('[AIChat] response /api/ai/chat', response);
+        // Check AI type: assistant or agent
+        if (aiType === 'agent') {
+          // Agent: Product Search API
+          try {
+            const userId = getAgentUserId();
+            const response: ProductSearchResponse = await AIProductSearchService.searchProducts({
+              userId,
+              question: messageToSend,
+            });
 
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.answer,
-          timestamp: new Date(),
-        };
+            // Handle different response modes
+            let assistantMessage: Message;
 
-        setMessages((prev) => [...prev, assistantMessage]);
+            if (response.mode === 'product_search' && response.result) {
+              // Product search mode
+              assistantMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: response.result.message || `Tìm thấy ${response.result.count} sản phẩm phù hợp:`,
+                timestamp: new Date(),
+                type: 'product_search',
+                products: response.result.items,
+                productCount: response.result.count,
+              };
+            } else if (response.mode === 'advice' && response.reply) {
+              // Advice mode
+              assistantMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: response.reply,
+                timestamp: new Date(),
+                type: 'advice',
+              };
+            } else if (response.mode === 'none' && response.reply) {
+              // None mode (out of scope)
+              assistantMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: response.reply,
+                timestamp: new Date(),
+                type: 'none',
+              };
+            } else {
+              // Fallback
+              assistantMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: 'Xin lỗi, tôi không thể xử lý câu hỏi này. Vui lòng thử lại với câu hỏi khác.',
+                timestamp: new Date(),
+                type: 'text',
+              };
+            }
+
+            setMessages((prev) => [...prev, assistantMessage]);
+          } catch (agentError: any) {
+            console.error('Error calling Agent API:', agentError);
+            
+            // Check for quota exceeded error (429 or RESOURCE_EXHAUSTED)
+            const isQuotaExceeded = 
+              agentError?.status === 429 ||
+              agentError?.data?.status === 'RESOURCE_EXHAUSTED' ||
+              (agentError?.message && (
+                agentError.message.toLowerCase().includes('quota') ||
+                agentError.message.toLowerCase().includes('exceeded') ||
+                agentError.message.toLowerCase().includes('resource_exhausted') ||
+                agentError.message.toLowerCase().includes('rate limit')
+              )) ||
+              (agentError?.data?.error?.status === 'RESOURCE_EXHAUSTED') ||
+              (agentError?.data?.error?.code === 429);
+            
+            let errorContent: string;
+            if (isQuotaExceeded) {
+              errorContent = 'Hết dung lượng hỏi AI rồi nha bạn! Hãy quay lại sau 1 thời gian nữa nha. Xin lỗi vì sự bất tiện này :(';
+            } else {
+              errorContent = agentError?.message || 'Xin lỗi, đã có lỗi xảy ra khi tìm kiếm sản phẩm. Vui lòng thử lại sau.';
+            }
+            
+            const errorMessage: Message = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: errorContent,
+              timestamp: new Date(),
+              type: 'text',
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+          }
+        } else {
+          // Assistant: Regular AI Chat
+          const aiRequestPayload = {
+            userId: getUserId(),
+            message: messageToSend,
+            userName: 'Guest',
+          };
+          console.info('[AIChat] request /api/ai/chat', aiRequestPayload);
+          const response = await AIChatService.sendMessage(aiRequestPayload);
+          console.info('[AIChat] response /api/ai/chat', response);
+
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: response.answer,
+            timestamp: new Date(),
+            type: 'text',
+          };
+
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+
         setIsLoading(false);
       } else {
         // Store Chat
@@ -1058,11 +1177,15 @@ const AIChatbot: React.FC = () => {
   const handleClearChat = () => {
     if (window.confirm('Bạn có chắc muốn xóa toàn bộ cuộc trò chuyện?')) {
       if (chatMode === 'ai') {
+        const welcomeMessage = aiType === 'agent' 
+          ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+          : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
         setMessages([{
           id: '0',
           role: 'assistant',
-          content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
+          content: welcomeMessage,
           timestamp: new Date(),
+          type: 'text',
         }]);
       } else {
         setMessages([{
@@ -1073,6 +1196,26 @@ const AIChatbot: React.FC = () => {
         }]);
       }
     }
+  };
+
+  const handleProductClick = (productId: string) => {
+    navigate(`/product/${productId}`);
+  };
+
+  const handleAiTypeChange = (type: 'assistant' | 'agent') => {
+    setAiType(type);
+    // Update welcome message based on AI type
+    const welcomeMessage = type === 'agent' 
+      ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+      : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+    
+    setMessages([{
+      id: '0',
+      role: 'assistant',
+      content: welcomeMessage,
+      timestamp: new Date(),
+      type: 'text',
+    }]);
   };
 
   const handleOpenChat = () => {
@@ -1089,11 +1232,15 @@ const AIChatbot: React.FC = () => {
     setShowModeSelector(false);
     if (mode === 'ai') {
       setChatMode('ai');
+      const welcomeMessage = aiType === 'agent' 
+        ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+        : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
       setMessages([{
         id: '0',
         role: 'assistant',
-        content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
+        content: welcomeMessage,
         timestamp: new Date(),
+        type: 'text',
       }]);
       setIsOpen(true);
     } else {
@@ -1294,14 +1441,39 @@ const AIChatbot: React.FC = () => {
                       <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
                         {chatMode === 'ai' ? <Bot className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <h3 className="font-bold text-lg">
-                          {chatMode === 'ai' ? 'Trợ lý AI' : 'Tin nhắn của bạn'}
+                          {chatMode === 'ai' ? (aiType === 'agent' ? 'Chat Agent' : 'Trợ lý AI') : 'Tin nhắn của bạn'}
                         </h3>
                         <p className="text-xs text-white/80">
-                          {chatMode === 'ai' ? 'Tech Hub Assistant' : 'Chọn cửa hàng để chat'}
+                          {chatMode === 'ai' ? (aiType === 'agent' ? 'Tư vấn sản phẩm âm thanh' : 'Tech Hub Assistant') : 'Chọn cửa hàng để chat'}
                         </p>
                       </div>
+                      {/* AI Type Selector - Only show in AI mode */}
+                      {chatMode === 'ai' && (
+                        <div className="flex items-center gap-2 bg-white/20 rounded-lg p-1 backdrop-blur-sm">
+                          <button
+                            onClick={() => handleAiTypeChange('assistant')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                              aiType === 'assistant'
+                                ? 'bg-white text-orange-500 shadow-md'
+                                : 'text-white/80 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            Trợ lý
+                          </button>
+                          <button
+                            onClick={() => handleAiTypeChange('agent')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                              aiType === 'agent'
+                                ? 'bg-white text-orange-500 shadow-md'
+                                : 'text-white/80 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            Agent
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
             </div>
@@ -1359,7 +1531,65 @@ const AIChatbot: React.FC = () => {
                 }`}
               >
                 {/* Message Bubble */}
-                {message.mediaUrl && (message.messageType === 'IMAGE' || message.messageType === 'VIDEO' || message.messageType === 'MIXED') ? (
+                {message.type === 'product_search' && message.products ? (
+                  // Product search results
+                  <div className="max-w-[85%] min-w-0 space-y-3">
+                    {/* Message text */}
+                    {message.content && (
+                      <div className="bg-white text-gray-800 rounded-2xl rounded-tl-none shadow-md border border-gray-100 px-4 py-2">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                          {message.content}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Products list */}
+                    <div className="space-y-2">
+                      {message.products.map((product) => (
+                        <div
+                          key={product.productId}
+                          className="bg-white rounded-lg border border-gray-200 p-3 hover:border-orange-300 hover:shadow-md transition-all cursor-pointer"
+                          onClick={() => handleProductClick(product.productId)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-sm text-gray-900 truncate">
+                                  {product.name}
+                                </span>
+                                <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-0.5 rounded">
+                                  {product.brand}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                {product.summary}
+                              </p>
+                              <div className="flex items-center gap-3 text-xs">
+                                <span className="font-semibold text-orange-600">
+                                  {product.effectivePrice}
+                                </span>
+                                <span className="text-gray-500">
+                                  {product.rating}
+                                </span>
+                              </div>
+                            </div>
+                            <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Timestamp */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-400">
+                        {message.timestamp.toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                ) : message.mediaUrl && (message.messageType === 'IMAGE' || message.messageType === 'VIDEO' || message.messageType === 'MIXED') ? (
                   // Image/Video/MIXED with optional text
                   <div className="max-w-[300px] min-w-0 space-y-2">
                     {/* Show text bubble first if exists */}
@@ -1599,6 +1829,10 @@ const AIChatbot: React.FC = () => {
                   className={`max-w-[75%] min-w-0 rounded-2xl px-4 py-2 ${
                     message.role === 'user'
                       ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
+                      : message.type === 'none'
+                      ? 'bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-tl-none'
+                      : message.type === 'advice'
+                      ? 'bg-blue-50 text-blue-800 border border-blue-200 rounded-tl-none'
                       : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
                   }`}
                   style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
@@ -1609,7 +1843,13 @@ const AIChatbot: React.FC = () => {
                   <div className="flex items-center gap-1 mt-1">
                   <span
                       className={`text-xs ${
-                      message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
+                      message.role === 'user' 
+                        ? 'text-blue-100' 
+                        : message.type === 'none'
+                        ? 'text-yellow-600'
+                        : message.type === 'advice'
+                        ? 'text-blue-600'
+                        : 'text-gray-400'
                     }`}
                   >
                     {message.timestamp.toLocaleTimeString('vi-VN', {

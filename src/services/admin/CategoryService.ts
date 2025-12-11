@@ -117,11 +117,25 @@ export class CategoryService {
         }
       );
       
-      if (!response || !response.data) {
-        throw new Error('No category data received');
+      // API may return data: null on successful update
+      // Check if response exists and status indicates success
+      if (!response) {
+        throw new Error('No response received from server');
       }
 
-      return response;
+      // If status is 200 and has success message, consider it successful even if data is null
+      if (response.status === 200 && response.message) {
+        // Return response even if data is null (caller can fetch fresh data if needed)
+        return response;
+      }
+
+      // If data exists, return it
+      if (response.data) {
+        return response;
+      }
+
+      // If we reach here, it's an unexpected response format
+      throw new Error(response.message || 'Category update completed but no data returned');
     } catch (error: any) {
       console.error('Error updating category:', error);
       throw new Error(error?.message || `Failed to update category`);

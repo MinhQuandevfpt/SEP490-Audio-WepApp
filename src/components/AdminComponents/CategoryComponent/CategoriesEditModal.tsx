@@ -180,17 +180,47 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
     setError(null);
     
     try {
+      // Build payload according to API specification: PUT /api/categories/{categoryId}
+      // Only include fields that have values (don't send undefined or empty arrays)
       const payload: UpdateCategoryRequest = {
         name: name.trim(),
-        parentId,
-        attributesToAdd: attributesToAdd.length > 0 ? attributesToAdd : undefined,
-        attributesToUpdate: attributesToUpdate.length > 0 ? attributesToUpdate : undefined,
-        attributesToDelete: attributesToDelete.length > 0 ? attributesToDelete : undefined
+        parentId: parentId || null,
       };
+      
+      // Filter out any attributes from attributesToUpdate that are also in attributesToDelete
+      // (should not happen, but just to be safe)
+      const validAttributesToUpdate = attributesToUpdate.filter(
+        attr => !attributesToDelete.includes(attr.attributeId)
+      );
+      
+      // Only add attributesToAdd if there are items to add
+      if (attributesToAdd.length > 0) {
+        payload.attributesToAdd = attributesToAdd;
+      }
+      
+      // Only add attributesToUpdate if there are items to update (and not deleted)
+      if (validAttributesToUpdate.length > 0) {
+        payload.attributesToUpdate = validAttributesToUpdate;
+      }
+      
+      // Only add attributesToDelete if there are items to delete
+      if (attributesToDelete.length > 0) {
+        payload.attributesToDelete = attributesToDelete;
+      }
+      
+      console.log('📤 Sending update category request:', {
+        name: payload.name,
+        parentId: payload.parentId,
+        attributesToAdd: payload.attributesToAdd?.length || 0,
+        attributesToUpdate: payload.attributesToUpdate?.length || 0,
+        attributesToDelete: payload.attributesToDelete?.length || 0,
+        fullPayload: payload
+      });
       
       await onUpdate(payload);
       onClose();
     } catch (err: any) {
+      console.error('❌ Error updating category:', err);
       setError(err?.message || 'Cập nhật thất bại');
     } finally {
       setSubmitting(false);
