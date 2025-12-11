@@ -207,6 +207,7 @@ export interface Product {
   categoryId?: string;
   categoryName?: string;
   category?: string; // New: direct category name from API
+  categories?: { categoryId: string; categoryName: string }[]; // Support multiple categories
   brandName: string;
   name: string;
   slug?: string;
@@ -322,6 +323,15 @@ export interface Product {
   builtInEffects?: boolean | null;
   usbAudioInterface?: boolean | null;
   midiSupport?: boolean | null;
+
+  // Dynamic attribute values from backend
+  attributeValues?: Array<{
+    attributeId: string;
+    attributeName: string;
+    attributeLabel: string;
+    dataType: 'STRING' | 'NUMBER' | 'BOOLEAN';
+    value: string | number | boolean | null;
+  }>;
 }
 
 export interface ProductListPageable {

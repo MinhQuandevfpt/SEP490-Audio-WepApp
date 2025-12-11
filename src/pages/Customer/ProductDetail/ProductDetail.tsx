@@ -135,8 +135,22 @@ const ProductDetail: React.FC = () => {
     ? product.images 
     : ['/images/placeholder-product.png'];
 
+  const categoryDisplay =
+    (product.categories && product.categories.length > 0)
+      ? product.categories.map(c => c.categoryName).join(', ')
+      : (product.category ?? product.categoryName ?? 'N/A');
+
+  // Dynamic attributes from API
+  const dynamicAttributeSpecs =
+    product.attributeValues && Array.isArray(product.attributeValues)
+      ? product.attributeValues.map(attr => ({
+          key: attr.attributeLabel || attr.attributeName || 'Thuộc tính',
+          value: attr.value !== undefined && attr.value !== null ? String(attr.value) : 'N/A',
+        }))
+      : [];
+
   const specs = [
-    { key: t('productDetail.specs.category'), value: product.category ?? product.categoryName ?? 'N/A' },
+    { key: t('productDetail.specs.category'), value: categoryDisplay },
     { key: t('productDetail.specs.brand'), value: product.brandName ?? 'N/A' },
     { key: t('productDetail.specs.model'), value: product.model || 'N/A' },
     { key: t('productDetail.specs.material'), value: product.material || 'N/A' },
@@ -149,6 +163,7 @@ const ProductDetail: React.FC = () => {
     ...(product.connectionType ? [{ key: t('productDetail.specs.connectionType'), value: product.connectionType }] : []),
     ...(product.warrantyPeriod ? [{ key: t('productDetail.specs.warrantyPeriod'), value: product.warrantyPeriod }] : []),
     ...(product.placementType ? [{ key: t('productDetail.specs.placementType'), value: translatePlacementType(product.placementType) }] : []),
+    ...dynamicAttributeSpecs,
   ].filter(spec => spec.value !== undefined && spec.value !== null) as Array<{ key: string; value: string }>;
 
   // Calculate price with variants and platform vouchers
