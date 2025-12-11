@@ -10,7 +10,7 @@ import type {
   PolicyItemsResponse,
 } from '../../types/policy';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 const API_BASE_URL = BASE_URL.endsWith('/api') ? `${BASE_URL}/policies` : `${BASE_URL}/api/policies`;
 
 /**

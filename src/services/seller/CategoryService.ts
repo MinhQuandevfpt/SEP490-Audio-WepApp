@@ -2,7 +2,7 @@
 import type { CategoryListResponse } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 
 export class CategoryService {
@@ -31,9 +31,20 @@ export class CategoryService {
         throw new Error('Invalid response format from server');
       }
       
-      // Ensure data is an array
-      if (data.data && !Array.isArray(data.data)) {
-        console.warn('⚠️ API returned non-array data for categories, converting to array');
+      // Ensure data.data is an array - preserve data integrity
+      if (data.data !== undefined && data.data !== null) {
+        if (!Array.isArray(data.data)) {
+          // If single object, wrap it in array to preserve data
+          if (typeof data.data === 'object') {
+            console.warn('⚠️ API returned single object instead of array, wrapping in array');
+            data.data = [data.data];
+          } else {
+            // Invalid type - throw error to prevent silent data loss
+            throw new Error(`Invalid category data type: expected array or object, got ${typeof data.data}`);
+          }
+        }
+      } else {
+        // If data.data is null/undefined, set to empty array
         data.data = [];
       }
       

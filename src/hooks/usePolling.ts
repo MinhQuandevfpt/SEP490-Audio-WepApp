@@ -15,6 +15,11 @@ export interface UsePollingOptions {
    */
   silent?: boolean;
   /**
+   * Skip initial fetch on mount (default: false)
+   * Set to true if another mechanism (e.g., useEffect) handles the initial fetch
+   */
+  skipInitialFetch?: boolean;
+  /**
    * Callback when polling starts
    */
   onStart?: () => void;
@@ -52,6 +57,7 @@ export const usePolling = (
     interval = 10_000, // 10 seconds default
     enabled = true,
     silent = true, // Default to silent mode
+    skipInitialFetch = false, // Default to false - perform initial fetch
     onStart,
     onStop,
     onError,
@@ -93,12 +99,15 @@ export const usePolling = (
     isMountedRef.current = true;
     isInitialFetchRef.current = true;
 
-    // Initial fetch (not silent)
-    if (enabled) {
+    // Initial fetch (not silent) - skip if skipInitialFetch is true
+    if (enabled && !skipInitialFetch) {
       poll(false);
       if (onStart) {
         onStart();
       }
+    } else if (enabled && skipInitialFetch && onStart) {
+      // Still call onStart even if skipping initial fetch
+      onStart();
     }
 
     // Setup interval if enabled
@@ -120,7 +129,7 @@ export const usePolling = (
         onStop();
       }
     };
-  }, [enabled, interval, silent, poll, onStart, onStop]);
+  }, [enabled, interval, silent, skipInitialFetch, poll, onStart, onStop]);
 
   // Manual refresh function (not silent by default)
   const refresh = useCallback((silentRefresh: boolean = false) => {

@@ -709,22 +709,17 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   // ============================================================================
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    // Không destructure selectedOptions trực tiếp để tránh lỗi với synthetic event tùy chỉnh
     const target = e.target as HTMLInputElement & HTMLSelectElement;
-    const { name, value, multiple } = target;
+    const { name, value } = target;
     const inputType = (target as HTMLInputElement).type;
-    const selectedOptions = (target as HTMLSelectElement).selectedOptions;
+    
     if (inputType === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setForm(prev => ({ ...prev, [name]: checked.toString() }));
       return;
     }
-    if (multiple && selectedOptions) {
-      const values = Array.from(selectedOptions).map(opt => opt.value);
-      setForm(prev => ({ ...prev, [name]: values }));
-      if (name === 'categoryIds') setExtraSpecs({});
-      return;
-    }
+    
+    // Handle regular input/select/textarea changes
     setForm(prev => ({ ...prev, [name]: value }));
     if (name === 'categoryIds') setExtraSpecs({});
   };

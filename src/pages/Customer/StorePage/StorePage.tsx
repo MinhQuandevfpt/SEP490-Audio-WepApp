@@ -80,12 +80,17 @@ const StorePage: React.FC = () => {
 
     const hasDiscount = discountPercent > 0;
 
+    // Lấy category name từ categories array
+    const categoryName = item.categories && item.categories.length > 0
+      ? item.categories.map(c => c.categoryName).join(', ')
+      : '';
+
     return {
       productId: item.productId,
       storeId: item.store?.id || '',
       storeName: item.store?.name || '',
-      categoryId: '',
-      categoryName: item.category || '',
+      categoryId: item.categories && item.categories.length > 0 ? item.categories[0].categoryId : '',
+      categoryName: categoryName,
       brandName: item.brandName || '',
       name: item.name,
       slug: '',

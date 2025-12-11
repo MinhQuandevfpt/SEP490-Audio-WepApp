@@ -1,5 +1,5 @@
 import { RefreshTokenService } from './RefreshTokenService';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 
 export interface UploadResponse {
   url: string;
@@ -43,13 +43,9 @@ export class FileUploadService {
         throw new Error(validation.error);
       }
 
-      // Tạo FormData để upload file
-      // Backend expects field name 'files' (plural), not 'file'
-      const formData = new FormData();
-      formData.append('files', file);
       // Note: folder parameter is handled by backend automatically
-
-      const responseData = await this.uploadWithRetry(formData);
+      // Pass file directly to uploadWithRetry - it will create fresh FormData for each request
+      const responseData = await this.uploadWithRetry([file]);
 
       const firstItem = Array.isArray(responseData) ? responseData[0] : responseData;
       
@@ -103,13 +99,8 @@ export class FileUploadService {
         }
       }
 
-      // Create FormData with multiple files using same key 'files'
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('files', file);
-      });
-
-      const responseData = await this.uploadWithRetry(formData);
+      // Pass files directly to uploadWithRetry - it will create fresh FormData for each request
+      const responseData = await this.uploadWithRetry(files);
 
       // Map response to our format (responseData expected array)
       return responseData.map((item: any, index: number) => ({
@@ -279,8 +270,10 @@ export class FileUploadService {
 
   /**
    * Upload helper with token refresh retry (seller)
+   * Creates fresh FormData for each request to avoid FormData being consumed
+   * @param files - Array of File objects to upload
    */
-  private static async uploadWithRetry(formData: FormData) {
+  private static async uploadWithRetry(files: File[]) {
     const endpoints = [
       `${API_BASE_URL}/api/v1/uploads/images`,   // Primary endpoint
       `${API_BASE_URL}/api/uploads/images`,      // Fallback
@@ -288,7 +281,18 @@ export class FileUploadService {
 
     let lastError: any = null;
 
+    // Helper to create fresh FormData for each request
+    const createFormData = (): FormData => {
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+      return formData;
+    };
+
     const doFetch = async (endpoint: string, token: string) => {
+      // Create fresh FormData for each fetch call
+      const formData = createFormData();
       return fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -310,6 +314,7 @@ export class FileUploadService {
           const refreshed = await RefreshTokenService.refreshUserToken('STOREOWNER');
           if (refreshed?.accessToken) {
             token = refreshed.accessToken;
+            // Create fresh FormData for retry after token refresh
             response = await doFetch(endpoint, token);
           }
         }

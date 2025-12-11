@@ -181,6 +181,7 @@ const AdminProductManagement: React.FC = () => {
   }, [pagination.current, pagination.pageSize, searchKeyword, selectedStatus, selectedStoreId, selectedCategoryNames, minPrice, maxPrice]);
 
   // Polling: Auto reload every 10 seconds in background (SILENT - no loading spinner)
+  // Skip initial fetch since useEffect already handles it
   usePolling(
     async () => {
       setIsBackgroundFetching(true);
@@ -195,6 +196,7 @@ const AdminProductManagement: React.FC = () => {
       interval: 10_000, // 10 seconds
       enabled: true,
       silent: true, // Background refresh won't show loading spinner
+      skipInitialFetch: true, // Skip initial fetch - useEffect handles it to avoid duplicate calls
     }
   );
 
