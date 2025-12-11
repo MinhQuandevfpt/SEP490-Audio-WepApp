@@ -546,7 +546,7 @@ const OrderDetailPage: React.FC = () => {
               style={{ borderRadius: 12 }}
             >
               <Descriptions column={{ xs: 1, sm: 2 }} bordered>
-                <Descriptions.Item label="Tạm tính">
+                <Descriptions.Item label="Giá gốc (chưa giảm giá)">
                   <Text>{formatCurrency(order.totalAmount)}</Text>
                 </Descriptions.Item>
                 <Descriptions.Item label="Giảm giá">

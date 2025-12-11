@@ -368,6 +368,8 @@ const ProductManagement: React.FC = () => {
           'OUT_OF_STOCK': 'red',
           'PENDING': 'orange',
           'REJECTED': 'red',
+          'REJECT': 'red',
+          'PENDING_APPROVAL': 'orange',
         };
         
         const approvalReason = (record.originalProduct as any)?.approvalReason;
@@ -482,7 +484,9 @@ const ProductManagement: React.FC = () => {
     { value: 'INACTIVE', label: 'Ngưng bán' },
     { value: 'OUT_OF_STOCK', label: 'Hết hàng' },
     { value: 'PENDING', label: 'Chờ duyệt' },
+    { value: 'PENDING_APPROVAL', label: 'Chờ duyệt' },
     { value: 'REJECTED', label: 'Bị từ chối' },
+    { value: 'REJECT', label: 'Bị từ chối' },
     { value: 'DRAFT', label: 'Nháp' },
     { value: 'DISCONTINUED', label: 'Ngưng sản xuất' },
     { value: 'UNLISTED', label: 'Ẩn danh sách' },

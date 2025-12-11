@@ -196,7 +196,7 @@ const OrderHistory: React.FC = () => {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <Text type="secondary">Tạm tính:</Text>
+                    <Text type="secondary">Giá gốc (chưa giảm giá):</Text>
                     <Text>{formatCurrency(Math.round(orderSummary.totalAmount - orderSummary.discountTotal))}</Text>
                   </div>
                   <div className="flex justify-between text-sm">

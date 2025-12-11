@@ -41,7 +41,7 @@ import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import KycManagement from '../pages/Admin/KycManagement';
 import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
-import CategoryDetail from '../pages/Admin/CategoryDetail';
+import { CategoryDetail } from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';

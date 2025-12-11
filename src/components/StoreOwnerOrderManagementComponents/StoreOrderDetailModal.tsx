@@ -165,7 +165,7 @@ const StoreOrderDetailModal: React.FC<Props> = ({ order, onClose }) => {
             </h3>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tạm tính:</span>
+                <span className="text-gray-600">Giá gốc (chưa giảm giá):</span>
                 <span className="font-medium text-gray-900">{formatCurrency(order.totalAmount)}</span>
               </div>
               {order.discountTotal > 0 && (

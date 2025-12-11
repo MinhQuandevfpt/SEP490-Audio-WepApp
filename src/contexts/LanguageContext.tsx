@@ -187,7 +187,7 @@ const translations: Record<Language, Record<string, string>> = {
     'checkout.payment.notSelected': '---chưa chọn phương thức thanh toán---',
     'checkout.payment.payos': 'PayOS',
     'checkout.summary.title': 'Tóm tắt đơn hàng',
-    'checkout.summary.subtotal': 'Tạm tính',
+    'checkout.summary.subtotal': 'Giá gốc (chưa giảm giá)',
     'checkout.summary.platformDiscount': 'Giảm giá nền tảng',
     'checkout.summary.voucher': 'Voucher',
     'checkout.summary.shippingFee': 'Phí vận chuyển',
@@ -230,6 +230,7 @@ const translations: Record<Language, Record<string, string>> = {
     'address.success.deleted': 'Xóa địa chỉ thành công',
     'address.success.setDefault': 'Đã đặt làm địa chỉ mặc định',
     'address.confirmDelete': 'Bạn có chắc chắn muốn xóa địa chỉ "{name}"?',
+    'address.viewAll': 'Xem tất cả địa chỉ',
     // Cart Item List
     'cartItemList.empty': 'Giỏ hàng trống.',
     'cartItemList.loadingAddresses': 'Đang tải địa chỉ...',
@@ -247,7 +248,7 @@ const translations: Record<Language, Record<string, string>> = {
     'voucherPicker.maxDiscount': 'tối đa {amount}đ',
     'voucherPicker.fixedDiscount': 'Giảm {amount}đ',
     // Summary Box
-    'summaryBox.subtotal': 'Tạm tính',
+    'summaryBox.subtotal': 'Giá gốc (chưa giảm giá)',
     'summaryBox.platformDiscount': 'Giảm giá nền tảng',
     'summaryBox.voucher': 'Voucher',
     'summaryBox.total': 'Tổng cộng',

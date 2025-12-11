@@ -1,2 +1,2 @@
-export { default } from './CategoryDetail';
+export { default as CategoryDetail } from './CategoryDetail';
 

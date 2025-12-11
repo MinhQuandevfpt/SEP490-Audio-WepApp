@@ -18,7 +18,6 @@ import {
   Select,
   InputNumber,
   Modal,
-  Switch,
   Input as AntInput,
   message,
 } from 'antd';
@@ -37,6 +36,8 @@ import {
   DeleteOutlined,
   ExclamationCircleOutlined,
   SyncOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { AdminProductService, type ProductResponse, type ProductFilters } from '../../../services/admin/AdminProductService';
@@ -50,7 +51,7 @@ const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-const AdminProductManagement: React.FC = () => {
+const AdminProductManagement: React.FC = () => {  
   const navigate = useNavigate();
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -67,11 +68,9 @@ const AdminProductManagement: React.FC = () => {
   const [allStores, setAllStores] = useState<Array<{ id: string; name: string }>>([]);
   const [categories, setCategories] = useState<CategoryTreeNode[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [approveModalOpen, setApproveModalOpen] = useState(false);
-  const [approveTargetId, setApproveTargetId] = useState<string | null>(null);
-  const [approveApproved, setApproveApproved] = useState(true);
-  const [approveReason, setApproveReason] = useState('');
-  const [approveSubmitting, setApproveSubmitting] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
@@ -216,38 +215,79 @@ const AdminProductManagement: React.FC = () => {
     navigate(`/admin/products/${productId}`);
   }, [navigate]);
 
-  // Open approve modal
-  const handleOpenApprove = useCallback((productId: string) => {
-    setApproveTargetId(productId);
-    setApproveApproved(true);
-    setApproveReason('');
-    setApproveModalOpen(true);
-  }, []);
+  // Handle approve selected products
+  const handleApprove = useCallback(async () => {
+    if (selectedRowKeys.length === 0) return;
 
-  // Submit approve/reject
-  const handleSubmitApprove = useCallback(async () => {
-    if (!approveTargetId) return;
-    if (!approveApproved && !approveReason.trim()) {
-      message.warning('Vui lòng nhập lý do khi không duyệt');
+    try {
+      setIsSubmitting(true);
+      
+      // Approve all selected products
+      const approvePromises = selectedRowKeys.map((productId) =>
+        AdminProductService.approveProduct(productId as string, {
+          approved: true,
+          reason: '',
+        })
+      );
+
+      await Promise.all(approvePromises);
+      
+      message.success(`Đã duyệt ${selectedRowKeys.length} sản phẩm thành công`);
+      setSelectedRowKeys([]);
+      
+      // Refresh product list
+      await fetchProducts(false);
+    } catch (error: any) {
+      console.error('Approve products error:', error);
+      showError(error?.message || 'Không thể duyệt sản phẩm', 'Lỗi duyệt sản phẩm');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [selectedRowKeys, fetchProducts]);
+
+  // Handle open reject modal
+  const handleOpenRejectModal = useCallback(() => {
+    if (selectedRowKeys.length === 0) return;
+    setRejectReason('');
+    setRejectModalOpen(true);
+  }, [selectedRowKeys]);
+
+  // Handle reject selected products
+  const handleReject = useCallback(async () => {
+    if (selectedRowKeys.length === 0) return;
+    
+    if (!rejectReason.trim()) {
+      message.warning('Vui lòng nhập lý do từ chối');
       return;
     }
+
     try {
-      setApproveSubmitting(true);
-      await AdminProductService.approveProduct(approveTargetId, {
-        approved: approveApproved,
-        reason: approveApproved ? undefined : approveReason.trim(),
-      });
-      message.success(approveApproved ? 'Đã duyệt sản phẩm' : 'Đã không duyệt sản phẩm');
-      setApproveModalOpen(false);
-      setApproveTargetId(null);
-      setApproveReason('');
-      fetchProducts(false); // Manual refresh after action - show loading briefly
+      setIsSubmitting(true);
+      
+      // Reject all selected products
+      const rejectPromises = selectedRowKeys.map((productId) =>
+        AdminProductService.approveProduct(productId as string, {
+          approved: false,
+          reason: rejectReason.trim(),
+        })
+      );
+
+      await Promise.all(rejectPromises);
+      
+      message.success(`Đã từ chối ${selectedRowKeys.length} sản phẩm thành công`);
+      setSelectedRowKeys([]);
+      setRejectModalOpen(false);
+      setRejectReason('');
+      
+      // Refresh product list
+      await fetchProducts(false);
     } catch (error: any) {
-      showError(error?.message || 'Không thể cập nhật duyệt sản phẩm');
+      console.error('Reject products error:', error);
+      showError(error?.message || 'Không thể từ chối sản phẩm', 'Lỗi từ chối sản phẩm');
     } finally {
-      setApproveSubmitting(false);
+      setIsSubmitting(false);
     }
-  }, [approveTargetId, approveApproved, approveReason, fetchProducts]);
+  }, [selectedRowKeys, rejectReason, fetchProducts]);
 
   // Handle reset
   const handleReset = useCallback(() => {
@@ -595,25 +635,6 @@ const AdminProductManagement: React.FC = () => {
         </Tooltip>
       ),
     },
-    {
-      title: '',
-      key: 'approve',
-      width: 120,
-      fixed: 'right',
-      align: 'center',
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="Duyệt / Không duyệt">
-            <Button
-              size="small"
-              onClick={() => handleOpenApprove(record.productId)}
-            >
-              Duyệt/Không duyệt
-            </Button>
-          </Tooltip>
-        </Space>
-      ),
-    },
   ];
 
   return (
@@ -829,6 +850,29 @@ const AdminProductManagement: React.FC = () => {
 
       {/* Table */}
       <Card>
+        {/* Action Buttons */}
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+          <Button
+            type="primary"
+            icon={<CheckOutlined />}
+            onClick={handleApprove}
+            disabled={selectedRowKeys.length === 0 || isSubmitting}
+            loading={isSubmitting}
+            size="large"
+          >
+            Duyệt ({selectedRowKeys.length})
+          </Button>
+          <Button
+            danger
+            icon={<CloseOutlined />}
+            onClick={handleOpenRejectModal}
+            disabled={selectedRowKeys.length === 0 || isSubmitting}
+            size="large"
+          >
+            Không duyệt ({selectedRowKeys.length})
+          </Button>
+        </div>
+        
         <Table
           columns={columns}
           dataSource={products}
@@ -852,36 +896,36 @@ const AdminProductManagement: React.FC = () => {
         />
       </Card>
 
-      {/* Approve modal */}
+      {/* Reject Modal */}
       <Modal
-        open={approveModalOpen}
-        title="Duyệt / Không duyệt sản phẩm"
+        open={rejectModalOpen}
+        title="Từ chối sản phẩm"
         okText="Xác nhận"
         cancelText="Hủy"
-        onOk={handleSubmitApprove}
-        onCancel={() => setApproveModalOpen(false)}
-        confirmLoading={approveSubmitting}
+        onOk={handleReject}
+        onCancel={() => {
+          setRejectModalOpen(false);
+          setRejectReason('');
+        }}
+        confirmLoading={isSubmitting}
+        okButtonProps={{ danger: true }}
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Space align="center">
-            <Text>Duyệt sản phẩm:</Text>
-            <Switch
-              checked={approveApproved}
-              onChange={(val) => setApproveApproved(val)}
-              checkedChildren="Duyệt"
-              unCheckedChildren="Không duyệt"
-            />
-          </Space>
-          {!approveApproved && (
+          <Text>
+            Bạn đang từ chối <strong>{selectedRowKeys.length}</strong> sản phẩm đã chọn.
+          </Text>
+          <div>
+            <Text strong>Lý do từ chối *</Text>
             <AntInput.TextArea
-              rows={3}
-              placeholder="Nhập lý do không duyệt"
-              value={approveReason}
-              onChange={(e) => setApproveReason(e.target.value)}
+              rows={4}
+              placeholder="Nhập lý do từ chối sản phẩm..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
               maxLength={500}
               showCount
+              style={{ marginTop: '8px' }}
             />
-          )}
+          </div>
         </Space>
       </Modal>
     </div>

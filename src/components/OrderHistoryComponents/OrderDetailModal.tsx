@@ -333,7 +333,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                   </div>
                   <div className="border-t pt-3 space-y-2">
                     <div className="flex justify-between text-gray-600">
-                      <span>Tạm tính:</span>
+                      <span>Giá gốc (chưa giảm giá):</span>
                       <span>{formatCurrency(order.totalAmount)}</span>
                     </div>
                     {order.discountTotal > 0 && (
