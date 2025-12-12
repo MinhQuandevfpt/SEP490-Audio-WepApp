@@ -304,8 +304,8 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Hồ sơ shop', path: '/seller/dashboard/profile' },
-        { label: 'Địa chỉ cửa hàng', path: '/seller/dashboard/store-address' }
-        // { label: 'Cài đặt cửa hàng', path: '/seller/dashboard/settings' }
+        { label: 'Địa chỉ cửa hàng', path: '/seller/dashboard/store-address' },
+        { label: 'Cài đặt cửa hàng', path: '/seller/dashboard/setup-store' }
       ]
     },
     {

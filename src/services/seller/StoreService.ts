@@ -1,5 +1,5 @@
 // Store Service for managing store information and status
-import type { StoreInfo, StoreStatusResponse, StoreDetailResponse, StoreDetail, UpdateStoreRequest, UpdateStoreResponse } from '../../types/seller';
+import type { StoreInfo, StoreStatusResponse, StoreDetailResponse, StoreDetail, UpdateStoreRequest, UpdateStoreResponse, ToggleStoreStatusRequest, ToggleStoreStatusResponse } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 import { getSellerStoreId, safeSetLocalStorage } from '../../utils/authHelper';
 
@@ -333,6 +333,36 @@ export class StoreService {
       return response.data;
     } catch (error) {
       console.error('❌ Error updating store:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Toggle store status (ACTIVE ↔ PAUSED)
+   * PATCH /api/stores/{storeId}/toggle-status
+   */
+  static async toggleStoreStatus(storeId: string, request: ToggleStoreStatusRequest): Promise<StoreDetail> {
+    try {
+      console.log('🔄 Toggling store status:', { storeId, request });
+
+      const response = await HttpInterceptor.patch<ToggleStoreStatusResponse>(
+        `${API_URL}/stores/${storeId}/toggle-status`,
+        request,
+        { userType: 'seller' }
+      );
+
+      console.log('✅ Store status toggled successfully:', response.data);
+      
+      if (!response.data) {
+        throw new Error('Store status toggle failed');
+      }
+      
+      // Update cache
+      localStorage.setItem('seller_store_info', JSON.stringify(response.data));
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error toggling store status:', error);
       throw error;
     }
   }

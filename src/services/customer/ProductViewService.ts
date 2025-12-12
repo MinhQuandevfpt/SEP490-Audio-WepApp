@@ -9,8 +9,13 @@ export interface ProductViewParams {
   provinceCode?: string;
   districtCode?: string;
   wardCode?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  minRating?: number;
   page?: number;
   size?: number;
+  sortBy?: 'name' | 'price';
+  sortDir?: 'asc' | 'desc';
 }
 
 export interface ProductViewStoreInfo {
@@ -95,6 +100,12 @@ export interface ProductViewVariant {
   imageUrl: string | null;
 }
 
+// Category info in product view
+export interface ProductViewCategory {
+  categoryId: string;
+  categoryName: string;
+}
+
 export interface ProductViewItem {
   productId: string;
   name: string;
@@ -102,7 +113,7 @@ export interface ProductViewItem {
   price: number | null;
   discountPrice: number | null;
   finalPrice: number | null;
-  category: string | null;
+  categories: ProductViewCategory[]; // Changed from category: string | null
   thumbnailUrl: string | null;
   ratingAverage: number | null;
   reviewCount: number | null;
@@ -205,7 +216,7 @@ export interface ProductVouchersResponse {
 
 export class ProductViewService {
   private static get BASE_URL() {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
     return baseUrl.endsWith('/api') ? `${baseUrl}/products/view` : `${baseUrl}/api/products/view`;
   }
 
@@ -219,6 +230,11 @@ export class ProductViewService {
     if (params.provinceCode) query.append('provinceCode', params.provinceCode);
     if (params.districtCode) query.append('districtCode', params.districtCode);
     if (params.wardCode) query.append('wardCode', params.wardCode);
+    if (params.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
+    if (params.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
+    if (params.minRating !== undefined) query.append('minRating', String(params.minRating));
+    if (params.sortBy) query.append('sortBy', params.sortBy);
+    if (params.sortDir) query.append('sortDir', params.sortDir);
     query.append('page', String(params.page ?? 0));
     query.append('size', String(params.size ?? 20));
 

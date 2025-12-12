@@ -372,7 +372,9 @@ export class ProductService {
       'INACTIVE': 'Ngưng bán',
       'OUT_OF_STOCK': 'Hết hàng',
       'PENDING': 'Chờ duyệt',
-      'REJECTED': 'Bị từ chối'
+      'PENDING_APPROVAL': 'Chờ duyệt',
+      'REJECTED': 'Bị từ chối',
+      'REJECT': 'Bị từ chối'
     };
     return statusMap[status] || status;
   }
@@ -387,7 +389,9 @@ export class ProductService {
       'INACTIVE': 'bg-gray-100 text-gray-800',
       'OUT_OF_STOCK': 'bg-red-100 text-red-800',
       'PENDING': 'bg-yellow-100 text-yellow-800',
-      'REJECTED': 'bg-red-100 text-red-800'
+      'PENDING_APPROVAL': 'bg-yellow-100 text-yellow-800',
+      'REJECTED': 'bg-red-100 text-red-800',
+      'REJECT': 'bg-red-100 text-red-800'
     };
     return colorMap[status] || 'bg-gray-100 text-gray-800';
   }

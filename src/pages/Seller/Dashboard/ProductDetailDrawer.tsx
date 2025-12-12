@@ -147,7 +147,22 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   <InfoRow label="ID sản phẩm" value={product.productId} valueClassName="font-mono text-orange-600" />
                   <InfoRow label="Tên sản phẩm" value={product.name} />
                   <InfoRow label="Thương hiệu" value={product.brandName} />
-                  <InfoRow label="Danh mục" value={product.categoryName} />
+                  <InfoRow 
+                    label="Danh mục" 
+                    value={
+                      (product as any).categories && Array.isArray((product as any).categories) && (product as any).categories.length > 0
+                        ? (
+                            <div className="flex flex-wrap gap-2">
+                              {(product as any).categories.map((cat: any, idx: number) => (
+                                <span key={cat.categoryId || idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {cat.categoryName}
+                                </span>
+                              ))}
+                            </div>
+                          )
+                        : product.categoryName || '-'
+                    } 
+                  />
                   <InfoRow label="Model" value={product.model} />
                   <InfoRow label="SKU" value={product.sku} valueClassName="font-mono" />
                   <InfoRow label="Slug" value={product.slug} valueClassName="text-sm" />
@@ -161,6 +176,16 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                       </span>
                     } 
                   />
+                  {(product as any).approvalReason && (product as any).approvalReason.trim() && (
+                    <InfoRow 
+                      label="Lý do từ chối" 
+                      value={
+                        <span className="text-red-600 text-sm">
+                          {(product as any).approvalReason}
+                        </span>
+                      } 
+                    />
+                  )}
                   <InfoRow label="Mô tả ngắn" value={product.shortDescription} />
                   <div className="border-t border-gray-100 pt-3">
                     <p className="text-sm font-medium text-gray-700 mb-2">Mô tả chi tiết</p>
@@ -385,39 +410,53 @@ const ProductDetailDrawer: React.FC<ProductDetailDrawerProps> = ({ productId, is
                   <Award className="w-5 h-5 mr-2 text-orange-600" />
                   Thông số kỹ thuật
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {product.frequencyResponse && <SpecItem label="Đáp tần" value={product.frequencyResponse} />}
-                  {product.sensitivity && <SpecItem label="Độ nhạy" value={product.sensitivity} />}
-                  {product.impedance && <SpecItem label="Trở kháng" value={`${product.impedance} Ω`} />}
-                  {product.powerHandling && <SpecItem label="Công suất" value={product.powerHandling} />}
-                  {product.connectionType && <SpecItem label="Kết nối" value={product.connectionType} />}
-                  {product.voltageInput && <SpecItem label="Điện áp" value={product.voltageInput} />}
-                  
-                  {/* Speaker specs */}
-                  {product.driverConfiguration && <SpecItem label="Cấu hình driver" value={product.driverConfiguration} />}
-                  {product.driverSize && <SpecItem label="Kích thước driver" value={product.driverSize} />}
-                  {product.enclosureType && <SpecItem label="Kiểu vỏ" value={product.enclosureType} />}
-                  {product.crossoverFrequency && <SpecItem label="Tần số crossover" value={product.crossoverFrequency} />}
-                  {product.placementType && <SpecItem label="Vị trí đặt" value={translatePlacementType(product.placementType)} />}
-                  
-                  {/* Headphone specs */}
-                  {product.headphoneType && <SpecItem label="Loại tai nghe" value={product.headphoneType} />}
-                  {product.batteryCapacity && <SpecItem label="Pin" value={product.batteryCapacity} />}
-                  {product.headphoneFeatures && <SpecItem label="Tính năng" value={product.headphoneFeatures} />}
-                  
-                  {/* Amplifier specs */}
-                  {product.amplifierType && <SpecItem label="Loại ampli" value={product.amplifierType} />}
-                  {product.totalPowerOutput && <SpecItem label="Công suất tổng" value={product.totalPowerOutput} />}
-                  {product.thd && <SpecItem label="THD" value={product.thd} />}
-                  {product.snr && <SpecItem label="SNR" value={product.snr} />}
-                  
-                  {/* DAC specs */}
-                  {product.dacChipset && <SpecItem label="Chipset DAC" value={product.dacChipset} />}
-                  {product.sampleRate && <SpecItem label="Sample rate" value={product.sampleRate} />}
-                  {product.bitDepth && <SpecItem label="Bit depth" value={product.bitDepth} />}
-                  {product.inputInterface && <SpecItem label="Input" value={product.inputInterface} />}
-                  {product.outputInterface && <SpecItem label="Output" value={product.outputInterface} />}
-                </div>
+                {/* Display dynamic attributeValues from API if available */}
+                {(product as any).attributeValues && Array.isArray((product as any).attributeValues) && (product as any).attributeValues.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {(product as any).attributeValues.map((attr: any, index: number) => (
+                      <SpecItem 
+                        key={attr.attributeId || index} 
+                        label={attr.attributeLabel || attr.attributeName} 
+                        value={attr.value || '-'} 
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  /* Fallback to static fields if attributeValues not available */
+                  <div className="grid grid-cols-2 gap-3">
+                    {product.frequencyResponse && <SpecItem label="Đáp tần" value={product.frequencyResponse} />}
+                    {product.sensitivity && <SpecItem label="Độ nhạy" value={product.sensitivity} />}
+                    {product.impedance && <SpecItem label="Trở kháng" value={`${product.impedance} Ω`} />}
+                    {product.powerHandling && <SpecItem label="Công suất" value={product.powerHandling} />}
+                    {product.connectionType && <SpecItem label="Kết nối" value={product.connectionType} />}
+                    {product.voltageInput && <SpecItem label="Điện áp" value={product.voltageInput} />}
+                    
+                    {/* Speaker specs */}
+                    {product.driverConfiguration && <SpecItem label="Cấu hình driver" value={product.driverConfiguration} />}
+                    {product.driverSize && <SpecItem label="Kích thước driver" value={product.driverSize} />}
+                    {product.enclosureType && <SpecItem label="Kiểu vỏ" value={product.enclosureType} />}
+                    {product.crossoverFrequency && <SpecItem label="Tần số crossover" value={product.crossoverFrequency} />}
+                    {product.placementType && <SpecItem label="Vị trí đặt" value={translatePlacementType(product.placementType)} />}
+                    
+                    {/* Headphone specs */}
+                    {product.headphoneType && <SpecItem label="Loại tai nghe" value={product.headphoneType} />}
+                    {product.batteryCapacity && <SpecItem label="Pin" value={product.batteryCapacity} />}
+                    {product.headphoneFeatures && <SpecItem label="Tính năng" value={product.headphoneFeatures} />}
+                    
+                    {/* Amplifier specs */}
+                    {product.amplifierType && <SpecItem label="Loại ampli" value={product.amplifierType} />}
+                    {product.totalPowerOutput && <SpecItem label="Công suất tổng" value={product.totalPowerOutput} />}
+                    {product.thd && <SpecItem label="THD" value={product.thd} />}
+                    {product.snr && <SpecItem label="SNR" value={product.snr} />}
+                    
+                    {/* DAC specs */}
+                    {product.dacChipset && <SpecItem label="Chipset DAC" value={product.dacChipset} />}
+                    {product.sampleRate && <SpecItem label="Sample rate" value={product.sampleRate} />}
+                    {product.bitDepth && <SpecItem label="Bit depth" value={product.bitDepth} />}
+                    {product.inputInterface && <SpecItem label="Input" value={product.inputInterface} />}
+                    {product.outputInterface && <SpecItem label="Output" value={product.outputInterface} />}
+                  </div>
+                )}
               </div>
 
               {/* Warranty & Manufacturer */}

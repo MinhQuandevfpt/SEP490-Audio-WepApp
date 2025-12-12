@@ -3,11 +3,45 @@
  * Handles fetching product categories for display
  */
 
-import type { CategoryListResponse } from '../../types/api';
+import type { CategoryListResponse, CategoryTreeNode } from '../../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
 
+export interface CategoryTreeResponse {
+  status: number;
+  message: string;
+  data: CategoryTreeNode[];
+}
+
 export class CustomerCategoryService {
+  /**
+   * Get category tree (hierarchical structure)
+   * GET /api/categories/tree
+   */
+  static async getCategoryTree(): Promise<CategoryTreeResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/categories/tree`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch category tree (${response.status})`);
+      }
+
+      const data = await response.json();
+      return data as CategoryTreeResponse;
+    } catch (error) {
+      console.error('❌ Failed to fetch category tree:', error);
+      throw error;
+    }
+  }
+
   /**
    * Get all categories
    * GET /api/categories

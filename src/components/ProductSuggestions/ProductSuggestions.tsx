@@ -20,67 +20,42 @@ const ProductSuggestions: React.FC = () => {
   }, []);
 
   const mapToProduct = (item: ProductViewItem): Product => {
-    // Calculate discount ONLY from platform vouchers (Flash Sale, Mega Sale, etc.)
-    // Ignore shop vouchers for display
-    let discountPercent = 0;
-    let discountedPrice = item.price ?? 0;
+    // API đã tính sẵn finalPrice, nhưng chúng ta cần xử lý variants và vouchers
     let originalPrice = item.price ?? 0;
+    let finalPrice = item.finalPrice ?? item.price ?? 0;
+    let discountPercent = 0;
     
-    // Check if product has variants and calculate min price
+    // Nếu có variants, lấy giá thấp nhất từ variants
     if (item.variants && item.variants.length > 0) {
-      // Get minimum price from variants
-      const variantPrices = item.variants.map(v => v.price);
-      const minVariantPrice = Math.min(...variantPrices);
-      originalPrice = minVariantPrice;
-      discountedPrice = minVariantPrice;
-    }
-    
-    // Check platform vouchers ONLY (Flash Sale, etc.)
-    if (item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0) {
-      const campaign = item.vouchers.platformVouchers[0];
-      if (campaign.vouchers && campaign.vouchers.length > 0) {
-        const voucher = campaign.vouchers[0];
-        
-        // Check if voucher is active (within time range)
-        const now = new Date();
-        let isActive = false;
-        
-        if (voucher.slotOpenTime && voucher.slotCloseTime) {
-          // Flash Sale: check slot time and slot status
-          isActive = 
-            now >= new Date(voucher.slotOpenTime) && 
-            now <= new Date(voucher.slotCloseTime) &&
-            voucher.slotStatus === 'ACTIVE';
-        } else {
-          // Regular campaign: check voucher time
-          isActive = 
-            now >= new Date(voucher.startTime) && 
-            now <= new Date(voucher.endTime) && 
-            voucher.status === 'ACTIVE';
-        }
-        
-        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
-          discountPercent = voucher.discountPercent;
-          discountedPrice = originalPrice * (1 - discountPercent / 100);
-        } else if (isActive && voucher.type === 'FIXED' && voucher.discountValue) {
-          discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
-          if (originalPrice > 0) {
-            discountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
-          }
+      const variantPrices = item.variants
+        .filter(v => v.price > 0)
+        .map(v => v.price);
+      if (variantPrices.length > 0) {
+        const minVariantPrice = Math.min(...variantPrices);
+        originalPrice = minVariantPrice;
+        // Nếu API chưa tính finalPrice, dùng minVariantPrice
+        if (!item.finalPrice && !item.price) {
+          finalPrice = minVariantPrice;
         }
       }
     }
     
-    // DO NOT check shop voucher - only show original price for shop vouchers
-
-    const hasDiscount = discountPercent > 0;
+    // Tính discount percent từ finalPrice và originalPrice
+    if (originalPrice > 0 && finalPrice < originalPrice) {
+      discountPercent = Math.round(((originalPrice - finalPrice) / originalPrice) * 100);
+    }
+    
+    // Lấy category name từ categories array (lấy category đầu tiên hoặc join nếu nhiều)
+    const categoryName = item.categories && item.categories.length > 0
+      ? item.categories.map(c => c.categoryName).join(', ')
+      : '';
 
     return {
       productId: item.productId,
       storeId: item.store?.id || '',
       storeName: item.store?.name || '',
-      categoryId: '',
-      categoryName: item.category || '',
+      categoryId: item.categories && item.categories.length > 0 ? item.categories[0].categoryId : '',
+      categoryName: categoryName,
       brandName: item.brandName || '',
       name: item.name,
       slug: '',
@@ -96,12 +71,12 @@ const ProductSuggestions: React.FC = () => {
       videoUrl: null,
       sku: '',
       price: originalPrice,
-      discountPrice: hasDiscount ? discountedPrice : null,
-      promotionPercent: hasDiscount ? discountPercent : null,
-      priceAfterPromotion: hasDiscount ? discountedPrice : originalPrice,
+      discountPrice: discountPercent > 0 ? finalPrice : null,
+      promotionPercent: discountPercent > 0 ? discountPercent : null,
+      priceAfterPromotion: finalPrice,
       priceBeforeVoucher: originalPrice,
       voucherAmount: null,
-      finalPrice: hasDiscount ? discountedPrice : originalPrice,
+      finalPrice: finalPrice,
       platformFeePercent: null,
       currency: 'VND',
       stockQuantity: 0,
@@ -113,7 +88,7 @@ const ProductSuggestions: React.FC = () => {
       shippingFee: null,
       supportedShippingMethodIds: [],
       bulkDiscounts: [],
-      status: item.store?.status || 'ACTIVE',
+      status: item.status || 'ACTIVE',
       isFeatured: false,
       ratingAverage: item.ratingAverage ?? null,
       reviewCount: item.reviewCount ?? null,
@@ -132,28 +107,37 @@ const ProductSuggestions: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      // Chỉ lấy sản phẩm ACTIVE cho customer UI
+      // Không dùng keyword (dành cho search box)
       const response = await ProductViewService.getProductViews({
         page: page,
         size: itemsPerPage,
         status: 'ACTIVE', // Chỉ lấy sản phẩm đang active
+        // Có thể thêm sortBy và sortDir nếu muốn sắp xếp
+        // sortBy: 'name',
+        // sortDir: 'asc',
       });
 
       console.log('📦 API Response:', response);
 
-      if (response && response.data) {
+      if (response && response.data && response.data.data) {
         const items = response.data.data || [];
         const pageInfo = response.data.page;
 
-        // No need to filter here - API already returns ACTIVE products only
+        // Map API response to Product type
         const newProducts: Product[] = items.map(mapToProduct);
-        const total = pageInfo?.totalElements ?? newProducts.length;
-        const currentPage = pageInfo?.pageNumber ?? page;
-        const totalPages = pageInfo?.totalPages ?? (newProducts.length < itemsPerPage ? currentPage + 1 : currentPage + 2);
-        const isLast = currentPage >= totalPages - 1 || newProducts.length < itemsPerPage;
+        
+        // Extract pagination info
+        const total = pageInfo?.totalElements ?? 0;
+        const currentPageNum = pageInfo?.pageNumber ?? page;
+        const totalPages = pageInfo?.totalPages ?? 1;
+        const isLast = currentPageNum >= totalPages - 1 || newProducts.length < itemsPerPage;
 
         console.log('✅ Processed products:', {
           count: newProducts.length,
           total,
+          currentPage: currentPageNum,
+          totalPages,
           isLast,
           page
         });
@@ -161,11 +145,17 @@ const ProductSuggestions: React.FC = () => {
         setProducts(prev => reset ? newProducts : [...prev, ...newProducts]);
         setTotalElements(total);
         setHasMore(!isLast);
-        setCurrentPage(currentPage);
+        setCurrentPage(currentPageNum);
+      } else {
+        // Handle empty or invalid response
+        setProducts(prev => reset ? [] : prev);
+        setTotalElements(0);
+        setHasMore(false);
       }
     } catch (err) {
       console.error('❌ Error fetching products:', err);
       setError('Không thể tải danh sách sản phẩm. Vui lòng thử lại sau.');
+      // Keep previous products on error (don't clear them)
     } finally {
       setLoading(false);
     }

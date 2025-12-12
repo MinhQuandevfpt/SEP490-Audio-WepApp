@@ -7,12 +7,12 @@ const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/
 
 export class CategoryService {
   /**
-   * Get list of categories
-   * GET /api/categories
+   * Get category tree
+   * GET /api/categories/tree
    */
   static async getCategories(): Promise<CategoryListResponse> {
     try {
-      const url = `${API_URL}/categories`;
+      const url = `${API_URL}/categories/tree`;
       console.log('🔍 Fetching categories from:', url);
       const data = await HttpInterceptor.get<CategoryListResponse>(url, {
         headers: {
@@ -31,9 +31,20 @@ export class CategoryService {
         throw new Error('Invalid response format from server');
       }
       
-      // Ensure data is an array
-      if (data.data && !Array.isArray(data.data)) {
-        console.warn('⚠️ API returned non-array data for categories, converting to array');
+      // Ensure data.data is an array - preserve data integrity
+      if (data.data !== undefined && data.data !== null) {
+        if (!Array.isArray(data.data)) {
+          // If single object, wrap it in array to preserve data
+          if (typeof data.data === 'object') {
+            console.warn('⚠️ API returned single object instead of array, wrapping in array');
+            data.data = [data.data];
+          } else {
+            // Invalid type - throw error to prevent silent data loss
+            throw new Error(`Invalid category data type: expected array or object, got ${typeof data.data}`);
+          }
+        }
+      } else {
+        // If data.data is null/undefined, set to empty array
         data.data = [];
       }
       
@@ -42,5 +53,17 @@ export class CategoryService {
       console.error('❌ Error fetching categories:', error);
       throw error;
     }
+  }
+
+  /**
+   * Get category detail with attributes
+   * GET /api/categories/{categoryId}
+   */
+  static async getCategoryDetail(categoryId: string) {
+    const url = `${API_URL}/categories/${categoryId}`;
+    return HttpInterceptor.get(url, {
+      headers: { Accept: 'application/json' },
+      userType: 'seller',
+    });
   }
 }

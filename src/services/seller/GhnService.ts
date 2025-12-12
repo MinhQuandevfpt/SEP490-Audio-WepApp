@@ -380,7 +380,7 @@ export class GhnService {
   static async getPrintA5(token: string): Promise<string> {
     try {
       // Use fetch directly to get HTML response
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
       const url = `${API_BASE_URL}/api/ghn/print-a5?token=${encodeURIComponent(token)}`;
       
       // Get seller token

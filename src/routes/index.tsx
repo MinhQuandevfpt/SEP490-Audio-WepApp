@@ -41,12 +41,13 @@ import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
 import KycManagement from '../pages/Admin/KycManagement';
 import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
-import CategoryDetail from '../pages/Admin/CategoryDetail';
+import { CategoryDetail } from '../pages/Admin/CategoryDetail';
 import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
+import PlatformWalletPage from '../pages/Admin/PlatformWallet/PlatformWalletPage';
 import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
 import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
 import PlatformFeeManagement from '../pages/Admin/PlatformFeeManagement/PlatformFeeManagement';
@@ -81,6 +82,7 @@ import CreateCombo from '../pages/Seller/Combo/CreateCombo';
 import ComboManagement from '../pages/Seller/Combo/ComboManagement';
 import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
 import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
+import SetupStorePage from '../pages/Seller/SetupStore';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -424,6 +426,10 @@ export const router = createBrowserRouter([
         element: <StoreAddressPage />
       },
       {
+        path: 'setup-store',
+        element: <SetupStorePage />
+      },
+      {
         path: 'profile',
         element: <StoreProfile />
       },
@@ -671,24 +677,12 @@ export const router = createBrowserRouter([
         element: <div>Cancelled Orders Page (Coming Soon)</div>
       },
       {
-        path: 'reports',
-        element: <div>Reports & Analytics Page (Coming Soon)</div>
+        path: 'finance',
+        element: <div>Tài chính</div>
       },
       {
-        path: 'reports/revenue',
-        element: <div>Revenue Reports Page (Coming Soon)</div>
-      },
-      {
-        path: 'reports/bestsellers',
-        element: <div>Best Sellers Reports Page (Coming Soon)</div>
-      },
-      {
-        path: 'reports/customers',
-        element: <div>Customer Reports Page (Coming Soon)</div>
-      },
-      {
-        path: 'reports/sellers',
-        element: <div>Seller Reports Page (Coming Soon)</div>
+        path: 'finance/platform-wallet',
+        element: <PlatformWalletPage />
       },
       {
         path: 'reports/payout',

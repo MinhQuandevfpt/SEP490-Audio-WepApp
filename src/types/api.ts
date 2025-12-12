@@ -562,6 +562,53 @@ export interface CategoryListResponse {
   data: CategoryItem[];
 }
 
+export interface CategoryTreeNode {
+  categoryId: string;
+  name: string;
+  children?: CategoryTreeNode[];
+}
+
+export interface CategoryAttribute {
+  attributeId: string;
+  attributeName: string;
+  attributeLabel: string;
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL';
+}
+
+export interface CategoryDetailData {
+  categoryId: string;
+  name: string;
+  parentId: string | null;
+  attributes: CategoryAttribute[];
+}
+
+export interface CategoryDetailResponse {
+  status: number;
+  message: string;
+  data: CategoryDetailData;
+}
+
+export interface CategoryAttributeToAdd {
+  attributeName: string;
+  attributeLabel: string;
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL';
+}
+
+export interface CategoryAttributeToUpdate {
+  attributeId: string;
+  attributeName: string;
+  attributeLabel: string;
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL';
+}
+
+export interface UpdateCategoryRequest {
+  name: string;
+  parentId: string | null;
+  attributesToAdd?: CategoryAttributeToAdd[];
+  attributesToUpdate?: CategoryAttributeToUpdate[];
+  attributesToDelete?: string[];
+}
+
 // ==================== CART TYPES ====================
 // Cart types have been moved to src/types/cart.ts
 // Please import from there: import { CartResponse, AddToCartRequest, etc } from './cart';

@@ -466,7 +466,7 @@ const OrderManageForStoreOwner: React.FC = () => {
 
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       <Descriptions title="Thanh toán" size="small" column={1} bordered>
-                        <Descriptions.Item label="Tạm tính">{formatCurrency(record.totalAmount)}</Descriptions.Item>
+                        <Descriptions.Item label="Giá gốc (chưa giảm giá)">{formatCurrency(record.totalAmount)}</Descriptions.Item>
                         <Descriptions.Item label="Giảm giá">{formatCurrency(record.discountTotal)}</Descriptions.Item>
                         <Descriptions.Item label="Phí vận chuyển">{formatCurrency(record.shippingFee)}</Descriptions.Item>
                         <Descriptions.Item label="Tổng cộng">{formatCurrency(record.grandTotal)}</Descriptions.Item>

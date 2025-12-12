@@ -707,7 +707,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-gray-600">
-                <span>Tạm tính</span>
+                <span>Giá gốc (chưa giảm giá)</span>
                 <span>{formatCurrency(order.totalAmount)}</span>
               </div>
               {order.discountTotal > 0 && (

@@ -9,6 +9,7 @@ const CategoriesHeader: React.FC<CategoriesHeaderProps> = ({
   title = 'Mục lục sản phẩm',
   subtitle = 'Danh sách các loại danh mục trong hệ thống'
 }) => {
+
   return (
     <div className="md:flex md:items-center md:justify-between">
       <div className="flex-1 min-w-0">
