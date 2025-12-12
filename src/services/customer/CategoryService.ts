@@ -43,27 +43,51 @@ export class CustomerCategoryService {
   }
 
   /**
-   * Get all categories
-   * GET /api/categories
+   * Get all categories (flattened from tree)
+   * Uses GET /api/categories/tree and flattens to CategoryItem list
    */
   static async getAllCategories(): Promise<CategoryListResponse> {
     try {
-      const url = `${API_BASE_URL}/api/categories`;
+      // Use tree API and flatten it
+      const treeResponse = await this.getCategoryTree();
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch categories (${response.status})`);
+      if (!treeResponse || !treeResponse.data) {
+        return {
+          status: 200,
+          message: 'No categories found',
+          data: []
+        };
       }
 
-      const data = await response.json();
-      return data as CategoryListResponse;
+      // Flatten tree to flat list
+      const flattenTree = (nodes: CategoryTreeNode[]): CategoryTreeNode[] => {
+        const result: CategoryTreeNode[] = [];
+        nodes.forEach(node => {
+          result.push(node);
+          if (node.children && node.children.length > 0) {
+            result.push(...flattenTree(node.children));
+          }
+        });
+        return result;
+      };
+
+      const flattenedCategories = flattenTree(treeResponse.data);
+
+      // Convert CategoryTreeNode[] to CategoryItem[]
+      const categoryItems = flattenedCategories.map(cat => ({
+        categoryId: cat.categoryId,
+        name: cat.name,
+        slug: cat.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        description: null,
+        iconUrl: null,
+        sortOrder: 0
+      }));
+
+      return {
+        status: treeResponse.status || 200,
+        message: treeResponse.message || 'Categories retrieved successfully',
+        data: categoryItems
+      };
     } catch (error) {
       console.error('❌ Failed to fetch categories:', error);
       throw error;

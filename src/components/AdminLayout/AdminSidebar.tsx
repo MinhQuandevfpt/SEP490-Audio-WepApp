@@ -117,6 +117,7 @@ const AdminSidebar: React.FC = () => {
       icon: <Wallet className="w-6 h-6" />,
       children: [
         { name: 'Ví hệ thống', href: '/admin/finance/platform-wallet', icon: null },
+        { name: 'Thống kê Settlement', href: '/admin/finance/settlement-statistics', icon: null },
         { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null }
       ]
     },

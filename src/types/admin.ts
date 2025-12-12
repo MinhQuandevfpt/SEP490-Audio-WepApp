@@ -429,3 +429,65 @@ export interface PlatformTransactionFilterParams {
   to?: string; // ISO date
 }
 
+// Settlement Report Types
+export type SettlementReportType = 
+  | 'UNDELI_COD' 
+  | 'DELI_COD' 
+  | 'DELI_ONLINE' 
+  | 'PLATFORM_FEE_TO_COLLECT' 
+  | 'TOTAL_COLLECTED';
+
+export interface SettlementReportItem {
+  itemId: string;
+  storeOrderId: string;
+  productName: string;
+  quantity: number;
+  lineTotal: number;
+  shippingFeeEstimated: number;
+  shippingFeeActual: number;
+  shippingExtraForStore: number;
+  platformFeePercentage: number;
+  platformFeeAmount: number;
+  netPayoutItem: number;
+}
+
+export interface SettlementReportEntry {
+  storeOrderId: string;
+  orderCode: string;
+  storeId: string;
+  paymentMethod: string;
+  createdAt: string;
+  deliveredAt: string | null;
+  productsTotal: number;
+  customerShippingFee: number;
+  actualShippingFee: number;
+  shippingExtraForStore: number;
+  platformFeePercentage: number;
+  platformFeeAmount: number;
+  netPayoutToStore: number;
+  items: SettlementReportItem[];
+}
+
+export interface SettlementReport {
+  reportType: SettlementReportType;
+  date: string | null;
+  storeId: string | null;
+  entries: SettlementReportEntry[];
+  totalAmount: number;
+}
+
+export interface SettlementReportSummary {
+  reportType: SettlementReportType;
+  date: string | null;
+  storeId: string | null;
+  totalAmount: number;
+}
+
+export interface SettlementReportParams {
+  type: SettlementReportType;
+  date?: string; // ISO date format (yyyy-MM-dd)
+  storeId?: string;
+  page?: number;
+  size?: number;
+}
+

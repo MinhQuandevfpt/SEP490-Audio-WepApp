@@ -48,6 +48,7 @@ import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement'
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
 import PlatformWalletPage from '../pages/Admin/PlatformWallet/PlatformWalletPage';
+import SettlementStatisticsPage from '../pages/Admin/SettlementStatistics/SettlementStatisticsPage';
 import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
 import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
 import PlatformFeeManagement from '../pages/Admin/PlatformFeeManagement/PlatformFeeManagement';
@@ -683,6 +684,10 @@ export const router = createBrowserRouter([
       {
         path: 'finance/platform-wallet',
         element: <PlatformWalletPage />
+      },
+      {
+        path: 'finance/settlement-statistics',
+        element: <SettlementStatisticsPage />
       },
       {
         path: 'reports/payout',
