@@ -47,6 +47,7 @@ import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/Camp
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
+import PlatformWalletPage from '../pages/Admin/PlatformWallet/PlatformWalletPage';
 import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
 import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
 import PlatformFeeManagement from '../pages/Admin/PlatformFeeManagement/PlatformFeeManagement';
@@ -676,24 +677,12 @@ export const router = createBrowserRouter([
         element: <div>Cancelled Orders Page (Coming Soon)</div>
       },
       {
-        path: 'reports',
-        element: <div>Reports & Analytics Page (Coming Soon)</div>
+        path: 'finance',
+        element: <div>Tài chính</div>
       },
       {
-        path: 'reports/revenue',
-        element: <div>Revenue Reports Page (Coming Soon)</div>
-      },
-      {
-        path: 'reports/bestsellers',
-        element: <div>Best Sellers Reports Page (Coming Soon)</div>
-      },
-      {
-        path: 'reports/customers',
-        element: <div>Customer Reports Page (Coming Soon)</div>
-      },
-      {
-        path: 'reports/sellers',
-        element: <div>Seller Reports Page (Coming Soon)</div>
+        path: 'finance/platform-wallet',
+        element: <PlatformWalletPage />
       },
       {
         path: 'reports/payout',

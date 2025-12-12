@@ -12,6 +12,7 @@ interface StoreInfo {
   email?: string;
   phoneNumber?: string;
   status?: string;
+  logoUrl?: string | null;
 }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -283,6 +284,7 @@ export class AdminStoreService {
         email: rawStoreInfo.email,
         phoneNumber: rawStoreInfo.phoneNumber,
         status: rawStoreInfo.status,
+        logoUrl: rawStoreInfo.logoUrl || null,
       };
 
       // Cache the result
@@ -439,7 +441,8 @@ export class AdminStoreService {
           name: store.storeName,
           email: store.email,
           phoneNumber: store.phoneNumber,
-          status: store.status
+          status: store.status,
+          logoUrl: store.logoUrl || null,
         }));
       }
       
