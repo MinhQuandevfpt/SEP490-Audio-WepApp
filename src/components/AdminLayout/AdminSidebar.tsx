@@ -5,14 +5,14 @@ import {
   Users, 
   Store, 
   ShoppingCart, 
-  BarChart3, 
   Settings,
   ChevronRight,
   LogOut,
   Zap,
   Image,
   FileText,
-  DollarSign
+  DollarSign,
+  Wallet
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
 
@@ -55,9 +55,7 @@ const AdminSidebar: React.FC = () => {
       permission: 'manage_users',
       icon: <Users className="w-6 h-6" />,
       children: [
-        { name: 'Khách hàng', href: '/admin/users/customers', icon: null },
-        { name: 'Người bán', href: '/admin/users/sellers', icon: null },
-        { name: 'Admin', href: '/admin/users/admins', icon: null, permission: 'manage_system' }
+        { name: 'Khách hàng', href: '/admin/users/customers', icon: null }
       ]
     },
     {
@@ -69,9 +67,7 @@ const AdminSidebar: React.FC = () => {
         { name: 'Mục lục sản phẩm', href: '/admin/categories', icon: null },
         { name: 'Tất cả cửa hàng', href: '/admin/stores/all', icon: null },
         { name: 'Quản lý sản phẩm', href: '/admin/products', icon: null },
-        { name: 'Yêu cầu KYC', href: '/admin/stores/kyc', icon: null },
-        { name: 'Cửa hàng đã duyệt', href: '/admin/stores/approved', icon: null },
-        { name: 'Cửa hàng bị khóa', href: '/admin/stores/blocked', icon: null }
+        { name: 'Yêu cầu KYC', href: '/admin/stores/kyc', icon: null }
       ]
     },
     {
@@ -116,15 +112,12 @@ const AdminSidebar: React.FC = () => {
       icon: <DollarSign className="w-6 h-6" />
     },
     {
-      name: 'Báo cáo & Thống kê',
-      href: '/admin/reports',
-      icon: <BarChart3 className="w-6 h-6" />,
+      name: 'Tài chính',
+      href: '/admin/finance',
+      icon: <Wallet className="w-6 h-6" />,
       children: [
-        { name: 'Doanh thu', href: '/admin/reports/revenue', icon: null },
-        { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null },
-        { name: 'Sản phẩm bán chạy', href: '/admin/reports/bestsellers', icon: null },
-        { name: 'Khách hàng', href: '/admin/reports/customers', icon: null },
-        { name: 'Người bán', href: '/admin/reports/sellers', icon: null }
+        { name: 'Ví hệ thống', href: '/admin/finance/platform-wallet', icon: null },
+        { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null }
       ]
     },
     {
@@ -199,32 +192,18 @@ const AdminSidebar: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
-      {/* Logo and Brand */}
-      <div className="flex items-center h-16 flex-shrink-0 px-4 bg-gray-900">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">A</span>
-            </div>
-          </div>
-          <div className="ml-3">
-            <h1 className="text-white text-lg font-semibold">Audio Admin</h1>
-          </div>
-        </div>
-      </div>
-
       {/* User Info */}
-      <div className="flex items-center px-4 py-4 border-b border-gray-200">
+      <div className="flex items-center px-4 py-4 border-b border-gray-200 bg-blue-600">
         <div className="flex-shrink-0">
-          <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+          <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center">
             <span className="text-blue-600 font-medium text-sm">
               {currentUser?.fullName?.charAt(0).toUpperCase() || 'A'}
             </span>
           </div>
         </div>
         <div className="ml-3">
-          <p className="text-sm font-medium text-gray-900">{currentUser?.fullName}</p>
-          <p className="text-xs text-gray-500 capitalize">
+          <p className="text-sm font-medium text-white">{currentUser?.fullName}</p>
+          <p className="text-xs text-blue-100 capitalize">
             {currentUser?.role || 'Admin'}
           </p>
         </div>

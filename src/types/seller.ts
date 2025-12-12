@@ -948,7 +948,9 @@ export type TransactionType =
   | 'RELEASE_PENDING'   // Giải phóng tiền chờ
   | 'WITHDRAW'          // Rút tiền
   | 'REFUND'            // Hoàn tiền
-  | 'ADJUSTMENT';       // Điều chỉnh thủ công
+  | 'ADJUSTMENT'        // Điều chỉnh thủ công
+  | 'REFUND_RETURN'     // Hoàn tiền trả hàng
+  | 'REFUND_FORCE';     // Hoàn tiền bắt buộc
 
 export interface WalletTransaction {
   transactionId: string;
@@ -1020,6 +1022,61 @@ export interface WalletInfo {
 }
 
 export interface WalletInfoResponse extends ApiResponse<WalletInfo> {}
+
+// Payout Summary Types
+export interface PayoutSummary {
+  storeId: string;
+  estimatedGross: number;  // Doanh thu ước tính (item chưa payout)
+  pendingGross: number;    // Doanh thu đang bị hold (chưa đủ điều kiện payout)
+  doneGross: number;       // Doanh thu đã payout (gross trước phí nền tảng + ship chênh lệch)
+  netProfit: number;       // Lãi ròng sau khi trừ phí nền tảng, ship chênh lệch, giá vốn
+}
+
+export interface PayoutSummaryResponse extends ApiResponse<PayoutSummary> {}
+
+// Payout Item Types
+export type PayoutBucket = 'ESTIMATED' | 'PENDING' | 'DONE';
+
+export interface PayoutItem {
+  storeOrderItemId: string;
+  storeOrderId: string;
+  orderCode: string;
+  orderCreatedAt: string;
+  productName: string;
+  variantOptionName: string;
+  variantOptionValue: string;
+  quantity: number;
+  grossAmount: number;           // Tổng doanh thu
+  platformFee: number;           // Phí nền tảng
+  shippingExtra: number;         // Phí ship chênh lệch
+  costOfGoods: number;           // Giá vốn
+  netProfit: number;             // Lãi ròng
+  eligibleForPayout: boolean;    // Đủ điều kiện payout
+  isPayout: boolean;              // Đã payout
+  isReturned: boolean;           // Đã trả hàng
+  orderStatus: string;           // Trạng thái đơn hàng
+}
+
+export interface PayoutItemListData {
+  items: PayoutItem[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
+export interface PayoutItemListResponse extends ApiResponse<PayoutItemListData> {}
+
+// Wallet Transactions List (simpler format from /transactions endpoint)
+export interface WalletTransactionSimpleListData {
+  items: WalletTransaction[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
+export interface WalletTransactionSimpleListResponse extends ApiResponse<WalletTransactionSimpleListData> {}
 
 // Store Address Types
 export interface StoreAddress {

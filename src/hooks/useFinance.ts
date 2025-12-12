@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FinanceService } from '../services/seller/FinanceService';
-import type { WalletTransaction, WalletTransactionFilterParams, TransactionType, WalletInfo } from '../types/seller';
+import type { 
+  WalletTransaction, 
+  WalletTransactionFilterParams, 
+  TransactionType, 
+  WalletInfo,
+  PayoutSummary,
+  PayoutItem,
+  PayoutBucket
+} from '../types/seller';
 
 export interface UseFinanceFilters {
   walletId?: string;
@@ -19,6 +27,21 @@ export const useFinance = () => {
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
+
+  // Payout Summary
+  const [payoutSummary, setPayoutSummary] = useState<PayoutSummary | null>(null);
+  const [payoutSummaryLoading, setPayoutSummaryLoading] = useState(false);
+  const [payoutSummaryError, setPayoutSummaryError] = useState<string | null>(null);
+
+  // Payout Items
+  const [payoutItems, setPayoutItems] = useState<PayoutItem[]>([]);
+  const [payoutItemsLoading, setPayoutItemsLoading] = useState(false);
+  const [payoutItemsError, setPayoutItemsError] = useState<string | null>(null);
+  const [payoutBucket, setPayoutBucket] = useState<PayoutBucket>('ESTIMATED');
+  const [payoutItemsPage, setPayoutItemsPage] = useState(0);
+  const [payoutItemsPageSize, setPayoutItemsPageSize] = useState(20);
+  const [payoutItemsTotal, setPayoutItemsTotal] = useState(0);
+  const [payoutItemsTotalPages, setPayoutItemsTotalPages] = useState(0);
   
   // Pagination
   const [page, setPage] = useState(0);
@@ -118,10 +141,82 @@ export const useFinance = () => {
     loadWalletInfo();
   }, [loadWalletInfo]);
 
+  // Load payout summary
+  const loadPayoutSummary = useCallback(async () => {
+    try {
+      setPayoutSummaryLoading(true);
+      setPayoutSummaryError(null);
+      const data = await FinanceService.getPayoutSummary();
+      if (data) {
+        setPayoutSummary(data);
+      } else {
+        setPayoutSummary(null);
+      }
+    } catch (e: any) {
+      setPayoutSummaryError(e?.message || 'Không thể tải tổng quan payout');
+      setPayoutSummary(null);
+    } finally {
+      setPayoutSummaryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPayoutSummary();
+  }, [loadPayoutSummary]);
+
+  // Load payout items
+  const loadPayoutItems = useCallback(async () => {
+    try {
+      setPayoutItemsLoading(true);
+      setPayoutItemsError(null);
+      const data = await FinanceService.getPayoutItems(payoutBucket, payoutItemsPage, payoutItemsPageSize);
+      if (data) {
+        setPayoutItems(data.items || []);
+        setPayoutItemsTotal(data.totalElements || 0);
+        setPayoutItemsTotalPages(data.totalPages || 0);
+      } else {
+        setPayoutItems([]);
+        setPayoutItemsTotal(0);
+        setPayoutItemsTotalPages(0);
+      }
+    } catch (e: any) {
+      setPayoutItemsError(e?.message || 'Không thể tải danh sách item payout');
+      setPayoutItems([]);
+      setPayoutItemsTotal(0);
+      setPayoutItemsTotalPages(0);
+    } finally {
+      setPayoutItemsLoading(false);
+    }
+  }, [payoutBucket, payoutItemsPage, payoutItemsPageSize]);
+
+  useEffect(() => {
+    loadPayoutItems();
+  }, [loadPayoutItems]);
+
+  // Reset payout items page when bucket changes
+  useEffect(() => {
+    setPayoutItemsPage(0);
+  }, [payoutBucket]);
+
+  const handlePayoutBucketChange = useCallback((bucket: PayoutBucket) => {
+    setPayoutBucket(bucket);
+  }, []);
+
+  const handlePayoutItemsPageChange = useCallback((newPage: number) => {
+    setPayoutItemsPage(newPage);
+  }, []);
+
+  const handlePayoutItemsPageSizeChange = useCallback((newSize: number) => {
+    setPayoutItemsPageSize(newSize);
+    setPayoutItemsPage(0);
+  }, []);
+
   const refresh = useCallback(() => {
     loadTransactions();
     loadWalletInfo();
-  }, [loadTransactions, loadWalletInfo]);
+    loadPayoutSummary();
+    loadPayoutItems();
+  }, [loadTransactions, loadWalletInfo, loadPayoutSummary, loadPayoutItems]);
 
   return {
     // Data
@@ -151,9 +246,29 @@ export const useFinance = () => {
     sort,
     handleSortChange,
     
+    // Payout Summary
+    payoutSummary,
+    payoutSummaryLoading,
+    payoutSummaryError,
+    
+    // Payout Items
+    payoutItems,
+    payoutItemsLoading,
+    payoutItemsError,
+    payoutBucket,
+    handlePayoutBucketChange,
+    payoutItemsPage,
+    payoutItemsPageSize,
+    payoutItemsTotal,
+    payoutItemsTotalPages,
+    handlePayoutItemsPageChange,
+    handlePayoutItemsPageSizeChange,
+    
     // Actions
     refresh,
     loadWalletInfo,
+    loadPayoutSummary,
+    loadPayoutItems,
   };
 };
 

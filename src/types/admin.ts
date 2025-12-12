@@ -364,3 +364,68 @@ export interface CreatePlatformFeeResponse {
   updatedAt: string;
 }
 
+// Platform Wallet Types
+export type PlatformTransactionType = 
+  | 'HOLD' 
+  | 'RELEASE' 
+  | 'REFUND' 
+  | 'WITHDRAW' 
+  | 'DEPOSIT' 
+  | 'INITIALIZE' 
+  | 'PAYOUT_STORE' 
+  | 'PLATFORM_FEE' 
+  | 'SHIPPING_FEE_ADJUST' 
+  | 'REFUND_CUSTOMER_RETURN';
+
+export type PlatformTransactionStatus = 'PENDING' | 'DONE' | 'FAILED';
+
+export interface PlatformTransaction {
+  id: string;
+  walletId: string;
+  orderId: string | null;
+  storeId: string | null;
+  customerId: string | null;
+  amount: number;
+  type: PlatformTransactionType;
+  status: PlatformTransactionStatus;
+  description: string;
+  createdAt: string;
+}
+
+export interface PlatformWallet {
+  id: string;
+  ownerType: 'PLATFORM';
+  ownerId: string | null;
+  totalBalance: number;
+  pendingBalance: number;
+  doneBalance: number;
+  receivedTotal: number;
+  refundedTotal: number;
+  currency: string;
+  createdAt: string;
+  transactions: PlatformTransaction[];
+}
+
+export interface PlatformWalletResponse {
+  id: string;
+  ownerType: 'PLATFORM';
+  ownerId: string | null;
+  totalBalance: number;
+  pendingBalance: number;
+  doneBalance: number;
+  receivedTotal: number;
+  refundedTotal: number;
+  currency: string;
+  createdAt: string;
+  transactions: PlatformTransaction[];
+}
+
+export interface PlatformTransactionFilterParams {
+  storeId?: string;
+  customerId?: string;
+  status?: PlatformTransactionStatus;
+  type?: PlatformTransactionType;
+  from?: string; // ISO date
+  to?: string; // ISO date
+}
+
