@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, X, Loader2, Trash2, ExternalLink } from 'lucide-react';
+import { Send, Bot, X, Loader2, Trash2, ExternalLink, Minus, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AIProductSearchService, { type ProductSearchResponse } from '../../services/ai/AIProductSearchService';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
@@ -22,28 +22,133 @@ interface Message {
   productCount?: number;
 }
 
+const STORAGE_KEY = 'chatAgent_messages';
+const WELCOME_MESSAGE: Message = {
+  id: '0',
+  role: 'assistant',
+  content: 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?',
+  timestamp: new Date(),
+  type: 'text',
+};
+
+// Helper to serialize messages for localStorage (convert Date to ISO string)
+const serializeMessages = (messages: Message[]): string => {
+  return JSON.stringify(messages.map(msg => ({
+    ...msg,
+    timestamp: msg.timestamp.toISOString(),
+  })));
+};
+
+// Helper to deserialize messages from localStorage (convert ISO string to Date)
+const deserializeMessages = (data: string): Message[] => {
+  try {
+    const parsed = JSON.parse(data);
+    return parsed.map((msg: any) => ({
+      ...msg,
+      timestamp: new Date(msg.timestamp),
+    }));
+  } catch {
+    return [WELCOME_MESSAGE];
+  }
+};
+
+// Load messages from localStorage
+const loadMessagesFromStorage = (): Message[] => {
+  if (!CustomerAuthService.isAuthenticated()) {
+    return [WELCOME_MESSAGE];
+  }
+  
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) {
+    return [WELCOME_MESSAGE];
+  }
+  
+  return deserializeMessages(stored);
+};
+
+// Save messages to localStorage
+const saveMessagesToStorage = (messages: Message[]) => {
+  if (!CustomerAuthService.isAuthenticated()) {
+    return;
+  }
+  
+  try {
+    localStorage.setItem(STORAGE_KEY, serializeMessages(messages));
+  } catch (error) {
+    console.error('Failed to save messages to localStorage:', error);
+  }
+};
+
+// Clear messages from localStorage
+const clearMessagesFromStorage = () => {
+  localStorage.removeItem(STORAGE_KEY);
+};
+
 const ChatAgent: React.FC = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '0',
-      role: 'assistant',
-      content: 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?',
-      timestamp: new Date(),
-      type: 'text',
-    },
-  ]);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [messages, setMessages] = useState<Message[]>(loadMessagesFromStorage);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    if (CustomerAuthService.isAuthenticated()) {
+      const loadedMessages = loadMessagesFromStorage();
+      setMessages(loadedMessages);
+    }
+  }, []);
+
+  // Save messages to localStorage whenever messages change
+  useEffect(() => {
+    if (isAuthenticated && messages.length > 0) {
+      saveMessagesToStorage(messages);
+    }
+  }, [messages, isAuthenticated]);
+
+  // Listen to logout events and clear messages
+  useEffect(() => {
+    const clearChatOnLogout = () => {
+      clearMessagesFromStorage();
+      setMessages([WELCOME_MESSAGE]);
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      // Check if customer token was removed (logout) - works for cross-tab logout
+      if (e.key === 'CUSTOMER_token' && e.newValue === null) {
+        clearChatOnLogout();
+      }
+    };
+
+    const handleAuthStateChange = (e: CustomEvent) => {
+      // Listen to custom event dispatched by CustomerAuthService.logout()
+      if (e.detail?.loggedOut) {
+        clearChatOnLogout();
+      }
+    };
+
+    // Listen to storage events (for cross-tab logout)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen to custom auth state change events (for same-tab logout)
+    window.addEventListener('authStateChanged', handleAuthStateChange as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('authStateChanged', handleAuthStateChange as EventListener);
+    };
+  }, []);
+
   // Check authentication
   useEffect(() => {
     const checkAuth = () => {
       const authenticated = CustomerAuthService.isAuthenticated();
+      const wasAuthenticated = isAuthenticated;
+      
       setIsAuthenticated(authenticated);
       
       if (!authenticated && isOpen) {
@@ -51,13 +156,25 @@ const ChatAgent: React.FC = () => {
         navigate('/auth/login');
         setIsOpen(false);
       }
+      
+      // If user just logged out, clear messages
+      if (wasAuthenticated && !authenticated) {
+        clearMessagesFromStorage();
+        setMessages([WELCOME_MESSAGE]);
+      }
+      
+      // If just logged in, load messages from storage
+      if (authenticated && !wasAuthenticated) {
+        const loadedMessages = loadMessagesFromStorage();
+        setMessages(loadedMessages);
+      }
     };
     
     checkAuth();
     if (isOpen) {
       checkAuth();
     }
-  }, [isOpen, navigate]);
+  }, [isOpen, navigate, isAuthenticated]);
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -208,13 +325,9 @@ const ChatAgent: React.FC = () => {
 
   const handleClearChat = () => {
     if (window.confirm('Bạn có chắc muốn xóa toàn bộ cuộc trò chuyện?')) {
-      setMessages([{
-        id: '0',
-        role: 'assistant',
-        content: 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?',
-        timestamp: new Date(),
-        type: 'text',
-      }]);
+      const clearedMessages = [WELCOME_MESSAGE];
+      setMessages(clearedMessages);
+      saveMessagesToStorage(clearedMessages);
     }
   };
 
@@ -225,6 +338,15 @@ const ChatAgent: React.FC = () => {
       return;
     }
     setIsOpen(true);
+    setIsMinimized(false); // Reset minimized state when opening
+  };
+
+  const handleMinimize = () => {
+    setIsMinimized(true);
+  };
+
+  const handleRestore = () => {
+    setIsMinimized(false);
   };
 
   const handleProductClick = (productId: string) => {
@@ -248,8 +370,22 @@ const ChatAgent: React.FC = () => {
         </div>
       )}
 
+      {/* Minimized Chat Button */}
+      {isOpen && isMinimized && (
+        <div className="fixed bottom-6 right-32 z-50">
+          <button
+            onClick={handleRestore}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl shadow-2xl hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 group flex flex-col items-center gap-1.5 px-4 py-3 w-20"
+            aria-label="Restore Chat Agent"
+          >
+            <ChevronUp className="w-7 h-7 group-hover:animate-pulse" />
+            <span className="text-xs font-medium whitespace-nowrap">Chat Agent</span>
+          </button>
+        </div>
+      )}
+
       {/* Chat Window */}
-      {isOpen && (
+      {isOpen && !isMinimized && (
         <div className="fixed bottom-6 right-6 w-[500px] h-[700px] bg-white rounded-2xl shadow-2xl flex flex-col z-[60] border border-gray-200 overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4">
@@ -272,8 +408,16 @@ const ChatAgent: React.FC = () => {
                   <Trash2 className="w-5 h-5" />
                 </button>
                 <button
+                  onClick={handleMinimize}
+                  className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                  title="Ẩn khung chat"
+                >
+                  <Minus className="w-5 h-5" />
+                </button>
+                <button
                   onClick={() => setIsOpen(false)}
                   className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                  title="Đóng"
                 >
                   <X className="w-5 h-5" />
                 </button>
