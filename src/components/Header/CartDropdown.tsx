@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CustomerCartService } from '../../services/customer/CartService';
 import type { CartResponse } from '../../types/cart';
 
@@ -21,6 +21,7 @@ const CartDropdown: React.FC = () => {
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [enrichedItems, setEnrichedItems] = useState<EnrichedCartItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Load cart data and enrich with platform voucher prices
   const loadCart = async () => {
@@ -137,7 +138,10 @@ const CartDropdown: React.FC = () => {
       {/* Cart Icon */}
       <button
         onMouseEnter={handleMouseEnter}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(false);
+          navigate('/cart');
+        }}
         className="relative group"
       >
         <div className="flex items-center text-blue-600 hover:text-blue-700">
