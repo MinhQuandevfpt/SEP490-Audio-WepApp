@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, X } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { CustomerCartService } from '../../services/customer/CartService';
 import type { CartResponse } from '../../types/cart';
 
@@ -29,25 +29,24 @@ const CartDropdown: React.FC = () => {
       const cartData = await CustomerCartService.getCart();
       setCart(cartData);
       
-      // Backend đã xử lý platform campaign, sử dụng trực tiếp từ response
+      // Backend đã xử lý campaign nhưng vẫn đảm bảo nếu vượt quota thì dùng giá gốc
       const itemsToEnrich = cartData.items.slice(0, 5);
       const enriched = itemsToEnrich.map((item) => {
-        // Backend trả về:
-        // - baseUnitPrice: giá gốc (chưa campaign)
-        // - platformCampaignPrice: giá sau campaign (nếu có)
-        // - unitPrice: giá hiện tại (đã áp dụng campaign nếu có)
-        // - inPlatformCampaign: có đang trong campaign không
-        // - campaignUsageExceeded: đã vượt giới hạn chưa
-        
-        // unitPrice trong EnrichedCartItem = baseUnitPrice (giá gốc) để hiển thị gạch ngang
-        // discountedPrice = platformCampaignPrice (nếu có) hoặc unitPrice (nếu không có campaign)
         const originalPrice = item.baseUnitPrice ?? item.unitPrice;
-        const discountedPrice = 
-          item.inPlatformCampaign && 
-          !item.campaignUsageExceeded && 
-          item.platformCampaignPrice !== undefined
-            ? item.platformCampaignPrice
-            : item.unitPrice;
+
+        const exceededCampaign =
+          item.inPlatformCampaign &&
+          item.campaignRemaining !== null &&
+          item.campaignRemaining !== undefined &&
+          item.quantity > item.campaignRemaining;
+
+        const discountedPrice = exceededCampaign
+          ? originalPrice
+          : (item.inPlatformCampaign &&
+              !item.campaignUsageExceeded &&
+              item.platformCampaignPrice !== undefined
+              ? item.platformCampaignPrice
+              : item.unitPrice);
         
         return {
           cartItemId: item.cartItemId,
@@ -56,7 +55,7 @@ const CartDropdown: React.FC = () => {
           image: item.image,
           variantUrl: item.variantUrl,
           unitPrice: originalPrice, // Giá gốc để so sánh và hiển thị gạch ngang
-          discountedPrice, // Giá sau khi áp dụng campaign
+          discountedPrice, // Giá sau khi áp dụng campaign (hoặc gốc nếu vượt quota)
           quantity: item.quantity,
           variantOptionValue: item.variantOptionValue
         };
@@ -113,12 +112,18 @@ const CartDropdown: React.FC = () => {
   // Use enriched items for display, fallback to first 5 raw items if enrichment not done
   const displayItems = enrichedItems.length > 0 ? enrichedItems : cart?.items?.slice(0, 5).map(item => {
     const originalPrice = item.baseUnitPrice ?? item.unitPrice;
-    const discountedPrice = 
-      item.inPlatformCampaign && 
-      !item.campaignUsageExceeded && 
-      item.platformCampaignPrice !== undefined
-        ? item.platformCampaignPrice
-        : item.unitPrice;
+    const exceededCampaign =
+      item.inPlatformCampaign &&
+      item.campaignRemaining !== null &&
+      item.campaignRemaining !== undefined &&
+      item.quantity > item.campaignRemaining;
+    const discountedPrice = exceededCampaign
+      ? originalPrice
+      : (item.inPlatformCampaign &&
+          !item.campaignUsageExceeded &&
+          item.platformCampaignPrice !== undefined
+          ? item.platformCampaignPrice
+          : item.unitPrice);
     
     return {
       cartItemId: item.cartItemId,
@@ -127,7 +132,7 @@ const CartDropdown: React.FC = () => {
       image: item.image,
       variantUrl: item.variantUrl,
       unitPrice: originalPrice, // Giá gốc để so sánh
-      discountedPrice, // Giá sau khi áp dụng campaign
+      discountedPrice, // Giá sau khi áp dụng campaign (hoặc gốc nếu vượt quota)
       quantity: item.quantity,
       variantOptionValue: item.variantOptionValue
     };
@@ -230,20 +235,13 @@ const CartDropdown: React.FC = () => {
           {cartItemCount > 0 && (
             <div className="p-3 border-t border-gray-200 bg-gray-50">
               {/* Thông báo số sản phẩm còn lại + Button */}
-              <div className="flex items-center justify-between">
-                {remainingCount > 0 && (
+              {remainingCount > 0 && (
+                <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-600">
                     {remainingCount} sản phẩm thêm vào giỏ
                   </span>
-                )}
-                <Link
-                  to="/cart"
-                  onClick={() => setIsOpen(false)}
-                  className={`${remainingCount > 0 ? 'ml-auto' : 'w-full'} bg-orange-500 text-white text-center px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors font-medium text-sm`}
-                >
-                  Xem giỏ hàng
-                </Link>
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

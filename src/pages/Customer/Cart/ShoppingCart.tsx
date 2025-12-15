@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calcCartSummary, type CartItem as UICartItem } from '../../../data/shoppingcart';
 import Layout from '../../../components/Layout';
@@ -28,6 +28,8 @@ const ShoppingCart: React.FC = () => {
   const [addresses, setAddresses] = useState<CustomerAddressApiItem[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [addressesLoading, setAddressesLoading] = useState(false);
+  // Avoid spamming campaign warnings across renders
+  const campaignWarnedRef = useRef<Set<string>>(new Set());
 
   // Use service type calculator hook
   const {
@@ -87,6 +89,47 @@ const ShoppingCart: React.FC = () => {
     };
   };
 
+  /**
+   * Ensure items that exceed campaign quota use base/original price and notify once.
+   */
+  const normalizeCampaignPricing = (itemsToNormalize: UICartItem[]): UICartItem[] => {
+    const normalized = itemsToNormalize.map((item) => {
+      const hasCampaignLimit =
+        item.campaignRemaining !== null &&
+        item.campaignRemaining !== undefined &&
+        item.campaignRemaining >= 0 &&
+        item.quantity > item.campaignRemaining;
+
+      if (hasCampaignLimit) {
+        // Force price back to original/base price for exceeded quantity
+        return {
+          ...item,
+          price: item.originalPrice ?? item.price,
+        };
+      }
+      return item;
+    });
+
+    // Notify once per cartItemId
+    normalized.forEach((item) => {
+      const hasCampaignLimit =
+        item.campaignRemaining !== null &&
+        item.campaignRemaining !== undefined &&
+        item.campaignRemaining >= 0 &&
+        item.quantity > item.campaignRemaining;
+
+      if (hasCampaignLimit && !campaignWarnedRef.current.has(item.id)) {
+        campaignWarnedRef.current.add(item.id);
+        showCenterError(
+          t('cart.campaign.exceeded', { productName: item.name }),
+          t('cart.warning.title')
+        );
+      }
+    });
+
+    return normalized;
+  };
+
   // Load addresses
   const loadAddresses = async () => {
     if (!AddressService.isAuthenticated()) return;
@@ -130,7 +173,7 @@ const ShoppingCart: React.FC = () => {
     // Initial load: don't preserve selection (default to all selected)
     const apiItems = cart.items as unknown as ApiCartItem[];
     const mappedItems = apiItems.map(apiItem => mapApiItemToUI(apiItem, false, []));
-    setItems(mappedItems);
+    setItems(normalizeCampaignPricing(mappedItems));
   }, [cart]);
 
   // Load vouchers for all products in the cart (unique by refId)
@@ -501,7 +544,7 @@ const ShoppingCart: React.FC = () => {
     // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
     // Preserve selection state when updating quantity to avoid auto-selecting all items
     const mappedItems = respItems.map(apiItem => mapApiItemToUI(apiItem, preserveSelection, items));
-    setItems(mappedItems);
+    setItems(normalizeCampaignPricing(mappedItems));
     window.dispatchEvent(new Event('cartUpdated'));
   };
 
@@ -736,7 +779,27 @@ const ShoppingCart: React.FC = () => {
       }
     } catch (error: any) {
       console.error('❌ [UPDATE QUANTITY] Error:', error);
-      const msg = CustomerCartService.formatCartError(error) || t('cart.errors.cannotUpdateQuantity');
+      const rawMsg =
+        error?.message ||
+        error?.data?.message ||
+        CustomerCartService.formatCartError(error) ||
+        '';
+      const outOfStock =
+        /out of stock/i.test(rawMsg) ||
+        /hết hàng/i.test(rawMsg) ||
+        /out of inventory/i.test(rawMsg);
+
+      if (outOfStock) {
+        showCenterError(
+          'Sản phẩm đã hết hàng hoặc không đủ tồn kho.',
+          t('cart.errors.title') || 'Lỗi giỏ hàng'
+        );
+        // Đồng bộ lại giỏ để trả trạng thái tồn kho mới nhất
+        loadCart();
+        return;
+      }
+
+      const msg = rawMsg || t('cart.errors.cannotUpdateQuantity');
       showCenterError(msg, t('cart.errors.title'));
     }
   };
