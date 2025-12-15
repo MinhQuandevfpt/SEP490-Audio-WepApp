@@ -356,10 +356,17 @@ const SettlementStatisticsPage: React.FC = () => {
       key: 'platformFeeAmount',
       align: 'right',
       width: 150,
-      render: (amount: number) => (
-        <Text strong className="text-sm text-red-600">
-          {formatCurrency(amount)}
-        </Text>
+      render: (amount: number, record: SettlementReportEntry) => (
+        <div className="text-right">
+          <Text strong className="text-sm text-red-600">
+            {formatCurrency(amount)}
+            {record.platformFeePercentage && (
+              <span className="text-xs text-gray-500 ml-1">
+                ({record.platformFeePercentage}%)
+              </span>
+            )}
+          </Text>
+        </div>
       ),
     },
     {
@@ -756,8 +763,15 @@ const SettlementStatisticsPage: React.FC = () => {
                             dataIndex: 'platformFeeAmount',
                             key: 'platformFeeAmount',
                             align: 'right',
-                            render: (amount: number) => (
-                              <Text className="text-red-600">{formatCurrency(amount)}</Text>
+                            render: (amount: number, item: any) => (
+                              <Text className="text-red-600">
+                                {formatCurrency(amount)}
+                                {item.platformFeePercentage && (
+                                  <span className="text-xs text-gray-500 ml-1">
+                                    ({item.platformFeePercentage}%)
+                                  </span>
+                                )}
+                              </Text>
                             ),
                           },
                           {
@@ -813,5 +827,6 @@ const SettlementStatisticsPage: React.FC = () => {
 };
 
 export default SettlementStatisticsPage;
+
 
 
