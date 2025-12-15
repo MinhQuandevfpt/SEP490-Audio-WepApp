@@ -424,6 +424,130 @@ const AdminProductManagement: React.FC = () => {
     return formatCurrency(product.price);
   };
 
+  // Expanded row content: hiển thị thêm thông tin chi tiết theo chiều dọc
+  const renderExpandedRow = (record: ProductResponse) => {
+    const categories = (record as any).categories || [];
+    const approvalReason = (record as any).approvalReason;
+    const variants = record.variants || [];
+
+    return (
+      <div style={{ padding: '12px 16px', background: '#fafafa' }}>
+        <Row gutter={[16, 8]}>
+          <Col xs={24} md={12}>
+            <Space direction="vertical" size={4}>
+              <Text strong>SKU:</Text>
+              <Text type="secondary">{record.sku || '-'}</Text>
+            </Space>
+          </Col>
+          <Col xs={24} md={12}>
+            <Space direction="vertical" size={4}>
+              <Text strong>ID sản phẩm:</Text>
+              <Text type="secondary">{record.productId}</Text>
+            </Space>
+          </Col>
+          <Col xs={24} md={12}>
+            <Space direction="vertical" size={4}>
+              <Text strong>Danh mục:</Text>
+              {categories.length === 0 ? (
+                <Text type="secondary">-</Text>
+              ) : (
+                <Space size={[0, 8]} wrap>
+                  {categories.map((cat: { categoryId: string; categoryName: string }, index: number) => (
+                    <Tag key={cat.categoryId || index} color="blue">
+                      {cat.categoryName}
+                    </Tag>
+                  ))}
+                </Space>
+              )}
+            </Space>
+          </Col>
+          <Col xs={24} md={12}>
+            <Space direction="vertical" size={4}>
+              <Text strong>Đánh giá:</Text>
+              {record.ratingAverage ? (
+                <Space direction="vertical" size={0}>
+                  <Text strong style={{ color: '#faad14' }}>
+                    ⭐ {record.ratingAverage.toFixed(1)}
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    ({record.reviewCount} đánh giá)
+                  </Text>
+                </Space>
+              ) : (
+                <Text type="secondary">Chưa có</Text>
+              )}
+            </Space>
+          </Col>
+          <Col xs={24}>
+            <Space direction="vertical" size={4}>
+              <Text strong>Mô tả ngắn:</Text>
+              <Text type="secondary">
+                {record.shortDescription || record.description?.slice(0, 200) || '-'}
+                {record.description && record.description.length > 200 ? '…' : ''}
+              </Text>
+            </Space>
+          </Col>
+          {variants.length > 0 && (
+            <Col xs={24}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <Text strong>Danh sách biến thể (variant):</Text>
+                <Row gutter={[12, 12]}>
+                  {variants.map((v) => (
+                    <Col xs={24} md={12} lg={8} key={v.variantId}>
+                      <Card size="small" bordered style={{ borderRadius: 8 }}>
+                        <Space align="start" size={12}>
+                          <div style={{ width: 56, height: 56, borderRadius: 6, overflow: 'hidden', background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {v.variantUrl ? (
+                              <Image
+                                src={v.variantUrl}
+                                alt={record.name}
+                                width={56}
+                                height={56}
+                                style={{ objectFit: 'cover' }}
+                                preview={false}
+                              />
+                            ) : (
+                              <AppstoreOutlined style={{ fontSize: 24, color: '#d9d9d9' }} />
+                            )}
+                          </div>
+                          <Space direction="vertical" size={2}>
+                            <Text strong>{record.name}</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              {v.optionName}: {v.optionValue}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                              SKU: {v.variantSku}
+                            </Text>
+                            <Space size={8}>
+                              <Text style={{ fontSize: 12 }}>
+                                Giá: <Text strong>{formatCurrency(v.variantPrice)}</Text>
+                              </Text>
+                              <Text style={{ fontSize: 12 }}>
+                                Tồn: <Text strong>{v.variantStock}</Text>
+                              </Text>
+                            </Space>
+                          </Space>
+                        </Space>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </Space>
+            </Col>
+          )}
+          {approvalReason && approvalReason.trim() && (
+            <Col xs={24}>
+              <Space direction="vertical" size={4}>
+                <Text strong style={{ color: '#ff4d4f' }}>Lý do từ chối:</Text>
+                <Text type="danger">{approvalReason}</Text>
+              </Space>
+            </Col>
+          )}
+        </Row>
+      </div>
+    );
+  };
+
   // Table columns
   const columns: ColumnsType<ProductResponse> = [
     {
@@ -498,26 +622,6 @@ const AdminProductManagement: React.FC = () => {
       ),
     },
     {
-      title: 'Danh mục',
-      key: 'categories',
-      width: 200,
-      render: (_, record) => {
-        const categories = (record as any).categories || [];
-        if (categories.length === 0) {
-          return <Text type="secondary">-</Text>;
-        }
-        return (
-          <Space size={[0, 8]} wrap>
-            {categories.map((cat: { categoryId: string; categoryName: string }, index: number) => (
-              <Tag key={cat.categoryId || index} color="blue">
-                {cat.categoryName}
-              </Tag>
-            ))}
-          </Space>
-        );
-      },
-    },
-    {
       title: 'Giá bán',
       key: 'price',
       width: 180,
@@ -538,26 +642,6 @@ const AdminProductManagement: React.FC = () => {
         <Text strong style={{ color: stock > 0 ? '#1890ff' : '#ff4d4f' }}>
           {stock}
         </Text>
-      ),
-    },
-    {
-      title: 'Đánh giá',
-      key: 'rating',
-      width: 120,
-      align: 'center',
-      render: (_, record) => (
-        record.ratingAverage ? (
-          <Space direction="vertical" size={0}>
-            <Text strong style={{ color: '#faad14' }}>
-              ⭐ {record.ratingAverage.toFixed(1)}
-            </Text>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              ({record.reviewCount} đánh giá)
-            </Text>
-          </Space>
-        ) : (
-          <Text type="secondary">Chưa có</Text>
-        )
       ),
     },
     {
@@ -589,34 +673,6 @@ const AdminProductManagement: React.FC = () => {
           );
         }
         return badge;
-      },
-    },
-    {
-      title: 'Lý do từ chối',
-      key: 'approvalReason',
-      width: 200,
-      align: 'left',
-      render: (_, record) => {
-        const approvalReason = (record as any).approvalReason;
-        // Hiển thị approvalReason nếu có giá trị (bất kể status nào)
-        if (approvalReason && approvalReason.trim()) {
-          return (
-            <Tooltip title={approvalReason}>
-              <Text
-                ellipsis
-                style={{
-                  color: '#ff4d4f',
-                  fontSize: '12px',
-                  maxWidth: 180,
-                  display: 'block',
-                }}
-              >
-                {approvalReason}
-              </Text>
-            </Tooltip>
-          );
-        }
-        return <Text type="secondary">-</Text>;
       },
     },
     {
@@ -880,7 +936,11 @@ const AdminProductManagement: React.FC = () => {
           loading={isInitialLoading}
           pagination={pagination}
           onChange={handleTableChange}
-          scroll={{ x: 1400 }}
+          // Cho phép bảng co giãn theo độ rộng màn hình, chỉ scroll ngang khi cần
+          scroll={{ x: 'max-content' }}
+          expandable={{
+            expandedRowRender: (record) => renderExpandedRow(record),
+          }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
