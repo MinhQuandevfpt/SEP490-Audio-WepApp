@@ -83,18 +83,6 @@ const StaffLoginLayout: React.FC = () => {
               <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
                 <div className="flex items-center mb-3">
                   <div className="bg-white bg-opacity-30 rounded-lg p-2 mr-3">
-                    <Users className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-lg">Chăm sóc khách hàng</h3>
-                </div>
-                <p className="text-sm opacity-90">
-                  Hỗ trợ khách hàng, xử lý khiếu nại và tư vấn sản phẩm chuyên nghiệp
-                </p>
-              </div>
-
-              <div className="bg-white bg-opacity-20 rounded-xl p-4 backdrop-blur-sm">
-                <div className="flex items-center mb-3">
-                  <div className="bg-white bg-opacity-30 rounded-lg p-2 mr-3">
                     <Shield className="w-6 h-6 text-white" />
                   </div>
                   <h3 className="font-semibold text-lg">Bảo mật thông tin</h3>

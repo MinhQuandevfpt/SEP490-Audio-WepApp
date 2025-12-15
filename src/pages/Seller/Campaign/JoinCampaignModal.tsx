@@ -5,7 +5,6 @@ import {
   Button,
   Select,
   InputNumber,
-  Alert,
   Tag,
   Image,
   Space,
@@ -37,9 +36,9 @@ interface ProductWithConfig extends Product {
   discountValue?: number;
   maxDiscountValue?: number;
   minOrderValue?: number;
-  totalVoucherIssued: number;
-  totalUsageLimit: number;
-  usagePerUser: number;
+  totalVoucherIssued?: number;
+  totalUsageLimit?: number;
+  usagePerUser?: number;
   // For expandable table
   isVariant?: boolean;
   variantInfo?: string;
@@ -65,6 +64,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
 }) => {
   const [products, setProducts] = useState<ProductWithConfig[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -74,6 +74,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     if (visible && campaign) {
       fetchJoinedProducts();
       setSelectedRowKeys([]);
+      setExpandedRowKeys([]);
     }
   }, [visible, campaign]);
 
@@ -128,17 +129,17 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       const productsWithConfig: ProductWithConfig[] = availableProducts.map(product => {
         const hasVariants = product.variants && product.variants.length > 0;
         
-        // Define default config for voucher
+        // Define default config for voucher (inputs trống, để seller tự cấu hình)
         const defaultConfig = {
           slotId: isFlashSale ? campaign?.flashSlots?.[0]?.slotId : undefined,
           type: 'PERCENT' as VoucherType,
-          discountPercent: 10,
+          discountPercent: undefined,
           discountValue: undefined,
           maxDiscountValue: undefined,
           minOrderValue: undefined,
-          totalVoucherIssued: 100,
-          totalUsageLimit: 100,
-          usagePerUser: 1,
+          totalVoucherIssued: undefined,
+          totalUsageLimit: undefined,
+          usagePerUser: undefined,
         };
         
         // Parent row
@@ -332,49 +333,8 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
 
   const handleClose = () => {
     setSelectedRowKeys([]);
+    setExpandedRowKeys([]);
     onClose();
-  };
-
-  // Handle parent checkbox click - only select/deselect parent
-  const handleParentSelect = (record: ProductWithConfig, selected: boolean) => {
-    const parentKey = record.key || record.productId;
-    
-    if (selected) {
-      // Add only parent key
-      setSelectedRowKeys(prev => [...new Set([...prev, parentKey])]);
-    } else {
-      // Remove only parent key
-      setSelectedRowKeys(prev => prev.filter(key => key !== parentKey));
-    }
-  };
-
-  // Check if parent should be checked (simplified - no variants consideration)
-  const isParentChecked = (record: ProductWithConfig): boolean => {
-    return selectedRowKeys.includes(record.key || record.productId);
-  };
-
-  // Get all selectable keys (only parents, not variants)
-  const getAllSelectableKeys = (): React.Key[] => {
-    const allKeys: React.Key[] = [];
-    
-    products.forEach(product => {
-      if (product.stockQuantity > 0) {
-        // Only add parent key, not variants
-        allKeys.push(product.key || product.productId);
-      }
-    });
-    
-    return allKeys;
-  };
-
-  // Handle "Select All" checkbox click
-  const handleSelectAll = (selected: boolean) => {
-    if (selected) {
-      const allKeys = getAllSelectableKeys();
-      setSelectedRowKeys(allKeys);
-    } else {
-      setSelectedRowKeys([]);
-    }
   };
 
   // Parent table columns - only basic product info
@@ -398,28 +358,10 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               {record.name}
             </div>
             <div className="text-xs text-gray-500 mt-1 break-all">
-              ID: #{record.productId}
+              SKU: {record.sku || '-'}
             </div>
           </div>
         </div>
-      ),
-    },
-    {
-      title: 'SKU',
-      dataIndex: 'sku',
-      key: 'sku',
-      width: 150,
-      render: (sku: string) => (
-        <span className="text-sm text-gray-700">{sku || '-'}</span>
-      ),
-    },
-    {
-      title: 'Model',
-      dataIndex: 'model',
-      key: 'model',
-      width: 150,
-      render: (model: string) => (
-        <span className="text-sm text-gray-700">{model || '-'}</span>
       ),
     },
     ...(isFlashSale
@@ -489,11 +431,22 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             <>
               <InputNumber
                 value={record.discountPercent}
-                onChange={(value: any) =>
-                  handleProductUpdate(record.key || record.productId, 'discountPercent', value)
-                }
+                  onChange={(value: any) => {
+                    // Chỉ cho phép nhập từ 1 - 99, không cho vượt quá trong quá trình gõ
+                    if (value === null || value === undefined) {
+                      handleProductUpdate(record.key || record.productId, 'discountPercent', undefined);
+                      return;
+                    }
+                    if (typeof value === 'number') {
+                      if (value < 1 || value > 99) {
+                        // Bỏ qua giá trị không hợp lệ, giữ nguyên giá trị cũ
+                        return;
+                      }
+                      handleProductUpdate(record.key || record.productId, 'discountPercent', value);
+                    }
+                  }}
                 min={1}
-                max={100}
+                max={99}
                 addonAfter="%"
                 className="w-full"
                 size="small"
@@ -565,9 +518,9 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       },
     },
     {
-      title: 'SL Voucher',
+      title: 'Số lượng phát hành',
       key: 'voucher',
-      width: 110,
+      width: 120,
       render: (_: any, record: ProductWithConfig) => (
         <InputNumber
           value={record.totalVoucherIssued}
@@ -583,33 +536,36 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     },
     {
       title: 'Giới hạn sử dụng',
-      key: 'usage',
-      width: 130,
+      key: 'usageTotal',
+      width: 110,
       render: (_: any, record: ProductWithConfig) => (
-        <div className="space-y-1">
-          <InputNumber
-            value={record.totalUsageLimit}
-            onChange={(value: any) =>
-              handleProductUpdate(record.key || record.productId, 'totalUsageLimit', value)
-            }
-            min={1}
-            placeholder="Tổng"
-            className="w-full"
-            size="small"
-            disabled={!selectedRowKeys.includes(record.key || record.productId)}
-          />
-          <InputNumber
-            value={record.usagePerUser}
-            onChange={(value: any) =>
-              handleProductUpdate(record.key || record.productId, 'usagePerUser', value)
-            }
-            min={1}
-            placeholder="Mỗi người"
-            className="w-full"
-            size="small"
-            disabled={!selectedRowKeys.includes(record.key || record.productId)}
-          />
-        </div>
+        <InputNumber
+          value={record.totalUsageLimit}
+          onChange={(value: any) =>
+            handleProductUpdate(record.key || record.productId, 'totalUsageLimit', value)
+          }
+          min={1}
+          className="w-full"
+          size="small"
+          disabled={!selectedRowKeys.includes(record.key || record.productId)}
+        />
+      ),
+    },
+    {
+      title: 'Số lượng sử dụng/người',
+      key: 'usagePerUser',
+      width: 150,
+      render: (_: any, record: ProductWithConfig) => (
+        <InputNumber
+          value={record.usagePerUser}
+          onChange={(value: any) =>
+            handleProductUpdate(record.key || record.productId, 'usagePerUser', value)
+          }
+          min={1}
+          className="w-full"
+          size="small"
+          disabled={!selectedRowKeys.includes(record.key || record.productId)}
+        />
       ),
     },
   ];
@@ -813,28 +769,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
         destroyOnHidden
         style={{ top: 20 }}
       >
-      {/* Alert */}
-      <Alert
-        message="Chọn sản phẩm và cấu hình giảm giá"
-        description={
-          <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
-            <li>Chỉ hiển thị sản phẩm <strong>Đang hoạt động</strong> của cửa hàng bạn</li>
-            <li><strong>Tick chọn</strong> sản phẩm muốn tham gia, sau đó cấu hình giảm giá trực tiếp trên bảng</li>
-            {isFlashSale && (
-              <li className="text-orange-600 font-medium">
-                ⚡ Flash Sale bắt buộc phải chọn khung giờ
-              </li>
-            )}
-            <li className="text-blue-600">
-              💡 Tìm thấy <strong>{products.length} sản phẩm</strong> phù hợp
-            </li>
-          </ul>
-        }
-        type="info"
-        showIcon
-        className="mb-4"
-      />
-
       {/* Content */}
       {isLoadingProducts ? (
         <div className="flex justify-center py-20">
@@ -856,48 +790,29 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
           />
         </div>
       ) : (
-        <Table
-          columns={parentColumns}
-          dataSource={products}
-          rowKey={(record) => record.key || record.productId}
-          rowSelection={{
-            selectedRowKeys,
-            columnWidth: 48,
-            fixed: true,
-            getCheckboxProps: (record) => ({
-              disabled: record.stockQuantity === 0,
-              // Remove indeterminate and checked from here
-              // Let Ant Design calculate based on selectedRowKeys
-            }),
-            // Custom selection column render
-            renderCell: (_value, record, _index, originNode) => {
-              // For data rows (not header)
-              if (record && record.key) {
-                const isChecked = isParentChecked(record);
-                
-                // Clone the checkbox node and add custom props
-                if (React.isValidElement(originNode)) {
-                  const props = originNode.props as any;
-                  return React.cloneElement(originNode as any, {
-                    ...props,
-                    checked: isChecked,
-                  });
-                }
-              }
-              
-              // For header, return as-is (let Ant Design handle it)
-              return originNode;
-            },
-            onSelect: (record, selected) => {
-              // This is called when clicking individual row checkbox
-              handleParentSelect(record, selected);
-            },
-            onSelectAll: (selected) => {
-              handleSelectAll(selected);
-            },
-            // Show "Select All" checkbox in header
-            hideSelectAll: false,
-          }}
+        <>
+          <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+            💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình bên trên.
+          </div>
+          <Table
+            columns={parentColumns}
+            dataSource={products}
+            rowKey={(record) => record.key || record.productId}
+            expandedRowKeys={expandedRowKeys}
+            onExpandedRowsChange={(keys) => setExpandedRowKeys(keys as React.Key[])}
+            rowSelection={{
+              selectedRowKeys,
+              columnWidth: 48,
+              fixed: true,
+              onChange: (keys: React.Key[]) => {
+                setSelectedRowKeys(keys);
+                setExpandedRowKeys(keys);
+              },
+              getCheckboxProps: (record) => ({
+                disabled: record.stockQuantity === 0,
+              }),
+              hideSelectAll: false,
+            }}
           expandable={{
             defaultExpandAllRows: false,
             expandRowByClick: false,
@@ -926,11 +841,6 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               
               return (
                 <div className="bg-gray-50 p-4">
-                  {/* Info message */}
-                  <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                    💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình bên trên.
-                  </div>
-                  
                   <Table
                     columns={childColumns}
                     dataSource={childData}
@@ -945,15 +855,16 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             },
             // All rows are expandable
             rowExpandable: () => true,
-          }}
-          pagination={{ 
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} sản phẩm`,
-          }}
-          scroll={{ x: 900, y: 450 }}
-          size="small"
-        />
+            }}
+            pagination={{ 
+              pageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} sản phẩm`,
+            }}
+            scroll={{ x: 900, y: 450 }}
+            size="small"
+          />
+        </>
       )}
 
       {/* Footer Actions */}

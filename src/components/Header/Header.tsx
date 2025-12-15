@@ -120,9 +120,6 @@ const Header: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-2 text-sm">
             <div className="flex space-x-6">
-              <a href="/seller" className="text-blue-600 hover:text-gray-900">
-                {t('header.customerService')}
-              </a>
               <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
                 {t('header.sellWithUs')}
               </Link>

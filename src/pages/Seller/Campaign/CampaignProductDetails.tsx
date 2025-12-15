@@ -35,8 +35,9 @@ import type { ColumnsType } from 'antd/es/table';
 import { SellerCampaignService } from '../../../services/seller/CampaignService';
 import { ProductService } from '../../../services/seller/ProductService';
 import { StoreService } from '../../../services/seller/StoreService';
-import type { CampaignProductDetail, CampaignProductStatus, Product } from '../../../types/seller';
+import type { CampaignForSeller, CampaignProductDetail, CampaignProductStatus, Product } from '../../../types/seller';
 import { showTikiNotification } from '../../../utils/notification';
+import JoinCampaignModal from './JoinCampaignModal';
 
 const { Title } = Typography;
 
@@ -72,6 +73,7 @@ const CampaignProductDetails: React.FC = () => {
     registeredAt: string;
     badgeIconUrl?: string;
   } | null>(null);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   useEffect(() => {
     fetchStoreId();
@@ -814,13 +816,10 @@ const CampaignProductDetails: React.FC = () => {
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}
-                    onClick={() => {
-                      showTikiNotification(
-                        'Tính năng này đang được phát triển',
-                        'Thông báo',
-                        'success'
-                      );
-                    }}
+                    onClick={() => setIsJoinModalOpen(true)}
+                    disabled={
+                      !!(campaignInfo && new Date(campaignInfo.startTime).getTime() <= Date.now())
+                    }
                   >
                     Thêm sản phẩm
                   </Button>
@@ -857,9 +856,6 @@ const CampaignProductDetails: React.FC = () => {
 
                       return (
                         <div className="bg-gray-50 p-4">
-                          <div className="mb-3 text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                            💡 Giảm giá được áp dụng chung cho tất cả phân loại hàng. Giá sau giảm được tính tự động dựa trên cấu hình voucher.
-                          </div>
                           <Table
                             columns={variantColumns}
                             dataSource={record.variantData}
@@ -883,6 +879,34 @@ const CampaignProductDetails: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Modal đăng ký sản phẩm tham gia chiến dịch */}
+      <JoinCampaignModal
+        visible={isJoinModalOpen}
+        campaign={
+          campaignInfo
+            ? ({
+                id: campaignId!,
+                name: campaignInfo.name,
+                code: '',
+                type: campaignInfo.type as CampaignForSeller['type'],
+                startTime: campaignInfo.startTime,
+                endTime: campaignInfo.endTime,
+                status: 'ONOPEN',
+                badgeLabel: '',
+                badgeColor: '#f97316',
+                badgeIconUrl: campaignInfo.badgeIconUrl,
+                allowRegistration: true,
+                flashSlots: [] // có thể map từ campaignProducts nếu backend trả về, hiện để rỗng
+              } as CampaignForSeller)
+            : null
+        }
+        onClose={() => setIsJoinModalOpen(false)}
+        onSuccess={() => {
+          fetchData();
+          setIsJoinModalOpen(false);
+        }}
+      />
     </div>
   );
 };
