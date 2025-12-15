@@ -175,6 +175,87 @@ export interface CampaignOverviewResponse {
   data: CampaignOverviewData;
 }
 
+// Admin Campaign Detail (UI-friendly, grouped by store)
+export interface AdminCampaignDetailProduct {
+  campaignProductId?: string;
+  productId: string;
+  productName: string;
+  productImage: string;
+  storeId: string;
+  storeName: string;
+  voucher?: CampaignVoucher | null;
+  flashSaleSlots?: FlashSaleSlot[] | null;
+  registeredAt?: string;
+}
+
+export interface AdminCampaignStoreGroup {
+  storeId: string;
+  storeName: string;
+  products: AdminCampaignDetailProduct[];
+}
+
+export interface AdminCampaignDetail {
+  campaignId: string;
+  campaignName: string;
+  campaignType: CampaignType;
+  status?: CampaignStatus;
+  startTime: string;
+  endTime: string;
+  badgeLabel?: string;
+  badgeColor?: string;
+  badgeIconUrl?: string;
+  stores: AdminCampaignStoreGroup[];
+}
+
+// Admin campaign product management table (flat rows from /api/campaigns/products/details)
+export type AdminCampaignProductStatus =
+  | 'DRAFT'
+  | 'APPROVE'
+  | 'ACTIVE'
+  | 'EXPIRED'
+  | 'REJECTED'
+  | 'DISABLED';
+
+export interface AdminCampaignProductSlot {
+  slotId: string;
+  openTime: string;
+  closeTime: string;
+  slotStatus: 'PENDING' | 'ACTIVE' | 'ENDED';
+}
+
+// Mirrors PlatformCampaignProduct from backend (admin view)
+export interface AdminCampaignProductRow {
+  campaignProductId: string;
+  campaignId: string;
+  campaignName: string;
+  campaignType: CampaignType;
+  storeId: string;
+  storeName: string;
+  productId: string;
+  productName: string;
+  brandName: string;
+  categories: string[];
+  discountType: 'PERCENT' | 'FIXED';
+  discountValue: number | null;
+  discountPercent: number | null;
+  maxDiscountValue: number | null;
+  minOrderValue: number | null;
+  totalVoucherIssued: number;
+  totalUsageLimit: number;
+  usagePerUser: number;
+  remainingUsage: number;
+  approved: boolean;
+  approvedAt: string | null;
+  registeredAt: string;
+  status: AdminCampaignProductStatus;
+  reason: string | null;
+  startTime: string;
+  endTime: string;
+  slot: AdminCampaignProductSlot | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApproveProductsRequest {
   campaignProductIds: string[];
 }

@@ -42,7 +42,7 @@ import KycManagement from '../pages/Admin/KycManagement';
 import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import { CategoryDetail } from '../pages/Admin/CategoryDetail';
-import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
+import { CampaignList, CreateCampaign, EditCampaign, CampaignDetailPage } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
@@ -606,6 +606,10 @@ export const router = createBrowserRouter([
       {
         path: 'campaigns',
         element: <CampaignList />
+      },
+      {
+        path: 'campaigns/:campaignId',
+        element: <CampaignDetailPage />
       },
       {
         path: 'campaigns/create',

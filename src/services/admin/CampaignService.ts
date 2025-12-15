@@ -6,8 +6,14 @@ import type {
   CampaignResponse,
   CampaignListResponse,
   CampaignStatus,
-  CampaignType
+  CampaignType,
+  AdminCampaignDetail,
+  AdminCampaignProductRow,
+  AdminCampaignProductStatus,
+  CampaignOverviewResponse,
+  CampaignProduct
 } from '../../types/admin';
+import { CampaignProductService } from './CampaignProductService';
 
 export class CampaignService {
   /**
@@ -92,6 +98,89 @@ export class CampaignService {
     } catch (error: any) {
       console.error('Error fetching campaign:', error);
       throw new Error(error.message || 'Không thể tải chi tiết chiến dịch');
+    }
+  }
+
+  /**
+   * Get campaign detail with products grouped by store (API 3 style)
+   * Uses existing /api/campaigns/overview via CampaignProductService
+   */
+  static async getCampaignDetail(campaignId: string): Promise<AdminCampaignDetail> {
+    try {
+      // Fetch main campaign info + overview in parallel
+      const [campaign, overview]: [Campaign, CampaignOverviewResponse] = await Promise.all([
+        this.getCampaignById(campaignId),
+        CampaignProductService.getCampaignOverview({ campaignId, page: 0, size: 1000 })
+      ]);
+
+      const overviewItem = overview.data.data[0];
+      const products: CampaignProduct[] = overviewItem?.products ?? [];
+
+      // Group products by store
+      const storeMap = new Map<string, {
+        storeId: string;
+        storeName: string;
+        products: CampaignProduct[];
+      }>();
+
+      products.forEach((p) => {
+        if (!storeMap.has(p.storeId)) {
+          storeMap.set(p.storeId, {
+            storeId: p.storeId,
+            storeName: p.storeName,
+            products: []
+          });
+        }
+        storeMap.get(p.storeId)!.products.push(p);
+      });
+
+      return {
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        campaignType: campaign.type,
+        status: campaign.status,
+        startTime: campaign.startTime,
+        endTime: campaign.endTime,
+        badgeLabel: campaign.badgeLabel,
+        badgeColor: campaign.badgeColor,
+        badgeIconUrl: campaign.badgeIconUrl,
+        stores: Array.from(storeMap.values())
+      };
+    } catch (error: any) {
+      console.error('Error fetching campaign detail:', error);
+      throw new Error(error.message || 'Không thể tải chi tiết chiến dịch');
+    }
+  }
+
+  /**
+   * Get flat campaign product rows for management table (API 2)
+   */
+  static async getCampaignProducts(params: {
+    campaignId: string;
+    storeId?: string;
+    status?: AdminCampaignProductStatus;
+  }): Promise<AdminCampaignProductRow[]> {
+    try {
+      const query = new URLSearchParams();
+      query.append('campaignId', params.campaignId);
+      if (params.storeId) query.append('storeId', params.storeId);
+      if (params.status) query.append('status', params.status);
+
+      const endpoint = `/api/campaigns/products/details?${query.toString()}`;
+
+      const response = await HttpInterceptor.fetch<{
+        status: number;
+        message: string;
+        data: AdminCampaignProductRow[];
+      }>(
+        endpoint,
+        { userType: 'admin' }
+      );
+
+      return response.data || [];
+    } catch (error: any) {
+      console.error('Error fetching campaign products:', error);
+      throw new Error(error.message || 'Không thể tải danh sách sản phẩm chiến dịch');
     }
   }
 
