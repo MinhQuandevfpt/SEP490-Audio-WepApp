@@ -10,6 +10,7 @@ import { showCenterError, showCenterSuccess } from '../../utils/notification';
 import { ProductReviewService } from '../../services/customer/ProductReviewService';
 import { FileUploadService } from '../../services/FileUploadService';
 import ReturnRequestModal from './ReturnRequestModal';
+import CustomerCartService from '../../services/customer/CartService';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -19,6 +20,8 @@ interface Props {
   ghnOrderData?: Record<string, any>;
   onOrderCancelled?: () => void;
 }
+
+const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
 
 const getErrorMessage = (error: any, fallback: string) => {
   return (
@@ -224,6 +227,93 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       ),
     [reviewableItems, reviewedItemIds],
   );
+
+  const handleBuyAgain = async () => {
+    try {
+      if (!CustomerCartService.isAuthenticated()) {
+        // Lưu URL hiện tại để quay lại sau khi đăng nhập
+        localStorage.setItem('redirectAfterLogin', window.location.pathname);
+        navigate('/auth/login');
+        return;
+      }
+
+      // Lấy tất cả item trong đơn (ưu tiên storeOrders, fallback legacy items)
+      const allItems: OrderItem[] =
+        storeOrders.length > 0
+          ? (storeOrders.flatMap((so) => so.items || []) as OrderItem[])
+          : (legacyItems as OrderItem[]);
+
+      if (!allItems || allItems.length === 0) {
+        showCenterError('Không tìm thấy sản phẩm trong đơn hàng để mua lại.', 'Lỗi');
+        return;
+      }
+
+      // Xóa giỏ hàng hiện tại trước khi mua lại (bỏ qua lỗi nếu có)
+      try {
+        await CustomerCartService.deleteCart();
+      } catch (e) {
+        console.warn('⚠️ [REORDER] Failed to clear cart before re-order:', e);
+      }
+
+      // Build payload addToCart từ order items
+      const reorderItems = allItems.map((item) => {
+        if (item.type === 'COMBO') {
+          return {
+            type: 'COMBO',
+            comboId: item.refId,
+            quantity: item.quantity || 1,
+          };
+        }
+
+        const payload: any = {
+          type: 'PRODUCT',
+          quantity: item.quantity || 1,
+        };
+
+        if (item.variantId) {
+          // Sản phẩm có variant → gửi variantId
+          payload.variantId = item.variantId;
+        } else {
+          // Sản phẩm không có variant → gửi productId
+          payload.productId = item.refId;
+        }
+        return payload;
+      });
+
+      await CustomerCartService.addToCart(reorderItems as any);
+
+      // Load lại giỏ để lấy cartItemId phục vụ cho checkout
+      const cart = await CustomerCartService.getCart();
+      const selectedCartItemIds = cart.items.map((ci) => ci.cartItemId);
+
+      const checkoutPayload = {
+        selectedCartItemIds,
+        storeVouchers: {}, // Không áp dụng voucher khi mua lại
+        selectedAddressId: null,
+        createdAt: Date.now(),
+      };
+
+      try {
+        sessionStorage.setItem(CHECKOUT_SESSION_KEY, JSON.stringify(checkoutPayload));
+      } catch (e) {
+        console.error('❌ [REORDER] Failed to cache checkout payload:', e);
+      }
+
+      showCenterSuccess(
+        'Đã thêm lại sản phẩm vào giỏ hàng. Đang chuyển tới trang thanh toán...',
+        'Mua lại đơn hàng',
+      );
+      navigate('/checkout');
+    } catch (error: any) {
+      console.error('❌ [REORDER] Failed to buy again:', error);
+      const msg =
+        error?.message ||
+        error?.data?.message ||
+        CustomerCartService.formatCartError(error) ||
+        'Không thể mua lại đơn hàng. Vui lòng thử lại.';
+      showCenterError(msg, 'Lỗi');
+    }
+  };
 
   const handleMediaChange = (index: number, field: keyof ReviewMediaPayload, value: string) => {
     setReviewMedia((prev) =>
@@ -755,13 +845,23 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                 </>
               )}
               {order.status === 'DELIVERY_SUCCESS' && (
-                <Button
-                  className="h-10 w-full"
-                  style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}
-                  onClick={() => setShowReturnModal(true)}
-                >
-                  Hoàn trả sản phẩm
-                </Button>
+                <>
+                  <Button
+                    type="primary"
+                    className="h-10 w-full"
+                    style={{ backgroundColor: '#FF6A00', borderColor: '#FF6A00', borderRadius: '10px' }}
+                    onClick={handleBuyAgain}
+                  >
+                    Mua lại đơn hàng
+                  </Button>
+                  <Button
+                    className="h-10 w-full"
+                    style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}
+                    onClick={() => setShowReturnModal(true)}
+                  >
+                    Hoàn trả sản phẩm
+                  </Button>
+                </>
               )}
               {canCancelOrder(order.status) && (
                 <Button danger className="h-10 w-full" style={{ borderRadius: '10px' }} onClick={() => setShowCancelModal(true)}>
