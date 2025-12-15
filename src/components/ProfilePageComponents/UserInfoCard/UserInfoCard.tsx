@@ -123,7 +123,24 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
       }
     } catch (error: any) {
       console.error('Error uploading avatar:', error);
-      showCenterError(error?.message || 'Không thể upload ảnh. Vui lòng thử lại.', 'Lỗi');
+      const rawMessage: string =
+        error?.response?.data?.detail ||
+        error?.data?.detail ||
+        error?.message ||
+        '';
+      const isPayloadTooLarge =
+        error?.status === 413 ||
+        error?.response?.status === 413 ||
+        /maximum upload size exceeded/i.test(rawMessage);
+
+      if (isPayloadTooLarge) {
+        showCenterError('Dung lượng ảnh, video quá lớn, bạn nhé!', 'Lỗi');
+      } else {
+        showCenterError(
+          error?.message || 'Không thể upload ảnh. Vui lòng thử lại.',
+          'Lỗi'
+        );
+      }
       setAvatarPreview(null);
     } finally {
       setIsUploadingAvatar(false);
