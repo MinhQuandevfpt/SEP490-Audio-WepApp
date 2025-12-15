@@ -472,11 +472,21 @@ const CheckoutOrderContainer: React.FC = () => {
   }, [loadAddresses]);
 
   useEffect(() => {
+    // Khi đã có ít nhất một địa chỉ, luôn đảm bảo có địa chỉ được chọn
     if (addresses.length === 0) {
       setSelectedAddressId(null);
       return;
     }
-    if (selectedAddressId && !addresses.some(addr => addr.id === selectedAddressId)) {
+
+    // Nếu chưa có selectedAddressId nhưng đã có addresses (case mới thêm lần đầu)
+    if (!selectedAddressId) {
+      const fallback = addresses.find(addr => addr.default) || addresses[0] || null;
+      setSelectedAddressId(fallback ? fallback.id : null);
+      return;
+    }
+
+    // Nếu selectedAddressId hiện tại không còn tồn tại trong danh sách (vừa bị xóa)
+    if (!addresses.some(addr => addr.id === selectedAddressId)) {
       const fallback = addresses.find(addr => addr.default) || addresses[0] || null;
       setSelectedAddressId(fallback ? fallback.id : null);
     }

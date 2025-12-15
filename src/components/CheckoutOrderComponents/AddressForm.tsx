@@ -45,6 +45,8 @@ const AddressForm: React.FC<AddressFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState(createEmptyForm);
   const [showSelector, setShowSelector] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 2;
 
   const { provinces, loading: provincesLoading } = useProvinces();
   const selectedProvince = useMemo(
@@ -87,6 +89,18 @@ const AddressForm: React.FC<AddressFormProps> = ({
   const selectedAddress = selectedAddressId
     ? addresses.find(addr => addr.id === selectedAddressId) || null
     : null;
+
+  // Khi mở selector hoặc danh sách địa chỉ thay đổi, đảm bảo currentPage hợp lệ
+  useEffect(() => {
+    if (!showSelector) {
+      setCurrentPage(1);
+      return;
+    }
+    const totalPages = Math.max(1, Math.ceil(addresses.length / pageSize));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [showSelector, addresses.length, currentPage]);
 
   const resetForm = () => {
     setFormData(createEmptyForm());
@@ -486,7 +500,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
 
       {showSelector && addresses.length > 0 && (
         <div className="border border-gray-200 rounded-2xl overflow-hidden divide-y">
-          {addresses.map(address => {
+          {(
+            addresses.length > pageSize
+              ? addresses.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+              : addresses
+          ).map(address => {
             const isActive = selectedAddressId === address.id;
             return (
               <div
@@ -547,6 +565,29 @@ const AddressForm: React.FC<AddressFormProps> = ({
               </div>
             );
           })}
+          {addresses.length > pageSize && (
+            <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t text-xs text-gray-600">
+              <button
+                type="button"
+                className={`px-2 py-1 rounded ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              >
+                Trang trước
+              </button>
+              <span>
+                Trang {currentPage}/{Math.max(1, Math.ceil(addresses.length / pageSize))}
+              </span>
+              <button
+                type="button"
+                className={`px-2 py-1 rounded ${currentPage >= Math.ceil(addresses.length / pageSize) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'}`}
+                disabled={currentPage >= Math.ceil(addresses.length / pageSize)}
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(addresses.length / pageSize), p + 1))}
+              >
+                Trang sau
+              </button>
+            </div>
+          )}
         </div>
       )}
 
