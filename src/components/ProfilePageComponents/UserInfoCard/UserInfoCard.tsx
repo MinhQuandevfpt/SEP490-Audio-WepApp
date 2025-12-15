@@ -561,13 +561,15 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }
     return <LoadingSkeleton type="profile" />;
   }
 
+  // Với tài khoản thực từ backend (hasCustomerId = true), nếu API không có avatar
+  // thì KHÔNG fallback sang avatar mock trong local profiledata → để trống để hiển thị initials.
   const merged = {
     fullName: apiProfile?.fullName ?? baseUser.fullName,
     email: apiProfile?.email ?? baseUser.email,
     phone: apiProfile?.phone ?? baseUser.phone,
     gender: apiProfile?.gender ?? baseUser.gender,
     dateOfBirth: apiProfile?.dateOfBirth ?? baseUser.dateOfBirth,
-    avatar: apiProfile?.avatar ?? baseUser.avatar,
+    avatar: hasCustomerId ? apiProfile?.avatar : (apiProfile?.avatar ?? baseUser.avatar),
     membershipPoints: apiProfile?.membershipPoints ?? baseUser.membershipPoints,
     membershipLevel: apiProfile?.membershipLevel ?? baseUser.membershipLevel,
   } as PresentationalUserInfoCardProps;
