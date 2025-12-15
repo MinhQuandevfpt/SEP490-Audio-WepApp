@@ -252,13 +252,14 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
           </div>
         </div>
 
-        {/* Row 3: Email */}
+        {/* Row 3: Email (read-only even in edit mode) */}
         <div>
           <span className="text-sm text-gray-500">Email</span>
-          {isEditing ? (
-            <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
-          ) : (
-            <p className="font-medium text-gray-900">{email}</p>
+          <p className="mt-1 font-medium text-gray-900">{email}</p>
+          {isEditing && (
+            <p className="text-xs text-gray-400 mt-1">
+              Email không thể thay đổi. Vui lòng liên hệ CSKH nếu bạn cần cập nhật email.
+            </p>
           )}
         </div>
 
