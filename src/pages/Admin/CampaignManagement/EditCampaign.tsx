@@ -631,10 +631,7 @@ const EditCampaign: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Khung giờ Flash Sale</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  <span className="text-blue-600 font-semibold">Có ID:</span> cập nhật slot cũ • 
-                  <span className="text-green-600 font-semibold ml-1">Không ID:</span> tạo slot mới
-                </p>
+              
               </div>
               <button
                 type="button"
@@ -674,11 +671,7 @@ const EditCampaign: React.FC = () => {
                             <div>
                               <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Thời gian mở
-                                {slot.slotId && (
-                                  <span className="ml-2 text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                                    ID: {slot.slotId.slice(0, 8)}...
-                                  </span>
-                                )}
+                                
                               </label>
                               <input
                                 type="datetime-local"

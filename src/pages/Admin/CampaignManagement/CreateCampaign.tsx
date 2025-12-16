@@ -266,7 +266,6 @@ const CreateCampaign: React.FC = () => {
       navigate('/admin/campaigns');
     } catch (error: any) {
       console.error('❌ Error creating campaign:', error);
-      console.error('📋 Request data was:', requestData);
       showTikiNotification(error.message || 'Không thể tạo chiến dịch', 'Lỗi', 'error');
     } finally {
       setIsLoading(false);
