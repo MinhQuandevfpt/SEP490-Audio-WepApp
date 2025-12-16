@@ -12,6 +12,8 @@ import {
   InputNumber,
   Divider,
   Spin,
+  Upload,
+  message,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -20,11 +22,14 @@ import {
   DeleteOutlined,
   PictureOutlined,
   LinkOutlined,
+  UploadOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { AdminBannerService } from '../../../services/admin/AdminBannerService';
 import type { Banner, BannerImage, CreateBannerRequest } from '../../../types/admin';
 import { showError, showSuccess } from '../../../utils/notification';
+import { FileUploadService } from '../../../services/FileUploadService';
 
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
@@ -43,6 +48,7 @@ const BannerDetail: React.FC = () => {
   const [previewImage, setPreviewImage] = useState<string>('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTitle, setPreviewTitle] = useState('');
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   const isCreateMode = mode === 'create' || !id;
   const isEditMode = mode === 'edit';
@@ -120,6 +126,34 @@ const BannerDetail: React.FC = () => {
     setPreviewImage(imageUrl);
     setPreviewTitle(title);
     setPreviewOpen(true);
+  };
+
+  const handleImageUpload = async (file: File, index: number) => {
+    try {
+      setUploadingIndex(index);
+      
+      // Validate file
+      const validation = FileUploadService.validateFile(file);
+      if (!validation.isValid) {
+        message.error(validation.error);
+        return false;
+      }
+
+      // Upload to Cloudinary
+      const uploadResult = await FileUploadService.uploadImage(file, 'banners');
+      
+      // Update image URL
+      handleImageChange(index, 'imageUrl', uploadResult.url);
+      
+      message.success('Upload ảnh thành công!');
+      return true;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      message.error('Upload ảnh thất bại. Vui lòng thử lại.');
+      return false;
+    } finally {
+      setUploadingIndex(null);
+    }
   };
 
   const handleSubmit = async (values: any) => {
@@ -319,20 +353,34 @@ const BannerDetail: React.FC = () => {
                       className="border-2 border-gray-200"
                     >
                       <div className="space-y-4">
-                        {/* Image URL */}
+                        {/* Image Upload */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            URL ảnh <span className="text-red-500">*</span>
+                            Ảnh banner <span className="text-red-500">*</span>
                           </label>
-                          <Input
-                            placeholder="https://example.com/image.jpg"
-                            value={image.imageUrl}
-                            onChange={(e) =>
-                              handleImageChange(index, 'imageUrl', e.target.value)
-                            }
-                            prefix={<PictureOutlined />}
-                            disabled={isViewMode}
-                          />
+                          <div className="space-y-2">
+                            {!isViewMode && (
+                              <Upload
+                                accept="image/*"
+                                showUploadList={false}
+                                beforeUpload={(file) => {
+                                  handleImageUpload(file, index);
+                                  return false; // Prevent auto upload
+                                }}
+                                disabled={uploadingIndex === index}
+                              >
+                                <Button
+                                  icon={uploadingIndex === index ? <LoadingOutlined /> : <UploadOutlined />}
+                                  block
+                                  size="large"
+                                  disabled={uploadingIndex === index}
+                                  loading={uploadingIndex === index}
+                                >
+                                  {uploadingIndex === index ? 'Đang upload...' : 'Upload ảnh từ máy tính'}
+                                </Button>
+                              </Upload>
+                            )}
+                          </div>
                           {image.imageUrl && (
                             <div className="mt-2">
                               <img
@@ -350,6 +398,12 @@ const BannerDetail: React.FC = () => {
                                     'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage Error%3C/text%3E%3C/svg%3E';
                                 }}
                               />
+                            </div>
+                          )}
+                          {!image.imageUrl && (
+                            <div className="mt-2 p-8 border-2 border-dashed border-gray-300 rounded text-center text-gray-400">
+                              <PictureOutlined className="text-4xl mb-2" />
+                              <p>Chưa có ảnh</p>
                             </div>
                           )}
                         </div>
@@ -514,3 +568,4 @@ const BannerDetail: React.FC = () => {
 };
 
 export default BannerDetail;
+

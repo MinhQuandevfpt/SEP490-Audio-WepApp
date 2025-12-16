@@ -24,7 +24,13 @@ const NotificationPage: React.FC = () => {
       setError(null);
       const response = await NotificationService.getNotifications(pageNum, pageSize);
       
-      setNotifications(response.content || []);
+      // Sắp xếp thông báo theo thời gian tạo (mới nhất trước)
+      const sorted = (response.content || []).slice().sort((a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tB - tA;
+      });
+      setNotifications(sorted);
       setTotalElements(response.totalElements || 0);
       setCurrentPage(pageNum + 1);
       

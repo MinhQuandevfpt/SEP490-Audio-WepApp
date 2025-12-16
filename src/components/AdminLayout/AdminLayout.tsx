@@ -23,7 +23,8 @@ const AdminLayout: React.FC = () => {
           {/* Main Content */}
           <main className="flex-1 relative overflow-y-auto focus:outline-none">
             <div className="py-6">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              {/* Sử dụng toàn bộ chiều rộng, vẫn giữ padding responsive */}
+              <div className="w-full px-4 sm:px-6 lg:px-8">
                 <Outlet />
               </div>
             </div>

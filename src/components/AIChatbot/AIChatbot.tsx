@@ -1242,10 +1242,14 @@ const AIChatbot: React.FC = () => {
         timestamp: new Date(),
         type: 'text',
       }]);
+      // Mở chat AI thông qua ChatContext để các component khác (ví dụ ChatAgent) nắm trạng thái
+      chatContext.openChat('ai');
       setIsOpen(true);
     } else {
       setChatMode('list');
       loadConversations();
+      // Với chat cửa hàng, đánh dấu ChatContext ở mode 'store'
+      chatContext.openChat('store', storeId || undefined);
       setIsOpen(true);
     }
   };
@@ -1301,7 +1305,10 @@ const AIChatbot: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-lg">Tin nhắn</h3>
                   <button
-                    onClick={() => setIsOpen(false)}
+                    onClick={() => {
+                      setIsOpen(false);
+                      chatContext.closeChat();
+                    }}
                     className="hover:bg-white/20 p-2 rounded-full transition-colors"
                   >
                     <X className="w-5 h-5" />
@@ -1499,12 +1506,15 @@ const AIChatbot: React.FC = () => {
                     </button>
                   )}
                   {/* Close button */}
-              <button
-                onClick={() => setIsOpen(false)}
-                className="hover:bg-white/20 p-2 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      chatContext.closeChat();
+                    }}
+                    className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
             </div>
           </div>

@@ -42,7 +42,7 @@ import KycManagement from '../pages/Admin/KycManagement';
 import KycDetail from '../pages/Admin/KycManagement/KycDetail';
 import CategoriesList from '../pages/Admin/Categories';
 import { CategoryDetail } from '../pages/Admin/CategoryDetail';
-import { CampaignList, CreateCampaign, EditCampaign } from '../pages/Admin/CampaignManagement';
+import { CampaignList, CreateCampaign, EditCampaign, CampaignDetailPage } from '../pages/Admin/CampaignManagement';
 import CampaignProductApproval from '../pages/Admin/CampaignProductApproval/CampaignProductApproval';
 import BannerManagement, { BannerDetail } from '../pages/Admin/BannerManagement';
 import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
@@ -79,8 +79,6 @@ import { AdminAuthService } from '../services/admin/AdminAuthService';
 import { StoreService } from '../services/seller/StoreService';
 import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
-import CreateCombo from '../pages/Seller/Combo/CreateCombo';
-import ComboManagement from '../pages/Seller/Combo/ComboManagement';
 import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
 import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
@@ -483,14 +481,6 @@ export const router = createBrowserRouter([
         element: <CampaignProductDetails />
       },
       {
-        path: 'combos',
-        element: <ComboManagement />
-      },
-      {
-        path: 'combos/create',
-        element: <CreateCombo />
-      },
-      {
         path: 'messages',
         element: <MessagesPage />
       },
@@ -616,6 +606,10 @@ export const router = createBrowserRouter([
       {
         path: 'campaigns',
         element: <CampaignList />
+      },
+      {
+        path: 'campaigns/:campaignId',
+        element: <CampaignDetailPage />
       },
       {
         path: 'campaigns/create',

@@ -10,7 +10,8 @@ import {
   ClockCircleOutlined,
   FilterOutlined,
   CloseCircleOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { CampaignProductService } from '../../../services/admin/CampaignProductService';
@@ -423,17 +424,14 @@ const CampaignProductApproval: React.FC = () => {
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
-  const columns: ColumnsType<CampaignProductWithVariants> = useMemo(() => [
-    {
-      title: 'Sản phẩm',
-      dataIndex: 'productName',
-      key: 'productName',
-      width: 320,
-      render: (_, record) => {
-        const isFlashSale = record.campaignType === 'FAST_SALE';
-        const flashSlot = isFlashSale && record.flashSaleSlots?.[0];
-        
-        return (
+  const columns: ColumnsType<CampaignProductWithVariants> = useMemo(
+    () => [
+      {
+        title: 'Sản phẩm',
+        dataIndex: 'productName',
+        key: 'productName',
+        width: 320,
+        render: (_, record) => (
           <div className="flex items-start gap-3">
             <Image
               src={record.productImage}
@@ -445,267 +443,74 @@ const CampaignProductApproval: React.FC = () => {
             />
             <div className="flex-1 min-w-0">
               <div className="font-medium text-gray-900 line-clamp-2">{record.productName}</div>
-              <div className="text-xs text-gray-500 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
-                <Tooltip title={record.productId}>
-                  ID: {record.productId}
-                </Tooltip>
+              <div className="text-xs text-gray-500 mt-1">
+                Cửa hàng: {record.storeName}
               </div>
-              {flashSlot && (
-                <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                  <ThunderboltOutlined />
-                  <span className="font-medium whitespace-nowrap">
-                    {new Date(flashSlot.openTime).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false
-                    })}
-                    {' - '}
-                    {new Date(flashSlot.closeTime).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: false
-                    })}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
-    },
-    {
-      title: 'Chiến dịch',
-      dataIndex: 'campaignName',
-      key: 'campaignName',
-      width: 200,
-      render: (_, record) => (
-        <div>
-          <div className="font-medium text-gray-900">{record.campaignName}</div>
-          <Tag color={record.campaignType === 'MEGA_SALE' ? 'purple' : 'orange'} className="mt-1">
-            {record.campaignType === 'MEGA_SALE' ? 'Mega Sale' : 'Flash Sale'}
-          </Tag>
-        </div>
-      )
-    },
-    {
-      title: 'Cửa hàng',
-      dataIndex: 'storeName',
-      key: 'storeName',
-      width: 180,
-      render: (_, record) => (
-        <div>
-          <div className="flex items-center gap-1">
-            <ShopOutlined className="text-gray-400" />
-            <span className="text-sm">{record.storeName}</span>
-          </div>
-          <div className="text-xs text-gray-400 mt-1">ID: {record.storeId.slice(0, 8)}...</div>
-        </div>
-      )
-    },
-    {
-      title: 'Giá gốc',
-      dataIndex: 'originalPrice',
-      key: 'originalPrice',
-      width: 120,
-      align: 'right',
-      render: (price: number, record) => {
-        // If has variants, show range
-        if (record.variantData && record.variantData.length > 0) {
-          const prices = record.variantData
-            .map(v => v.variantPrice)
-            .filter(p => p != null && p > 0);
-          
-          if (prices.length === 0) {
-            return <span className="text-gray-400">N/A</span>;
-          }
-          
-          const minPrice = Math.min(...prices);
-          const maxPrice = Math.max(...prices);
-          
-          if (minPrice === maxPrice) {
-            return (
-              <span className="text-gray-600 font-medium">
-                {minPrice.toLocaleString('vi-VN')}₫
-              </span>
-            );
-          }
-          
-          return (
-            <div className="text-right">
-              <div className="text-gray-600 font-medium text-xs">
-                {minPrice.toLocaleString('vi-VN')}₫
-              </div>
-              <div className="text-gray-400 text-xs">~</div>
-              <div className="text-gray-600 font-medium text-xs">
-                {maxPrice.toLocaleString('vi-VN')}₫
-              </div>
-            </div>
-          );
-        }
-        
-        // For products without variants, try to get price from fullProduct if calculated price is 0
-        let displayPrice = price;
-        if ((!displayPrice || displayPrice === 0) && record.fullProduct) {
-          displayPrice = record.fullProduct.finalPrice || record.fullProduct.price || 0;
-        }
-        
-        // Safety check for price
-        if (!displayPrice || displayPrice === 0) {
-          return <span className="text-gray-400">N/A</span>;
-        }
-        
-        return (
-          <span className="text-gray-600 font-medium">
-            {displayPrice.toLocaleString('vi-VN')}₫
-          </span>
-        );
-      }
-    },
-    {
-      title: 'Giảm giá',
-      key: 'discount',
-      width: 120,
-      align: 'center',
-      render: (_, record) => {
-        const voucher = getProductVoucher(record);
-        if (!voucher) return <span className="text-gray-400">N/A</span>;
-        return (
-          <div>
-            <Tag color="red" className="font-bold">
-              {CampaignProductService.formatDiscount(voucher)}
-            </Tag>
-            {voucher.type === 'PERCENT' && voucher.maxDiscountValue && (
               <div className="text-xs text-gray-400 mt-1">
-                Tối đa: {voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
+                ID sản phẩm: <Tooltip title={record.productId}>{record.productId.slice(0, 8)}...</Tooltip>
               </div>
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      title: 'Giá sau giảm',
-      key: 'finalPrice',
-      width: 120,
-      align: 'right',
-      render: (_, record) => {
-        const voucher = getProductVoucher(record);
-        
-        // If has variants, show range
-        if (record.variantData && record.variantData.length > 0) {
-          const prices = record.variantData
-            .map(v => v.discountedPrice)
-            .filter(p => p != null && p > 0);
-          
-          if (prices.length === 0) {
-            return <span className="text-gray-400">N/A</span>;
-          }
-          
-          const minPrice = Math.min(...prices);
-          const maxPrice = Math.max(...prices);
-          
-          if (minPrice === maxPrice) {
-            return (
-              <span className="text-red-600 font-bold">
-                {minPrice.toLocaleString('vi-VN')}₫
-              </span>
-            );
-          }
-          
-          return (
-            <div className="text-right">
-              <div className="text-red-600 font-bold text-xs">
-                {minPrice.toLocaleString('vi-VN')}₫
-              </div>
-              <div className="text-red-400 text-xs">~</div>
-              <div className="text-red-600 font-bold text-xs">
-                {maxPrice.toLocaleString('vi-VN')}₫
-              </div>
-            </div>
-          );
-        }
-        
-        // No variants - use the calculated discountedPrice if available
-        if (record.discountedPrice !== undefined && record.discountedPrice > 0) {
-          return (
-            <span className="text-red-600 font-bold">
-              {record.discountedPrice.toLocaleString('vi-VN')}₫
-            </span>
-          );
-        }
-        
-        // Fallback: calculate on the fly if discountedPrice not set
-        if (!voucher) {
-          const price = record.originalPrice || (record.fullProduct?.finalPrice || record.fullProduct?.price || 0);
-          if (!price || price === 0) {
-            return <span className="text-gray-400">N/A</span>;
-          }
-          return (
-            <span className="text-gray-400">
-              {price.toLocaleString('vi-VN')}₫
-            </span>
-          );
-        }
-        
-        // Calculate discounted price
-        const originalPrice = record.originalPrice || (record.fullProduct?.finalPrice || record.fullProduct?.price || 0);
-        if (!originalPrice || originalPrice === 0) {
-          return <span className="text-gray-400">N/A</span>;
-        }
-        
-        const finalPrice = CampaignProductService.calculateDiscountedPrice(
-          originalPrice,
-          voucher
-        );
-        return (
-          <span className="text-red-600 font-bold">
-            {finalPrice.toLocaleString('vi-VN')}₫
-          </span>
-        );
-      }
-    },
-    {
-      title: 'Trạng thái',
-      key: 'status',
-      width: 120,
-      align: 'center',
-      render: (_, record) => {
-        const voucher = getProductVoucher(record);
-        if (!voucher?.status) {
-          return <Tag color="default">Không rõ</Tag>;
-        }
-        return (
-          <Tag color={CampaignProductService.getVoucherStatusColor(voucher.status)}>
-            {CampaignProductService.getVoucherStatusLabel(voucher.status)}
-          </Tag>
-        );
-      }
-    },
-    {
-      title: 'Thời gian',
-      key: 'time',
-      width: 180,
-      render: (_, record) => {
-        const voucher = getProductVoucher(record);
-        if (!voucher?.startTime || !voucher?.endTime) {
-          return <span className="text-gray-400 text-xs">N/A</span>;
-        }
-        return (
-          <div className="text-xs">
-            <div className="flex items-center gap-1 text-gray-600">
-              <ClockCircleOutlined />
-              <span>{new Date(voucher.startTime).toLocaleDateString('vi-VN')}</span>
-            </div>
-            <div className="text-gray-400 mt-1">
-              đến {new Date(voucher.endTime).toLocaleDateString('vi-VN')}
             </div>
           </div>
-        );
+        )
+      },
+      {
+        title: 'Chiến dịch',
+        dataIndex: 'campaignName',
+        key: 'campaignName',
+        width: 200,
+        render: (_, record) => (
+          <div>
+            <div className="font-medium text-gray-900">{record.campaignName}</div>
+            <Tag color={record.campaignType === 'MEGA_SALE' ? 'purple' : 'orange'} className="mt-1">
+              {record.campaignType === 'MEGA_SALE' ? 'Mega Sale' : 'Flash Sale'}
+            </Tag>
+          </div>
+        )
+      },
+      {
+        title: 'Chiết khấu',
+        key: 'discount',
+        width: 140,
+        render: (_, record) => {
+          const voucher = getProductVoucher(record);
+          if (!voucher) return <span className="text-gray-400">N/A</span>;
+          return (
+            <Space direction="vertical" size={0}>
+              <Text strong>{CampaignProductService.formatDiscount(voucher)}</Text>
+              {voucher.type === 'PERCENT' && voucher.maxDiscountValue && (
+                <Text type="secondary" className="text-xs">
+                  Tối đa: {voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
+                </Text>
+              )}
+              {voucher.type === 'FIXED' && voucher.minOrderValue && (
+                <Text type="secondary" className="text-xs">
+                  Đơn tối thiểu: {voucher.minOrderValue.toLocaleString('vi-VN')}₫
+                </Text>
+              )}
+            </Space>
+          );
+        }
+      },
+      {
+        title: 'Trạng thái',
+        key: 'status',
+        width: 130,
+        align: 'center',
+        render: (_, record) => {
+          const voucher = getProductVoucher(record);
+          if (!voucher?.status) {
+            return <Tag color="default">Không rõ</Tag>;
+          }
+          return (
+            <Tag color={CampaignProductService.getVoucherStatusColor(voucher.status)}>
+              {CampaignProductService.getVoucherStatusLabel(voucher.status)}
+            </Tag>
+          );
+        }
       }
-    }
-  ], [getProductVoucher]);
+    ],
+    [getProductVoucher]
+  );
 
   // Child table columns for variants
   const variantColumns: ColumnsType<VariantRow> = useMemo(() => [
@@ -807,7 +612,8 @@ const CampaignProductApproval: React.FC = () => {
     getCheckboxProps: (record: CampaignProductWithVariants) => {
       const voucher = getProductVoucher(record);
       return {
-        disabled: !voucher?.status || !['DRAFT', 'APPROVE'].includes(voucher.status),
+        // Chỉ cho phép chọn những sản phẩm đang ở trạng thái chờ duyệt (DRAFT)
+        disabled: !voucher?.status || voucher.status !== 'DRAFT',
         name: record.productName
       };
     }
@@ -998,27 +804,182 @@ const CampaignProductApproval: React.FC = () => {
             pagination={pagination}
             onChange={(newPagination) => setPagination(newPagination)}
             rowSelection={rowSelection}
-            scroll={{ x: 1400 }}
+            scroll={{ x: 900 }}
             expandable={{
               expandedRowRender: (record) => {
-                if (!record.variantData || record.variantData.length === 0) {
-                  return null;
-                }
+                const voucher = getProductVoucher(record);
+                const isFlashSale = record.campaignType === 'FAST_SALE';
+                const flashSlot = isFlashSale && record.flashSaleSlots?.[0];
+
+                const basePrice =
+                  record.originalPrice || record.fullProduct?.finalPrice || record.fullProduct?.price || 0;
+                const baseStock = record.fullProduct?.variants?.reduce((sum, v) => sum + (v.variantStock || 0), 0) || 0;
+
+                const dataSource: VariantRow[] =
+                  record.variantData && record.variantData.length > 0
+                    ? record.variantData
+                    : [
+                        {
+                          variantId: record.productId,
+                          variantName: record.productName,
+                          variantPrice: basePrice,
+                          variantStock: baseStock,
+                          variantImage: record.productImage,
+                          variantSku: record.fullProduct?.sku,
+                          discountedPrice:
+                            voucher && basePrice
+                              ? CampaignProductService.calculateDiscountedPrice(basePrice, voucher)
+                              : basePrice
+                        }
+                      ];
+
                 return (
-                  <Table
-                    columns={variantColumns}
-                    dataSource={record.variantData}
-                    rowKey="variantId"
-                    pagination={false}
-                    size="small"
-                    className="ml-8"
-                  />
-                );
-              },
-              rowExpandable: (record) => {
-                return !!(record.variantData && record.variantData.length > 0);
-              }
-            }}
+                  <div className="ml-8 mt-2">
+                    <Row gutter={16}>
+                      <Col xs={24} md={8}>
+                        <Space direction="vertical" size={10} className="text-sm">
+                          <Space align="center">
+                            <TagOutlined className="text-orange-500" />
+                            <Text strong>Thông tin khuyến mãi</Text>
+                          </Space>
+                          {voucher ? (
+                            <Space direction="vertical" size={2}>
+                              <Text>
+                                Hình thức:&nbsp;
+                                {CampaignProductService.formatDiscount(voucher)}
+                              </Text>
+                              {voucher.minOrderValue && (
+                                <Text type="secondary">
+                                  Đơn tối thiểu:&nbsp;
+                                  {voucher.minOrderValue.toLocaleString('vi-VN')}₫
+                                </Text>
+                              )}
+                              {voucher.maxDiscountValue && (
+                                <Text type="secondary">
+                                  Giảm tối đa:&nbsp;{voucher.maxDiscountValue.toLocaleString('vi-VN')}₫
+                                </Text>
+                              )}
+                            </Space>
+                          ) : (
+                            <Text type="secondary">Không có cấu hình voucher</Text>
+                          )}
+
+                          <div className="border-t border-gray-200 my-2" />
+
+                          <Space align="center">
+                            <InfoCircleOutlined className="text-blue-500" />
+                            <Text strong>Thông tin chiến dịch</Text>
+                          </Space>
+                          <Space direction="vertical" size={2}>
+                            <Text>
+                              Chiến dịch:&nbsp;<strong>{record.campaignName}</strong>
+                            </Text>
+                            <Text type="secondary">
+                              Loại:&nbsp;{record.campaignType === 'MEGA_SALE' ? 'Mega Sale' : 'Flash Sale'}
+                            </Text>
+                          </Space>
+
+                          <div className="border-t border-gray-200 my-2" />
+
+                          <Space align="center">
+                            <ClockCircleOutlined className="text-green-500" />
+                            <Text strong>Thời gian áp dụng</Text>
+                          </Space>
+                          {voucher ? (
+                            <Space direction="vertical" size={2}>
+                              <Text>
+                                Bắt đầu:&nbsp;
+                                {new Date(voucher.startTime).toLocaleString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </Text>
+                              <Text>
+                                Kết thúc:&nbsp;
+                                {new Date(voucher.endTime).toLocaleString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </Text>
+                            </Space>
+                          ) : (
+                            <Text type="secondary">Không có thông tin thời gian</Text>
+                          )}
+
+                          <div className="border-t border-gray-200 my-2" />
+
+                          <Space align="center">
+                            <ThunderboltOutlined className="text-yellow-500" />
+                            <Text strong>Slot Flash Sale</Text>
+                          </Space>
+                          {flashSlot ? (
+                            <Space direction="vertical" size={2}>
+                              <Text>
+                                Bắt đầu:&nbsp;
+                                {new Date(flashSlot.openTime).toLocaleString('vi-NV', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </Text>
+                              <Text>
+                                Kết thúc:&nbsp;
+                                {new Date(flashSlot.closeTime).toLocaleString('vi-NV', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </Text>
+                              <Tag
+                                color={
+                                  flashSlot.status === 'ACTIVE'
+                                    ? 'green'
+                                    : flashSlot.status === 'PENDING'
+                                    ? 'orange'
+                                    : 'default'
+                                }
+                              >
+                                {flashSlot.status === 'ACTIVE'
+                                  ? 'Đang diễn ra'
+                                  : flashSlot.status === 'PENDING'
+                                  ? 'Chờ bắt đầu'
+                                  : 'Đã kết thúc'}
+                              </Tag>
+                            </Space>
+                          ) : (
+                            <Text type="secondary">Không có slot Flash Sale</Text>
+                          )}
+                        </Space>
+                      </Col>
+                        <Col xs={24} md={16}>
+                          <Table<VariantRow>
+                            columns={variantColumns}
+                            dataSource={dataSource}
+                            rowKey="variantId"
+                            pagination={false}
+                            size="small"
+                          />
+                        </Col>
+                      </Row>
+                    </div>
+                  );
+                },
+                rowExpandable: () => true
+              }}
             locale={{
               emptyText: (
                 <Empty

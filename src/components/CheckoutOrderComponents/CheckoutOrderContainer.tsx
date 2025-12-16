@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../../components/Layout';
 import { AddressForm, PaymentMethodDropdown, CartItemList, OrderSummaryCard } from '.';
@@ -30,7 +30,7 @@ interface CheckoutSessionPayload {
   createdAt?: number;
 }
 
-const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem & { inPlatformCampaign?: boolean; campaignUsageExceeded?: boolean } => {
+const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem & { inPlatformCampaign?: boolean; campaignUsageExceeded?: boolean; campaignRemaining?: number | null } => {
   // Backend đã xử lý platform campaign, sử dụng trực tiếp từ response
   // Logic: Nếu có platformCampaignPrice và inPlatformCampaign = true và campaignUsageExceeded = false
   // thì dùng platformCampaignPrice, ngược lại dùng unitPrice
@@ -60,7 +60,8 @@ const mapApiItemToCartItem = (apiItem: ApiCartItem): CartItem & { inPlatformCamp
     // Lưu thông tin platform campaign từ cart response
     inPlatformCampaign: apiItem.inPlatformCampaign,
     campaignUsageExceeded: apiItem.campaignUsageExceeded,
-  } as CartItem & { inPlatformCampaign?: boolean; campaignUsageExceeded?: boolean };
+    campaignRemaining: (apiItem as any).campaignRemaining ?? null,
+  } as CartItem & { inPlatformCampaign?: boolean; campaignUsageExceeded?: boolean; campaignRemaining?: number | null };
 };
 
 /**
@@ -191,6 +192,8 @@ const CheckoutOrderContainer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [shippingFeeError, setShippingFeeError] = useState<string | null>(null);
   const [storeMetadata, setStoreMetadata] = useState<Record<string, { storeName: string }>>({});
+  // Avoid spamming campaign warnings (align with Cart page)
+  const campaignWarnedRef = useRef<Set<string>>(new Set());
 
   const shippingItems = useMemo(
     () => cartItems.map(item => ({ ...item, isSelected: true })),
@@ -248,6 +251,45 @@ const CheckoutOrderContainer: React.FC = () => {
       variant: item.variant ?? null,
     }));
   }, [cartItems]);
+
+  /**
+   * Ensure items exceeding campaign quota use base price and warn once (align with Cart).
+   */
+  const normalizeCampaignPricing = useCallback((itemsToNormalize: CartItem[]): CartItem[] => {
+    const normalized = itemsToNormalize.map((item) => {
+      const hasCampaignLimit =
+        item.campaignRemaining !== null &&
+        item.campaignRemaining !== undefined &&
+        item.campaignRemaining >= 0 &&
+        item.quantity > item.campaignRemaining;
+
+      if (hasCampaignLimit) {
+        return {
+          ...item,
+          price: item.originalPrice ?? item.price,
+        };
+      }
+      return item;
+    });
+
+    normalized.forEach((item) => {
+      const hasCampaignLimit =
+        item.campaignRemaining !== null &&
+        item.campaignRemaining !== undefined &&
+        item.campaignRemaining >= 0 &&
+        item.quantity > item.campaignRemaining;
+
+      if (hasCampaignLimit && !campaignWarnedRef.current.has(item.id)) {
+        campaignWarnedRef.current.add(item.id);
+        showCenterError(
+          t('cart.campaign.exceeded', { productName: item.name }),
+          t('cart.warning.title')
+        );
+      }
+    });
+
+    return normalized;
+  }, [t]);
 
   const groupedCartItems = useMemo<StoreGroup[]>(() => {
     if (checkoutCartItems.length === 0) return [];
@@ -416,9 +458,9 @@ const CheckoutOrderContainer: React.FC = () => {
           return;
         }
 
-        // Backend đã xử lý platform campaign, chỉ cần map trực tiếp
+        // Backend đã xử lý platform campaign, chỉ cần map trực tiếp + normalize quota
         const mappedItems = mapApiItemsToCartItems(selectedCartItems);
-        setCartItems(mappedItems);
+        setCartItems(normalizeCampaignPricing(mappedItems));
       } catch (err: any) {
         setError(err?.message || t('checkout.errors.cannotLoadData'));
       } finally {
@@ -430,11 +472,21 @@ const CheckoutOrderContainer: React.FC = () => {
   }, [loadAddresses]);
 
   useEffect(() => {
+    // Khi đã có ít nhất một địa chỉ, luôn đảm bảo có địa chỉ được chọn
     if (addresses.length === 0) {
       setSelectedAddressId(null);
       return;
     }
-    if (selectedAddressId && !addresses.some(addr => addr.id === selectedAddressId)) {
+
+    // Nếu chưa có selectedAddressId nhưng đã có addresses (case mới thêm lần đầu)
+    if (!selectedAddressId) {
+      const fallback = addresses.find(addr => addr.default) || addresses[0] || null;
+      setSelectedAddressId(fallback ? fallback.id : null);
+      return;
+    }
+
+    // Nếu selectedAddressId hiện tại không còn tồn tại trong danh sách (vừa bị xóa)
+    if (!addresses.some(addr => addr.id === selectedAddressId)) {
       const fallback = addresses.find(addr => addr.default) || addresses[0] || null;
       setSelectedAddressId(fallback ? fallback.id : null);
     }

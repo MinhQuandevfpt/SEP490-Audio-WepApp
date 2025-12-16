@@ -40,7 +40,12 @@ const NotificationDropdown: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await NotificationService.getNotifications(0, 20);
-      setNotifications(response.content || []);
+      const sorted = (response.content || []).slice().sort((a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tB - tA; // mới nhất lên đầu
+      });
+      setNotifications(sorted);
       await loadUnreadCount();
     } catch (err: any) {
       console.error('Error loading notifications:', err);

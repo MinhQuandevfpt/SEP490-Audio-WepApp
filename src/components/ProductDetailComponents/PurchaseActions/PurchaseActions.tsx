@@ -212,7 +212,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
         // Check if new quantity exceeds available stock
         if (newQuantity > actualStock) {
           showCenterError(
-            `Số lượng trong giỏ hàng (${existingItem.quantity}) + số lượng thêm (${qty}) = ${newQuantity} vượt quá tồn kho (${actualStock} sản phẩm). Bạn có thể thêm tối đa ${actualStock - existingItem.quantity} sản phẩm nữa.`,
+            `Bạn đã vượt quá số lượng tồn kho (${actualStock} sản phẩm). Bạn chỉ có thể thêm tối đa ${actualStock - existingItem.quantity} sản phẩm nữa.`,
             '⚠️ Vượt quá tồn kho'
           );
           setIsAdding(false);
@@ -237,6 +237,65 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
           selectedVariant?.variantId
         );
         showCenterSuccess('Đã thêm sản phẩm vào giỏ hàng!', '🛒 Thành công');
+      }
+      
+      // Reload cart to detect campaign usage state after the operation
+      const updatedCart = await CustomerCartService.getCart();
+      const updatedItem = updatedCart.items.find(item => {
+        if (item.type !== 'PRODUCT') return false;
+        if (selectedVariant?.variantId) {
+          return item.refId === productId && item.variantId === selectedVariant.variantId;
+        }
+        return item.refId === productId && !item.variantId;
+      });
+
+      // Show warning if campaign quota is exceeded (aligns with cart page behavior)
+      const exceededInPreview =
+        campaignPreview?.campaignUsageExceeded ||
+        (campaignPreview?.inCampaign &&
+          campaignPreview.campaignRemaining !== null &&
+          campaignPreview.campaignRemaining > 0 &&
+          qty > campaignPreview.campaignRemaining);
+
+      // Nếu số lượng vượt quota campaign, gọi API updateQuantityWithVouchers để backend tính lại giá (giống Cart)
+      const exceedsCampaignLimit =
+        updatedItem?.inPlatformCampaign &&
+        updatedItem.campaignRemaining !== null &&
+        updatedItem.campaignRemaining !== undefined &&
+        updatedItem.quantity > (updatedItem.campaignRemaining ?? 0);
+
+      if (updatedItem?.cartItemId && exceedsCampaignLimit) {
+        try {
+          await CustomerCartService.updateQuantityWithVouchers({
+            cartItemId: updatedItem.cartItemId,
+            quantity: updatedItem.quantity,
+            storeVouchers: null,
+            platformVouchers: null,
+            serviceTypeIds: null,
+          });
+          // Reload lại cart để lấy giá đã được backend điều chỉnh
+          const refreshedCart = await CustomerCartService.getCart();
+          const refreshedItem = refreshedCart.items.find(item => item.cartItemId === updatedItem.cartItemId);
+          if (refreshedItem) {
+            updatedItem.campaignUsageExceeded = refreshedItem.campaignUsageExceeded;
+            updatedItem.campaignRemaining = refreshedItem.campaignRemaining;
+          }
+        } catch (err) {
+          console.error('Failed to normalize campaign quantity/pricing:', err);
+        }
+      }
+
+      const shouldWarnCampaign =
+        updatedItem?.campaignUsageExceeded || exceededInPreview;
+
+      // Hiển thị cảnh báo sau 3s để không che toast "Thêm vào giỏ"
+      if (shouldWarnCampaign) {
+        setTimeout(() => {
+          showCenterError(
+            'Bạn đã vượt số lượng khuyến mãi. Phần vượt sẽ áp dụng giá gốc.',
+            '⚠️ Vượt giới hạn khuyến mãi'
+          );
+        }, 3000);
       }
       
       // Trigger cart update event
