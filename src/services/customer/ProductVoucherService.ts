@@ -4,18 +4,56 @@ export interface ProductVoucherResponse {
   status: number;
   message: string;
   data: {
-    product: {
-      productId: string;
+    // Product info (direct fields in response)
+    productId: string;
+    name: string;
+    price: number;
+    discountPrice: number | null;
+    finalPrice: number;
+    brandName?: string;
+    ratingAverage?: number | null;
+    reviewCount?: number | null;
+    categories?: Array<{
+      categoryId: string;
+      categoryName: string;
+    }>;
+    thumbnailUrl?: string;
+    variants?: Array<any>;
+    store?: {
+      id: string;
       name: string;
-      price: number;
-      discountPrice: number | null;
-      finalPrice: number;
-      brandName: string;
-      category: string;
-      thumbnailUrl: string;
+      status: string;
+      provinceCode?: string;
+      districtCode?: string;
+      wardCode?: string;
     };
-    vouchers: {
-      shop: Array<{
+    // Vouchers structure (actual API response)
+    vouchers?: {
+      platformVouchers?: Array<{
+        campaignId: string;
+        code: string;
+        name: string;
+        description: string;
+        campaignType: string;
+        vouchers: Array<{
+          platformVoucherId: string;
+          campaignId: string;
+          type: 'FIXED' | 'PERCENT';
+          discountValue: number | null;
+          discountPercent: number | null;
+          maxDiscountValue: number | null;
+          minOrderValue: number | null;
+          usagePerUser: number;
+          status: string;
+          startTime?: string;
+          endTime?: string;
+          flashSlotId?: string;
+          slotOpenTime?: string;
+          slotCloseTime?: string;
+          slotStatus?: string;
+        }>;
+      }>;
+      shop?: Array<{
         source: 'SHOP';
         shopVoucherId: string;
         shopVoucherProductId: string;
@@ -29,7 +67,8 @@ export interface ProductVoucherResponse {
         startTime: string;
         endTime: string;
       }>;
-      platform: Array<{
+      // Legacy structure support
+      platform?: Array<{
         campaignId: string;
         campaignType: string;
         code: string;
@@ -61,6 +100,17 @@ export interface ProductVoucherResponse {
           slotStatus?: string;
         }>;
       }>;
+    };
+    // Legacy structure support (nested product object)
+    product?: {
+      productId: string;
+      name: string;
+      price: number;
+      discountPrice: number | null;
+      finalPrice: number;
+      brandName: string;
+      category: string;
+      thumbnailUrl: string;
     };
   };
 }

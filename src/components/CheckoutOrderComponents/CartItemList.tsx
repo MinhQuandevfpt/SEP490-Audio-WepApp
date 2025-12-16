@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { CheckoutCartItem } from '../../data/checkout';
 import { Trash2, Store } from 'lucide-react';
 import StoreWideVoucherSection, { type AppliedStoreWideVoucher } from './StoreWideVoucherSection';
@@ -40,6 +40,21 @@ const CartItemList: React.FC<Props> = ({
   onRemoveStoreWideVoucher,
 }) => {
   const { t } = useLanguage();
+
+  // Đếm số biến thể (variant) theo productId để phát hiện case:
+  // - Có từ 2 variant trở lên cùng 1 productId
+  const variantCountsByProductId = useMemo(() => {
+    const counts = new Map<string, number>();
+    groups.forEach(group => {
+      group.items.forEach(item => {
+        if (item.variantId !== null && item.variantId !== undefined) {
+          const key = item.productId;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      });
+    });
+    return counts;
+  }, [groups]);
   
   if (groups.length === 0) {
     return (
@@ -101,17 +116,43 @@ const CartItemList: React.FC<Props> = ({
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex flex-col items-end">
-                          {/* Giá sau giảm (đã áp dụng chiến dịch) */}
+                          {(() => {
+                            // Điều kiện force hiển thị giá gốc:
+                            // 1. Có từ 2 variant trở lên cùng 1 productId
+                            // 2. Hoặc 1 variant nhưng quantity ≥ 2
+                            const variantCountForProduct =
+                              item.variantId !== null && item.variantId !== undefined
+                                ? variantCountsByProductId.get(item.productId) ?? 0
+                                : 0;
+                            const forceShowOriginalPrice =
+                              item.variantId !== null &&
+                              item.variantId !== undefined &&
+                              (variantCountForProduct >= 2 || item.quantity >= 2);
+
+                            const effectivePrice = forceShowOriginalPrice
+                              ? (item.originalPrice ?? item.price)
+                              : item.price;
+
+                            const shouldShowStrikedOriginal =
+                              !forceShowOriginalPrice &&
+                              item.originalPrice !== undefined &&
+                              item.originalPrice > item.price;
+
+                            return (
+                              <>
+                                {/* Giá hiển thị trên UI */}
                           <span className="text-base font-semibold text-red-600">
-                            {formatVnd(item.price)}
+                                  {formatVnd(effectivePrice)}
                           </span>
-                          {/* Giá gốc gạch ngang nếu có giảm */}
-                          {item.originalPrice !== undefined &&
-                            item.originalPrice > item.price && (
+                                {/* Giá gốc gạch ngang nếu thực sự có giảm */}
+                                {shouldShowStrikedOriginal && (
                               <span className="text-xs text-gray-400 line-through">
-                                {formatVnd(item.originalPrice)}
+                                    {formatVnd(item.originalPrice!)}
                               </span>
                             )}
+                              </>
+                            );
+                          })()}
                         </div>
                         <button
                           onClick={() => onRemove(item.id)}

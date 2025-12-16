@@ -24,6 +24,10 @@ interface CartItemRowProps {
   productCache?: Map<string, any>; // Product cache to get product names
   onApplyVoucher?: (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => void;
   onRemoveVoucher?: (productId: string) => void;
+  // Khi true: luôn hiển thị giá gốc (không highlight giảm giá) cho item này
+  forceShowOriginalPrice?: boolean;
+  // Platform voucher info để hiển thị giá sau giảm
+  platformVoucherInfo?: { discount: number; campaignProductId: string; inPlatformCampaign?: boolean };
 }
 
 const CartItemRow: React.FC<CartItemRowProps> = ({ 
@@ -42,6 +46,8 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
   productCache = new Map(),
   onApplyVoucher,
   onRemoveVoucher,
+  forceShowOriginalPrice = false,
+  platformVoucherInfo,
 }) => {
   const { t } = useLanguage();
   const [qty, setQty] = useState<number>(it.quantity);
@@ -93,23 +99,56 @@ const CartItemRow: React.FC<CartItemRowProps> = ({
           <div className="mt-3 flex items-center justify-between">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                {it.originalPrice !== undefined && it.originalPrice > it.price ? (
-                  <>
-                    {/* Giá sau giảm – làm nổi bật giống HomePage */}
-                    <span className="text-lg font-semibold text-red-600">
+                {(() => {
+                  const original = it.originalPrice ?? it.price;
+                  
+                  // Tính giá sau giảm nếu có platform voucher
+                  let displayPrice = it.price;
+                  let hasPlatformDiscount = false;
+                  
+                  if (platformVoucherInfo && platformVoucherInfo.campaignProductId && platformVoucherInfo.discount > 0) {
+                    // Có platform voucher: tính giá sau giảm
+                    const discountedPrice = Math.max(0, original - platformVoucherInfo.discount);
+                    // Chỉ áp dụng nếu giá hiện tại >= giá gốc (chưa có discount từ backend)
+                    if (it.price >= original) {
+                      displayPrice = discountedPrice;
+                      hasPlatformDiscount = true;
+                    }
+                  }
+                  
+                  const hasDiscount =
+                    (it.originalPrice !== undefined && it.originalPrice > it.price) || hasPlatformDiscount;
+
+                  // Nếu đang ở chế độ forceShowOriginalPrice, chỉ hiển thị giá gốc (màu cam), không trừ discount
+                  if (forceShowOriginalPrice) {
+                    return (
+                      <span className="text-lg font-semibold text-orange-500">
+                        {formatCurrency(original)}
+                      </span>
+                    );
+                  }
+
+                  // Trường hợp có giảm giá: hiển thị giá sau giảm (đỏ) + giá gốc gạch ngang
+                  if (hasDiscount) {
+                    return (
+                      <>
+                        <span className="text-lg font-semibold text-red-600">
+                          {formatCurrency(displayPrice)}
+                        </span>
+                        <span className="text-sm text-gray-400 line-through">
+                          {formatCurrency(original)}
+                        </span>
+                      </>
+                    );
+                  }
+
+                  // Không có giảm giá: hiển thị giá hiện tại màu cam
+                  return (
+                    <span className="text-lg font-semibold text-orange-500">
                       {formatCurrency(it.price)}
                     </span>
-                    {/* Giá gốc gạch ngang */}
-                    <span className="text-sm text-gray-400 line-through">
-                      {formatCurrency(it.originalPrice)}
-                    </span>
-                  </>
-                ) : (
-                  // Không có giảm giá: hiển thị giá gốc màu cam
-                  <span className="text-lg font-semibold text-orange-600">
-                    {formatCurrency(it.price)}
-                  </span>
-                )}
+                  );
+                })()}
               </div>
               {/* Campaign remaining message */}
               {it.campaignRemaining !== undefined && it.campaignRemaining > 0 && (
