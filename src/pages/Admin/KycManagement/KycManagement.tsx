@@ -17,6 +17,7 @@ const KycManagement: React.FC = () => {
   const [selectedKyc, setSelectedKyc] = useState<KycData | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [showApproveModal, setShowApproveModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; title: string } | null>(null);
   const [pagination, setPagination] = useState<TablePaginationConfig>({
@@ -49,18 +50,23 @@ const KycManagement: React.FC = () => {
     }
   }, [selectedStatus]);
 
-  const handleApprove = useCallback(async (kyc: KycData) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn phê duyệt KYC cho cửa hàng "${kyc.storeName}"?`)) {
-      return;
-    }
+  const handleApprove = useCallback((kyc: KycData) => {
+    setSelectedKyc(kyc);
+    setShowApproveModal(true);
+  }, []);
+
+  const confirmApprove = useCallback(async () => {
+    if (!selectedKyc) return;
 
     try {
-      await AdminKycService.approveKyc(kyc.id);
+      await AdminKycService.approveKyc(selectedKyc.id);
+      setShowApproveModal(false);
+      setSelectedKyc(null);
       fetchKycRequests();
     } catch (error) {
       console.error('Error approving KYC:', error);
     }
-  }, [fetchKycRequests]);
+  }, [selectedKyc, fetchKycRequests]);
 
   const handleReject = useCallback((kyc: KycData) => {
     setSelectedKyc(kyc);
@@ -358,6 +364,26 @@ const KycManagement: React.FC = () => {
           }}
         />
       </Card>
+
+      {/* Approve Modal */}
+      <Modal
+        title="Phê duyệt yêu cầu KYC"
+        open={showApproveModal}
+        onOk={confirmApprove}
+        onCancel={() => {
+          setShowApproveModal(false);
+          setSelectedKyc(null);
+        }}
+        okText="Xác nhận phê duyệt"
+        cancelText="Hủy"
+        okButtonProps={{ style: { backgroundColor: '#52c41a', borderColor: '#52c41a' } }}
+      >
+        {selectedKyc && (
+          <p>
+            Bạn có chắc chắn muốn phê duyệt KYC cho cửa hàng <span className="font-medium">"{selectedKyc.storeName}"</span>?
+          </p>
+        )}
+      </Modal>
 
       {/* Reject Modal */}
       <Modal
