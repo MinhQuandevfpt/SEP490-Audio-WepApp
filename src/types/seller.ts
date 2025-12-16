@@ -483,6 +483,22 @@ export interface ProductListResponse {
 }
 
 // Order Types for Seller (high-level, may be mapped from store order statuses)
+// Risk Warning Types
+export interface RiskWarningResponse {
+  storeId: string;
+  storeName: string;
+  storeStatus: 'ACTIVE' | 'SUSPENDED_DEBT' | 'SUSPENDED_PERMANENT';
+  warningLevel: 'NONE' | 'NOTICE_20' | 'WARNING_50' | 'DANGER_80' | 'BLOCK_100';
+  legalPoint: number;
+  creditLimit: number;
+  debtBalance: number;
+  depositBalance: number;
+  effectiveDebt: number;
+  warningLine: number;
+  criticalLine: number;
+  evaluatedAt: string;
+}
+
 export type OrderStatus =
   | 'UNPAID'          // Chờ thanh toán
   | 'PENDING'         // Chờ xử lý

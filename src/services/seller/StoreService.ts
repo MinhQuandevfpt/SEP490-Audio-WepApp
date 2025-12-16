@@ -366,4 +366,38 @@ export class StoreService {
       throw error;
     }
   }
+
+  /**
+   * Get risk warning information for current store
+   * GET /api/store/me/risk-warning
+   */
+  static async getRiskWarning(): Promise<any> {
+    try {
+      const endpoint = `${API_URL}/store/me/risk-warning`;
+      
+      console.log('📡 Calling risk warning API:', endpoint);
+      
+      const response = await HttpInterceptor.get<any>(
+        endpoint,
+        {
+          userType: 'seller',
+          headers: {
+            'Accept': '*/*',
+          },
+        }
+      );
+
+      console.log('📥 Risk warning API response:', response);
+      
+      // Handle different response formats
+      if (response.data) {
+        return response.data;
+      }
+      
+      return response;
+    } catch (error: any) {
+      console.error('❌ Error getting risk warning:', error);
+      throw new Error(error?.message || 'Không thể tải thông tin cảnh báo nợ');
+    }
+  }
 }

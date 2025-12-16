@@ -82,6 +82,7 @@ import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
 import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
 import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
+import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -491,6 +492,10 @@ export const router = createBrowserRouter([
       {
         path: 'notifications',
         element: <NotificationPage />
+      },
+      {
+        path: 'risk-warning',
+        element: <RiskWarningPage />
       },
       {
         path: 'settings',
