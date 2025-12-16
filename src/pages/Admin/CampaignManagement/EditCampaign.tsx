@@ -7,6 +7,48 @@ import { showTikiNotification } from '../../../utils/notification';
 import { FileUploadService } from '../../../services/FileUploadService';
 import { validateCampaignTimes, validateFlashSlots, hasCampaignStarted, getMinDateTime } from '../../../utils/campaignValidation';
 
+/**
+ * Convert ISO datetime string to datetime-local format (YYYY-MM-DDTHH:mm:ss)
+ * Preserves the local timezone without converting to UTC
+ */
+const toDatetimeLocal = (isoString: string): string => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+};
+
+/**
+ * ⚠️ TEMPORARY HACK - REMOVE WHEN BACKEND FIXES TIMEZONE ISSUE
+ * 
+ * Convert datetime-local format and ADD 7 hours to compensate for backend bug
+ * Backend's update API incorrectly subtracts 7 hours from the datetime
+ * By adding 7 hours here, it will be correct after backend's subtraction
+ * 
+ * TODO: Remove this hack once backend handles timezone consistently between create and update APIs
+ */
+const toISOWithTimezone = (datetimeLocal: string): string => {
+  if (!datetimeLocal) return '';
+  
+  // HACK: Add 7 hours (25200000 ms) to compensate for backend timezone bug
+  const date = new Date(datetimeLocal);
+  const adjustedDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+  
+  const year = adjustedDate.getFullYear();
+  const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
+  const day = String(adjustedDate.getDate()).padStart(2, '0');
+  const hours = String(adjustedDate.getHours()).padStart(2, '0');
+  const minutes = String(adjustedDate.getMinutes()).padStart(2, '0');
+  const seconds = String(adjustedDate.getSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+};
+
 const EditCampaign: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -59,8 +101,8 @@ const EditCampaign: React.FC = () => {
           badgeColor: data.badgeColor,
           badgeIconUrl: data.badgeIconUrl,
           allowRegistration: data.allowRegistration,
-          startTime: data.startTime ? new Date(data.startTime).toISOString().slice(0, 19) : '',
-          endTime: data.endTime ? new Date(data.endTime).toISOString().slice(0, 19) : '',
+          startTime: toDatetimeLocal(data.startTime),
+          endTime: toDatetimeLocal(data.endTime),
           status: data.status
         });
 
@@ -73,8 +115,8 @@ const EditCampaign: React.FC = () => {
         if (data.type === 'FAST_SALE' && data.flashSlots) {
           setFlashSlots(data.flashSlots.map(slot => ({
             slotId: slot.slotId,
-            openTime: slot.openTime ? new Date(slot.openTime).toISOString().slice(0, 19) : '',
-            closeTime: slot.closeTime ? new Date(slot.closeTime).toISOString().slice(0, 19) : '',
+            openTime: toDatetimeLocal(slot.openTime),
+            closeTime: toDatetimeLocal(slot.closeTime),
             status: slot.status
           })));
         }
@@ -281,17 +323,19 @@ const EditCampaign: React.FC = () => {
         badgeIconUrl = uploadResult.url;
       }
 
-      // Prepare request data
+      // Prepare request data - convert datetime to ISO with timezone
       const requestData: UpdateCampaignRequest = {
         ...formData,
         badgeIconUrl,
+        startTime: toISOWithTimezone(formData.startTime),
+        endTime: toISOWithTimezone(formData.endTime),
         // Chỉ gửi flashSlots nếu là FAST_SALE
         flashSlots:
           campaign?.type === 'FAST_SALE'
             ? flashSlots.map((slot) => ({
                 id: slot.slotId,
-                openTime: slot.openTime,
-                closeTime: slot.closeTime,
+                openTime: toISOWithTimezone(slot.openTime),
+                closeTime: toISOWithTimezone(slot.closeTime),
                 status: slot.status,
               }))
             : undefined,
@@ -587,10 +631,7 @@ const EditCampaign: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Khung giờ Flash Sale</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  <span className="text-blue-600 font-semibold">Có ID:</span> cập nhật slot cũ • 
-                  <span className="text-green-600 font-semibold ml-1">Không ID:</span> tạo slot mới
-                </p>
+              
               </div>
               <button
                 type="button"
@@ -630,11 +671,7 @@ const EditCampaign: React.FC = () => {
                             <div>
                               <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Thời gian mở
-                                {slot.slotId && (
-                                  <span className="ml-2 text-xs font-medium px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                                    ID: {slot.slotId.slice(0, 8)}...
-                                  </span>
-                                )}
+                                
                               </label>
                               <input
                                 type="datetime-local"

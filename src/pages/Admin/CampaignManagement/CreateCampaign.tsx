@@ -7,6 +7,18 @@ import { showTikiNotification } from '../../../utils/notification';
 import { FileUploadService } from '../../../services/FileUploadService';
 import { validateCampaignTimes, validateFlashSlots, getMinDateTime } from '../../../utils/campaignValidation';
 
+/**
+ * Convert datetime-local format to ISO 8601 string
+ * Input: YYYY-MM-DDTHH:mm:ss (from datetime-local input)
+ * Output: YYYY-MM-DDTHH:mm:ss (standard format for backend)
+ */
+const toISOWithTimezone = (datetimeLocal: string): string => {
+  if (!datetimeLocal) return '';
+  // Simply return the datetime string as-is since backend expects this format
+  // Backend should handle timezone on its side
+  return datetimeLocal;
+};
+
 const CreateCampaign: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -230,20 +242,30 @@ const CreateCampaign: React.FC = () => {
         badgeIconUrl = uploadResult.url;
       }
 
-      // Prepare request data
+      // Prepare request data - convert datetime to ISO with timezone
       const requestData: CreateCampaignRequest = {
         ...formData,
         badgeIconUrl,
-        flashSlots: formData.campaignType === 'FAST_SALE' ? flashSlots : undefined
+        startTime: toISOWithTimezone(formData.startTime),
+        endTime: toISOWithTimezone(formData.endTime),
+        flashSlots: formData.campaignType === 'FAST_SALE' 
+          ? flashSlots.map(slot => ({
+              openTime: toISOWithTimezone(slot.openTime),
+              closeTime: toISOWithTimezone(slot.closeTime)
+            }))
+          : undefined
       };
 
+      // Debug: Log request data
+      console.log('📤 Sending campaign data:', requestData);
+      
       // Submit
       await CampaignService.createCampaign(requestData);
       
       showTikiNotification('Tạo chiến dịch thành công!', 'Thành công', 'success');
       navigate('/admin/campaigns');
     } catch (error: any) {
-      console.error('Error creating campaign:', error);
+      console.error('❌ Error creating campaign:', error);
       showTikiNotification(error.message || 'Không thể tạo chiến dịch', 'Lỗi', 'error');
     } finally {
       setIsLoading(false);
