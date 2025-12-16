@@ -176,6 +176,23 @@ const SellerCampaignList: React.FC = () => {
     }
   };
 
+  // Component to display live countdown
+  const CountdownDisplay = ({ targetTime }: { targetTime: string }) => {
+    const [countdown, setCountdown] = useState(
+      SellerCampaignService.getTimeRemainingDetailed(targetTime)
+    );
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setCountdown(SellerCampaignService.getTimeRemainingDetailed(targetTime));
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [targetTime]);
+
+    return <span className="text-red-600 font-medium">Kết thúc trong: {countdown}</span>;
+  };
+
   const CampaignCard = ({ campaign, isJoined = false }: { campaign: CampaignForSeller; isJoined?: boolean }) => {
     const isMegaSale = campaign.type === 'MEGA_SALE';
     const canJoin = SellerCampaignService.canJoinCampaign(
@@ -248,9 +265,7 @@ const SellerCampaignList: React.FC = () => {
               </div>
               <div className="text-sm mt-2">
                 {canJoin ? (
-                  <span className="text-red-600 font-medium">
-                    Kết thúc trong: {SellerCampaignService.getTimeRemainingDetailed(campaign.startTime)}
-                  </span>
+                  <CountdownDisplay targetTime={campaign.startTime} />
                 ) : (
                   <span className="text-gray-500 font-medium">Đã hết thời gian đăng ký</span>
                 )}

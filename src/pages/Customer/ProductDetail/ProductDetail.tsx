@@ -73,7 +73,9 @@ const ProductDetail: React.FC = () => {
       // Set voucher data
       if (voucherResponse) {
         const shopVouchers = voucherResponse?.data?.vouchers?.shop || [];
-        const platformVouchers = voucherResponse?.data?.vouchers?.platform || [];
+        // Support both 'platform' and 'platformVouchers' keys
+        const platformVouchers = voucherResponse?.data?.vouchers?.platform || 
+                                 (voucherResponse?.data?.vouchers as any)?.platformVouchers || [];
         setVouchers(shopVouchers);
         setPlatformCampaigns(platformVouchers);
       } else {
@@ -185,37 +187,26 @@ const ProductDetail: React.FC = () => {
       const campaign = platformCampaigns[0];
       const voucher = campaign.vouchers?.[0];
       
+      // Backend already filters active vouchers, just check status
       if (voucher && voucher.status === 'ACTIVE') {
-        const now = new Date();
-        
-        // For Flash Sale with slot, check slot time instead of voucher time
-        let isActive = false;
-        if (voucher.slotOpenTime && voucher.slotCloseTime) {
-          // Flash Sale: check slot time and slot status
-          isActive = 
-            now >= new Date(voucher.slotOpenTime) && 
-            now <= new Date(voucher.slotCloseTime) &&
-            voucher.slotStatus === 'ACTIVE';
-        } else {
-          // Regular campaign: check voucher time
-          isActive = now >= new Date(voucher.startTime) && now <= new Date(voucher.endTime);
+        if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+          voucherType = 'PERCENT';
+          discountPercent = voucher.discountPercent;
+          voucherMaxDiscount = voucher.maxDiscountValue || null;
+        } else if (voucher.type === 'FIXED' && voucher.discountValue) {
+          voucherType = 'FIXED';
+          voucherDiscountValue = voucher.discountValue;
         }
         
-        if (isActive) {
-          if (voucher.type === 'PERCENT' && voucher.discountPercent) {
-            voucherType = 'PERCENT';
-            discountPercent = voucher.discountPercent;
-            voucherMaxDiscount = voucher.maxDiscountValue || null;
-          } else if (voucher.type === 'FIXED' && voucher.discountValue) {
-            voucherType = 'FIXED';
-            voucherDiscountValue = voucher.discountValue;
-          }
-          
-          campaignBadge = {
-            label: campaign.badgeLabel || 'FLASH SALE',
-            color: campaign.badgeColor || '#FF6600'
-          };
-        }
+        // Set campaign badge
+        const badgeLabel = campaign.campaignType === 'MEGA_SALE' ? 'MEGA SALE' : 
+                          campaign.campaignType === 'FLASH_SALE' ? 'FLASH SALE' :
+                          campaign.name || 'SALE';
+        
+        campaignBadge = {
+          label: campaign.badgeLabel || badgeLabel,
+          color: campaign.badgeColor || '#FF6600'
+        };
       }
     }
 
@@ -390,5 +381,6 @@ const ProductDetail: React.FC = () => {
 };
 
 export default ProductDetail;
+
 
 
