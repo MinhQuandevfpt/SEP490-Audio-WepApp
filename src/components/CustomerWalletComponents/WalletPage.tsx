@@ -1,11 +1,14 @@
-import React from 'react';
-import { Card, Table, Tag, Empty, Spin, Alert, Row, Col, Statistic } from 'antd';
-import { WalletOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Card, Table, Tag, Empty, Spin, Alert, Row, Col, Statistic, Button, Modal, Form, InputNumber, message, Input, Select, Tabs, Image, Descriptions } from 'antd';
+import { WalletOutlined, CheckCircleOutlined, ClockCircleOutlined, PlusOutlined, MinusOutlined, HistoryOutlined, DashboardOutlined, TransactionOutlined, EyeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import type { WalletTransaction } from '../../types/api';
+import type { WalletTransaction, WithdrawRequest } from '../../types/api';
 import { useWalletTransactions } from '../../hooks/useWalletTransactions';
 import { useWalletInfo } from '../../hooks/useWalletInfo';
+import { useWithdrawRequests } from '../../hooks/useWithdrawRequests';
 import { formatCurrency } from '../../utils/orderStatus';
+import WalletService from '../../services/customer/WalletService';
+import { vietnamBanks } from '../../data/vietnamBanks';
 
 interface WalletPageProps {
   customerId: string | null;
@@ -17,8 +20,8 @@ const getTransactionTypeLabel = (type: string): string => {
     'REFUND': 'Hoàn tiền',
     'QR': 'Thanh toán QR',
     'DEPOSIT': 'Nạp tiền',
-    'WITHDRAW': 'Rút tiền',
-    'PENDING_HOLD': 'Giữ tiền chờ',
+    'TOPUP': 'Nạp tiền vào ví',
+    'WITHDRAW': 'Rút tiền',    'WITHDRAW_REQUEST': 'Yêu cầu rút tiền',    'PENDING_HOLD': 'Giữ tiền chờ',
     'RELEASE_PENDING': 'Giải phóng tiền chờ',
     'ADJUSTMENT': 'Điều chỉnh',
     'PAYMENT': 'Thanh toán',
@@ -70,6 +73,139 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
   const { walletInfo, loading: walletLoading, error: walletError } = useWalletInfo(customerId);
   const { transactions, loading: transactionsLoading, error: transactionsError, page, pageSize, total, setPage, setPageSize } =
     useWalletTransactions(customerId);
+  const { withdrawRequests, loading: withdrawRequestsLoading, error: withdrawError, page: withdrawPage, pageSize: withdrawPageSize, total: withdrawTotal, setPage: setWithdrawPage, setPageSize: setWithdrawPageSize, reload: reloadWithdrawRequests } = 
+    useWithdrawRequests(customerId);
+
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositForm] = Form.useForm();
+
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [withdrawForm] = Form.useForm();
+
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<WithdrawRequest | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Handle deposit
+  const handleDeposit = async (values: { amount: number }) => {
+    if (!customerId) {
+      message.error('Không tìm thấy thông tin khách hàng');
+      return;
+    }
+
+    setDepositLoading(true);
+    try {
+      const currentUrl = window.location.origin + window.location.pathname;
+      const response = await WalletService.createDepositCheckout(customerId, {
+        amount: values.amount,
+        returnUrl: currentUrl,
+        cancelUrl: currentUrl,
+      });
+
+      if (response?.data?.checkoutUrl) {
+        message.success('Đang chuyển đến trang thanh toán...');
+        // Redirect to PayOS checkout page
+        window.location.href = response.data.checkoutUrl;
+      } else {
+        message.error('Không thể tạo liên kết thanh toán');
+      }
+    } catch (error: any) {
+      console.error('Deposit error:', error);
+      message.error(error?.message || 'Có lỗi xảy ra khi nạp tiền');
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
+  const handleOpenDepositModal = () => {
+    depositForm.resetFields();
+    setIsDepositModalOpen(true);
+  };
+
+  const handleCloseDepositModal = () => {
+    setIsDepositModalOpen(false);
+    depositForm.resetFields();
+  };
+
+  // Handle withdraw
+  const handleWithdraw = async (values: any) => {
+    if (!customerId) {
+      message.error('Không tìm thấy thông tin khách hàng');
+      return;
+    }
+
+    if (!walletInfo || values.amount > walletInfo.balance) {
+      message.error('Số dư không đủ để thực hiện giao dịch');
+      return;
+    }
+
+    setWithdrawLoading(true);
+    try {
+      await WalletService.createWithdrawRequest(customerId, {
+        amount: values.amount,
+        bankCode: values.bankCode,
+        bankName: values.bankName,
+        accountNumber: values.accountNumber,
+        accountName: values.accountName,
+      });
+
+      message.success('Gửi yêu cầu rút tiền thành công! Vui lòng đợi Admin xử lý.');
+      setIsWithdrawModalOpen(false);
+      withdrawForm.resetFields();
+      reloadWithdrawRequests();
+    } catch (error: any) {
+      console.error('Withdraw error:', error);
+      message.error(error?.message || 'Có lỗi xảy ra khi tạo yêu cầu rút tiền');
+    } finally {
+      setWithdrawLoading(false);
+    }
+  };
+
+  const handleOpenWithdrawModal = () => {
+    withdrawForm.resetFields();
+    setIsWithdrawModalOpen(true);
+  };
+
+  const handleCloseWithdrawModal = () => {
+    setIsWithdrawModalOpen(false);
+    withdrawForm.resetFields();
+  };
+
+  const handleBankChange = (value: string) => {
+    const selectedBank = vietnamBanks.find(bank => bank.code === value);
+    if (selectedBank) {
+      withdrawForm.setFieldsValue({ bankName: selectedBank.name });
+    }
+  };
+
+  // Handle view withdraw request detail
+  const handleViewDetail = async (requestId: string) => {
+    if (!customerId) {
+      message.error('Không tìm thấy thông tin khách hàng');
+      return;
+    }
+
+    setDetailLoading(true);
+    setIsDetailModalOpen(true);
+    
+    try {
+      const detail = await WalletService.getWithdrawRequestDetail(customerId, requestId);
+      setSelectedRequest(detail);
+    } catch (error: any) {
+      console.error('Get detail error:', error);
+      message.error(error?.message || 'Không thể tải chi tiết yêu cầu');
+      setIsDetailModalOpen(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedRequest(null);
+  };
 
   const columns: ColumnsType<WalletTransaction> = [
     {
@@ -102,9 +238,14 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       title: 'Số tiền',
       dataIndex: 'amount',
       key: 'amount',
-      render: (value: number) => (
-        <span className={value >= 0 ? 'text-green-600' : 'text-red-500'}>{formatCurrency(value)}</span>
-      ),
+      render: (value: number) => {
+        const isPositive = value >= 0;
+        return (
+          <span className={isPositive ? 'text-blue-600 font-semibold' : 'text-red-500 font-semibold'}>
+            {isPositive ? '+' : ''}{formatCurrency(value)}
+          </span>
+        );
+      },
     },
     {
       title: 'Số dư sau GD',
@@ -116,14 +257,87 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       title: 'Mô tả',
       dataIndex: 'description',
       key: 'description',
-      render: (value) => value || '—',
+      render: (value) => {
+        if (!value) return '—';
+        
+        // Parse withdraw request description
+        // Format: "Customer withdraw request id=xxx"
+        if (value.toLowerCase().includes('customer withdraw request')) {
+          return (
+            <div className="whitespace-normal">
+              <div>Yêu cầu rút tiền</div>
+            </div>
+          );
+        }
+        
+        // Parse description if it contains orderCode
+        // Format: "Top up via PayOS, orderCode=1765960905776"
+        if (value.includes('orderCode=')) {
+          const parts = value.split(',');
+          let mainText = parts[0].trim();
+          let orderCode = '';
+          
+          // Extract order code
+          const orderPart = parts.find((p: string) => p.includes('orderCode='));
+          if (orderPart) {
+            orderCode = orderPart.split('=')[1]?.trim();
+          }
+          
+          // Convert main text to Vietnamese
+          if (mainText.toLowerCase().includes('top up via payos')) {
+            mainText = 'Nạp tiền qua PayOS';
+          }
+          
+          return (
+            <div className="whitespace-normal">
+              <div>{mainText}</div>
+              {orderCode && <div className="text-gray-500 text-xs mt-1">Mã giao dịch: {orderCode}</div>}
+            </div>
+          );
+        }
+        
+        return <div className="whitespace-normal">{value}</div>;
+      },
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Wallet Overview Card */}
-      <Card title="Tổng quan ví" className="shadow-sm border border-gray-200">
+      <Tabs
+        defaultActiveKey="overview"
+        size="large"
+        items={[
+          {
+            key: 'overview',
+            label: (
+              <span className="flex items-center gap-2">
+                <DashboardOutlined />
+                Tổng quan ví
+              </span>
+            ),
+            children: (
+              <Card 
+                className="shadow-sm border border-gray-200"
+                extra={
+                  <div className="flex gap-2">
+                    <Button 
+                      type="primary" 
+                      icon={<PlusOutlined />} 
+                      onClick={handleOpenDepositModal}
+                      disabled={!customerId || walletInfo?.status !== 'ACTIVE'}
+                    >
+                      Nạp tiền
+                    </Button>
+                    <Button 
+                      icon={<MinusOutlined />} 
+                      onClick={handleOpenWithdrawModal}
+                      disabled={!customerId || walletInfo?.status !== 'ACTIVE' || (walletInfo?.balance || 0) < 10000}
+                    >
+                      Rút tiền
+                    </Button>
+                  </div>
+                }
+              >
         {!customerId ? (
           <Empty description="Không tìm thấy thông tin khách hàng" />
         ) : walletError ? (
@@ -172,10 +386,19 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
         ) : (
           <Empty description="Không có thông tin ví" />
         )}
-      </Card>
-
-      {/* Transaction History Card */}
-      <Card title="Lịch sử giao dịch" className="shadow-sm border border-gray-200">
+              </Card>
+            ),
+          },
+          {
+            key: 'transactions',
+            label: (
+              <span className="flex items-center gap-2">
+                <TransactionOutlined />
+                Lịch sử giao dịch
+              </span>
+            ),
+            children: (
+              <Card className="shadow-sm border border-gray-200">
         {!customerId ? (
           <Empty description="Không tìm thấy thông tin khách hàng" />
         ) : transactionsError ? (
@@ -193,6 +416,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
                 rowKey="id"
                 columns={columns}
                 dataSource={transactions}
+                scroll={{ x: 'max-content' }}
                 pagination={{
                   current: page,
                   pageSize,
@@ -207,7 +431,419 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
             )}
           </>
         )}
-      </Card>
+              </Card>
+            ),
+          },
+          {
+            key: 'withdrawRequests',
+            label: (
+              <span className="flex items-center gap-2">
+                <HistoryOutlined />
+                Lịch sử yêu cầu rút tiền
+              </span>
+            ),
+            children: (
+              <Card className="shadow-sm border border-gray-200">
+        {!customerId ? (
+          <Empty description="Không tìm thấy thông tin khách hàng" />
+        ) : withdrawError ? (
+          <Alert type="error" message={withdrawError} showIcon />
+        ) : (
+          <>
+            {withdrawRequestsLoading ? (
+              <div className="py-8 text-center">
+                <Spin size="large" />
+              </div>
+            ) : withdrawRequests.length === 0 ? (
+              <Empty description="Chưa có yêu cầu rút tiền" />
+            ) : (
+              <Table
+                rowKey="id"
+                dataSource={withdrawRequests}
+                scroll={{ x: 'max-content' }}
+                pagination={{
+                  current: withdrawPage,
+                  pageSize: withdrawPageSize,
+                  total: withdrawTotal,
+                  onChange: (p, ps) => {
+                    setWithdrawPage(p);
+                    setWithdrawPageSize(ps || withdrawPageSize);
+                  },
+                  showSizeChanger: true,
+                }}
+                columns={[
+                  {
+                    title: 'Thời gian yêu cầu',
+                    dataIndex: 'createdAt',
+                    key: 'createdAt',
+                    render: (value) => new Date(value).toLocaleString('vi-VN'),
+                  },
+                  {
+                    title: 'Số tiền',
+                    dataIndex: 'amount',
+                    key: 'amount',
+                    render: (value: number) => (
+                      <span className="font-semibold text-red-500">{formatCurrency(value)}</span>
+                    ),
+                  },
+                  {
+                    title: 'Ngân hàng',
+                    dataIndex: 'bankName',
+                    key: 'bankName',
+                    render: (value, record: WithdrawRequest) => (
+                      <div>
+                        <div className="font-medium">{record.bankCode}</div>
+                        <div className="text-xs text-gray-500">{value}</div>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: 'Trạng thái',
+                    dataIndex: 'status',
+                    key: 'status',
+                    render: (status: string) => {
+                      const statusConfig: Record<string, { color: string; text: string }> = {
+                        PENDING: { color: 'orange', text: 'Chờ xử lý' },
+                        APPROVED: { color: 'blue', text: 'Đã duyệt' },
+                        REJECTED: { color: 'red', text: 'Từ chối' },
+                        PAID: { color: 'green', text: 'Đã thanh toán' },
+                      };
+                      const config = statusConfig[status] || { color: 'default', text: status };
+                      return <Tag color={config.color}>{config.text}</Tag>;
+                    },
+                  },
+                  {
+                    title: 'Hành động',
+                    key: 'action',
+                    width: 120,
+                    render: (_, record: WithdrawRequest) => (
+                      <Button 
+                        type="link" 
+                        icon={<EyeOutlined />}
+                        onClick={() => handleViewDetail(record.id)}
+                      >
+                        Xem chi tiết
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </>
+        )}
+              </Card>
+            ),
+          },
+        ]}
+      />
+
+      {/* Deposit Modal */}
+      <Modal
+        title="Nạp tiền vào ví"
+        open={isDepositModalOpen}
+        onCancel={handleCloseDepositModal}
+        footer={null}
+        width={500}
+      >
+        <Form
+          form={depositForm}
+          layout="vertical"
+          onFinish={handleDeposit}
+          className="mt-4"
+        >
+          <Form.Item
+            label="Số tiền nạp (VND)"
+            name="amount"
+            rules={[
+              { required: true, message: 'Vui lòng nhập số tiền' },
+              { 
+                type: 'number', 
+                min: 10000, 
+                message: 'Số tiền nạp tối thiểu là 10.000 VND' 
+              },
+            ]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              placeholder="Nhập số tiền (tối thiểu 10.000 VND)"
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => Number(value?.replace(/\$\s?|(,*)/g, '') || 0) as any}
+              min={0}
+              controls={false}
+              className="w-full"
+            />
+          </Form.Item>
+
+          <div className="text-sm text-gray-500 mb-4 space-y-1">
+            <p>• Số tiền nạp tối thiểu: 10.000 VND</p>
+            <p>• Bạn sẽ được chuyển đến trang thanh toán PayOS</p>
+          </div>
+
+          <Form.Item className="mb-0">
+            <div className="flex justify-end gap-2">
+              <Button onClick={handleCloseDepositModal}>
+                Hủy
+              </Button>
+              <Button type="primary" htmlType="submit" loading={depositLoading}>
+                Tiếp tục
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Withdraw Modal */}
+      <Modal
+        title="Rút tiền từ ví"
+        open={isWithdrawModalOpen}
+        onCancel={handleCloseWithdrawModal}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={withdrawForm}
+          layout="vertical"
+          onFinish={handleWithdraw}
+          className="mt-4"
+        >
+          <Form.Item
+            label="Số tiền rút (VND)"
+            name="amount"
+            rules={[
+              { required: true, message: 'Vui lòng nhập số tiền' },
+              { 
+                type: 'number', 
+                min: 10000, 
+                message: 'Số tiền rút tối thiểu là 10.000 VND' 
+              },
+              {
+                validator: async (_, value) => {
+                  if (value && walletInfo && value > walletInfo.balance) {
+                    throw new Error(`Số dư không đủ. Số dư hiện tại: ${formatCurrency(walletInfo.balance)}`);
+                  }
+                },
+              },
+            ]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              placeholder="Nhập số tiền (tối thiểu 10.000 VND)"
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => Number(value?.replace(/\$\s?|(,*)/g, '') || 0) as any}
+              min={0}
+              controls={false}
+              className="w-full"
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Ngân hàng"
+            name="bankCode"
+            rules={[{ required: true, message: 'Vui lòng chọn ngân hàng' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Chọn ngân hàng"
+              optionFilterProp="children"
+              onChange={handleBankChange}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={vietnamBanks.map(bank => ({
+                value: bank.code,
+                label: `${bank.shortName} - ${bank.name}`,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item name="bankName" hidden>
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            label="Số tài khoản"
+            name="accountNumber"
+            rules={[
+              { required: true, message: 'Vui lòng nhập số tài khoản' },
+              { pattern: /^[0-9]{6,20}$/, message: 'Số tài khoản không hợp lệ (6-20 số)' },
+            ]}
+          >
+            <Input placeholder="Nhập số tài khoản ngân hàng" maxLength={20} />
+          </Form.Item>
+
+          <Form.Item
+            label="Tên chủ tài khoản"
+            name="accountName"
+            rules={[
+              { required: true, message: 'Vui lòng nhập tên chủ tài khoản' },
+              { min: 3, message: 'Tên phải có ít nhất 3 ký tự' },
+            ]}
+          >
+            <Input placeholder="Nhập tên chủ tài khoản (không dấu, viết hoa)" />
+          </Form.Item>
+
+          <div className="text-sm text-gray-500 mb-4 space-y-1 bg-blue-50 p-3 rounded">
+            <p className="font-medium text-blue-700">⚠️ Lưu ý:</p>
+            <p>• Số tiền rút tối thiểu: 10.000 VND</p>
+            <p>• Số dư hiện tại: <span className="font-semibold">{formatCurrency(walletInfo?.balance || 0)}</span></p>
+            <p>• Yêu cầu sẽ được xử lý trong 1-3 ngày làm việc</p>
+            <p>• Tiền sẽ được chuyển vào tài khoản bạn đã đăng ký</p>
+            <p>• Vui lòng kiểm tra kỹ thông tin trước khi gửi yêu cầu</p>
+          </div>
+
+          <Form.Item className="mb-0">
+            <div className="flex justify-end gap-2">
+              <Button onClick={handleCloseWithdrawModal}>
+                Hủy
+              </Button>
+              <Button type="primary" htmlType="submit" loading={withdrawLoading}>
+                Gửi yêu cầu
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Withdraw Request Detail Modal */}
+      <Modal
+        title="Chi tiết yêu cầu rút tiền"
+        open={isDetailModalOpen}
+        onCancel={handleCloseDetailModal}
+        footer={[
+          <Button key="close" onClick={handleCloseDetailModal}>
+            Đóng
+          </Button>,
+        ]}
+        width={800}
+      >
+        {detailLoading ? (
+          <div className="py-8 text-center">
+            <Spin size="large" />
+          </div>
+        ) : selectedRequest ? (
+          <div className="space-y-4">
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="Mã yêu cầu" span={2}>
+                <span className="font-mono text-xs">{selectedRequest.id}</span>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Thời gian tạo">
+                {new Date(selectedRequest.createdAt).toLocaleString('vi-VN')}
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Cập nhật lần cuối">
+                {new Date(selectedRequest.updatedAt).toLocaleString('vi-VN')}
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Số tiền rút" span={2}>
+                <span className="text-lg font-bold text-red-500">{formatCurrency(selectedRequest.amount)}</span>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Trạng thái" span={2}>
+                {(() => {
+                  const statusConfig: Record<string, { color: string; text: string }> = {
+                    PENDING: { color: 'orange', text: 'Chờ xử lý' },
+                    APPROVED: { color: 'blue', text: 'Đã duyệt' },
+                    REJECTED: { color: 'red', text: 'Từ chối' },
+                    PAID: { color: 'green', text: 'Đã thanh toán' },
+                  };
+                  const config = statusConfig[selectedRequest.status] || { color: 'default', text: selectedRequest.status };
+                  return <Tag color={config.color} className="text-base px-3 py-1">{config.text}</Tag>;
+                })()}
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Ngân hàng" span={2}>
+                <div>
+                   <div className=" font-medium">{selectedRequest.bankCode}</div>
+                  <div className="text-xs text-gray-500">{selectedRequest.bankName}</div>
+                  
+                </div>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Số tài khoản">
+                <span className="font-mono">{selectedRequest.accountNumber}</span>
+              </Descriptions.Item>
+              
+              <Descriptions.Item label="Tên chủ tài khoản">
+                <span className="font-medium">{selectedRequest.accountName}</span>
+              </Descriptions.Item>
+              
+              {selectedRequest.adminNote && (
+                <Descriptions.Item label="Ghi chú từ Admin" span={2}>
+                  <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                    <p className="text-sm whitespace-pre-wrap">{selectedRequest.adminNote}</p>
+                  </div>
+                </Descriptions.Item>
+              )}
+              
+              {selectedRequest.payoutRef && (
+                <Descriptions.Item label="Mã thanh toán (Payout Ref)" span={2}>
+                  <span className="font-mono bg-green-50 px-2 py-1 rounded">{selectedRequest.payoutRef}</span>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+            
+            {selectedRequest.proofUrls && selectedRequest.proofUrls.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium mb-2">Ảnh chứng minh thanh toán:</h4>
+                <Image.PreviewGroup>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedRequest.proofUrls.map((url, index) => (
+                      <Image
+                        key={index}
+                        src={url}
+                        alt={`Proof ${index + 1}`}
+                        className="rounded border"
+                        width="100%"
+                        height={120}
+                        style={{ objectFit: 'cover' }}
+                      />
+                    ))}
+                  </div>
+                </Image.PreviewGroup>
+              </div>
+            )}
+            
+            {selectedRequest.status === 'PENDING' && (
+              <Alert
+                message="Yêu cầu đang chờ xử lý"
+                description="Hệ thống sẽ xem xét và xử lý yêu cầu của bạn trong thời gian sớm nhất."
+                type="info"
+                showIcon
+              />
+            )}
+            
+            {selectedRequest.status === 'APPROVED' && (
+              <Alert
+                message="Yêu cầu đã được duyệt"
+                description="Yêu cầu rút tiền của bạn đã được phê duyệt. Tiền sẽ được chuyển vào tài khoản ngân hàng của bạn sớm."
+                type="success"
+                showIcon
+              />
+            )}
+            
+            {selectedRequest.status === 'REJECTED' && (
+              <Alert
+                message="Yêu cầu bị từ chối"
+                description={selectedRequest.adminNote || 'Vui lòng xem ghi chú từ để biết lý do.'}
+                type="error"
+                showIcon
+              />
+            )}
+            
+            {selectedRequest.status === 'PAID' && (
+              <Alert
+                message="Đã thanh toán thành công"
+                description="Tiền đã được chuyển vào tài khoản ngân hàng của bạn. Vui lòng kiểm tra."
+                type="success"
+                showIcon
+              />
+            )}
+          </div>
+        ) : (
+          <Empty description="Không có dữ liệu" />
+        )}
+      </Modal>
     </div>
   );
 };

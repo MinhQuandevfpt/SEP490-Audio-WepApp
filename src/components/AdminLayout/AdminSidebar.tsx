@@ -15,6 +15,8 @@ import {
   Wallet
 } from 'lucide-react';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
+import { FlatStaffAuthService } from '../../services/admin/FlatStaffAuthService';
+import { hasPermission } from '../../utils/permissionHelper';
 
 interface NavigationItem {
   name: string;
@@ -27,7 +29,11 @@ interface NavigationItem {
 const AdminSidebar: React.FC = () => {
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  const currentUser = AdminAuthService.getCurrentUser();
+  
+  // Get current user from either AdminAuthService or FlatStaffAuthService
+  const adminUser = AdminAuthService.getCurrentUser();
+  const flatStaffUser = FlatStaffAuthService.getCurrentUser();
+  const currentUser = adminUser || flatStaffUser;
 
   const toggleExpanded = (itemName: string) => {
     setExpandedItems(prev => 
@@ -38,8 +44,16 @@ const AdminSidebar: React.FC = () => {
   };
 
   const handleLogout = () => {
+    // Logout from both services (only one will have data, but safe to call both)
     AdminAuthService.logout();
-    navigate('/admin/login');
+    FlatStaffAuthService.logout();
+    
+    // Determine redirect path based on which service was used
+    if (flatStaffUser) {
+      navigate('/admin/flatstaff/login');
+    } else {
+      navigate('/admin/login');
+    }
   };
 
   // Navigation items with permissions
@@ -73,6 +87,7 @@ const AdminSidebar: React.FC = () => {
     {
       name: 'Quản lý đơn hàng',
       href: '/admin/orders',
+      permission: 'manage_orders',
       icon: <ShoppingCart className="w-6 h-6" />,
       children: [
         { name: 'Tất cả đơn hàng', href: '/admin/orders/all', icon: null },
@@ -85,6 +100,7 @@ const AdminSidebar: React.FC = () => {
     {
       name: 'Chiến dịch khuyến mãi',
       href: '/admin/campaigns',
+      permission: 'manage_campaigns',
       icon: <Zap className="w-6 h-6" />,
       children: [
         { name: 'Tất cả chiến dịch', href: '/admin/campaigns', icon: null },
@@ -95,6 +111,7 @@ const AdminSidebar: React.FC = () => {
     {
       name: 'Quản lý Banner',
       href: '/admin/banners',
+      permission: 'manage_banners',
       icon: <Image className="w-6 h-6" />,
       children: [
         { name: 'Tất cả banner', href: '/admin/banners', icon: null },
@@ -104,20 +121,24 @@ const AdminSidebar: React.FC = () => {
     {
       name: 'Quản lý Chính Sách',
       href: '/admin/policies',
+      permission: 'manage_policies',
       icon: <FileText className="w-6 h-6" />
     },
     {
       name: 'Phí nền tảng',
       href: '/admin/platform-fees',
+      permission: 'manage_system',
       icon: <DollarSign className="w-6 h-6" />
     },
     {
       name: 'Tài chính',
       href: '/admin/finance',
+      permission: 'manage_finance',
       icon: <Wallet className="w-6 h-6" />,
       children: [
         { name: 'Ví hệ thống', href: '/admin/finance/platform-wallet', icon: null },
         { name: 'Đối soát thanh toán', href: '/admin/finance/settlement-statistics', icon: null },
+        { name: 'Yêu cầu rút tiền KH', href: '/admin/finance/customer-withdraw-requests', icon: null },
         { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null }
       ]
     },
@@ -135,8 +156,15 @@ const AdminSidebar: React.FC = () => {
     }
   ];
 
-  // Render navigation items without permission checks (simplified for now)
-  const filteredNavigationItems = navigationItems;
+  // Filter navigation items based on user permissions
+  const filteredNavigationItems = navigationItems.filter(item => {
+    // Items without permission requirement are visible to all
+    if (!item.permission) return true;
+    
+    // Check permission based on user role
+    const userRole = currentUser?.role || '';
+    return hasPermission(userRole, item.permission);
+  });
 
   const renderNavigationItem = (item: NavigationItem, level: number = 0) => {
     const isExpanded = expandedItems.includes(item.name);
@@ -205,7 +233,9 @@ const AdminSidebar: React.FC = () => {
         <div className="ml-3">
           <p className="text-sm font-medium text-white">{currentUser?.fullName}</p>
           <p className="text-xs text-blue-100 capitalize">
-            {currentUser?.role || 'Admin'}
+            {currentUser?.role === 'FLATSTAFF' || currentUser?.role === 'flatstaff' 
+              ? 'Staff Admin' 
+              : currentUser?.role || 'Admin'}
           </p>
         </div>
       </div>

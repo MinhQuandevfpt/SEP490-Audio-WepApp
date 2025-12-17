@@ -37,6 +37,7 @@ import { SearchResultPage } from '../pages/Customer/SearchResult';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import FlashSaleDetail from '../pages/Customer/FlashSaleDetail/FlashSaleDetail';
 import AdminLogin from '../pages/Admin/Login';
+import FlatStaffLogin from '../pages/Admin/Login/FlatStaffLogin';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
@@ -51,6 +52,7 @@ import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
 import PlatformWalletPage from '../pages/Admin/PlatformWallet/PlatformWalletPage';
 import SettlementStatisticsPage from '../pages/Admin/SettlementStatistics/SettlementStatisticsPage';
+import CustomerWithdrawRequestsPage from '../pages/Admin/Finance/CustomerWithdrawRequestsPage';
 import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
 import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
 import PlatformFeeManagement from '../pages/Admin/PlatformFeeManagement/PlatformFeeManagement';
@@ -78,6 +80,9 @@ import NotificationPage from '../pages/Seller/NotificationFolder/NotificationPag
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
+import { FlatStaffAuthService } from '../services/admin/FlatStaffAuthService';
+import { isValidAdminRole } from '../utils/permissionHelper';
+import { PermissionProtectedRoute } from '../components/ProtectedRoute';
 import { StoreService } from '../services/seller/StoreService';
 import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
@@ -174,10 +179,29 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
 }
 
 function ProtectedAdminRoute({ element }: { element: ReactElement }) {
-  const isAuthenticated = AdminAuthService.isAuthenticated();
+  // Check authentication from both Admin and FlatStaff services
+  const isAdminAuthenticated = AdminAuthService.isAuthenticated();
+  const isFlatStaffAuthenticated = FlatStaffAuthService.isAuthenticated();
+  const isAuthenticated = isAdminAuthenticated || isFlatStaffAuthenticated;
+  
   if (!isAuthenticated) {
+    // Determine which login page to redirect to
+    // Default to admin login, but could be enhanced to remember last login type
     return <Navigate to="/admin/login" replace />;
   }
+  
+  // Verify that the authenticated user has a valid admin role
+  const adminUser = AdminAuthService.getCurrentUser();
+  const flatStaffUser = FlatStaffAuthService.getCurrentUser();
+  const currentUser = adminUser || flatStaffUser;
+  const userRole = currentUser?.role || '';
+  
+  if (!isValidAdminRole(userRole)) {
+    // User is authenticated but doesn't have admin role
+    console.warn(`User with role "${userRole}" tried to access admin area`);
+    return <Navigate to="/" replace />;
+  }
+  
   return element;
 }
 
@@ -546,6 +570,10 @@ export const router = createBrowserRouter([
     element: <AdminLogin />
   },
   {
+    path: '/admin/flatstaff/login',
+    element: <FlatStaffLogin />
+  },
+  {
     path: '/admin',
     element: <ProtectedAdminRoute element={<AdminLayout />} />,
     children: [
@@ -560,23 +588,23 @@ export const router = createBrowserRouter([
       // Add more admin routes here as needed
       {
         path: 'users',
-        element: <UserManagement />
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
       },
       {
         path: 'users/:id',
-        element: <UserDetailManagement />
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserDetailManagement />} />
       },
       {
         path: 'users/customers',
-        element: <UserManagement />
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
       },
       {
         path: 'users/sellers',
-        element: <div>Seller Management Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_users" element={<div>Seller Management Page (Coming Soon)</div>} />
       },
       {
         path: 'users/admins',
-        element: <div>Admin Management Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_users" element={<div>Admin Management Page (Coming Soon)</div>} />
       },
       {
         path: 'stores',
@@ -660,7 +688,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'platform-fees',
-        element: <PlatformFeeManagement />
+        element: <PermissionProtectedRoute permission="manage_system" element={<PlatformFeeManagement />} />
       },
       {
         path: 'orders',
@@ -688,23 +716,27 @@ export const router = createBrowserRouter([
       },
       {
         path: 'finance',
-        element: <div>Tài chính</div>
+        element: <PermissionProtectedRoute permission="manage_finance" element={<div>Tài chính</div>} />
       },
       {
         path: 'finance/platform-wallet',
-        element: <PlatformWalletPage />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PlatformWalletPage />} />
       },
       {
         path: 'finance/settlement-statistics',
-        element: <SettlementStatisticsPage />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<SettlementStatisticsPage />} />
+      },
+      {
+        path: 'finance/customer-withdraw-requests',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<CustomerWithdrawRequestsPage />} />
       },
       {
         path: 'reports/payout',
-        element: <PayoutManagement />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PayoutManagement />} />
       },
       {
         path: 'reports/payout/:billId',
-        element: <PayoutBillDetail />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PayoutBillDetail />} />
       },
       {
         path: 'categories',
@@ -732,23 +764,23 @@ export const router = createBrowserRouter([
       },
       {
         path: 'settings',
-        element: <div>System Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>System Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/general',
-        element: <div>General Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>General Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/payment',
-        element: <div>Payment Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>Payment Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/shipping',
-        element: <div>Shipping Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>Shipping Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/email',
-        element: <div>Email Template Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>Email Template Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'profile',
