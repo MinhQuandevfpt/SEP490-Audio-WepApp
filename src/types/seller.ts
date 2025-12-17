@@ -492,12 +492,44 @@ export interface RiskWarningResponse {
   legalPoint: number;
   creditLimit: number;
   debtBalance: number;
+  // Số tiền phải thanh toán ngay (đến hạn / quá hạn) - dùng cho hành động
+  payableNowDebt: number;
   depositBalance: number;
   effectiveDebt: number;
   warningLine: number;
   criticalLine: number;
   evaluatedAt: string;
 }
+
+// Debt components (breakdown) types
+export type DebtComponentType = 'SHIP_DIFF' | 'RTO_FEE' | 'RETURN_SHIPPING_FEE';
+
+export type DebtComponentStatus = 'PAID' | 'UNPAID';
+
+export interface DebtComponentItem {
+  componentType: DebtComponentType | string;
+  displayType: string;
+  refId: string;
+  orderCode: string | null;
+  ghnOrderCode: string | null;
+  amount: number;
+  status: DebtComponentStatus | string;
+  occurredAt: string;
+  description: string | null;
+}
+
+export interface DebtComponentPage {
+  content: DebtComponentItem[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  numberOfElements: number;
+  first: boolean;
+  last: boolean;
+}
+
+export interface DebtComponentListResponse extends ApiResponse<DebtComponentPage> {}
 
 export type OrderStatus =
   | 'UNPAID'          // Chờ thanh toán

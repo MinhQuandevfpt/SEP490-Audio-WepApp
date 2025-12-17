@@ -1,5 +1,16 @@
 // Store Service for managing store information and status
-import type { StoreInfo, StoreStatusResponse, StoreDetailResponse, StoreDetail, UpdateStoreRequest, UpdateStoreResponse, ToggleStoreStatusRequest, ToggleStoreStatusResponse } from '../../types/seller';
+import type {
+  StoreInfo,
+  StoreStatusResponse,
+  StoreDetailResponse,
+  StoreDetail,
+  UpdateStoreRequest,
+  UpdateStoreResponse,
+  ToggleStoreStatusRequest,
+  ToggleStoreStatusResponse,
+  DebtComponentListResponse,
+  DebtComponentPage,
+} from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 import { getSellerStoreId, safeSetLocalStorage } from '../../utils/authHelper';
 
@@ -398,6 +409,76 @@ export class StoreService {
     } catch (error: any) {
       console.error('❌ Error getting risk warning:', error);
       throw new Error(error?.message || 'Không thể tải thông tin cảnh báo nợ');
+    }
+  }
+
+  /**
+   * Get debt components (breakdown) for current store
+   * GET /api/store/me/debt-components
+   */
+  static async getDebtComponents(params: {
+    componentType?: string;
+    status?: string;
+    payableNowOnly?: boolean;
+    from?: string;
+    to?: string;
+    minAmount?: number;
+    maxAmount?: number;
+    orderCode?: string;
+    ghnOrderCode?: string;
+    page?: number;
+    size?: number;
+  }): Promise<DebtComponentPage> {
+    try {
+      const searchParams = new URLSearchParams();
+
+      if (params.componentType) searchParams.set('componentType', params.componentType);
+      if (params.status) searchParams.set('status', params.status);
+      if (typeof params.payableNowOnly === 'boolean') {
+        searchParams.set('payableNowOnly', String(params.payableNowOnly));
+      }
+      if (params.from) searchParams.set('from', params.from);
+      if (params.to) searchParams.set('to', params.to);
+      if (typeof params.minAmount === 'number') {
+        searchParams.set('minAmount', String(params.minAmount));
+      }
+      if (typeof params.maxAmount === 'number') {
+        searchParams.set('maxAmount', String(params.maxAmount));
+      }
+      if (params.orderCode) searchParams.set('orderCode', params.orderCode);
+      if (params.ghnOrderCode) searchParams.set('ghnOrderCode', params.ghnOrderCode);
+      if (typeof params.page === 'number') {
+        searchParams.set('page', String(params.page));
+      }
+      if (typeof params.size === 'number') {
+        searchParams.set('size', String(params.size));
+      }
+
+      const query = searchParams.toString();
+      const endpoint = `${API_URL}/store/me/debt-components${query ? `?${query}` : ''}`;
+
+      console.log('📡 Calling debt components API:', endpoint);
+
+      const response = await HttpInterceptor.get<DebtComponentListResponse>(endpoint, {
+        userType: 'seller',
+        headers: {
+          Accept: '*/*',
+        },
+      });
+
+      console.log('📥 Debt components API response:', response);
+
+      // Chuẩn hóa trả về luôn field data (giống các ApiResponse khác)
+      const respAny: any = response;
+      if (respAny && respAny.data) {
+        return respAny.data as DebtComponentPage;
+      }
+
+      // Trường hợp backend không bọc ApiResponse
+      return response as unknown as DebtComponentPage;
+    } catch (error: any) {
+      console.error('❌ Error getting debt components:', error);
+      throw new Error(error?.message || 'Không thể tải breakdown các khoản nợ');
     }
   }
 }

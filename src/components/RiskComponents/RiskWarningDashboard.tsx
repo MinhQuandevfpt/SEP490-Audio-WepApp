@@ -1,20 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { StoreService } from '../../services/seller/StoreService';
-import type { RiskWarningResponse } from '../../types/seller';
-
-interface DebtItem {
-  type: string;
-  orderRef: string;
-  description: string;
-  amount: number;
-  status: string;
-  createdAt: string;
-}
+import type { RiskWarningResponse, DebtComponentItem, DebtComponentPage } from '../../types/seller';
 
 const RiskWarningDashboard: React.FC = () => {
   const [riskData, setRiskData] = useState<RiskWarningResponse | null>(null);
-  const [debtItems, setDebtItems] = useState<DebtItem[]>([]);
+  const [debtItems, setDebtItems] = useState<DebtComponentItem[]>([]);
+  const [debtLoading, setDebtLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,14 +14,31 @@ const RiskWarningDashboard: React.FC = () => {
   const [filters, setFilters] = useState({
     type: 'all',
     status: 'all',
-    timeRange: '30',
+    from: '',
+    to: '',
     orderCode: '',
     minAmount: '',
     maxAmount: '',
   });
 
+  const [payableNowOnly, setPayableNowOnly] = useState(false);
+
   useEffect(() => {
+    // Load lần đầu khi mở trang
     loadRiskData();
+    loadDebtComponents();
+
+    // Mỗi 2 phút tự động reload lại dữ liệu cảnh báo + breakdown
+    const intervalId = window.setInterval(() => {
+      console.log('⏰ Auto refresh RiskWarningDashboard (every 3 minutes)');
+      loadRiskData();
+      loadDebtComponents();
+    }, 2 * 60 * 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadRiskData = async () => {
@@ -38,11 +47,6 @@ const RiskWarningDashboard: React.FC = () => {
       setError(null);
       const data = await StoreService.getRiskWarning();
       setRiskData(data);
-      
-      // TODO: Load debt items from separate API
-      // const items = await StoreService.getDebtItems(filters);
-      // setDebtItems(items);
-      setDebtItems([]);
     } catch (err: any) {
       console.error('Error loading risk data:', err);
       setError(err.message || 'Không thể tải thông tin cảnh báo nợ');
@@ -51,25 +55,82 @@ const RiskWarningDashboard: React.FC = () => {
     }
   };
 
+  const loadDebtComponents = async () => {
+    try {
+      setDebtLoading(true);
+
+      const { type, status, from, to, orderCode, minAmount, maxAmount } = filters;
+
+      // Map UI filter -> API query
+      let componentType: string | undefined;
+      if (type === 'shipping_diff') componentType = 'SHIP_DIFF';
+      else if (type === 'return_fee') componentType = 'RTO_FEE';
+      else if (type === 'return_shipping') componentType = 'RETURN_SHIPPING_FEE';
+
+      let apiStatus: string | undefined;
+      if (status === 'paid') apiStatus = 'PAID';
+      else if (status === 'unpaid') apiStatus = 'UNPAID';
+      // 'pending' hoặc 'all' -> không filter theo status
+
+      // Convert from/to (datetime-local) -> ISO string cho API
+      let fromIso: string | undefined;
+      let toIso: string | undefined;
+      if (from) {
+        const d = new Date(from);
+        if (!Number.isNaN(d.getTime())) {
+          fromIso = d.toISOString();
+        }
+      }
+      if (to) {
+        const d = new Date(to);
+        if (!Number.isNaN(d.getTime())) {
+          toIso = d.toISOString();
+        }
+      }
+
+      const pageData: DebtComponentPage = await StoreService.getDebtComponents({
+        componentType,
+        status: apiStatus,
+        payableNowOnly,
+        from: fromIso,
+        to: toIso,
+        minAmount: minAmount ? Number(minAmount) : undefined,
+        maxAmount: maxAmount ? Number(maxAmount) : undefined,
+        orderCode: orderCode || undefined,
+        page: 0,
+        size: 20,
+      });
+
+      setDebtItems(pageData.content || []);
+    } catch (err: any) {
+      console.error('Error loading debt components:', err);
+      // Giữ nguyên riskData, chỉ log lỗi breakdown để tránh làm hỏng toàn bộ dashboard
+    } finally {
+      setDebtLoading(false);
+    }
+  };
+
   const handleFilterChange = (key: string, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
   const handleApplyFilters = () => {
-    // TODO: Implement filter logic with API call
-    loadRiskData();
+    // Chỉ cần reload breakdown theo filter, risk summary vẫn giữ nguyên
+    loadDebtComponents();
   };
 
   const handleResetFilters = () => {
     setFilters({
       type: 'all',
       status: 'all',
-      timeRange: '30',
+      from: '',
+      to: '',
       orderCode: '',
       minAmount: '',
       maxAmount: '',
     });
-    loadRiskData();
+    setPayableNowOnly(false);
+    loadDebtComponents();
   };
 
   const formatCurrency = (amount: number): string => {
@@ -275,35 +336,65 @@ const RiskWarningDashboard: React.FC = () => {
             </div>
 
             {/* Summary Grid */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                <span className="text-xs text-gray-600 block mb-1">Tổng nợ hiện tại</span>
-                <div className="text-2xl font-bold text-orange-500 mb-1">
-                  {formatCurrency(riskData.debtBalance)}
+            <div className="space-y-3 mb-6">
+              {/* Hàng 1 – Tổng quan nợ */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <span className="text-xs text-gray-600 block mb-1">Tổng nợ hiện tại</span>
+                  <div className="text-2xl font-bold text-orange-500 mb-1">
+                    {formatCurrency(riskData.debtBalance)}
+                  </div>
+                  <small className="text-xs text-gray-500">
+                    Bao gồm: nợ ship chênh lệch, phí quay đầu, phí return shipping
+                  </small>
                 </div>
-                <small className="text-xs text-gray-500">
-                  Bao gồm: nợ ship chênh lệch, phí quay đầu, phí return shipping
-                </small>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <span className="text-xs text-gray-600 block mb-1">Hạn mức nợ</span>
+                  <div className="text-2xl font-bold text-orange-500 mb-1">
+                    {formatCurrency(riskData.creditLimit)}
+                  </div>
+                  <small className="text-xs text-gray-500">
+                    = Tiền cọc ({formatCurrency(riskData.depositBalance)}) + Điểm uy tín ({riskData.legalPoint} × 100,000 VND)
+                  </small>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <span className="text-xs text-gray-600 block mb-1">Nợ đánh giá rủi ro</span>
+                  <div className="text-2xl font-bold text-orange-500 mb-1">
+                    {formatCurrency(riskData.effectiveDebt)}
+                  </div>
+                  <small className="text-xs text-gray-500">
+                    Số nợ được dùng để tính toán mức độ rủi ro
+                  </small>
+                </div>
               </div>
 
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                <span className="text-xs text-gray-600 block mb-1">Hạn mức nợ</span>
-                <div className="text-2xl font-bold text-orange-500 mb-1">
-                  {formatCurrency(riskData.creditLimit)}
+              {/* Hàng 2 – Nợ cần thanh toán ngay (Action required) */}
+              <div className="grid grid-cols-1">
+                <div
+                  className={`rounded-xl p-4 border ${
+                    riskData.payableNowDebt > 0
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-green-50 border-green-200'
+                  }`}
+                >
+                  <span className="text-xs text-gray-600 block mb-1">
+                    Nợ cần thanh toán ngay
+                  </span>
+                  <div
+                    className={`text-2xl font-bold mb-1 ${
+                      riskData.payableNowDebt > 0 ? 'text-red-600' : 'text-green-600'
+                    }`}
+                  >
+                    {formatCurrency(riskData.payableNowDebt)}
+                  </div>
+                  <small className="text-xs text-gray-500">
+                    {riskData.payableNowDebt > 0
+                      ? 'Số tiền đến hạn / quá hạn cần thanh toán ngay để đưa cửa hàng về trạng thái an toàn hơn.'
+                      : 'Hiện tại không có khoản nợ nào đến hạn phải thanh toán ngay.'}
+                  </small>
                 </div>
-                <small className="text-xs text-gray-500">
-                  = Tiền cọc ({formatCurrency(riskData.depositBalance)}) + Điểm uy tín ({riskData.legalPoint} × 100,000 VND)
-                </small>
-              </div>
-
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                <span className="text-xs text-gray-600 block mb-1">Nợ đánh giá rủi ro</span>
-                <div className="text-2xl font-bold text-orange-500 mb-1">
-                  {formatCurrency(riskData.effectiveDebt)}
-                </div>
-                <small className="text-xs text-gray-500">
-                  Số nợ được dùng để tính toán mức độ rủi ro
-                </small>
               </div>
             </div>
 
@@ -395,19 +486,6 @@ const RiskWarningDashboard: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Khoảng thời gian</label>
-                <select
-                  value={filters.timeRange}
-                  onChange={(e) => handleFilterChange('timeRange', e.target.value)}
-                  className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                >
-                  <option value="7">7 ngày gần nhất</option>
-                  <option value="30">30 ngày gần nhất</option>
-                  <option value="90">90 ngày gần nhất</option>
-                  <option value="all">Tất cả</option>
-                </select>
-              </div>
             </div>
 
             {/* Filter Group 2 */}
@@ -422,26 +500,61 @@ const RiskWarningDashboard: React.FC = () => {
                   className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Từ số tiền (VND)</label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={filters.minAmount}
-                  onChange={(e) => handleFilterChange('minAmount', e.target.value)}
-                  className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Từ ngày</label>
+                  <input
+                    type="datetime-local"
+                    value={filters.from}
+                    onChange={(e) => handleFilterChange('from', e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Đến ngày</label>
+                  <input
+                    type="datetime-local"
+                    value={filters.to}
+                    onChange={(e) => handleFilterChange('to', e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Đến số tiền (VND)</label>
-                <input
-                  type="number"
-                  placeholder="VD: 500000"
-                  value={filters.maxAmount}
-                  onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
-                  className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Từ số tiền (VND)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={filters.minAmount}
+                    onChange={(e) => handleFilterChange('minAmount', e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Đến số tiền (VND)</label>
+                  <input
+                    type="number"
+                    placeholder="VD: 500000"
+                    value={filters.maxAmount}
+                    onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+                    className="w-full bg-white border border-gray-300 text-gray-900 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  />
+                </div>
               </div>
+            </div>
+
+            {/* Payable now only toggle */}
+            <div className="flex items-center justify-between mb-4">
+              <label className="flex items-center gap-2 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={payableNowOnly}
+                  onChange={(e) => setPayableNowOnly(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                />
+                <span>Chỉ hiển thị khoản nợ có thể thanh toán ngay (payableNowOnly)</span>
+              </label>
             </div>
 
             {/* Filter Actions */}
@@ -468,51 +581,72 @@ const RiskWarningDashboard: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">
               Chi tiết khoản nợ (Breakdown)
             </h2>
-            <span className="text-sm text-gray-500">{debtItems.length} khoản nợ</span>
+              <span className="text-sm text-gray-500">
+                {debtItems.length} khoản nợ trong trang hiện tại
+              </span>
           </div>
 
           {/* Table Header */}
-          <div className="grid grid-cols-6 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
+          <div className="grid grid-cols-5 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
             <div>Loại</div>
             <div>Mã đơn/Tham chiếu</div>
-            <div>Mô tả</div>
             <div>Số tiền (VND)</div>
             <div>Trạng thái</div>
             <div>Ngày phát sinh</div>
           </div>
 
           {/* Table Content */}
-          {debtItems.length === 0 ? (
+          {debtLoading ? (
+            <div className="text-center py-8 text-gray-500 text-sm">
+              Đang tải breakdown nợ...
+            </div>
+          ) : debtItems.length === 0 ? (
             <div className="text-center py-8 text-gray-500 text-sm">
               Không có khoản nợ nào theo bộ lọc hiện tại.
             </div>
           ) : (
             <div className="space-y-2">
-              {debtItems.map((item, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-6 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
-                >
-                  <div>{item.type}</div>
-                  <div className="font-mono text-xs">{item.orderRef}</div>
-                  <div>{item.description}</div>
-                  <div className="font-medium">{formatCurrency(item.amount)}</div>
-                  <div>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      item.status === 'paid'
-                        ? 'bg-green-100 text-green-700'
-                        : item.status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {item.status === 'paid' ? 'Đã thanh toán' : 
-                       item.status === 'pending' ? 'Đang chờ' : 
-                       'Chưa thanh toán'}
-                    </span>
+              {debtItems.map((item, index) => {
+                const isPaid = item.status === 'PAID';
+                const isUnpaid = item.status === 'UNPAID';
+                return (
+                  <div
+                    key={index}
+                    className="grid grid-cols-5 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
+                  >
+                    <div>{item.displayType}</div>
+                    <div className="font-mono text-xs">
+                      {item.orderCode || '-'}
+                      {item.ghnOrderCode && (
+                        <div className="text-[10px] text-gray-500">
+                          GHN: {item.ghnOrderCode}
+                        </div>
+                      )}
+                    </div>
+                    <div className="font-medium">{formatCurrency(item.amount)}</div>
+                    <div>
+                      <span
+                        className={`px-2 py-1 rounded text-xs ${
+                          isPaid
+                            ? 'bg-green-100 text-green-700'
+                            : isUnpaid
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}
+                      >
+                        {isPaid
+                          ? 'Đã thanh toán'
+                          : isUnpaid
+                          ? 'Chưa thanh toán'
+                          : item.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {formatDate(item.occurredAt)}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500">{formatDate(item.createdAt)}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
