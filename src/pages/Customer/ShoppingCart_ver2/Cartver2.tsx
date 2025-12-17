@@ -23,7 +23,7 @@ const ShoppingCartVer2: React.FC = () => {
           </div>
         </div>
 
-        <h1 className="mb-4 text-2xl font-bold text-gray-900">Giỏ hàng của bạn (UI v2)</h1>
+        <h1 className="mb-4 text-2xl font-bold text-gray-900">Giỏ hàng của bạn v2</h1>
 
         <ShopCartV2 />
       </div>

@@ -11,7 +11,8 @@ import type {
   PlatformVoucher,
   CheckoutPreviewData,
   CheckoutPreviewRequest,
-  CheckoutCodRequest
+  CheckoutCodRequest,
+  CheckoutPayOSRequest
 } from '../../types/cart';
 import type { CartItem as UiCartItem } from '../../data/shoppingcart';
 import type { PaymentMethod } from '../../data/checkout';
@@ -531,7 +532,86 @@ const PreCheckoutV2: React.FC = () => {
       return;
     }
 
-    // Nếu không phải COD (PayOS) thì chuyển sang trang checkout chi tiết
+    // Thanh toán online qua PayOS
+    if (paymentMethod === 'payos') {
+      try {
+        // Build items payload giống COD (chuẩn CheckoutPayOSRequest['items'])
+        const checkoutItemsPayload: CheckoutPayOSRequest['items'] = items.map(
+          (item) => {
+            const base: any = {
+              type: item.type,
+              quantity: item.quantity,
+            };
+            if (item.type === 'COMBO') {
+              base.comboId = item.refId;
+            } else if (item.variantId) {
+              base.variantId = item.variantId;
+            } else {
+              base.productId = item.refId;
+            }
+            return base;
+          }
+        );
+
+        const serviceTypeIds = buildServiceTypeIds(
+          items as ApiCartItem[],
+          productCache
+        );
+        const platformVouchers = await buildPlatformVouchers(
+          items as ApiCartItem[]
+        );
+
+        const addressForMessage = addresses.find(
+          (a) => a.id === selectedAddressId
+        );
+        const message = addressForMessage?.note || '';
+
+        const returnUrl = `${window.location.origin}/payment/success`;
+        const cancelUrl = `${window.location.origin}/payment/fail`;
+
+        const payosRequest: CheckoutPayOSRequest = {
+          addressId: selectedAddressId,
+          message: message || undefined,
+          description: `Thanh toán đơn hàng (${items.length} sản phẩm)`,
+          items: checkoutItemsPayload,
+          storeVouchers: [], // chưa áp dụng voucher shop ở bước pre-checkout
+          platformVouchers:
+            platformVouchers.length > 0 ? platformVouchers : null,
+          serviceTypeIds:
+            Object.keys(serviceTypeIds).length > 0
+              ? serviceTypeIds
+              : undefined,
+          returnUrl,
+          cancelUrl,
+        };
+
+        console.groupCollapsed(
+          '🧾 [PreCheckoutV2] POST /api/v1/payos/checkout'
+        );
+        console.log('Request Body:', payosRequest);
+
+        const resp = await CustomerCartService.checkoutPayOS(payosRequest);
+        console.log('Response Body:', resp);
+        console.groupEnd();
+
+        if (resp.status === 200 && resp.data?.checkoutUrl) {
+          // Xóa session tạm và chuyển hướng sang trang thanh toán PayOS
+          sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+          window.location.href = resp.data.checkoutUrl;
+          return;
+        }
+
+        console.error(
+          '❌ [PreCheckoutV2] PayOS checkout failed:',
+          resp.message
+        );
+      } catch (err) {
+        console.error('❌ [PreCheckoutV2] PayOS checkout error:', err);
+      }
+      return;
+    }
+
+    // Fallback (không nên xảy ra) – điều hướng về trang checkout cũ
     navigate('/checkout');
   };
 

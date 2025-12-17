@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useCart from '../../hooks/useCart';
 import { ProductListService, type Product } from '../../services/customer/ProductListService';
@@ -27,44 +27,29 @@ const ShopCartV2: React.FC = () => {
   const [productCache, setProductCache] = useState<Map<string, Product>>(
     () => new Map()
   );
-  const productCacheRef = useRef(productCache);
 
-  // Đồng bộ ref với state để dùng bên trong effect async mà không phải
-  // đưa productCache vào dependency (tránh nguy cơ lặp vô hạn).
+  /**
+   * selectedIds:
+   * - null  => mặc định hiểu là "tất cả item trong cart đang được chọn"
+   * - Set   => tập id do user chọn/thao tác thủ công
+   */
+  const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null);
+
+  // Khi danh sách items thay đổi:
+  // - Nếu giỏ trống → reset về mặc định (null = không có gì để chọn)
+  // - Nếu đang dùng Set cụ thể → loại bỏ các id không còn tồn tại trong cart
   useEffect(() => {
-    productCacheRef.current = productCache;
-  }, [productCache]);
-
-  // Trạng thái chọn item trong giỏ
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set()
-  );
-
-  // Khi cart thay đổi:
-  // - Nếu giỏ hàng trống: reset trạng thái chọn
-  // - Nếu có items:
-  //   + Lần đầu load: tự động select tất cả
-  //   + Các lần cập nhật sau: giữ nguyên trạng thái chọn hiện tại,
-  //     chỉ loại bỏ những item đã bị xoá khỏi giỏ.
-  const initializedSelectionRef = useRef(false);
-  useEffect(() => {
-    if (!cart || !cart.items) {
-      initializedSelectionRef.current = false;
-      setSelectedIds(new Set());
+    if (items.length === 0) {
+      setSelectedIds(null);
       return;
     }
 
-    const currentItems = cart.items;
-    const currentIds = new Set(currentItems.map((item) => item.cartItemId));
-
     setSelectedIds((prev) => {
-      if (!initializedSelectionRef.current) {
-        initializedSelectionRef.current = true;
-        const all = new Set<string>();
-        currentItems.forEach((item) => all.add(item.cartItemId));
-        return all;
+      if (prev === null) {
+        // Đang ở trạng thái "mặc định tất cả được chọn" → không cần làm gì
+        return prev;
       }
-
+      const currentIds = new Set(items.map((item) => item.cartItemId));
       const next = new Set<string>();
       prev.forEach((id) => {
         if (currentIds.has(id)) {
@@ -73,19 +58,24 @@ const ShopCartV2: React.FC = () => {
       });
       return next;
     });
-  }, [cart]);
+  }, [items]);
 
   // Các item đang được chọn
   const selectedItems = useMemo(
-    () => items.filter((item) => selectedIds.has(item.cartItemId)),
+    () =>
+      selectedIds === null
+        ? items
+        : items.filter((item) => selectedIds.has(item.cartItemId)),
     [items, selectedIds]
   );
 
   // Tất cả item đã được chọn?
   const allSelected = useMemo(
-    () =>
-      items.length > 0 &&
-      items.every((item) => selectedIds.has(item.cartItemId)),
+    () => {
+      if (items.length === 0) return false;
+      if (selectedIds === null) return true;
+      return items.every((item) => selectedIds.has(item.cartItemId));
+    },
     [items, selectedIds]
   );
 
@@ -98,12 +88,10 @@ const ShopCartV2: React.FC = () => {
   // Đảm bảo có thông tin store cho tất cả PRODUCT items
   useEffect(() => {
     const ensureProductDetails = async () => {
-      const currentCache = productCacheRef.current;
-
       const missingProductIds = items
         .filter((item) => item.type === 'PRODUCT')
         .map((item) => item.refId)
-        .filter((productId) => productId && !currentCache.has(productId));
+        .filter((productId) => productId && !productCache.has(productId));
 
       if (missingProductIds.length === 0) return;
 
@@ -239,7 +227,10 @@ const ShopCartV2: React.FC = () => {
   }
 
   const handleProceedToPreCheckout = () => {
-    const selectedCartItemIds = Array.from(selectedIds);
+    const selectedCartItemIds =
+      selectedIds === null
+        ? items.map((item) => item.cartItemId)
+        : Array.from(selectedIds);
 
     if (selectedCartItemIds.length === 0) {
       console.warn('[ShopCartV2] No items selected for checkout.');
@@ -277,14 +268,20 @@ const ShopCartV2: React.FC = () => {
               checked={allSelected}
               onChange={() =>
                 setSelectedIds((prev) => {
-                  const next = new Set<string>();
                   const currentlyAllSelected =
                     items.length > 0 &&
-                    items.every((item) => prev.has(item.cartItemId));
-                  if (!currentlyAllSelected) {
-                    items.forEach((item) => next.add(item.cartItemId));
+                    (prev === null ||
+                      items.every((item) => prev.has(item.cartItemId)));
+
+                  if (currentlyAllSelected) {
+                    // Unselect all
+                    return new Set<string>();
                   }
-                  return next;
+
+                  // Select all
+                  const all = new Set<string>();
+                  items.forEach((item) => all.add(item.cartItemId));
+                  return all;
                 })
               }
               className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
@@ -316,29 +313,39 @@ const ShopCartV2: React.FC = () => {
                 <div className="flex items-center gap-2 font-semibold text-gray-900">
                   <input
                     type="checkbox"
-                    checked={group.items.every((item) =>
-                      selectedIds.has(item.cartItemId)
-                    )}
+                    checked={
+                      selectedIds === null
+                        ? true
+                        : group.items.every((item) =>
+                            selectedIds.has(item.cartItemId)
+                          )
+                    }
                     onChange={() =>
                       setSelectedIds((prev) => {
-                        const next = new Set(prev);
+                        // Nếu đang ở trạng thái "mặc định tất cả được chọn"
+                        // thì chuyển sang Set đầy đủ để thao tác.
+                        const base =
+                          prev === null
+                            ? new Set(items.map((it) => it.cartItemId))
+                            : new Set(prev);
+
                         const allInStoreSelected = group.items.every((item) =>
-                          next.has(item.cartItemId)
+                          base.has(item.cartItemId)
                         );
 
                         if (allInStoreSelected) {
                           // Unselect toàn bộ product trong store này
                           group.items.forEach((item) =>
-                            next.delete(item.cartItemId)
+                            base.delete(item.cartItemId)
                           );
                         } else {
                           // Select toàn bộ product trong store này
                           group.items.forEach((item) =>
-                            next.add(item.cartItemId)
+                            base.add(item.cartItemId)
                           );
                         }
 
-                        return next;
+                        return base;
                       })
                     }
                     className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
@@ -363,16 +370,26 @@ const ShopCartV2: React.FC = () => {
                   >
                     <input
                       type="checkbox"
-                      checked={selectedIds.has(item.cartItemId)}
+                      checked={
+                        selectedIds === null
+                          ? true
+                          : selectedIds.has(item.cartItemId)
+                      }
                       onChange={() =>
                         setSelectedIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(item.cartItemId)) {
-                            next.delete(item.cartItemId);
+                          // Nếu đang ở trạng thái "mặc định tất cả được chọn"
+                          // thì chuyển sang Set đầy đủ trước khi toggle từng item.
+                          const base =
+                            prev === null
+                              ? new Set(items.map((it) => it.cartItemId))
+                              : new Set(prev);
+
+                          if (base.has(item.cartItemId)) {
+                            base.delete(item.cartItemId);
                           } else {
-                            next.add(item.cartItemId);
+                            base.add(item.cartItemId);
                           }
-                          return next;
+                          return base;
                         })
                       }
                       className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
