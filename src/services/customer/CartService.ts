@@ -12,7 +12,9 @@ import type {
   CheckoutCodRequest,
   CheckoutCodResponse,
   CheckoutPayOSRequest,
-  CheckoutPayOSResponse
+  CheckoutPayOSResponse,
+  CheckoutPreviewRequest,
+  CheckoutPreviewResponse
 } from '../../types/cart';
 import { getCustomerId } from '../../utils/authHelper';
 
@@ -391,6 +393,52 @@ export class CustomerCartService {
       return response;
     } catch (error) {
       console.error('❌ Failed to delete cart:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Preview checkout summary before placing order
+   * POST /api/v1/customers/{customerId}/cart/checkout/preview
+   */
+  static async previewCheckout(
+    request: CheckoutPreviewRequest
+  ): Promise<CheckoutPreviewResponse> {
+    try {
+      const customerId = this.getCustomerId();
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('📤 [CHECKOUT PREVIEW REQUEST]');
+      console.log('POST /api/v1/customers/{customerId}/cart/checkout/preview');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Request Body:');
+      console.log(JSON.stringify(request, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      const response = await HttpInterceptor.post<CheckoutPreviewResponse>(
+        `/api/v1/customers/${customerId}/cart/checkout/preview`,
+        request,
+        {
+          userType: 'customer',
+          // Một số endpoint (như checkout preview) yêu cầu header X-Customer-Id
+          // nên ta gắn kèm luôn dựa trên customerId hiện tại.
+          headers: {
+            'X-Customer-Id': customerId,
+          },
+        }
+      );
+
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('✅ [CHECKOUT PREVIEW RESPONSE]');
+      console.log('POST /api/v1/customers/{customerId}/cart/checkout/preview');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log('Response Body:');
+      console.log(JSON.stringify(response, null, 2));
+      console.log('═══════════════════════════════════════════════════════════════');
+
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to preview checkout:', error);
       throw error;
     }
   }

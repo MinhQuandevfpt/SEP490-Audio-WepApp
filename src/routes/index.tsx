@@ -19,6 +19,8 @@ import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
 import ShoppingCart from '../pages/Customer/Cart';
+import ShoppingCartVer2 from '../pages/Customer/ShoppingCart_ver2';
+import PreCheckoutV2 from '../pages/Customer/PreCheckoutV2';
 import StorePage from '../pages/Customer/StorePage';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
@@ -223,6 +225,14 @@ export const router = createBrowserRouter([
   {
     path: '/cart',
     element: <ShoppingCart />
+  },
+  {
+    path: '/cartv2',
+    element: <ShoppingCartVer2 />
+  },
+  {
+    path: '/precheckoutv2',
+    element: <PreCheckoutV2 />
   },
   {
     path: '/orders',
