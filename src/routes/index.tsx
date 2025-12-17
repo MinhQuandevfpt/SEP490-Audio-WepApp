@@ -63,6 +63,7 @@ import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
+import PayoutManagementPage from '../pages/Seller/Payout/PayoutManagementPage';
 import PayoutRevenue from '../pages/Seller/Dashboard/PayoutRevenue';
 import PayoutRevenueDetail from '../pages/Seller/Dashboard/PayoutRevenueDetail';
 import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
@@ -446,6 +447,10 @@ export const router = createBrowserRouter([
       {
         path: 'finance',
         element: <FinancePage />
+      },
+      {
+        path: 'payout',
+        element: <PayoutManagementPage />
       },
       {
         path: 'revenue',

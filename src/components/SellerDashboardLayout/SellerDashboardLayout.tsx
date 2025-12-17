@@ -381,6 +381,7 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Ví cửa hàng', path: '/seller/dashboard/finance' },
+        { label: 'Quản lý chi trả', path: '/seller/dashboard/payout' },
         { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
       ]
     },

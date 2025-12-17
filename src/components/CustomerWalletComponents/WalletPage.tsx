@@ -21,7 +21,8 @@ const getTransactionTypeLabel = (type: string): string => {
     'QR': 'Thanh toán QR',
     'DEPOSIT': 'Nạp tiền',
     'TOPUP': 'Nạp tiền vào ví',
-    'WITHDRAW': 'Rút tiền',    'WITHDRAW_REQUEST': 'Yêu cầu rút tiền',    'PENDING_HOLD': 'Giữ tiền chờ',
+    'WITHDRAW': 'Rút tiền',
+    'PENDING_HOLD': 'Giữ tiền chờ',
     'RELEASE_PENDING': 'Giải phóng tiền chờ',
     'ADJUSTMENT': 'Điều chỉnh',
     'PAYMENT': 'Thanh toán',
@@ -439,7 +440,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
             label: (
               <span className="flex items-center gap-2">
                 <HistoryOutlined />
-                Lịch sử yêu cầu rút tiền
+                Lịch sử rút tiền
               </span>
             ),
             children: (
@@ -473,7 +474,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
                 }}
                 columns={[
                   {
-                    title: 'Thời gian yêu cầu',
+                    title: 'Thời gian',
                     dataIndex: 'createdAt',
                     key: 'createdAt',
                     render: (value) => new Date(value).toLocaleString('vi-VN'),
@@ -506,7 +507,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
                         PENDING: { color: 'orange', text: 'Chờ xử lý' },
                         APPROVED: { color: 'blue', text: 'Đã duyệt' },
                         REJECTED: { color: 'red', text: 'Từ chối' },
-                        PAID: { color: 'green', text: 'Đã thanh toán' },
+                        PAID: { color: 'green', text: 'Thành công' },
                       };
                       const config = statusConfig[status] || { color: 'default', text: status };
                       return <Tag color={config.color}>{config.text}</Tag>;

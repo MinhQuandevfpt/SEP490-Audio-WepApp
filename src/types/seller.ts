@@ -991,14 +991,18 @@ export interface CampaignProductDetailsResponse {
 // ==================== FINANCE / WALLET TYPES ====================
 
 export type TransactionType = 
-  | 'DEPOSIT'           // Nạp tiền
-  | 'PENDING_HOLD'      // Giữ tiền chờ
-  | 'RELEASE_PENDING'   // Giải phóng tiền chờ
-  | 'WITHDRAW'          // Rút tiền
-  | 'REFUND'            // Hoàn tiền
-  | 'ADJUSTMENT'        // Điều chỉnh thủ công
-  | 'REFUND_RETURN'     // Hoàn tiền trả hàng
-  | 'REFUND_FORCE';     // Hoàn tiền bắt buộc
+  | 'DEPOSIT'                  // Nạp tiền
+  | 'PENDING_HOLD'             // Giữ tiền chờ
+  | 'RELEASE_PENDING'          // Giải phóng tiền chờ
+  | 'WITHDRAW'                 // Rút tiền
+  | 'REFUND'                   // Hoàn tiền
+  | 'ADJUSTMENT'               // Điều chỉnh thủ công
+  | 'REFUND_RETURN'            // Hoàn tiền trả hàng
+  | 'REFUND_FORCE'             // Hoàn tiền bắt buộc
+  | 'TOPUP'                    // Nạp tiền vào ví
+  | 'DEBT_PAYMENT'             // Thanh toán nợ
+  | 'TRANSFER_TO_DEPOSIT'      // Chuyển tiền sang ký quỹ
+  | 'TRANSFER_DEPOSIT_TO_DEFAULT'; // Hoàn tiền từ ký quỹ về ví khả dụng
 
 export interface WalletTransaction {
   transactionId: string;
@@ -1071,8 +1075,19 @@ export interface WalletInfo {
 
 export interface WalletInfoResponse extends ApiResponse<WalletInfo> {}
 
-// Payout Summary Types
-export interface PayoutSummary {
+export interface WalletOverview {
+  storeId: string;
+  storeName: string;
+  walletId: string;
+  defaultBalance: number;
+  depositBalance: number;
+  debtBalance: number;
+}
+
+export interface WalletOverviewResponse extends ApiResponse<WalletOverview> {}
+
+// Legacy Payout Summary Types (old API - keep for backward compatibility)
+export interface LegacyPayoutSummary {
   storeId: string;
   estimatedGross: number;  // Doanh thu ước tính (item chưa payout)
   pendingGross: number;    // Doanh thu đang bị hold (chưa đủ điều kiện payout)
@@ -1080,12 +1095,40 @@ export interface PayoutSummary {
   netProfit: number;       // Lãi ròng sau khi trừ phí nền tảng, ship chênh lệch, giá vốn
 }
 
+// Payout Summary Types - New API (/api/stores/me/payout/summary)
+export interface PayoutSummary {
+  pendingCount: number; // Số order item đang bị HOLD
+  pendingGross: number; // Tổng tiền gốc đang HOLD
+  eligibleNotPayoutCount: number; // Số order item đã eligible nhưng chưa payout
+  eligibleNotPayoutGross: number; // Tổng tiền gốc đã eligible nhưng chưa payout
+  platformFeePayable: number; // Tổng phí nền tảng phải thu (chưa trừ)
+  payoutDoneCount: number; // Số order item đã payout xong
+  availableGross: number; // Tổng tiền gốc đã payout
+  platformFeePaid: number; // Tổng phí nền tảng đã trừ
+  availableNet: number; // Tiền shop thực nhận / có thể rút
+}
+
 export interface PayoutSummaryResponse extends ApiResponse<PayoutSummary> {}
 
-// Payout Item Types
-export type PayoutBucket = 'ESTIMATED' | 'PENDING' | 'DONE';
+// Payout Item Types - New API (/api/stores/me/payout/items)
+export type PayoutBucket = 'PENDING' | 'ELIGIBLE_NOT_PAYOUT' | 'PAYOUT_DONE';
 
 export interface PayoutItem {
+  itemId: string;
+  storeOrderId: string;
+  orderCode: string;
+  finalLineTotal: number;
+  platformFeePercentage: number;
+  platformFeeAmount: number;
+  netAfterFee: number;
+  eligibleForPayout: boolean;
+  isPayout: boolean;
+  isReturned: boolean;
+  deliveredAt: string;
+}
+
+// Legacy PayoutItem interface (keep for backward compatibility)
+export interface LegacyPayoutItem {
   storeOrderItemId: string;
   storeOrderId: string;
   orderCode: string;
@@ -1105,8 +1148,19 @@ export interface PayoutItem {
   orderStatus: string;           // Trạng thái đơn hàng
 }
 
-export interface PayoutItemListData {
+export interface PayoutItemsResponse {
   items: PayoutItem[];
+  totalElements: number;
+  totalPages: number;
+  page: number;
+  size: number;
+}
+
+export interface PayoutItemsApiResponse extends ApiResponse<PayoutItemsResponse> {}
+
+// Legacy types (keep for backward compatibility)
+export interface PayoutItemListData {
+  items: LegacyPayoutItem[];
   totalElements: number;
   totalPages: number;
   page: number;
