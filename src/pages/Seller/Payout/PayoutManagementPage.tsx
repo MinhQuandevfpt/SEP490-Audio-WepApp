@@ -317,7 +317,7 @@ const PayoutManagementPage: React.FC = () => {
                   valueStyle={{ color: '#1890ff', fontSize: '20px', fontWeight: 'bold' }}
                 />
                 <div className="mt-2 text-xs text-gray-500">
-                  {summary.eligibleNotPayoutCount || 0} đơn đã eligible, chưa trừ phí
+                  {summary.eligibleNotPayoutCount || 0} đơn đã đủ điều kiện 
                 </div>
               </Card>
             </Col>
@@ -348,7 +348,7 @@ const PayoutManagementPage: React.FC = () => {
                 <Row gutter={[16, 16]}>
                   <Col xs={24} sm={12} md={6}>
                     <div>
-                      <Text className="text-xs text-gray-500">Tổng tiền gốc đã eligible:</Text>
+                      <Text className="text-xs text-gray-500">Tổng tiền gốc đã đủ điều kiện:</Text>
                       <Text strong className="block text-base">
                         {formatCurrency(summary.eligibleNotPayoutGross || 0)}
                       </Text>
@@ -356,7 +356,7 @@ const PayoutManagementPage: React.FC = () => {
                   </Col>
                   <Col xs={24} sm={12} md={6}>
                     <div>
-                      <Text className="text-xs text-gray-500">Tổng tiền gốc đã payout:</Text>
+                      <Text className="text-xs text-gray-500">Tổng tiền gốc đã thanh toán:</Text>
                       <Text strong className="block text-base text-green-600">
                         {formatCurrency(summary.availableGross || 0)}
                       </Text>
@@ -364,7 +364,7 @@ const PayoutManagementPage: React.FC = () => {
                   </Col>
                   <Col xs={24} sm={12} md={6}>
                     <div>
-                      <Text className="text-xs text-gray-500">Phí nền tảng đã trừ:</Text>
+                      <Text className="text-xs text-gray-500">Phí nền tảng:</Text>
                       <Text strong className="block text-base text-red-600">
                         {formatCurrency(summary.platformFeePaid || 0)}
                       </Text>

@@ -201,6 +201,27 @@ export class OrderHistoryService {
   }
 
   /**
+   * Confirm received order when status is DELIVERY_SUCCESS
+   * POST /api/customers/{customerId}/orders/{orderId}/confirm-received
+   * Response: { status: 200, message: "Confirmed received", data: null }
+   */
+  static async confirmReceived(orderId: string): Promise<void> {
+    try {
+      const customerId = this.getCustomerId();
+      const endpoint = `/api/customers/${customerId}/orders/${orderId}/confirm-received`;
+
+      await HttpInterceptor.post<{ status: number; message: string; data: null }>(
+        endpoint, 
+        undefined, 
+        { userType: 'customer' }
+      );
+    } catch (error: any) {
+      // Re-throw with message so UI can show server response
+      throw new Error(error?.message || 'Không thể xác nhận đã nhận hàng');
+    }
+  }
+
+  /**
    * Get GHN order by store order ID (for customer)
    * GET /api/v1/ghn-orders/by-store-order/{storeOrderId}
    * Returns null if GHN order not found (404/500) - this is normal for orders without GHN tracking

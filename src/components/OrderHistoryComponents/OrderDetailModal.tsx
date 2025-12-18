@@ -44,6 +44,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
   const [cancelNote, setCancelNote] = React.useState<string>('');
   const [isCancelling, setIsCancelling] = React.useState(false);
   const [showReturnModal, setShowReturnModal] = React.useState(false);
+  const [isConfirmingReceived, setIsConfirmingReceived] = React.useState(false);
   const totalItemsCount = Array.isArray(order.storeOrders) 
     ? order.storeOrders.reduce((sum, so) => {
         if (!Array.isArray(so.items)) return sum;
@@ -75,6 +76,23 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
       message.error(err?.message || (order.status === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy đơn hàng thất bại' : 'Hủy đơn hàng thất bại'));
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleConfirmReceived = async () => {
+    try {
+      setIsConfirmingReceived(true);
+      await OrderHistoryService.confirmReceived(order.id);
+      message.success('Xác nhận đã nhận hàng thành công');
+      
+      if (onOrderCancelled) {
+        onOrderCancelled();
+      }
+      onClose();
+    } catch (err: any) {
+      message.error(err?.message || 'Không thể xác nhận đã nhận hàng');
+    } finally {
+      setIsConfirmingReceived(false);
     }
   };
 
@@ -401,18 +419,34 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                     </>
                   )}
                   {order.status === 'DELIVERY_SUCCESS' && (
-                    <Button
-                      className="w-full"
-                      style={{
-                        borderColor: '#f97316',
-                        color: '#f97316',
-                        borderRadius: '8px',
-                        height: '40px',
-                      }}
-                      onClick={() => setShowReturnModal(true)}
-                    >
-                      Hoàn trả sản phẩm
-                    </Button>
+                    <>
+                      <Button
+                        type="primary"
+                        className="w-full"
+                        style={{
+                          backgroundColor: '#27AE60',
+                          borderColor: '#27AE60',
+                          borderRadius: '8px',
+                          height: '40px',
+                        }}
+                        onClick={handleConfirmReceived}
+                        loading={isConfirmingReceived}
+                      >
+                        Đã nhận hàng
+                      </Button>
+                      <Button
+                        className="w-full"
+                        style={{
+                          borderColor: '#f97316',
+                          color: '#f97316',
+                          borderRadius: '8px',
+                          height: '40px',
+                        }}
+                        onClick={() => setShowReturnModal(true)}
+                      >
+                        Hoàn trả sản phẩm
+                      </Button>
+                    </>
                   )}
                   {canCancelOrder(order.status) && (
                     <Button 
