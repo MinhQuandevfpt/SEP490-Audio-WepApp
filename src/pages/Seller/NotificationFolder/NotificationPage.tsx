@@ -70,6 +70,24 @@ const NotificationPage: React.FC = () => {
       // Navigate to action URL if available
       if (notification.actionUrl) {
         let route = notification.actionUrl;
+        let customerOrderId: string | null = null;
+
+        // Ưu tiên lấy customerOrderId từ metadataJson nếu có
+        if (notification.metadataJson) {
+          try {
+            const metadata = JSON.parse(notification.metadataJson) as { customerOrderId?: string };
+            if (metadata.customerOrderId) {
+              customerOrderId = metadata.customerOrderId;
+            }
+          } catch {
+            // ignore JSON parse errors
+          }
+        }
+
+        // Nếu chưa có, fallback parse từ actionUrl dạng /seller/orders/{customerOrderId}
+        if (!customerOrderId && route.startsWith('/seller/orders/')) {
+          customerOrderId = route.substring('/seller/orders/'.length);
+        }
         
         if (route.startsWith('/seller/orders/')) {
           route = '/seller/dashboard/orders';
@@ -80,8 +98,15 @@ const NotificationPage: React.FC = () => {
         } else {
           route = `/seller/dashboard${route}`;
         }
-        
-        navigate(route);
+
+        // Gắn customerOrderId vào query để trang orders biết cần auto-expand đơn nào
+        if (customerOrderId) {
+          const url = new URL(route, window.location.origin);
+          url.searchParams.set('customerOrderId', customerOrderId);
+          navigate(url.pathname + url.search);
+        } else {
+          navigate(route);
+        }
       }
     } catch (error) {
       console.error('Error handling notification click:', error);
