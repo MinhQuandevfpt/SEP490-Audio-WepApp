@@ -24,7 +24,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  DollarSign
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -406,6 +407,12 @@ const SellerDashboardLayout: React.FC = () => {
       icon: AlertTriangle,
       label: 'Cảnh báo rủi ro',
       path: '/seller/dashboard/risk-warning',
+      badge: null
+    },
+    {
+      icon: DollarSign,
+      label: 'Chi trả cho cửa hàng',
+      path: '/seller/dashboard/store-payout-v2',
       badge: null
     }
   ], [notificationCount, storeInfo?.id]);

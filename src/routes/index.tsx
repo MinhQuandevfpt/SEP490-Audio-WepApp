@@ -91,6 +91,7 @@ import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage'
 import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
 import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
+import { StorePayoutV2 } from '../pages/Seller/StorePayoutVersion2';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -535,6 +536,10 @@ export const router = createBrowserRouter([
       {
         path: 'risk-warning',
         element: <RiskWarningPage />
+      },
+      {
+        path: 'store-payout-v2',
+        element: <StorePayoutV2 />
       },
       {
         path: 'settings',

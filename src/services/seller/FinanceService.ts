@@ -1,4 +1,5 @@
 import { HttpInterceptor } from '../HttpInterceptor';
+import type { ApiResponse } from '../../types/api';
 import type { 
   WalletTransactionFilterParams, 
   WalletTransactionListResponse, 
@@ -484,6 +485,38 @@ export class FinanceService {
     } catch (error: any) {
       console.error('❌ Error getting payout items:', error);
       throw new Error(error?.message || 'Không thể tải danh sách chi trả');
+    }
+  }
+
+  /**
+   * Auto process payout - Đánh dấu tất cả items đủ điều kiện thành đã payout
+   * POST /api/stores/me/payout/auto-process
+   */
+  static async autoProcessPayout(): Promise<{
+    totalItemsProcessed: number;
+    totalAmountTransferred: number;
+  }> {
+    try {
+      const endpoint = `${API_URL}/stores/me/payout/auto-process`;
+
+      console.log('📡 [Auto Process Payout] POST:', endpoint);
+
+      const response = await HttpInterceptor.post<
+        ApiResponse<{
+          totalItemsProcessed: number;
+          totalAmountTransferred: number;
+        }>
+      >(endpoint, {}, { userType: 'seller' });
+
+      console.log('✅ [Auto Process Payout] Response:', response);
+
+      if (response.data) {
+        return response.data;
+      }
+      throw new Error('Unexpected response format');
+    } catch (error: any) {
+      console.error('❌ Error auto processing payout:', error);
+      throw new Error(error?.message || 'Không thể thực hiện payout tự động');
     }
   }
 }
