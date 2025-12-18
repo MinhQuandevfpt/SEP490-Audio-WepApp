@@ -33,6 +33,7 @@ export const PRODUCT_STATUS_LABELS = {
   discontinued: 'Ngừng sản xuất',
   unlisted: 'Không hiển thị',
   suspended: 'Tạm khóa',
+  suspended_debt: 'Tạm khóa do nợ',
   banned: 'Bị cấm',
 } as const;
 

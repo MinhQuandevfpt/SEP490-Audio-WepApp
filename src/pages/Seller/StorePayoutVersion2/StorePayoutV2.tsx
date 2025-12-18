@@ -54,7 +54,7 @@ const StorePayoutV2: React.FC = () => {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs text-gray-600">
-              Từ ngày (deliveredAt)
+              Từ ngày 
             </label>
             <input
               type="datetime-local"
@@ -65,7 +65,7 @@ const StorePayoutV2: React.FC = () => {
           </div>
           <div>
             <label className="mb-1 block text-xs text-gray-600">
-              Đến ngày (deliveredAt)
+              Đến ngày 
             </label>
             <input
               type="datetime-local"

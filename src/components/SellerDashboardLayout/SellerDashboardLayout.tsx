@@ -24,8 +24,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertTriangle,
-  DollarSign
+  AlertTriangle
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -382,7 +381,7 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Ví cửa hàng', path: '/seller/dashboard/finance' },
-        { label: 'Quản lý chi trả', path: '/seller/dashboard/payout' },
+        { label: 'Chi trả cho cửa hàng', path: '/seller/dashboard/store-payout-v2' },
         { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
       ]
     },
@@ -407,12 +406,6 @@ const SellerDashboardLayout: React.FC = () => {
       icon: AlertTriangle,
       label: 'Cảnh báo rủi ro',
       path: '/seller/dashboard/risk-warning',
-      badge: null
-    },
-    {
-      icon: DollarSign,
-      label: 'Chi trả cho cửa hàng',
-      path: '/seller/dashboard/store-payout-v2',
       badge: null
     }
   ], [notificationCount, storeInfo?.id]);

@@ -8,6 +8,10 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  Timer,
+  Wallet,
+  TriangleAlert,
 } from 'lucide-react';
 import { FinanceService } from '../../services/seller/FinanceService';
 import type { PayoutSummary, PayoutItem, PayoutBucket } from '../../types/seller';
@@ -282,7 +286,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             <div className="mb-3 flex items-center gap-2">
               <Clock className="h-4 w-4 text-yellow-600" />
               <span className="text-sm font-semibold text-gray-700">
-                Đang bị giữ (Pending Balance)
+                Đang bị giữ
               </span>
             </div>
             <div className="space-y-2 text-sm">
@@ -298,8 +302,8 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                   {formatCurrency(summary.pendingGross)}
                 </span>
               </div>
-              <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800">
-                🔒 Tiền này đang bị HOLD, shop chưa được sử dụng
+              <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800 flex items-center gap-1">
+                <Lock className="h-3 w-3" /> Tiền này đang bị giữ, chưa thể rút hoặc sử dụng
               </div>
             </div>
           </div>
@@ -309,7 +313,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             <div className="mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-semibold text-gray-700">
-                Đã đủ điều kiện (Eligible Not Payout)
+                Đã đủ điều kiện thanh toán
               </span>
             </div>
             <div className="space-y-2 text-sm">
@@ -331,8 +335,8 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                   {formatCurrency(summary.platformFeePayable)}
                 </span>
               </div>
-              <div className="mt-2 rounded bg-blue-100 p-2 text-xs text-blue-800">
-                ⏳ Đã đủ điều kiện nhưng hệ thống chưa giải ngân
+              <div className="mt-2 rounded bg-blue-100 p-2 text-xs text-blue-800 flex items-center gap-1">
+                <Timer className="h-3 w-3" /> Đã đủ điều kiện nhưng hệ thống chưa giải ngân
               </div>
             </div>
           </div>
@@ -342,7 +346,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             <div className="mb-3 flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-orange-600" />
               <span className="text-sm font-semibold text-gray-700">
-                Đã giải ngân (Available Balance)
+                Đã giải ngân 
               </span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -367,8 +371,8 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             </div>
             <div className="mt-4 rounded-lg border-2 border-orange-400 bg-white p-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700">
-                  💵 Tiền shop thực nhận / có thể rút:
+                <span className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                  <Wallet className="h-4 w-4" /> Tiền shop thực nhận / có thể rút:
                 </span>
                 <span className="text-2xl font-bold text-orange-600">
                   {formatCurrency(summary.availableNet)}
@@ -493,15 +497,12 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                         <div className="font-medium text-gray-900">
                           {item.orderCode}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {item.itemId.slice(0, 8)}...
-                        </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-900">
+                      <td className="px-4 py-3 text-blue-600 font-medium">
                         {formatCurrency(item.finalLineTotal)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="text-gray-900">
+                        <div className="text-red-600 font-medium">
                           {formatCurrency(item.platformFeeAmount)}
                         </div>
                         <div className="text-xs text-gray-500">
@@ -521,13 +522,24 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                               Đã trả hàng
                             </span>
                           )}
-                          {item.eligibleForPayout && (
+                          {/* Hiển thị trạng thái dựa trên bucket đang chọn */}
+                          {selectedBucket === 'PENDING' && !item.eligibleForPayout && !item.isPayout && (
+                            <span className="inline-flex w-fit items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                              Đang bị giữ
+                            </span>
+                          )}
+                          {item.eligibleForPayout && !item.isPayout && (
                             <span className="inline-flex w-fit items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
                               Đủ điều kiện
                             </span>
                           )}
-                          {item.isPayout && (
+                          {!item.eligibleForPayout && !item.isPayout && selectedBucket !== 'PENDING' && (
                             <span className="inline-flex w-fit items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                              Chưa đủ điều kiện
+                            </span>
+                          )}
+                          {item.isPayout && (
+                            <span className="inline-flex w-fit items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                               Đã giải ngân
                             </span>
                           )}
@@ -624,10 +636,11 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                 </div>
               </div>
               <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                <p className="text-xs text-yellow-800">
-                  ⚠️ Hệ thống sẽ tự động đánh dấu tất cả các StoreOrderItem đủ điều kiện
+                <p className="text-xs text-yellow-800 flex items-start gap-1">
+                  <TriangleAlert className="h-3 w-3 mt-0.5 flex-shrink-0" /> 
+                  <span>Hệ thống sẽ tự động đánh dấu tất cả các StoreOrderItem đủ điều kiện
                   (eligibleForPayout = true AND isPayout = false) thành đã payout và tạo
-                  transaction ghi nhận việc rút tiền vào ví của shop.
+                  transaction ghi nhận việc rút tiền vào ví của shop.</span>
                 </p>
               </div>
             </div>

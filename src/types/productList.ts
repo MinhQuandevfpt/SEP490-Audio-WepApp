@@ -64,6 +64,7 @@ export const PRODUCT_STATUSES = [
   { value: 'DISCONTINUED', label: 'Ngừng sản xuất' },
   { value: 'UNLISTED', label: 'Không hiển thị' },
   { value: 'SUSPENDED', label: 'Tạm khóa' },
+  { value: 'SUSPENDED_DEBT', label: 'Tạm khóa do nợ' },
   { value: 'BANNED', label: 'Bị cấm' },
   { value: 'REJECT', label: 'Bị từ chối' },
   { value: 'PENDING_APPROVAL', label: 'Chờ duyệt' },
