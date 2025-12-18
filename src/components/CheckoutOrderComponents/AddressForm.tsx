@@ -25,7 +25,7 @@ const createEmptyForm = () => ({
   ward: '',
   street: '',
   addressLine: '',
-  postalCode: '',
+  postalCode: '70000',
   note: '',
   isDefault: false,
   provinceCode: '',
@@ -453,11 +453,10 @@ const AddressForm: React.FC<AddressFormProps> = ({
               value={formData.addressLine}
               onChange={e => setFormData({ ...formData, addressLine: e.target.value })}
             />
+            {/* postalCode is hidden, default value is '70000' */}
             <input
-              className="border rounded px-3 py-2"
-              placeholder="Mã bưu chính"
+              type="hidden"
               value={formData.postalCode}
-              onChange={e => setFormData({ ...formData, postalCode: e.target.value })}
             />
             <input
               className="border rounded px-3 py-2"

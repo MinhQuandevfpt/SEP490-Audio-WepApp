@@ -151,7 +151,7 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ open, order, on
       await OrderHistoryService.requestReturn({
         orderItemId: selectedItem.id,
         productId: selectedItem.refId,
-        itemPrice: derivedPrice,
+        // itemPrice removed - BE will calculate from order item snapshot
         reasonType,
         reason: reason.trim(),
         customerVideoUrl: videoUrl.trim() || undefined,
@@ -267,11 +267,11 @@ const ReturnRequestModal: React.FC<ReturnRequestModalProps> = ({ open, order, on
             )}
           </div>
 
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1">Giá trị hoàn trả</p>
+          <div className="hidden">
+            <p className="text-sm font-medium text-gray-700 mb-1">Giá trị hoàn trả (dự kiến)</p>
             <Input value={formatCurrency(derivedPrice)} disabled />
             <p className="text-xs text-gray-500 mt-1">
-              Sử dụng số tiền theo yêu cầu (từ totalAmount của đơn hoặc giá sản phẩm).
+              Số tiền hoàn trả sẽ được hệ thống tự động tính từ snapshot của đơn hàng khi yêu cầu được duyệt.
             </p>
           </div>
 

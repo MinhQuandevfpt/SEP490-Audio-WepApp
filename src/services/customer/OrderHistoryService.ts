@@ -11,6 +11,7 @@ import type {
   StoreOrder,
   OrderItem,
   CreateReturnRequest,
+  CreateComplaintRequest,
   ReturnRequestResponse,
 } from '../../types/api';
 import { getCustomerId } from '../../utils/authHelper';
@@ -260,6 +261,23 @@ export class OrderHistoryService {
     } catch (error: any) {
       console.error('Failed to submit return request:', error);
       throw new Error(error?.message || 'Không thể gửi yêu cầu hoàn trả sản phẩm');
+    }
+  }
+
+  /**
+   * Submit complaint for return request
+   * POST /api/customers/me/returns/complaints
+   */
+  static async submitComplaint(payload: CreateComplaintRequest): Promise<void> {
+    try {
+      await HttpInterceptor.post<void>(
+        '/api/customers/me/returns/complaints',
+        payload,
+        { userType: 'customer' }
+      );
+    } catch (error: any) {
+      console.error('Failed to submit complaint:', error);
+      throw new Error(error?.message || 'Không thể gửi khiếu nại');
     }
   }
 

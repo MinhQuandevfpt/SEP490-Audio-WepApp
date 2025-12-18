@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Typography, Space, Pagination, Empty, Spin, Button, message, Modal, Input } from 'antd';
-import { ZoomIn, Video as VideoIcon, X, Package } from 'lucide-react';
+import { ZoomIn, Video as VideoIcon, X, Package, AlertTriangle, Upload, Image as ImageIcon } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReturnRequestResponse } from '../../types/api';
 import { formatDate, formatCurrency } from '../../utils/orderStatus';
@@ -8,6 +8,7 @@ import { StoreReturnService } from '../../services/seller/StoreReturnService';
 import PickShiftModal from './PickShiftModal';
 import { GhnService } from '../../services/seller/GhnService';
 import { ProductListService } from '../../services/customer/ProductListService';
+import { FileUploadService } from '../../services/FileUploadService';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -148,6 +149,15 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   });
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [productCache, setProductCache] = useState<Map<string, { image?: string; variantOptionName?: string; variantOptionValue?: string; variantUrl?: string }>>(new Map());
+  const [showDisputeModal, setShowDisputeModal] = useState<{ visible: boolean; returnId: string | null }>({
+    visible: false,
+    returnId: null,
+  });
+  const [disputeReason, setDisputeReason] = useState('');
+  const [disputingId, setDisputingId] = useState<string | null>(null);
+  const [disputeImageFiles, setDisputeImageFiles] = useState<File[]>([]);
+  const [disputeVideoFile, setDisputeVideoFile] = useState<File | null>(null);
+  const [isUploadingDisputeMedia, setIsUploadingDisputeMedia] = useState(false);
 
   // Load product details for all return requests
   useEffect(() => {
@@ -234,6 +244,119 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   const handleOpenRejectModal = (record: ReturnRequestResponse) => {
     setShowRejectModal({ visible: true, returnId: record.id });
     setRejectReason('');
+  };
+
+  const handleOpenDisputeModal = (record: ReturnRequestResponse) => {
+    setShowDisputeModal({ visible: true, returnId: record.id });
+    setDisputeReason('');
+    setDisputeImageFiles([]);
+    setDisputeVideoFile(null);
+  };
+
+  const handleDisputeFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (type === 'image') {
+      const maxFiles = 5;
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
+      if (disputeImageFiles.length + files.length > maxFiles) {
+        message.error(`Chỉ được tải tối đa ${maxFiles} ảnh`);
+        return;
+      }
+
+      const validFiles: File[] = [];
+      for (const file of files) {
+        const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+        if (validation.isValid) {
+          validFiles.push(file);
+        } else {
+          message.error(`${file.name}: ${validation.error}`);
+        }
+      }
+
+      setDisputeImageFiles(prev => [...prev, ...validFiles]);
+    } else if (type === 'video') {
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+
+      if (files.length > 1) {
+        message.error('Chỉ được tải 1 video');
+        return;
+      }
+
+      const file = files[0];
+      const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+      if (validation.isValid) {
+        setDisputeVideoFile(file);
+      } else {
+        message.error(`${file.name}: ${validation.error}`);
+      }
+    }
+
+    // Reset input
+    e.target.value = '';
+  };
+
+  const removeDisputeImage = (index: number) => {
+    setDisputeImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeDisputeVideo = () => {
+    setDisputeVideoFile(null);
+  };
+
+  const handleDispute = async () => {
+    if (!showDisputeModal.returnId) {
+      message.error('Không tìm thấy thông tin yêu cầu hoàn trả.');
+      return;
+    }
+
+    if (!disputeReason.trim()) {
+      message.warning('Vui lòng nhập lý do khiếu nại');
+      return;
+    }
+
+    try {
+      setDisputingId(showDisputeModal.returnId);
+      setIsUploadingDisputeMedia(true);
+
+      // Upload images
+      let imageUrls: string[] = [];
+      if (disputeImageFiles.length > 0) {
+        const uploadPromises = disputeImageFiles.map(file => FileUploadService.uploadImage(file));
+        const uploadResults = await Promise.all(uploadPromises);
+        imageUrls = uploadResults.map(result => result.url);
+      }
+
+      // Upload video
+      let videoUrl: string | undefined;
+      if (disputeVideoFile) {
+        const videoResult = await FileUploadService.uploadVideo(disputeVideoFile);
+        videoUrl = videoResult.url;
+      }
+
+      // Submit dispute
+      await StoreReturnService.dispute(showDisputeModal.returnId, {
+        reason: disputeReason.trim(),
+        videoUrl: videoUrl,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      });
+
+      message.success('Đã gửi khiếu nại lên admin thành công. Admin sẽ xem xét và xử lý.');
+      setShowDisputeModal({ visible: false, returnId: null });
+      setDisputeReason('');
+      setDisputeImageFiles([]);
+      setDisputeVideoFile(null);
+      onReload?.();
+    } catch (e: any) {
+      message.error(e?.message || 'Không thể gửi khiếu nại. Vui lòng thử lại.');
+    } finally {
+      setDisputingId(null);
+      setIsUploadingDisputeMedia(false);
+    }
   };
 
   const handleReject = async () => {
@@ -661,7 +784,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                   className="w-full"
                   onClick={() => setShowRefundWithoutReturn({ visible: true, record })}
                   loading={refundingId === record.id}
-                  disabled={approvingId === record.id || rejectingId === record.id}
+                  disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
                 >
                   Hoàn tiền không cần trả hàng
                 </Button>
@@ -672,7 +795,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 loading={approvingId === record.id}
                 onClick={() => handleApprove(record)}
                 className="w-full"
-                disabled={rejectingId === record.id}
+                disabled={rejectingId === record.id || disputingId === record.id}
               >
                 Duyệt hoàn trả
               </Button>
@@ -683,9 +806,19 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 loading={rejectingId === record.id}
                 onClick={() => handleOpenRejectModal(record)}
                 className="w-full"
-                disabled={approvingId === record.id}
+                disabled={approvingId === record.id || disputingId === record.id}
               >
                 Không cho hoàn trả
+              </Button>
+              <Button
+                type="default"
+                size="small"
+                icon={<AlertTriangle className="w-3 h-3" />}
+                onClick={() => handleOpenDisputeModal(record)}
+                disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                className="w-full"
+              >
+                Khiếu nại lên admin
               </Button>
             </Space>
           );
@@ -737,24 +870,37 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                   Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
                 </Text>
               )}
-              <Space className="w-full">
+              <Space className="w-full" direction="vertical" size={6}>
+                <Space className="w-full">
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={() => handleApprove(record)}
+                    disabled={!canTakeAction || rejectingId === record.id || approvingId === record.id || disputingId === record.id}
+                    title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
+                  >
+                    Xác nhận nhận đúng hàng & hoàn tiền
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    onClick={() => handleOpenRejectModal(record)}
+                    disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                    title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
+                  >
+                    Khiếu nại hàng trả
+                  </Button>
+                </Space>
                 <Button
-                  type="primary"
+                  type="default"
                   size="small"
-                  onClick={() => handleApprove(record)}
-                  disabled={!canTakeAction || rejectingId === record.id || approvingId === record.id}
+                  icon={<AlertTriangle className="w-3 h-3" />}
+                  onClick={() => handleOpenDisputeModal(record)}
+                  disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
                   title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
+                  className="w-full"
                 >
-                  Xác nhận nhận đúng hàng & hoàn tiền
-                </Button>
-                <Button
-                  danger
-                  size="small"
-                  onClick={() => handleOpenRejectModal(record)}
-                  disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id}
-                  title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
-                >
-                  Khiếu nại hàng trả
+                  Khiếu nại lên admin
                 </Button>
               </Space>
               {!isWaitingForSync && (
@@ -842,6 +988,19 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                   </Button>
                 </>
               )}
+              {/* Show dispute button for APPROVED status with package info */}
+              {record.status === 'APPROVED' && (
+                <Button
+                  type="default"
+                  size="small"
+                  icon={<AlertTriangle className="w-3 h-3" />}
+                  onClick={() => handleOpenDisputeModal(record)}
+                  disabled={disputingId === record.id}
+                  className="w-full"
+                >
+                  Khiếu nại lên admin
+                </Button>
+              )}
             </Space>
           );
         }
@@ -851,6 +1010,27 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
             <Text type="secondary" className="text-xs">
               Yêu cầu auto-approve, không thể thay đổi. Chờ shop tạo đơn GHN sau khi có thông tin gói hàng.
             </Text>
+          );
+        }
+
+        // Show dispute button when status is DISPUTE (to escalate to admin)
+        if (record.status === 'DISPUTE') {
+          return (
+            <Space direction="vertical" size={6} className="w-full">
+              <Text type="secondary" className="text-xs">
+                Đang khiếu nại. Bạn có thể khiếu nại lên admin để được xử lý.
+              </Text>
+              <Button
+                type="default"
+                size="small"
+                icon={<AlertTriangle className="w-3 h-3" />}
+                onClick={() => handleOpenDisputeModal(record)}
+                disabled={disputingId === record.id}
+                className="w-full"
+              >
+                Khiếu nại lên admin
+              </Button>
+            </Space>
           );
         }
 
@@ -1127,6 +1307,180 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
               loading={isCancelling}
             >
               Xác nhận hủy GHN
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Dispute Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-orange-500" />
+            <span>Khiếu nại lên admin</span>
+          </div>
+        }
+        open={showDisputeModal.visible}
+        onCancel={() => {
+          if (disputingId || isUploadingDisputeMedia) return;
+          setShowDisputeModal({ visible: false, returnId: null });
+          setDisputeReason('');
+          setDisputeImageFiles([]);
+          setDisputeVideoFile(null);
+        }}
+        footer={null}
+        width={600}
+      >
+        <div className="space-y-4 py-2">
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <p className="text-sm text-orange-800">
+              Khiếu nại này sẽ được gửi lên admin để xem xét và xử lý. Vui lòng cung cấp đầy đủ thông tin và bằng chứng.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Lý do khiếu nại <span className="text-red-500">*</span>
+            </label>
+            <TextArea
+              value={disputeReason}
+              onChange={(e) => setDisputeReason(e.target.value)}
+              placeholder="Nhập lý do khiếu nại chi tiết..."
+              rows={4}
+              maxLength={1000}
+              showCount
+              disabled={!!disputingId || isUploadingDisputeMedia}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Mô tả chi tiết lý do khiếu nại và vấn đề không thỏa thuận được với khách hàng.
+            </p>
+          </div>
+
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-orange-500" />
+              <span>Hình ảnh đính kèm (tối đa 5 ảnh)</span>
+            </label>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                onChange={(e) => handleDisputeFileSelect(e, 'image')}
+                disabled={disputingId !== null || isUploadingDisputeMedia || disputeImageFiles.length >= 5}
+                className="hidden"
+                id="dispute-image-upload"
+              />
+              <label
+                htmlFor="dispute-image-upload"
+                className={`flex flex-col items-center justify-center cursor-pointer ${
+                  disputingId !== null || isUploadingDisputeMedia || disputeImageFiles.length >= 5
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">
+                  {disputeImageFiles.length >= 5 ? 'Đã đạt tối đa 5 ảnh' : 'Click để chọn ảnh hoặc kéo thả vào đây'}
+                </span>
+                <span className="text-xs text-gray-500 mt-1">
+                  Hỗ trợ: JPG, PNG, GIF, WEBP (tối đa 10MB/ảnh)
+                </span>
+              </label>
+            </div>
+            {disputeImageFiles.length > 0 && (
+              <div className="mt-3 grid grid-cols-5 gap-2">
+                {disputeImageFiles.map((file, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={`Dispute image ${index + 1}`}
+                      className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                    />
+                    <button
+                      onClick={() => removeDisputeImage(index)}
+                      disabled={disputingId !== null || isUploadingDisputeMedia}
+                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Video Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <VideoIcon className="w-4 h-4 text-orange-500" />
+              <span>Video đính kèm (tối đa 1 video)</span>
+            </label>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+              <input
+                type="file"
+                accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                onChange={(e) => handleDisputeFileSelect(e, 'video')}
+                disabled={disputingId !== null || isUploadingDisputeMedia || !!disputeVideoFile}
+                className="hidden"
+                id="dispute-video-upload"
+              />
+              <label
+                htmlFor="dispute-video-upload"
+                className={`flex flex-col items-center justify-center cursor-pointer ${
+                  disputingId !== null || isUploadingDisputeMedia || !!disputeVideoFile
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-gray-50'
+                }`}
+              >
+                <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-600">
+                  {disputeVideoFile ? 'Đã chọn video' : 'Click để chọn video hoặc kéo thả vào đây'}
+                </span>
+                <span className="text-xs text-gray-500 mt-1">
+                  Hỗ trợ: MP4, WEBM, OGG, MOV (tối đa 50MB)
+                </span>
+              </label>
+            </div>
+            {disputeVideoFile && (
+              <div className="mt-3 relative">
+                <video
+                  src={URL.createObjectURL(disputeVideoFile)}
+                  controls
+                  className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                />
+                <button
+                  onClick={removeDisputeVideo}
+                  disabled={disputingId !== null || isUploadingDisputeMedia}
+                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-80 hover:opacity-100 transition-opacity disabled:opacity-50"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button
+              onClick={() => {
+                if (disputingId || isUploadingDisputeMedia) return;
+                setShowDisputeModal({ visible: false, returnId: null });
+                setDisputeReason('');
+                setDisputeImageFiles([]);
+                setDisputeVideoFile(null);
+              }}
+              disabled={!!disputingId || isUploadingDisputeMedia}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              icon={<AlertTriangle className="w-4 h-4" />}
+              onClick={handleDispute}
+              disabled={!!disputingId || isUploadingDisputeMedia || !disputeReason.trim()}
+              loading={!!disputingId || isUploadingDisputeMedia}
+            >
+              {isUploadingDisputeMedia ? 'Đang tải file...' : 'Gửi khiếu nại'}
             </Button>
           </div>
         </div>

@@ -91,6 +91,7 @@ import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
 import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
 import { StorePayoutV2 } from '../pages/Seller/StorePayoutVersion2';
+import AdminReturnDisputesPage from '../pages/Admin/ReturnDisputes/AdminReturnDisputesPage';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -719,6 +720,10 @@ export const router = createBrowserRouter([
       {
         path: 'orders/cancelled',
         element: <div>Cancelled Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'returns/disputes',
+        element: <PermissionProtectedRoute permission="manage_orders" element={<AdminReturnDisputesPage />} />
       },
       {
         path: 'finance',

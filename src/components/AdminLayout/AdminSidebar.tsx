@@ -94,7 +94,8 @@ const AdminSidebar: React.FC = () => {
         { name: 'Chờ xử lý', href: '/admin/orders/pending', icon: null },
         { name: 'Đang giao', href: '/admin/orders/shipping', icon: null },
         { name: 'Hoàn thành', href: '/admin/orders/completed', icon: null },
-        { name: 'Đã hủy', href: '/admin/orders/cancelled', icon: null }
+        { name: 'Đã hủy', href: '/admin/orders/cancelled', icon: null },
+        { name: 'Khiếu nại hoàn trả', href: '/admin/returns/disputes', icon: null }
       ]
     },
     {
