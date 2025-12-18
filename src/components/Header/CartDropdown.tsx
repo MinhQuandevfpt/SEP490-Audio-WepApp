@@ -145,7 +145,7 @@ const CartDropdown: React.FC = () => {
         onMouseEnter={handleMouseEnter}
         onClick={() => {
           setIsOpen(false);
-          navigate('/cart');
+          navigate('/cartv2'); // Điều hướng sang giỏ hàng UI v2
         }}
         className="relative group"
       >

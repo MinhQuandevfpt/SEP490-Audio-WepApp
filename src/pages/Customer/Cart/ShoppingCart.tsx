@@ -18,6 +18,114 @@ import type { ShopVoucher } from '../../../components/ShoppingCartComponents/Vou
 import { ProductListService } from '../../../services/customer/ProductListService';
 import { Home, ChevronRight } from 'lucide-react';
 
+/**
+ * Extract platform voucher info from API response
+ * Supports both new structure (vouchers.platformVouchers) and legacy structure (vouchers.platform)
+ */
+const extractPlatformVoucherInfo = (
+  voucherRes: any,
+  productId: string,
+  variantPrice?: number | null
+): { platformDiscount: number; campaignProductId: string | null } => {
+  let platformDiscount = 0;
+  let campaignProductId: string | null = null;
+
+  if (!voucherRes?.data) {
+    console.log(`⚠️ [EXTRACT PLATFORM VOUCHER] No data in response for product ${productId}`);
+    return { platformDiscount: 0, campaignProductId: null };
+  }
+
+  // Get product price (support both direct fields and nested product object)
+  // QUAN TRỌNG: Nếu product có variants, price ở root sẽ là null
+  // => Cần dùng variantPrice từ cartItem hoặc lấy từ variants array
+  let originalPrice = voucherRes.data.price ?? voucherRes.data.product?.price ?? 0;
+  
+  // Nếu price là null/0 và có variants, cần lấy giá từ variant
+  if ((originalPrice === null || originalPrice === 0) && voucherRes.data.variants && voucherRes.data.variants.length > 0) {
+    // Nếu có variantPrice từ cartItem, dùng nó
+    if (variantPrice && variantPrice > 0) {
+      originalPrice = variantPrice;
+      console.log(`💰 [EXTRACT PLATFORM VOUCHER] Using variant price from cartItem: ${variantPrice} for product ${productId}`);
+    } else {
+      // Nếu không có variantPrice, lấy giá từ variant đầu tiên (fallback)
+      const firstVariant = voucherRes.data.variants[0];
+      if (firstVariant?.price && firstVariant.price > 0) {
+        originalPrice = firstVariant.price;
+        console.log(`💰 [EXTRACT PLATFORM VOUCHER] Using first variant price: ${originalPrice} for product ${productId}`);
+      } else {
+        console.warn(`⚠️ [EXTRACT PLATFORM VOUCHER] Product ${productId} has variants but no valid price found`);
+      }
+    }
+  }
+  
+  console.log(`💰 [EXTRACT PLATFORM VOUCHER] Original price for product ${productId}: ${originalPrice} (variantPrice: ${variantPrice || 'not provided'})`);
+
+  // Support new structure: vouchers.platformVouchers
+  const platformVouchers = voucherRes.data.vouchers?.platformVouchers || [];
+  // Support legacy structure: vouchers.platform
+  const platformCampaigns = voucherRes.data.vouchers?.platform || [];
+
+  // Process new structure first
+  if (platformVouchers.length > 0) {
+    for (const campaign of platformVouchers) {
+      if (campaign.vouchers && campaign.vouchers.length > 0) {
+        // Find active voucher
+        const activeVoucher = campaign.vouchers.find(
+          (v: any) => v.status === 'ACTIVE'
+        );
+
+        if (activeVoucher && activeVoucher.platformVoucherId) {
+          campaignProductId = activeVoucher.platformVoucherId;
+
+          if (activeVoucher.type === 'FIXED') {
+            platformDiscount = activeVoucher.discountValue || 0;
+          } else if (activeVoucher.type === 'PERCENT') {
+            const percentDiscount = (originalPrice * (activeVoucher.discountPercent || 0)) / 100;
+            if (activeVoucher.maxDiscountValue !== null && activeVoucher.maxDiscountValue !== undefined) {
+              platformDiscount = Math.min(percentDiscount, activeVoucher.maxDiscountValue);
+            } else {
+              platformDiscount = percentDiscount;
+            }
+          }
+          break; // Use first active voucher found
+        } else if (campaign.vouchers.length > 0 && !campaignProductId) {
+          // If no active voucher but vouchers exist, use first one (for inPlatformCampaign=true case)
+          const firstVoucher = campaign.vouchers[0];
+          if (firstVoucher?.platformVoucherId) {
+            campaignProductId = firstVoucher.platformVoucherId;
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback to legacy structure if new structure didn't find anything
+  if (!campaignProductId && platformCampaigns.length > 0) {
+    for (const campaign of platformCampaigns) {
+      if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+        const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+        if (activeVoucher && activeVoucher.platformVoucherId) {
+          campaignProductId = activeVoucher.platformVoucherId;
+
+          if (activeVoucher.type === 'FIXED') {
+            platformDiscount = activeVoucher.discountValue || 0;
+          } else if (activeVoucher.type === 'PERCENT') {
+            const percentDiscount = (originalPrice * (activeVoucher.discountPercent || 0)) / 100;
+            if (activeVoucher.maxDiscountValue !== null && activeVoucher.maxDiscountValue !== undefined) {
+              platformDiscount = Math.min(percentDiscount, activeVoucher.maxDiscountValue);
+            } else {
+              platformDiscount = percentDiscount;
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  return { platformDiscount, campaignProductId };
+};
+
 const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
 
 const ShoppingCart: React.FC = () => {
@@ -146,6 +254,10 @@ const ShoppingCart: React.FC = () => {
     }
   };
 
+  // Platform voucher info: Record<productId, { discount: number; campaignProductId: string; inPlatformCampaign?: boolean }>
+  type PlatformVoucherInfo = { discount: number; campaignProductId: string; inPlatformCampaign?: boolean };
+  const [platformVoucherDiscounts, setPlatformVoucherDiscounts] = useState<Record<string, PlatformVoucherInfo>>({});
+
   useEffect(() => {
     const init = async () => {
       await loadCart();
@@ -153,6 +265,37 @@ const ShoppingCart: React.FC = () => {
     };
     init();
   }, [loadCart]);
+
+  // Giá hiển thị trên UI: nếu backend trả về giá gốc nhưng product đang có platform campaign,
+  // tự tính lại giá sau giảm dựa trên platformVoucherDiscounts (theo productId).
+  // Điều này giúp fix case có từ 2 variant cùng productId ở cart nhưng backend trả về giá gốc.
+  const itemsForDisplay = useMemo<UICartItem[]>(() => {
+    if (items.length === 0) return items;
+
+    return items.map((item) => {
+      const platformInfo = platformVoucherDiscounts[item.productId];
+      const original = item.originalPrice ?? item.price;
+
+      // Chỉ điều chỉnh khi:
+      // - Có thông tin campaign ở platformVoucherDiscounts
+      // - Có discount > 0
+      // - Giá hiện tại >= giá gốc (tức là chưa áp dụng giảm giá)
+      if (
+        platformInfo &&
+        platformInfo.discount > 0 &&
+        original > 0 &&
+        item.price >= original
+      ) {
+        const discountedPrice = Math.max(0, original - platformInfo.discount);
+        return {
+          ...item,
+          price: discountedPrice,
+        };
+      }
+
+      return item;
+    });
+  }, [items, platformVoucherDiscounts]);
 
   // Load cart items - backend đã xử lý platform campaign, chỉ cần map
   useEffect(() => {
@@ -228,6 +371,7 @@ const ShoppingCart: React.FC = () => {
         // Map: productId -> vouchers[] để mỗi product chỉ có vouchers của chính nó
         const productVouchersMap = new Map<string, ShopVoucher[]>();
         const availabilityMap: Record<string, boolean> = {};
+        const platformDiscountsMap: Record<string, PlatformVoucherInfo> = {};
         
         responses.forEach(({ productId, voucherRes, productRes }) => {
           const vouchers = voucherRes?.data?.vouchers?.shop || [];
@@ -244,7 +388,67 @@ const ShoppingCart: React.FC = () => {
           } else {
             productVouchersMap.set(productId, []);
           }
+          
+          // Calculate platform voucher discount and store campaignProductId
+          // productId ở đây chính là refId (productId gốc)
+          if (voucherRes?.data) {
+            // Tìm tất cả cart items có cùng refId (bao gồm cả variants)
+            // Dùng items (state gốc) để lấy giá gốc, không dùng itemsForDisplay
+            const itemsWithSameRefId = items.filter(item => item.productId === productId);
+            const cartItem = itemsWithSameRefId[0]; // Lấy item đầu tiên để check inPlatformCampaign và lấy giá
+            
+            // Lấy giá từ cartItem (originalPrice) nếu có variant
+            // Với variant: cartItem.originalPrice sẽ là giá của variant đó
+            const variantPrice = cartItem?.originalPrice ?? cartItem?.price ?? null;
+            
+            // Extract platform voucher info với variantPrice
+            const { platformDiscount, campaignProductId } = extractPlatformVoucherInfo(
+              voucherRes, 
+              productId,
+              variantPrice // Truyền giá từ variant để tính discount đúng
+            );
+            
+            // Store platform discount for refId (productId gốc)
+            // QUAN TRỌNG: Với variant, vẫn dùng refId (productId) để lưu vào map
+            // Tất cả items (kể cả variants) cùng refId sẽ dùng chung platform voucher info
+            const apiItem = cart?.items?.find(item => item.refId === productId) as ApiCartItem | undefined;
+            const inPlatformCampaign = apiItem?.inPlatformCampaign || false;
+            const campaignUsageExceeded = apiItem?.campaignUsageExceeded || false;
+            
+            console.log(`💰 [LOAD VOUCHERS] Processing platform voucher for refId ${productId}:`, {
+              itemsCount: itemsWithSameRefId.length,
+              hasVariants: itemsWithSameRefId.some(item => (item as any).variantId),
+              variantPrice,
+              platformDiscount,
+              campaignProductId,
+              inPlatformCampaign,
+            });
+            
+            // Lưu campaignProductId nếu:
+            // 1. Tìm thấy platformVoucherId từ API (campaignProductId !== null)
+            // 2. HOẶC item có inPlatformCampaign = true từ cart response (ngay cả khi không tìm thấy active voucher)
+            // Nếu campaignUsageExceeded = true, không lưu vì đã vượt giới hạn
+            if (campaignProductId || (inPlatformCampaign && !campaignUsageExceeded)) {
+              if (campaignProductId) {
+                platformDiscountsMap[productId] = {
+                  discount: platformDiscount,
+                  campaignProductId: campaignProductId,
+                  inPlatformCampaign: inPlatformCampaign && !campaignUsageExceeded,
+                };
+                console.log(`✅ [LOAD VOUCHERS] Stored platform voucher for product ${productId}:`, {
+                  campaignProductId,
+                  discount: platformDiscount,
+                  inPlatformCampaign,
+                  campaignUsageExceeded,
+                });
+              } else if (inPlatformCampaign && !campaignUsageExceeded) {
+                console.warn(`⚠️ [LOAD VOUCHERS] Product ${productId} has inPlatformCampaign=true but no platformVoucherId found in response`);
+              }
+            }
+          }
         });
+        
+        setPlatformVoucherDiscounts(platformDiscountsMap);
         
         setProductVoucherAvailability(availabilityMap);
         
@@ -269,8 +473,8 @@ const ShoppingCart: React.FC = () => {
     loadVouchers();
   }, [cart?.items]);
 
-  const allSelected = useMemo(() => items.every(i => i.isSelected), [items]);
-  const summary = useMemo(() => calcCartSummary(items), [items]);
+  const allSelected = useMemo(() => itemsForDisplay.every(i => i.isSelected), [itemsForDisplay]);
+  const summary = useMemo(() => calcCartSummary(itemsForDisplay), [itemsForDisplay]);
 
   // Store vouchers - Track by productId (not storeId) to prevent same voucher code on multiple products
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, AppliedStoreVoucher>>({});
@@ -360,7 +564,7 @@ const ShoppingCart: React.FC = () => {
   };
 
   const calculateSelectedTotalForStore = (storeId: string): number => {
-    return items.reduce((sum, item) => {
+    return itemsForDisplay.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const product = productCache.get(item.productId);
       const itemStoreId = product?.storeId || `unknown-${item.productId}`;
@@ -421,27 +625,62 @@ const ShoppingCart: React.FC = () => {
 
   // Calculate subtotal dựa trên giá gốc (để hiển thị giống HomePage: giá gốc + giảm giá)
   const subtotalBeforePlatformDiscount = useMemo(() => {
-    return Math.round(items.reduce((sum, item) => {
+    return Math.round(itemsForDisplay.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const original = item.originalPrice ?? item.price;
       return sum + original * item.quantity;
     }, 0));
-  }, [items]);
+  }, [itemsForDisplay]);
   
   // Tổng giảm giá nền tảng = (giá gốc - giá sau giảm) * quantity
   const totalPlatformDiscount = useMemo(() => {
-    return Math.round(items.reduce((sum, item) => {
+    return Math.round(itemsForDisplay.reduce((sum, item) => {
       if (!item.isSelected) return sum;
       const original = item.originalPrice ?? item.price;
       const discountPerUnit = Math.max(0, original - item.price);
       return sum + discountPerUnit * item.quantity;
     }, 0));
-  }, [items]);
+  }, [itemsForDisplay]);
 
   // Store voucher discount
   const voucherDiscount = useMemo(() => {
     return Object.values(appliedStoreVouchers).reduce((total, voucher) => total + voucher.discountValue, 0);
   }, [appliedStoreVouchers]);
+
+  // Detect cases where UI nên hiển thị giá gốc (không áp dụng giảm giá nền tảng ở mức tổng):
+  // 1. Có từ 2 variant trở lên cùng 1 productId
+  // 2. Có variant với quantity ≥ 2
+  // 3. Sản phẩm không có variant nhưng quantity ≥ 2
+  const hasMultipleVariantsSameProduct = useMemo(() => {
+    const counts = new Map<string, number>();
+    itemsForDisplay.forEach(item => {
+      if ((item as any).variantId !== null && (item as any).variantId !== undefined) {
+        const key = item.productId;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    });
+    return Array.from(counts.values()).some(count => count >= 2);
+  }, [itemsForDisplay]);
+
+  const hasVariantWithQtyAtLeast2 = useMemo(() => {
+    return itemsForDisplay.some(
+      (item: any) =>
+        item.variantId !== null &&
+        item.variantId !== undefined &&
+        item.quantity >= 2
+    );
+  }, [itemsForDisplay]);
+
+  const hasNonVariantWithQtyAtLeast2 = useMemo(() => {
+    return itemsForDisplay.some(
+      (item: any) =>
+        (item.variantId === null || item.variantId === undefined) &&
+        item.quantity >= 2
+    );
+  }, [itemsForDisplay]);
+
+  const forceShowOriginalTotal =
+    hasMultipleVariantsSameProduct || hasVariantWithQtyAtLeast2 || hasNonVariantWithQtyAtLeast2;
 
   // Danh sách mã voucher đã áp dụng (chỉ voucher shop, không tính platform)
   const selectedVoucherCodes = useMemo(
@@ -451,6 +690,14 @@ const ShoppingCart: React.FC = () => {
 
   // Grand total = subtotal - platform discount - store voucher discount + shipping fee
   const grandTotal = useMemo(() => {
+    const baseWithShipping = subtotalBeforePlatformDiscount + shippingFee;
+
+    if (forceShowOriginalTotal) {
+      // Không trừ platform discount, chỉ trừ voucher + cộng phí ship
+      const withoutPlatformDiscount = baseWithShipping - voucherDiscount;
+      return Math.max(0, Math.round(withoutPlatformDiscount));
+    }
+
     const total =
       subtotalBeforePlatformDiscount -
       totalPlatformDiscount -
@@ -458,7 +705,13 @@ const ShoppingCart: React.FC = () => {
       shippingFee;
     // Làm tròn để tránh số thập phân
     return Math.max(0, Math.round(total));
-  }, [subtotalBeforePlatformDiscount, totalPlatformDiscount, voucherDiscount, shippingFee]);
+  }, [
+    subtotalBeforePlatformDiscount,
+    totalPlatformDiscount,
+    voucherDiscount,
+    shippingFee,
+    forceShowOriginalTotal,
+  ]);
 
   // Calculate discount amount for a voucher
   const handleApplyStoreVoucher = (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => {
@@ -503,7 +756,7 @@ const ShoppingCart: React.FC = () => {
       selectedTotal: number;
     }>();
 
-    items.forEach(item => {
+    itemsForDisplay.forEach(item => {
       const product = productCache.get(item.productId);
       const storeId = product?.storeId || `unknown-${item.productId}`;
       const storeName = product?.storeName || t('cart.store.unknown');
@@ -588,33 +841,63 @@ const ShoppingCart: React.FC = () => {
 
       console.log('🔍 [PLATFORM VOUCHER] Loading platform vouchers for product:', targetItem.productId);
 
-      // Load platform vouchers for this product
+      // Load platform vouchers for this product (refId)
       const voucherRes = await ProductVoucherService.getProductVouchers(targetItem.productId, 'ALL', null);
+      
+      // Support new structure: vouchers.platformVouchers
+      const platformVouchers = voucherRes.data?.vouchers?.platformVouchers || [];
+      // Support legacy structure: vouchers.platform
       const platformCampaigns = voucherRes.data?.vouchers?.platform || [];
       
       let campaignProductId: string | null = null;
       
-      // Try to find active platform voucher first
-      for (const campaign of platformCampaigns) {
-        if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
-          const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
-          if (activeVoucher && activeVoucher.platformVoucherId) {
-            campaignProductId = activeVoucher.platformVoucherId;
-            console.log('✅ [PLATFORM VOUCHER] Found active platform voucher:', campaignProductId);
-            break;
+      // Process new structure first
+      if (platformVouchers.length > 0) {
+        for (const campaign of platformVouchers) {
+          if (campaign.vouchers && campaign.vouchers.length > 0) {
+            // Find active voucher
+            const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+            if (activeVoucher && activeVoucher.platformVoucherId) {
+              campaignProductId = activeVoucher.platformVoucherId;
+              console.log('✅ [PLATFORM VOUCHER] Found active platform voucher:', campaignProductId);
+              break;
+            } else if (campaign.vouchers.length > 0 && !campaignProductId) {
+              // If no active voucher but vouchers exist, use first one (for inPlatformCampaign=true case)
+              const firstVoucher = campaign.vouchers[0];
+              if (firstVoucher?.platformVoucherId) {
+                campaignProductId = firstVoucher.platformVoucherId;
+                console.log('⚠️ [PLATFORM VOUCHER] Using non-active platform voucher:', campaignProductId);
+                break;
+              }
+            }
           }
         }
       }
       
-      // If no active voucher found, try to get from any voucher (for items already in campaign)
-      if (!campaignProductId) {
+      // Fallback to legacy structure if new structure didn't find anything
+      if (!campaignProductId && platformCampaigns.length > 0) {
+        // Try to find active platform voucher first
         for (const campaign of platformCampaigns) {
-          if (campaign.vouchers && campaign.vouchers.length > 0) {
-            const voucher = campaign.vouchers[0];
-            if (voucher?.platformVoucherId) {
-              campaignProductId = voucher.platformVoucherId;
-              console.log('⚠️ [PLATFORM VOUCHER] Using non-active platform voucher:', campaignProductId);
+          if (campaign.status === 'ACTIVE' && campaign.vouchers && campaign.vouchers.length > 0) {
+            const activeVoucher = campaign.vouchers.find((v: any) => v.status === 'ACTIVE');
+            if (activeVoucher && activeVoucher.platformVoucherId) {
+              campaignProductId = activeVoucher.platformVoucherId;
+              console.log('✅ [PLATFORM VOUCHER] Found active platform voucher (legacy):', campaignProductId);
               break;
+            }
+          }
+        }
+        
+        // If no active voucher found, try to get from any voucher (for items already in campaign)
+        if (!campaignProductId) {
+          for (const campaign of platformCampaigns) {
+            if (campaign.vouchers && campaign.vouchers.length > 0) {
+              const voucher = campaign.vouchers[0];
+              if (voucher?.platformVoucherId) {
+                campaignProductId = voucher.platformVoucherId;
+                console.log('⚠️ [PLATFORM VOUCHER] Using non-active platform voucher (legacy):', campaignProductId);
+                break;
+              }
             }
           }
         }
@@ -642,7 +925,8 @@ const ShoppingCart: React.FC = () => {
     const result: Record<string, number> = {};
     const storeIds = new Set<string>();
     
-    items.forEach(item => {
+    // Dùng itemsForDisplay để tính service type (dựa trên items đã được hiển thị)
+    itemsForDisplay.forEach(item => {
       const product = productCache.get(item.productId);
       if (product?.storeId) {
         storeIds.add(product.storeId);
@@ -652,7 +936,7 @@ const ShoppingCart: React.FC = () => {
     storeIds.forEach(storeId => {
       // Calculate total weight for this store
       let totalWeight = 0;
-      items.forEach(item => {
+      itemsForDisplay.forEach(item => {
         const product = productCache.get(item.productId);
         if (product && product.storeId === storeId) {
           const weightKg = product.weight && product.weight > 0 ? product.weight : 0.5;
@@ -673,13 +957,13 @@ const ShoppingCart: React.FC = () => {
       
       console.log('🛒 [UPDATE QUANTITY] Starting quantity update:', {
         cartItemId,
-        oldQuantity: items.find(item => item.id === cartItemId)?.quantity,
+        oldQuantity: itemsForDisplay.find(item => item.id === cartItemId)?.quantity,
         newQuantity: nextQty,
         clampedQuantity: clamped,
       });
       
       // Find the item being updated
-      const targetItem = items.find(item => item.id === cartItemId);
+      const targetItem = itemsForDisplay.find(item => item.id === cartItemId);
       if (!targetItem) {
         console.error('❌ [UPDATE QUANTITY] Item not found:', cartItemId);
         showCenterError(t('cart.errors.productNotFound'), t('cart.errors.title'));
@@ -704,6 +988,7 @@ const ShoppingCart: React.FC = () => {
         console.log('   Reason: Item has no campaign or campaign is exhausted');
         
         // Update quantity locally without API call
+        // Note: Update vào items (state gốc), itemsForDisplay sẽ tự động cập nhật
         const updatedItems = items.map(item => {
           if (item.id === cartItemId) {
             return {
@@ -805,13 +1090,13 @@ const ShoppingCart: React.FC = () => {
   };
 
   const inc = (id: string) => {
-    const current = items.find(it => it.id === id);
+    const current = itemsForDisplay.find(it => it.id === id);
     if (!current) return;
     updateQuantity(id, current.quantity + 1);
   };
 
   const dec = (id: string) => {
-    const current = items.find(it => it.id === id);
+    const current = itemsForDisplay.find(it => it.id === id);
     if (!current) return;
     updateQuantity(id, current.quantity - 1);
   };
@@ -829,7 +1114,7 @@ const ShoppingCart: React.FC = () => {
   };
 
   const handleDeleteAll = async () => {
-    if (items.length === 0) return;
+    if (itemsForDisplay.length === 0) return;
     try {
       const resp = await CustomerCartService.deleteCart();
       applyCartResponseToUI(resp.items as unknown as ApiCartItem[]);
@@ -840,11 +1125,119 @@ const ShoppingCart: React.FC = () => {
     }
   };
 
-  const handleProceedToCheckout = () => {
-    const selectedItems = items.filter(item => item.isSelected);
+  const handleProceedToCheckout = async () => {
+    const selectedItems = itemsForDisplay.filter(item => item.isSelected);
     if (selectedItems.length === 0) {
       showCenterError(t('cart.errors.noItemsSelected'), t('cart.errors.title'));
       return;
+    }
+
+    // QUAN TRỌNG: Fetch platform vouchers cho TẤT CẢ products/variants trước khi checkout
+    // Đảm bảo có platformVoucherId nếu product có platform campaign
+    // Với variant: TRUY NGƯỢC LẠI refId (productId) từ variantId để gọi API
+    
+    // Collect tất cả refIds (productIds) cần fetch
+    // Với variant: truy ngược lại refId từ cartItems
+    const refIdsToFetch = new Set<string>();
+    
+    selectedItems.forEach(item => {
+      const anyItem: any = item;
+      if (anyItem.variantId !== null && anyItem.variantId !== undefined) {
+        // Có variantId: truy ngược lại refId (productId) từ cartItems
+        // item.productId chính là refId trong trường hợp này
+        refIdsToFetch.add(item.productId);
+        console.log(`🔍 [CHECKOUT] Variant detected - variantId: ${anyItem.variantId}, refId (productId): ${item.productId}`);
+      } else {
+        // Không có variant: productId = refId
+        refIdsToFetch.add(item.productId);
+      }
+    });
+    
+    // Fetch platform vouchers cho TẤT CẢ refIds (kể cả đã có trong platformVoucherDiscounts)
+    // Đảm bảo luôn có data mới nhất trước khi checkout
+    console.log('🔍 [CHECKOUT] Fetching platform vouchers for ALL refIds (productIds) before checkout:', Array.from(refIdsToFetch));
+    console.log('📌 Note: For variants, using refId (productId) to fetch vouchers');
+    
+    try {
+      const voucherPromises = Array.from(refIdsToFetch).map(async (refId) => {
+        try {
+          // Gọi API GET /api/products/view/{refId}/vouchers
+          // refId = productId gốc (không phải variantId)
+          console.log(`📡 [CHECKOUT] Fetching vouchers for refId (productId): ${refId}`);
+          const voucherRes = await ProductVoucherService.getProductVouchers(refId, 'ALL', null);
+          
+          // Lấy thông tin từ cart items có cùng refId (bao gồm cả variants)
+          const itemsWithSameRefId = selectedItems.filter(item => item.productId === refId);
+          const cartItem = itemsWithSameRefId[0]; // Lấy item đầu tiên để check inPlatformCampaign và lấy giá
+          
+          // Lấy giá từ cartItem (originalPrice) nếu có variant
+          // Với variant: cartItem.originalPrice sẽ là giá của variant đó
+          const variantPrice = cartItem?.originalPrice ?? cartItem?.price ?? null;
+          
+          // Extract platform voucher info với variantPrice
+          const { platformDiscount, campaignProductId } = extractPlatformVoucherInfo(
+            voucherRes, 
+            refId,
+            variantPrice // Truyền giá từ variant để tính discount đúng
+          );
+          
+          const apiItem = cart?.items?.find(item => item.refId === refId) as ApiCartItem | undefined;
+          const inPlatformCampaign = apiItem?.inPlatformCampaign || false;
+          const campaignUsageExceeded = apiItem?.campaignUsageExceeded || false;
+          
+          // Log thông tin
+          const hasVariants = itemsWithSameRefId.some(item => (item as any).variantId);
+          console.log(`💰 [CHECKOUT] Platform voucher info for refId ${refId}:`, {
+            itemsCount: itemsWithSameRefId.length,
+            hasVariants,
+            variantPrice,
+            platformDiscount,
+            campaignProductId,
+            inPlatformCampaign,
+          });
+          
+          // Nếu có platformVoucherId hoặc có inPlatformCampaign, trả về thông tin
+          if (campaignProductId || (inPlatformCampaign && !campaignUsageExceeded)) {
+            console.log(`✅ [CHECKOUT] Found platform voucher for refId ${refId}:`, { 
+              campaignProductId, 
+              discount: platformDiscount,
+              inPlatformCampaign,
+              campaignUsageExceeded
+            });
+            return { 
+              productId: refId, // Lưu với key là refId
+              discount: platformDiscount, 
+              campaignProductId: campaignProductId || undefined,
+              inPlatformCampaign: inPlatformCampaign && !campaignUsageExceeded
+            };
+          }
+          
+          return null;
+        } catch (error) {
+          console.error(`❌ [CHECKOUT] Failed to fetch platform voucher for refId ${refId}:`, error);
+          return null;
+        }
+      });
+      
+      const results = await Promise.all(voucherPromises);
+      
+      // Update platformVoucherDiscounts với các voucher mới fetch được
+      // Override với data mới nhất từ API
+      const finalPlatformVoucherDiscounts = { ...platformVoucherDiscounts };
+      results.forEach(result => {
+        if (result && result.campaignProductId) {
+          finalPlatformVoucherDiscounts[result.productId] = {
+            discount: result.discount,
+            campaignProductId: result.campaignProductId,
+            inPlatformCampaign: result.inPlatformCampaign,
+          };
+        }
+      });
+      
+      console.log('🎫 [CHECKOUT] Final platform voucher discounts before checkout:', finalPlatformVoucherDiscounts);
+    } catch (error) {
+      console.error('❌ [CHECKOUT] Error fetching platform vouchers:', error);
+      // Continue with checkout even if voucher fetch fails
     }
 
     const payload = {
@@ -891,7 +1284,7 @@ const ShoppingCart: React.FC = () => {
             {/* Items List */}
             <CartItemsList
               storeGroups={storeGroups}
-              totalItemCount={items.length}
+              totalItemCount={itemsForDisplay.length}
               productVoucherAvailability={productVoucherAvailability}
               productVouchersMap={productVouchersMapState}
               appliedStoreVouchers={appliedStoreVouchers}
@@ -913,6 +1306,7 @@ const ShoppingCart: React.FC = () => {
               onSetQuantity={updateQuantity}
               onApplyVoucher={handleApplyStoreVoucher}
               onRemoveVoucher={handleRemoveStoreVoucher}
+              platformVoucherDiscounts={platformVoucherDiscounts}
             />
 
             {/* Summary Sidebar */}
@@ -937,6 +1331,7 @@ const ShoppingCart: React.FC = () => {
               isCheckingOut={false}
               disabled={false}
               selectedVoucherCodes={selectedVoucherCodes}
+              forceShowOriginalTotal={forceShowOriginalTotal}
             />
           </div>
         )}

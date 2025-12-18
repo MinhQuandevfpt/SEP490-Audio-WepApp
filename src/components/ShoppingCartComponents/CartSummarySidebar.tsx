@@ -26,6 +26,8 @@ interface CartSummarySidebarProps {
   isCheckingOut: boolean;
   disabled: boolean;
   selectedVoucherCodes?: string[];
+  // Khi true: tổng cộng sẽ hiển thị giá gốc (không trừ platform discount)
+  forceShowOriginalTotal?: boolean;
 }
 
 const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
@@ -48,7 +50,9 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
   onCheckout,
   isCheckingOut,
   disabled,
+  selectedAddressId: _selectedAddressId,
   selectedVoucherCodes,
+  forceShowOriginalTotal = false,
 }) => {
   return (
     <aside className="lg:col-span-1">
@@ -77,6 +81,7 @@ const CartSummarySidebar: React.FC<CartSummarySidebarProps> = ({
           isCheckingOut={isCheckingOut}
           disabled={disabled}
           selectedVoucherCodes={selectedVoucherCodes}
+          forceShowOriginal={forceShowOriginalTotal}
         />
       </div>
     </aside>

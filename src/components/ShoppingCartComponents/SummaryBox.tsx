@@ -13,6 +13,8 @@ interface SummaryBoxProps {
   isCheckingOut?: boolean;
   disabled?: boolean;
   selectedVoucherCodes?: string[];
+  // Khi true: ẩn giảm giá nền tảng ở UI tổng cộng (đã xử lý ở level tính toán)
+  forceShowOriginal?: boolean;
 }
 
 const SummaryBox: React.FC<SummaryBoxProps> = ({ 
@@ -26,8 +28,10 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
   isCheckingOut = false,
   disabled = false,
   selectedVoucherCodes = [],
+  forceShowOriginal = false,
 }) => {
   const { t } = useLanguage();
+  const showPlatformDiscount = !forceShowOriginal && discount > 0;
   
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
@@ -35,7 +39,7 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
         <span>{t('summaryBox.subtotal')}</span>
         <span>{formatCurrency(subtotal)}</span>
       </div>
-      {discount > 0 && (
+      {showPlatformDiscount && (
         <div className="flex justify-between text-gray-600">
           <span>{t('summaryBox.platformDiscount')}</span>
           <span className="text-green-600">-{formatCurrency(discount)}</span>
@@ -59,6 +63,11 @@ const SummaryBox: React.FC<SummaryBoxProps> = ({
           {selectedVoucherCodes.length > 0 && (
             <p className="text-xs text-gray-500 mt-1">
               {t('summaryBox.appliedVouchers', { codes: selectedVoucherCodes.join(', ') })}
+            </p>
+          )}
+          {forceShowOriginal && (
+            <p className="text-xs text-red-500 mt-1">
+              {t('summaryBox.notePlatformCampaignLimit')}
             </p>
           )}
         </div>

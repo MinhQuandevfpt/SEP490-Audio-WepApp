@@ -194,6 +194,8 @@ const translations: Record<Language, Record<string, string>> = {
     'checkout.summary.total': 'Tổng cộng',
     'checkout.summary.voucherApplied': 'Đã áp dụng voucher: {codes}',
     'checkout.summary.voucherHint': 'Bạn có mã giảm giá? Hãy nhập trước khi thanh toán.',
+    'checkout.summary.notePlatformCampaignLimit':
+      'Lưu ý: Khi có ≥2 biến thể cùng sản phẩm hoặc số lượng mỗi biến thể ≥2, giá có thể quay về giá gốc (không áp dụng giảm nền tảng cho toàn bộ).',
     // Address Form
     'address.title': 'Địa chỉ nhận hàng',
     'address.description': 'Chọn địa chỉ nhận hàng hoặc thêm địa chỉ mới để giao hàng nhanh chóng hơn.',
@@ -262,6 +264,8 @@ const translations: Record<Language, Record<string, string>> = {
     'summaryBox.appliedVouchers': 'Đã áp dụng voucher: {codes}',
     'summaryBox.processing': 'Đang xử lý...',
     'summaryBox.buyNow': 'Mua hàng',
+    'summaryBox.notePlatformCampaignLimit':
+      'Lưu ý: Khi có ≥2 biến thể cùng sản phẩm hoặc số lượng mỗi biến thể ≥2, giá có thể quay về giá gốc (không áp dụng giảm nền tảng cho toàn bộ).',
     // Select All Bar
     'selectAll.selectAll': 'Chọn tất cả ({count} sản phẩm)',
     'selectAll.deleteAll': 'Xoá tất cả',
@@ -520,6 +524,8 @@ const translations: Record<Language, Record<string, string>> = {
     'checkout.summary.total': 'Total',
     'checkout.summary.voucherApplied': 'Applied vouchers: {codes}',
     'checkout.summary.voucherHint': 'Have a discount code? Enter it before checkout.',
+    'checkout.summary.notePlatformCampaignLimit':
+      'Note: When there are ≥2 variants of the same product or quantity per variant ≥2, the price may fall back to the original price (platform discount might not apply to all units).',
     // Address Form
     'address.title': 'Delivery Address',
     'address.description': 'Select a delivery address or add a new address for faster delivery.',
@@ -586,10 +592,12 @@ const translations: Record<Language, Record<string, string>> = {
     'summaryBox.platformDiscount': 'Platform Discount',
     'summaryBox.voucher': 'Voucher',
     'summaryBox.total': 'Total',
-    'summaryBox.selectedProducts': '(Selected {count} products)',
+    'summaryBox.selectedProducts': 'Selected {count} products',
     'summaryBox.appliedVouchers': 'Applied vouchers: {codes}',
     'summaryBox.processing': 'Processing...',
     'summaryBox.buyNow': 'Buy Now',
+    'summaryBox.notePlatformCampaignLimit':
+      'Note: When there are ≥2 variants of the same product or quantity per variant ≥ 2, the price may revert to the original price (platform discount will not apply to all units).',
     // Select All Bar
     'selectAll.selectAll': 'Select All ({count} products)',
     'selectAll.deleteAll': 'Delete All',

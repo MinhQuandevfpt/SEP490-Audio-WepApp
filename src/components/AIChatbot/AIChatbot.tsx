@@ -33,6 +33,93 @@ interface Message {
 
 type ChatMode = 'ai' | 'store' | 'list';
 
+// ================== AI Chat localStorage persistence ==================
+
+const AI_CHAT_STORAGE_PREFIX = 'aiChat:session:';
+
+interface StoredAiMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string; // ISO string
+  messageType?: Message['messageType'];
+  type?: Message['type'];
+  mediaUrl?: Message['mediaUrl'];
+  products?: Message['products'];
+  productCount?: number;
+}
+
+interface StoredAiChatState {
+  aiType: 'assistant' | 'agent';
+  messages: StoredAiMessage[];
+}
+
+const getAiSessionKey = (): string => {
+  try {
+    const cid = getCustomerId();
+    const id = cid || 'guest';
+    return `${AI_CHAT_STORAGE_PREFIX}${id}`;
+  } catch {
+    return `${AI_CHAT_STORAGE_PREFIX}guest`;
+  }
+};
+
+const loadAiChatFromStorage = ():
+  | { aiType: 'assistant' | 'agent'; messages: Message[] }
+  | null => {
+  try {
+    const raw = localStorage.getItem(getAiSessionKey());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredAiChatState;
+    if (!parsed || !Array.isArray(parsed.messages)) return null;
+
+    const messages: Message[] = parsed.messages.map((m) => ({
+      id: m.id,
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content ?? '',
+      timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+      messageType: m.messageType,
+      mediaUrl: m.mediaUrl,
+      type: m.type,
+      products: m.products,
+      productCount: m.productCount,
+    }));
+
+    return {
+      aiType: parsed.aiType === 'agent' ? 'agent' : 'assistant',
+      messages,
+    };
+  } catch (error) {
+    console.error('[AIChat] Failed to load chat history from storage:', error);
+    return null;
+  }
+};
+
+const saveAiChatToStorage = (messages: Message[], aiType: 'assistant' | 'agent') => {
+  try {
+    const payload: StoredAiChatState = {
+      aiType,
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp:
+          m.timestamp instanceof Date && !Number.isNaN(m.timestamp.getTime())
+            ? m.timestamp.toISOString()
+            : new Date().toISOString(),
+        messageType: m.messageType,
+        type: m.type,
+        mediaUrl: m.mediaUrl,
+        products: m.products,
+        productCount: m.productCount,
+      })),
+    };
+    localStorage.setItem(getAiSessionKey(), JSON.stringify(payload));
+  } catch (error) {
+    console.error('[AIChat] Failed to save chat history to storage:', error);
+  }
+};
+
 interface ConversationWithStoreInfo extends CustomerConversation {
   storeName: string;
   storeAvatar?: string;
@@ -70,6 +157,32 @@ const AIChatbot: React.FC = () => {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null); // For selecting both image and video
   const selectedStoreIdRef = useRef<string | null>(null); // Track selected store ID
+  const hasLoadedAiHistoryRef = useRef(false); // Ensure we only hydrate AI history once
+
+  // Persist AI chat history in localStorage per (customerId, aiType)
+  // Chỉ bắt đầu lưu sau khi đã hydrate/load lịch sử để tránh ghi đè dữ liệu cũ khi reload trang.
+  useEffect(() => {
+    if (chatMode !== 'ai') return;
+    if (!isOpen) return;
+    if (!hasLoadedAiHistoryRef.current) return;
+    if (!messages || messages.length === 0) return;
+    saveAiChatToStorage(messages, aiType);
+  }, [messages, aiType, chatMode, isOpen]);
+
+  // Hydrate AI chat history when opening AI chat window
+  useEffect(() => {
+    if (!isOpen || chatMode !== 'ai') return;
+    if (hasLoadedAiHistoryRef.current) return;
+
+    const stored = loadAiChatFromStorage();
+    if (stored && stored.messages.length > 0) {
+      hasLoadedAiHistoryRef.current = true;
+      setAiType(stored.aiType);
+      setMessages(stored.messages);
+    } else {
+      hasLoadedAiHistoryRef.current = true;
+    }
+  }, [isOpen, chatMode]);
 
   // Check authentication
   useEffect(() => {
@@ -642,16 +755,27 @@ const AIChatbot: React.FC = () => {
     chatContext.openChat(mode === 'store' ? mode : 'ai', storeId || undefined);
     
     if (mode === 'ai') {
-      const welcomeMessage = aiType === 'agent' 
-        ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-        : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
-      setMessages([{
-        id: '0',
-        role: 'assistant',
-        content: welcomeMessage,
-        timestamp: new Date(),
-        type: 'text',
-      }]);
+      const stored = loadAiChatFromStorage();
+      if (stored && stored.messages.length > 0) {
+        hasLoadedAiHistoryRef.current = true;
+        setAiType(stored.aiType);
+        setMessages(stored.messages);
+      } else {
+        const welcomeMessage =
+          aiType === 'agent'
+            ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+            : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+        hasLoadedAiHistoryRef.current = true;
+        setMessages([
+          {
+            id: '0',
+            role: 'assistant',
+            content: welcomeMessage,
+            timestamp: new Date(),
+            type: 'text',
+          },
+        ]);
+      }
     } else if (mode === 'store') {
       if (storeId) {
         loadStoreMessages();
@@ -1204,18 +1328,30 @@ const AIChatbot: React.FC = () => {
 
   const handleAiTypeChange = (type: 'assistant' | 'agent') => {
     setAiType(type);
-    // Update welcome message based on AI type
-    const welcomeMessage = type === 'agent' 
-      ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-      : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
-    
-    setMessages([{
-      id: '0',
-      role: 'assistant',
-      content: welcomeMessage,
-      timestamp: new Date(),
-      type: 'text',
-    }]);
+
+    const assistantWelcome =
+      'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+    const agentWelcome =
+      'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?';
+
+    // Nếu hiện tại chỉ có đúng 1 tin nhắn welcome ban đầu thì thay nội dung theo AI type mới,
+    // còn nếu đã có lịch sử chat thì giữ nguyên lịch sử, chỉ đổi "não" trả lời cho các tin nhắn tiếp theo.
+    setMessages((prev) => {
+      if (
+        prev.length === 1 &&
+        prev[0].role === 'assistant' &&
+        prev[0].type === 'text'
+      ) {
+        return [
+          {
+            ...prev[0],
+            content: type === 'agent' ? agentWelcome : assistantWelcome,
+            timestamp: new Date(),
+          },
+        ];
+      }
+      return prev;
+    });
   };
 
   const handleOpenChat = () => {
@@ -1232,16 +1368,30 @@ const AIChatbot: React.FC = () => {
     setShowModeSelector(false);
     if (mode === 'ai') {
       setChatMode('ai');
-      const welcomeMessage = aiType === 'agent' 
-        ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-        : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
-      setMessages([{
-        id: '0',
-        role: 'assistant',
-        content: welcomeMessage,
-        timestamp: new Date(),
-        type: 'text',
-      }]);
+
+      // Thử khôi phục lịch sử chat AI từ localStorage
+      const stored = loadAiChatFromStorage();
+      if (stored && stored.messages.length > 0) {
+        hasLoadedAiHistoryRef.current = true;
+        setAiType(stored.aiType);
+        setMessages(stored.messages);
+      } else {
+        const welcomeMessage =
+          aiType === 'agent'
+            ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+            : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+        hasLoadedAiHistoryRef.current = true;
+        setMessages([
+          {
+            id: '0',
+            role: 'assistant',
+            content: welcomeMessage,
+            timestamp: new Date(),
+            type: 'text',
+          },
+        ]);
+      }
+
       // Mở chat AI thông qua ChatContext để các component khác (ví dụ ChatAgent) nắm trạng thái
       chatContext.openChat('ai');
       setIsOpen(true);

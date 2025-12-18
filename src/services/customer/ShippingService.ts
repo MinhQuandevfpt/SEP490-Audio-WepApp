@@ -51,13 +51,31 @@ export interface GhnFeeResponse {
 
 export class ShippingService {
   static async calculateGhnFee(body: GhnFeeRequestBody): Promise<GhnFeeResponse> {
-    return HttpInterceptor.post<GhnFeeResponse>(`${API_URL}/ghn/fee`, body, {
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      userType: 'customer',
-    });
+    console.groupCollapsed('🚚 [GHN FEE] POST /api/ghn/fee');
+    console.log('Request Body:', body);
+
+    try {
+      const response = await HttpInterceptor.post<GhnFeeResponse>(
+        `${API_URL}/ghn/fee`,
+        body,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          userType: 'customer',
+        }
+      );
+
+      console.log('Response Body:', response);
+      console.groupEnd();
+
+      return response;
+    } catch (error) {
+      console.error('❌ [GHN FEE] Failed to calculate shipping fee:', error);
+      console.groupEnd();
+      throw error;
+    }
   }
 }
 

@@ -240,6 +240,23 @@ export class CustomerAuthService {
   static logout(): void {
     console.log('🚪 Logging out customer...');
     
+    // Lấy customerId trước khi clear storage để biết đúng session AI chat cần xoá
+    let aiChatStorageKey: string | null = null;
+    try {
+      const aiKeyPrefix = 'aiChat:session:';
+      // Ưu tiên lấy từ token đã decode (qua RefreshTokenService) nếu có
+      const token = localStorage.getItem('CUSTOMER_token');
+      let customerIdFromToken: string | null = null;
+      if (token) {
+        const payload = decodeJwtPayload(token);
+        customerIdFromToken = (payload?.customerId ?? payload?.uid ?? null) as string | null;
+      }
+      const rawCustomerId = customerIdFromToken || localStorage.getItem('customerId') || 'guest';
+      aiChatStorageKey = `${aiKeyPrefix}${rawCustomerId}`;
+    } catch {
+      aiChatStorageKey = null;
+    }
+
     // Set flag to prevent welcome popup after logout redirect
     sessionStorage.setItem('isLoggingOut', 'true');
     
@@ -248,6 +265,16 @@ export class CustomerAuthService {
     
     // Clear ALL data using RefreshTokenService (includes all backward compatibility keys)
     RefreshTokenService.clearAllData('CUSTOMER');
+
+    // Clear AI chat history for this customer session
+    try {
+      if (aiChatStorageKey) {
+        localStorage.removeItem(aiChatStorageKey);
+        console.log(`🗑️ AI chat history cleared for key: ${aiChatStorageKey}`);
+      }
+    } catch (e) {
+      console.warn('⚠️ Failed to clear AI chat history on logout:', e);
+    }
     
     // Trigger storage event to notify other tabs/components
     try {

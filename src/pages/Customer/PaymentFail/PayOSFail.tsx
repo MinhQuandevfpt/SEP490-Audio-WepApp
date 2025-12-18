@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { XCircle, Home, RefreshCw, AlertTriangle } from 'lucide-react';
+import { XCircle, Home, AlertTriangle } from 'lucide-react';
 import Layout from '../../../components/Layout';
 
 const PayOSFail: React.FC = () => {
@@ -62,13 +62,13 @@ const PayOSFail: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
+              {/* <button
                 onClick={() => navigate('/cart')}
                 className="flex items-center justify-center px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
               >
                 <RefreshCw className="w-5 h-5 mr-2" />
                 Thử lại thanh toán
-              </button>
+              </button> */}
               <button
                 onClick={() => navigate('/')}
                 className="flex items-center justify-center px-6 py-3 bg-white border-2 border-gray-300 hover:border-orange-500 text-gray-700 hover:text-orange-600 font-semibold rounded-lg transition-colors"

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { CartItem } from '../../data/shoppingcart';
 import type { CustomerAddressApiItem } from '../../types/api';
 import type { ShopVoucher } from './VoucherSection';
@@ -41,6 +41,7 @@ interface CartItemsListProps {
   onSetQuantity: (id: string, quantity: number) => void;
   onApplyVoucher: (productId: string, storeId: string, voucher: ShopVoucher, discountValue: number) => void;
   onRemoveVoucher: (productId: string) => void;
+  platformVoucherDiscounts?: Record<string, { discount: number; campaignProductId: string; inPlatformCampaign?: boolean }>; // Platform voucher info
 }
 
 const CartItemsList: React.FC<CartItemsListProps> = ({
@@ -67,9 +68,25 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
   onSetQuantity,
   onApplyVoucher,
   onRemoveVoucher,
+  platformVoucherDiscounts = {},
 }) => {
   const { t } = useLanguage();
-  
+
+  // Đếm số variant theo productId trong giỏ để phát hiện case có nhiều variant cùng sản phẩm
+  const variantCountsByProductId = useMemo(() => {
+    const counts = new Map<string, number>();
+    storeGroups.forEach(group => {
+      group.items.forEach(item => {
+        const anyItem: any = item;
+        if (anyItem.variantId !== null && anyItem.variantId !== undefined) {
+          const key = item.productId;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+      });
+    });
+    return counts;
+  }, [storeGroups]);
+
   return (
     <div className="lg:col-span-2 space-y-4">
       {showAddress && (
@@ -116,6 +133,21 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
               const itemVouchers = hasVoucher ? (productVouchersMap.get(it.productId) || []) : [];
               // Get applied voucher for this specific product
               const appliedVoucher = appliedStoreVouchers[it.productId];
+
+              const anyItem: any = it;
+              const variantCountForProduct =
+                anyItem.variantId !== null && anyItem.variantId !== undefined
+                  ? variantCountsByProductId.get(it.productId) ?? 0
+                  : 0;
+              const forceShowOriginalPrice =
+                (anyItem.variantId !== null &&
+                  anyItem.variantId !== undefined &&
+                  (variantCountForProduct >= 2 || it.quantity >= 2)) ||
+                ((anyItem.variantId === null || anyItem.variantId === undefined) && it.quantity >= 2);
+
+              // Lấy platform voucher info cho product này
+              const platformVoucherInfo = platformVoucherDiscounts[it.productId];
+
               return (
                 <CartItemRow
                   key={it.id}
@@ -134,6 +166,8 @@ const CartItemsList: React.FC<CartItemsListProps> = ({
                   productCache={productCache}
                   onApplyVoucher={onApplyVoucher}
                   onRemoveVoucher={onRemoveVoucher}
+                  forceShowOriginalPrice={forceShowOriginalPrice}
+                  platformVoucherInfo={platformVoucherInfo}
                 />
               );
             })}

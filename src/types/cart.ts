@@ -92,6 +92,50 @@ export interface PlatformVoucher {
 // Service Type IDs - object với key là storeId và value là serviceTypeId
 export type ServiceTypeIds = Record<string, number>;
 
+// ==================== CHECKOUT PREVIEW TYPES ====================
+
+// Request body cho API preview checkout
+export interface CheckoutPreviewRequest {
+  items: CheckoutCodItem[];
+  addressId: string;
+  message?: string;
+  storeVouchers?: StoreVoucher[];
+  platformVouchers?: PlatformVoucher[];
+  serviceTypeIds?: ServiceTypeIds;
+}
+
+// Dữ liệu từng cửa hàng trong response preview
+export interface CheckoutPreviewStore {
+  storeId: string;
+  storeName: string;
+  subtotal: number;
+  shippingFee: number;
+  platformDiscount: number;
+  storeDiscount: number;
+  discountTotal: number;
+  grandTotal: number;
+  storeVoucherDetailJson?: string | null;
+  platformVoucherDetailJson?: string | null;
+  items: CartItem[];
+  shippingServiceTypeId: number;
+}
+
+// Dữ liệu tổng quan trong response preview
+export interface CheckoutPreviewData {
+  overallSubtotal: number;
+  overallShipping: number;
+  overallDiscount: number;
+  overallGrandTotal: number;
+  stores: CheckoutPreviewStore[];
+}
+
+// Response chuẩn của API preview checkout
+export interface CheckoutPreviewResponse {
+  status: number;
+  message: string;
+  data: CheckoutPreviewData;
+}
+
 // Checkout COD Request
 export interface CheckoutCodRequest {
   items: CheckoutCodItem[];

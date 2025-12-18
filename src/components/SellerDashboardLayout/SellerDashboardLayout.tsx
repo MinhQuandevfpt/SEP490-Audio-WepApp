@@ -23,12 +23,14 @@ import {
   Truck,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  AlertTriangle,
+  DollarSign
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
 import { NotificationService, type StoreNotification } from '../../services/seller/NotificationService';
-import type { StoreInfo } from '../../types/seller';
+import type { StoreInfo, RiskWarningResponse } from '../../types/seller';
 
 const SellerDashboardLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -43,6 +45,7 @@ const SellerDashboardLayout: React.FC = () => {
   const [notificationCount, setNotificationCount] = useState<number>(0); // Số lượng thông báo chưa đọc
   const [notifications, setNotifications] = useState<StoreNotification[]>([]); // Danh sách thông báo
   const [notificationsLoading, setNotificationsLoading] = useState<boolean>(false); // Loading state cho notifications
+  const [riskWarning, setRiskWarning] = useState<RiskWarningResponse | null>(null); // Risk warning data
 
   useEffect(() => {
     // Prime UI with seller user info immediately (fallback while store info loads)
@@ -54,6 +57,7 @@ const SellerDashboardLayout: React.FC = () => {
 
     loadStoreInfo();
     loadNotificationCount();
+    loadRiskWarning();
   }, []);
 
   // Close menus when clicking outside
@@ -96,6 +100,16 @@ const SellerDashboardLayout: React.FC = () => {
       console.error('Error loading notification count:', error);
       // Set to 0 on error instead of showing incorrect count
       setNotificationCount(0);
+    }
+  };
+
+  const loadRiskWarning = async () => {
+    try {
+      const data = await StoreService.getRiskWarning();
+      setRiskWarning(data);
+    } catch (error) {
+      console.error('Error loading risk warning:', error);
+      // Don't set to null on error, keep previous value if any
     }
   };
 
@@ -238,6 +252,60 @@ const SellerDashboardLayout: React.FC = () => {
     }
   };
 
+  // Get risk warning level info
+  const getRiskWarningInfo = (level: string) => {
+    switch (level) {
+      case 'NONE':
+        return {
+          text: 'An toàn',
+          emoji: '🟢',
+          bgColor: 'bg-green-50',
+          textColor: 'text-green-700',
+          borderColor: 'border-green-200',
+        };
+      case 'NOTICE_20':
+        return {
+          text: 'Có nợ nhẹ',
+          emoji: '🔵',
+          bgColor: 'bg-blue-50',
+          textColor: 'text-blue-700',
+          borderColor: 'border-blue-200',
+        };
+      case 'WARNING_50':
+        return {
+          text: 'Cảnh báo',
+          emoji: '🟡',
+          bgColor: 'bg-yellow-50',
+          textColor: 'text-yellow-700',
+          borderColor: 'border-yellow-200',
+        };
+      case 'DANGER_80':
+        return {
+          text: 'Nguy hiểm',
+          emoji: '🟠',
+          bgColor: 'bg-orange-50',
+          textColor: 'text-orange-700',
+          borderColor: 'border-orange-200',
+        };
+      case 'BLOCK_100':
+        return {
+          text: 'Vượt ngưỡng',
+          emoji: '🔴',
+          bgColor: 'bg-red-50',
+          textColor: 'text-red-700',
+          borderColor: 'border-red-200',
+        };
+      default:
+        return {
+          text: 'An toàn',
+          emoji: '🟢',
+          bgColor: 'bg-green-50',
+          textColor: 'text-green-700',
+          borderColor: 'border-green-200',
+        };
+    }
+  };
+
   const handleLogout = () => {
     SellerAuthService.logout();
     StoreService.clearStoreCache();
@@ -314,6 +382,7 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Ví cửa hàng', path: '/seller/dashboard/finance' },
+        { label: 'Quản lý chi trả', path: '/seller/dashboard/payout' },
         { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
       ]
     },
@@ -333,6 +402,18 @@ const SellerDashboardLayout: React.FC = () => {
       label: 'Thông báo',
       path: '/seller/dashboard/notifications',
       badge: notificationCount > 0 ? (notificationCount > 9 ? '9+' : String(notificationCount)) : null
+    },
+    {
+      icon: AlertTriangle,
+      label: 'Cảnh báo rủi ro',
+      path: '/seller/dashboard/risk-warning',
+      badge: null
+    },
+    {
+      icon: DollarSign,
+      label: 'Chi trả cho cửa hàng',
+      path: '/seller/dashboard/store-payout-v2',
+      badge: null
     }
   ], [notificationCount, storeInfo?.id]);
 
@@ -370,8 +451,19 @@ const SellerDashboardLayout: React.FC = () => {
             </Link>
           </div>
 
-          {/* Right: Notifications & Profile */}
+          {/* Right: Risk Warning, Notifications & Profile */}
           <div className="flex items-center space-x-4">
+            {/* Risk Warning Badge */}
+            {riskWarning && (
+              <Link
+                to="/seller/dashboard/risk-warning"
+                className={`${getRiskWarningInfo(riskWarning.warningLevel).bgColor} ${getRiskWarningInfo(riskWarning.warningLevel).textColor} px-3 py-1.5 rounded-lg text-sm font-medium border ${getRiskWarningInfo(riskWarning.warningLevel).borderColor} hover:opacity-90 transition-opacity flex items-center gap-1.5`}
+              >
+                <span className="text-base">{getRiskWarningInfo(riskWarning.warningLevel).emoji}</span>
+                <span className="hidden sm:inline">{getRiskWarningInfo(riskWarning.warningLevel).text}</span>
+              </Link>
+            )}
+
             {/* Notification Bell */}
             <div className="relative notification-menu">
               <button

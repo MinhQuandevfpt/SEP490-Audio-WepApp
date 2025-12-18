@@ -10,6 +10,14 @@ interface Props {
   disabled: boolean;
   onSubmit: () => void;
   selectedVoucherCodes?: string[];
+  /**
+   * Hiển thị giá gốc ngay cả khi không có discount (case ≥2 variant cùng productId hoặc qty ≥2)
+   */
+  forceShowOriginal?: boolean;
+  /**
+   * Giá gốc (đã gồm phí ship) để hiển thị khi forceShowOriginal = true
+   */
+  originalTotalOverride?: number;
 }
 
 const OrderSummaryCard: React.FC<Props> = ({
@@ -21,6 +29,8 @@ const OrderSummaryCard: React.FC<Props> = ({
   disabled,
   onSubmit,
   selectedVoucherCodes = [],
+  forceShowOriginal = false,
+  originalTotalOverride,
 }) => {
   const { t } = useLanguage();
   const fmt = (v: number) => {
@@ -30,8 +40,13 @@ const OrderSummaryCard: React.FC<Props> = ({
   };
 
   // Tổng trước khi áp dụng mọi loại giảm giá (giống Cart/HomePage)
-  const originalTotal = subtotal + shippingFee;
+  const computedOriginalTotal = subtotal + shippingFee;
+  const originalTotal = originalTotalOverride ?? computedOriginalTotal;
   const hasAnyDiscount = platformDiscount > 0 || voucherDiscount > 0;
+  // Chỉ hiển thị giá gốc gạch ngang khi THỰC SỰ có giảm (platform/voucher),
+  // và KHÔNG ở chế độ forceShowOriginal (vì lúc đó đang cố tình hiển thị giá gốc).
+  const showOriginal = hasAnyDiscount && !forceShowOriginal;
+  const showPlatformDiscount = !forceShowOriginal && platformDiscount > 0;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
@@ -42,7 +57,7 @@ const OrderSummaryCard: React.FC<Props> = ({
         <span>{fmt(subtotal)}</span>
       </div>
 
-      {platformDiscount > 0 && (
+      {showPlatformDiscount && (
         <div className="flex justify-between text-gray-700">
           <span>{t('checkout.summary.platformDiscount')}</span>
           <span className="text-green-600">-{fmt(platformDiscount)}</span>
@@ -66,7 +81,7 @@ const OrderSummaryCard: React.FC<Props> = ({
       <div className="flex justify-between items-end">
         <div className="text-gray-600">
           <p className="text-sm">{t('checkout.summary.total')}</p>
-          {hasAnyDiscount && (
+          {showOriginal && (
             <p className="text-xs text-gray-400 line-through">
               {fmt(originalTotal)}
             </p>
@@ -90,9 +105,14 @@ const OrderSummaryCard: React.FC<Props> = ({
         {t('checkout.confirmButton')}
       </button>
 
-      <p className="text-xs text-gray-500">
-        {t('checkout.summary.voucherHint')}
-      </p>
+      <div className="text-xs text-gray-500 space-y-1">
+        <p>{t('checkout.summary.voucherHint')}</p>
+        {forceShowOriginal && (
+          <p className="text-red-500">
+            {t('checkout.summary.notePlatformCampaignLimit') || 'Lưu ý: Khi có ≥2 biến thể cùng sản phẩm hoặc số lượng mỗi biến thể ≥2, giá có thể quay về giá gốc (không áp dụng giảm nền tảng cho toàn bộ).'}
+          </p>
+        )}
+      </div>
     </div>
   );
 };

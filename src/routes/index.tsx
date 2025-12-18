@@ -19,6 +19,8 @@ import AdminLayout from '../components/AdminLayout';
 import Profile from '../pages/Customer/Profile';
 import ProductDetail from '../pages/Customer/ProductDetail';
 import ShoppingCart from '../pages/Customer/Cart';
+import ShoppingCartVer2 from '../pages/Customer/ShoppingCart_ver2';
+import PreCheckoutV2 from '../pages/Customer/PreCheckoutV2';
 import StorePage from '../pages/Customer/StorePage';
 import OAuth2Callback from '../pages/OAuth2Callback';
 import OAuth2Success from '../pages/OAuth2Success';
@@ -35,6 +37,7 @@ import { SearchResultPage } from '../pages/Customer/SearchResult';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import FlashSaleDetail from '../pages/Customer/FlashSaleDetail/FlashSaleDetail';
 import AdminLogin from '../pages/Admin/Login';
+import FlatStaffLogin from '../pages/Admin/Login/FlatStaffLogin';
 import AdminDashboard from '../pages/Admin/Dashboard';
 import UserManagement from '../pages/Admin/UserManagement';
 import UserDetailManagement from '../pages/Admin/UserDetailandUpdate';
@@ -49,6 +52,7 @@ import PolicyManagement from '../pages/Admin/PolicyManagement/PolicyManagement';
 import { PayoutManagement, PayoutBillDetail } from '../pages/Admin/PayoutManagement';
 import PlatformWalletPage from '../pages/Admin/PlatformWallet/PlatformWalletPage';
 import SettlementStatisticsPage from '../pages/Admin/SettlementStatistics/SettlementStatisticsPage';
+import CustomerWithdrawRequestsPage from '../pages/Admin/Finance/CustomerWithdrawRequestsPage';
 import { StoreManagement, StoreDetail } from '../pages/Admin/StoreManagement';
 import { AdminProductManagement, AdminProductDetail } from '../pages/Admin/ProductManagement';
 import PlatformFeeManagement from '../pages/Admin/PlatformFeeManagement/PlatformFeeManagement';
@@ -59,6 +63,7 @@ import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
+import PayoutManagementPage from '../pages/Seller/Payout/PayoutManagementPage';
 import PayoutRevenue from '../pages/Seller/Dashboard/PayoutRevenue';
 import PayoutRevenueDetail from '../pages/Seller/Dashboard/PayoutRevenueDetail';
 import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
@@ -76,12 +81,17 @@ import NotificationPage from '../pages/Seller/NotificationFolder/NotificationPag
 import { CustomerAuthService } from '../services/customer/Authcustomer';
 import { SellerAuthService } from '../services/seller/AuthSeller';
 import { AdminAuthService } from '../services/admin/AdminAuthService';
+import { FlatStaffAuthService } from '../services/admin/FlatStaffAuthService';
+import { isValidAdminRole } from '../utils/permissionHelper';
+import { PermissionProtectedRoute } from '../components/ProtectedRoute';
 import { StoreService } from '../services/seller/StoreService';
 import { StoreStaffAuthService } from '../services/staff/AuthStaff';
 import { UpdateProductPage } from '../pages/Seller/UpdateProduct';
 import StoreReturnsPage from '../pages/Seller/ReturnManagement/StoreReturnsPage';
 import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
+import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
+import { StorePayoutV2 } from '../pages/Seller/StorePayoutVersion2';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -171,10 +181,29 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
 }
 
 function ProtectedAdminRoute({ element }: { element: ReactElement }) {
-  const isAuthenticated = AdminAuthService.isAuthenticated();
+  // Check authentication from both Admin and FlatStaff services
+  const isAdminAuthenticated = AdminAuthService.isAuthenticated();
+  const isFlatStaffAuthenticated = FlatStaffAuthService.isAuthenticated();
+  const isAuthenticated = isAdminAuthenticated || isFlatStaffAuthenticated;
+  
   if (!isAuthenticated) {
+    // Determine which login page to redirect to
+    // Default to admin login, but could be enhanced to remember last login type
     return <Navigate to="/admin/login" replace />;
   }
+  
+  // Verify that the authenticated user has a valid admin role
+  const adminUser = AdminAuthService.getCurrentUser();
+  const flatStaffUser = FlatStaffAuthService.getCurrentUser();
+  const currentUser = adminUser || flatStaffUser;
+  const userRole = currentUser?.role || '';
+  
+  if (!isValidAdminRole(userRole)) {
+    // User is authenticated but doesn't have admin role
+    console.warn(`User with role "${userRole}" tried to access admin area`);
+    return <Navigate to="/" replace />;
+  }
+  
   return element;
 }
 
@@ -222,6 +251,14 @@ export const router = createBrowserRouter([
   {
     path: '/cart',
     element: <ShoppingCart />
+  },
+  {
+    path: '/cartv2',
+    element: <ShoppingCartVer2 />
+  },
+  {
+    path: '/precheckoutv2',
+    element: <PreCheckoutV2 />
   },
   {
     path: '/orders',
@@ -413,6 +450,10 @@ export const router = createBrowserRouter([
         element: <FinancePage />
       },
       {
+        path: 'payout',
+        element: <PayoutManagementPage />
+      },
+      {
         path: 'revenue',
         element: <PayoutRevenue />
       },
@@ -493,6 +534,14 @@ export const router = createBrowserRouter([
         element: <NotificationPage />
       },
       {
+        path: 'risk-warning',
+        element: <RiskWarningPage />
+      },
+      {
+        path: 'store-payout-v2',
+        element: <StorePayoutV2 />
+      },
+      {
         path: 'settings',
         element: <div className="p-6 bg-white rounded-lg shadow"><h2 className="text-2xl font-bold">Cài đặt cửa hàng</h2><p className="text-gray-600 mt-2">Trang cài đặt đang được phát triển...</p></div>
       },
@@ -531,6 +580,10 @@ export const router = createBrowserRouter([
     element: <AdminLogin />
   },
   {
+    path: '/admin/flatstaff/login',
+    element: <FlatStaffLogin />
+  },
+  {
     path: '/admin',
     element: <ProtectedAdminRoute element={<AdminLayout />} />,
     children: [
@@ -545,23 +598,23 @@ export const router = createBrowserRouter([
       // Add more admin routes here as needed
       {
         path: 'users',
-        element: <UserManagement />
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
       },
       {
         path: 'users/:id',
-        element: <UserDetailManagement />
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserDetailManagement />} />
       },
       {
         path: 'users/customers',
-        element: <UserManagement />
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
       },
       {
         path: 'users/sellers',
-        element: <div>Seller Management Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_users" element={<div>Seller Management Page (Coming Soon)</div>} />
       },
       {
         path: 'users/admins',
-        element: <div>Admin Management Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_users" element={<div>Admin Management Page (Coming Soon)</div>} />
       },
       {
         path: 'stores',
@@ -645,7 +698,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'platform-fees',
-        element: <PlatformFeeManagement />
+        element: <PermissionProtectedRoute permission="manage_system" element={<PlatformFeeManagement />} />
       },
       {
         path: 'orders',
@@ -673,23 +726,27 @@ export const router = createBrowserRouter([
       },
       {
         path: 'finance',
-        element: <div>Tài chính</div>
+        element: <PermissionProtectedRoute permission="manage_finance" element={<div>Tài chính</div>} />
       },
       {
         path: 'finance/platform-wallet',
-        element: <PlatformWalletPage />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PlatformWalletPage />} />
       },
       {
         path: 'finance/settlement-statistics',
-        element: <SettlementStatisticsPage />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<SettlementStatisticsPage />} />
+      },
+      {
+        path: 'finance/customer-withdraw-requests',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<CustomerWithdrawRequestsPage />} />
       },
       {
         path: 'reports/payout',
-        element: <PayoutManagement />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PayoutManagement />} />
       },
       {
         path: 'reports/payout/:billId',
-        element: <PayoutBillDetail />
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PayoutBillDetail />} />
       },
       {
         path: 'categories',
@@ -717,23 +774,23 @@ export const router = createBrowserRouter([
       },
       {
         path: 'settings',
-        element: <div>System Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>System Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/general',
-        element: <div>General Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>General Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/payment',
-        element: <div>Payment Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>Payment Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/shipping',
-        element: <div>Shipping Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>Shipping Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'settings/email',
-        element: <div>Email Template Settings Page (Coming Soon)</div>
+        element: <PermissionProtectedRoute permission="manage_system" element={<div>Email Template Settings Page (Coming Soon)</div>} />
       },
       {
         path: 'profile',

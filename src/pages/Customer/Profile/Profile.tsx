@@ -137,7 +137,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
       { key: 'warranty' as const, label: 'Bảo hành', icon: Shield },
       { key: 'reviews' as const, label: 'Đánh giá sản phẩm', icon: Star },
       { key: 'returns' as const, label: 'Lịch sử hoàn trả', icon: Package },
-      { key: 'wallet' as const, label: 'Ví nền tảng', icon: Wallet },
+      { key: 'wallet' as const, label: 'Ví của tôi', icon: Wallet },
       { key: 'notifications' as const, label: 'Thông báo', icon: Bell },
       { key: 'password' as const, label: 'Đổi mật khẩu', icon: Lock },
       // { key: 'bank' as const, label: 'Thẻ ngân hàng', icon: CreditCard }, // Commented out - Bank card feature disabled
@@ -150,10 +150,10 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Tài khoản của tôi</h1>
         {data && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
             {/* Left navigation */}
             <aside className="lg:col-span-1">
-              <nav className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
+              <nav className="bg-white rounded-xl shadow-sm border border-gray-200 p-2 min-h-full">
                 {navItems.map(({ key, label, icon: Icon }) => (
                   <button
                     key={key}
@@ -172,7 +172,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
             </aside>
 
             {/* Right content */}
-            <section className="lg:col-span-2 space-y-6">
+            <section className="lg:col-span-4">
               {/* Render all components but hide inactive ones */}
               <div className={active === 'info' ? 'block' : 'hidden'}>
                 <UserInfoCard 

@@ -527,6 +527,65 @@ export interface WalletInfo {
   lastTransactionAt: string | null;
 }
 
+// Withdraw Request Types
+export type WithdrawRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID';
+
+export interface WithdrawRequest {
+  id: string;
+  customerId: string;
+  walletId?: string;
+  amount: number;
+  status: WithdrawRequestStatus;
+  bankCode: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  adminNote: string | null;
+  payoutRef: string | null;
+  proofUrls: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+  deleteAt?: string | null;
+  active?: boolean;
+}
+
+export interface WithdrawRequestsPage {
+  content: WithdrawRequest[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first?: boolean;
+  last?: boolean;
+  pageable?: {
+    pageNumber: number;
+    pageSize: number;
+    sort?: {
+      sorted: boolean;
+      empty: boolean;
+      unsorted: boolean;
+    };
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  sort?: {
+    sorted: boolean;
+    empty: boolean;
+    unsorted: boolean;
+  };
+  numberOfElements?: number;
+  empty?: boolean;
+}
+
+export interface CreateWithdrawRequestPayload {
+  amount: number;
+  bankCode: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
 // Order History Response (paginated)
 export interface OrderHistoryResponse {
   items: CustomerOrder[];
