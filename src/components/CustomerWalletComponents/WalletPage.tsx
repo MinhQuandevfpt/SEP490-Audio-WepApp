@@ -22,6 +22,7 @@ const getTransactionTypeLabel = (type: string): string => {
     'DEPOSIT': 'Nạp tiền',
     'TOPUP': 'Nạp tiền vào ví',
     'WITHDRAW': 'Rút tiền',
+    'WITHDRAW_REQUEST': 'Rút tiền',
     'PENDING_HOLD': 'Giữ tiền chờ',
     'RELEASE_PENDING': 'Giải phóng tiền chờ',
     'ADJUSTMENT': 'Điều chỉnh',
@@ -29,6 +30,12 @@ const getTransactionTypeLabel = (type: string): string => {
     'TRANSFER': 'Chuyển khoản',
   };
   return typeMap[type] || type;
+};
+
+// Get transaction type color
+const getTransactionTypeColor = (type: string): string => {
+  if (type === 'WITHDRAW_REQUEST' || type === 'WITHDRAW') return 'red';
+  return 'blue';
 };
 
 // Mapping transaction status to Vietnamese
@@ -71,7 +78,7 @@ const getWalletStatusColor = (status: string): string => {
 };
 
 const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
-  const { walletInfo, loading: walletLoading, error: walletError } = useWalletInfo(customerId);
+  const { walletInfo, loading: walletLoading, error: walletError, reload: reloadWalletInfo } = useWalletInfo(customerId);
   const { transactions, loading: transactionsLoading, error: transactionsError, page, pageSize, total, setPage, setPageSize } =
     useWalletTransactions(customerId);
   const { withdrawRequests, loading: withdrawRequestsLoading, error: withdrawError, page: withdrawPage, pageSize: withdrawPageSize, total: withdrawTotal, setPage: setWithdrawPage, setPageSize: setWithdrawPageSize, reload: reloadWithdrawRequests } = 
@@ -152,13 +159,18 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
         accountName: values.accountName,
       });
 
-      message.success('Gửi yêu cầu rút tiền thành công! Vui lòng đợi Admin xử lý.');
+      // Calculate new balance after withdrawal (before reload for accurate display)
+      const newBalance = (walletInfo?.balance || 0) - values.amount;
+      message.success(`Rút tiền thành công! Số dư hiện tại của bạn là ${formatCurrency(newBalance)}`);
+      
+      // Reload wallet info to update the UI
+      reloadWalletInfo();
       setIsWithdrawModalOpen(false);
       withdrawForm.resetFields();
       reloadWithdrawRequests();
     } catch (error: any) {
       console.error('Withdraw error:', error);
-      message.error(error?.message || 'Có lỗi xảy ra khi tạo yêu cầu rút tiền');
+      message.error(error?.message || 'Có lỗi xảy ra khi rút tiền');
     } finally {
       setWithdrawLoading(false);
     }
@@ -220,7 +232,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       dataIndex: 'type',
       key: 'type',
       render: (value) => (
-        <Tag color="blue">
+        <Tag color={getTransactionTypeColor(value)}>
           {getTransactionTypeLabel(value)}
         </Tag>
       ),
@@ -239,11 +251,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       title: 'Số tiền',
       dataIndex: 'amount',
       key: 'amount',
-      render: (value: number) => {
-        const isPositive = value >= 0;
+      render: (value: number, record: WalletTransaction) => {
+        const isWithdraw = record.type === 'WITHDRAW_REQUEST' || record.type === 'WITHDRAW';
+        const isPositive = value >= 0 && !isWithdraw;
+        const displayValue = isWithdraw ? -Math.abs(value) : value;
         return (
           <span className={isPositive ? 'text-blue-600 font-semibold' : 'text-red-500 font-semibold'}>
-            {isPositive ? '+' : ''}{formatCurrency(value)}
+            {isPositive ? '+' : ''}{formatCurrency(displayValue)}
           </span>
         );
       },
@@ -262,11 +276,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
         if (!value) return '—';
         
         // Parse withdraw request description
-        // Format: "Customer withdraw request id=xxx"
-        if (value.toLowerCase().includes('customer withdraw request')) {
+        // Format: "Customer withdraw request id=xxx" or "Customer withdraw (auto) id=xxx"
+        if (value.toLowerCase().includes('customer withdraw')) {
           return (
             <div className="whitespace-normal">
-              <div>Yêu cầu rút tiền</div>
+              <div>Giao dịch rút tiền</div>
             </div>
           );
         }
@@ -645,11 +659,29 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
             <Select
               showSearch
               placeholder="Chọn ngân hàng"
-              optionFilterProp="children"
+              optionFilterProp="label"
               onChange={handleBankChange}
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
+              optionRender={(option) => {
+                const bank = vietnamBanks.find(b => b.code === option.value);
+                return (
+                  <div className="flex items-center gap-2 py-1">
+                    {bank?.logo && (
+                      <img 
+                        src={bank.logo} 
+                        alt={bank.shortName} 
+                        className="w-6 h-6 object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <span>{bank?.shortName} - {bank?.name}</span>
+                  </div>
+                );
+              }}
               options={vietnamBanks.map(bank => ({
                 value: bank.code,
                 label: `${bank.shortName} - ${bank.name}`,
@@ -769,16 +801,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
                 <span className="font-medium">{selectedRequest.accountName}</span>
               </Descriptions.Item>
               
-              {selectedRequest.adminNote && (
-                <Descriptions.Item label="Ghi chú từ Admin" span={2}>
-                  <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
-                    <p className="text-sm whitespace-pre-wrap">{selectedRequest.adminNote}</p>
-                  </div>
-                </Descriptions.Item>
-              )}
-              
               {selectedRequest.payoutRef && (
-                <Descriptions.Item label="Mã thanh toán (Payout Ref)" span={2}>
+                <Descriptions.Item label="Mã thanh toán" span={2}>
                   <span className="font-mono bg-green-50 px-2 py-1 rounded">{selectedRequest.payoutRef}</span>
                 </Descriptions.Item>
               )}
@@ -826,7 +850,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
             {selectedRequest.status === 'REJECTED' && (
               <Alert
                 message="Yêu cầu bị từ chối"
-                description={selectedRequest.adminNote || 'Vui lòng xem ghi chú từ để biết lý do.'}
+                description="Yêu cầu rút tiền của bạn đã bị từ chối. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết."
                 type="error"
                 showIcon
               />
