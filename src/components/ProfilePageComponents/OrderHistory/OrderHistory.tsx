@@ -20,6 +20,7 @@ const OrderHistory: React.FC = () => {
   const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
   const [cancelNote, setCancelNote] = useState<string>('');
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
 
   const loadRecentOrders = useCallback(async () => {
     try {
@@ -68,6 +69,21 @@ const OrderHistory: React.FC = () => {
       message.error(err?.message || 'Hủy đơn hàng thất bại');
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleConfirmReceived = async () => {
+    if (orders.length === 0) return;
+    const order = orders[0];
+    try {
+      setIsConfirmingReceived(true);
+      await OrderHistoryService.confirmReceived(order.id);
+      message.success('Xác nhận đã nhận hàng thành công');
+      loadRecentOrders(); // Reload orders
+    } catch (err: any) {
+      message.error(err?.message || 'Không thể xác nhận đã nhận hàng');
+    } finally {
+      setIsConfirmingReceived(false);
     }
   };
 
@@ -234,18 +250,34 @@ const OrderHistory: React.FC = () => {
                     </Button>
                   )}
                   {orderSummary.status === 'DELIVERY_SUCCESS' && (
-                    <Button
-                      block
-                      onClick={() => navigate('/returns')}
-                      style={{
-                        borderColor: '#f97316',
-                        color: '#f97316',
-                        borderRadius: '8px',
-                        height: '40px'
-                      }}
-                    >
-                      Hoàn trả sản phẩm
-                    </Button>
+                    <>
+                      <Button
+                        type="primary"
+                        block
+                        onClick={handleConfirmReceived}
+                        loading={isConfirmingReceived}
+                        style={{
+                          backgroundColor: '#27AE60',
+                          borderColor: '#27AE60',
+                          borderRadius: '8px',
+                          height: '40px'
+                        }}
+                      >
+                        Đã nhận hàng
+                      </Button>
+                      <Button
+                        block
+                        onClick={() => navigate('/returns')}
+                        style={{
+                          borderColor: '#f97316',
+                          color: '#f97316',
+                          borderRadius: '8px',
+                          height: '40px'
+                        }}
+                      >
+                        Hoàn trả sản phẩm
+                      </Button>
+                    </>
                   )}
                   {orderSummary.status === 'UNPAID' && (
                     <Button
