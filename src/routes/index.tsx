@@ -169,10 +169,11 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
     return <Navigate to="/seller/login" replace />;
   }
   
-  // Only ACTIVE stores can access dashboard
-  if (storeStatus !== 'ACTIVE') {
+  // Chỉ block khi status là INACTIVE (yêu cầu KYC lần đầu)
+  // Các status khác (PENDING, REJECTED, ACTIVE, PAUSED) đều cho phép vào dashboard
+  if (storeStatus === 'INACTIVE') {
     if (error) {
-      console.warn('⚠️ Redirecting to KYC status due to error:', error);
+      console.warn('⚠️ Redirecting to KYC status due to INACTIVE status:', error);
     }
     return <Navigate to="/seller/kyc-status" replace />;
   }

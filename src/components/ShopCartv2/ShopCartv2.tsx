@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import useCart from '../../hooks/useCart';
 import { ProductListService, type Product } from '../../services/customer/ProductListService';
+import ProductVoucherService from '../../services/customer/ProductVoucherService';
 
 /**
  * ShopCartV2
@@ -27,6 +29,27 @@ const ShopCartV2: React.FC = () => {
   const [productCache, setProductCache] = useState<Map<string, Product>>(
     () => new Map()
   );
+
+  // Store vouchers theo storeId: Map<storeId, Array<shopVoucher>>
+  type ShopVoucher = {
+    shopVoucherId: string;
+    code: string;
+    title: string;
+    discountValue: number | null;
+    discountPercent: number | null;
+    maxDiscountValue: number | null;
+    minOrderValue: number | null;
+    startTime: string;
+    endTime: string;
+  };
+  const [storeVouchers, setStoreVouchers] = useState<Map<string, ShopVoucher[]>>(
+    () => new Map()
+  );
+  
+  // Selected shop vouchers: Map<storeId, { shopVoucherId, code }>
+  const [selectedShopVouchers, setSelectedShopVouchers] = useState<
+    Map<string, { shopVoucherId: string; code: string }>
+  >(() => new Map());
 
   /**
    * selectedIds:
@@ -125,6 +148,83 @@ const ShopCartV2: React.FC = () => {
     }
   }, [items]);
 
+  // Load shop vouchers (ALL_SHOP_VOUCHER) cho từng store
+  useEffect(() => {
+    const loadStoreVouchers = async () => {
+      // Lấy danh sách unique storeIds từ items
+      const storeIds = new Set<string>();
+      items.forEach((item) => {
+        if (item.type === 'PRODUCT') {
+          const product = productCache.get(item.refId);
+          if (product?.storeId) {
+            storeIds.add(product.storeId);
+          }
+        }
+      });
+
+      if (storeIds.size === 0) return;
+
+      // Với mỗi store, lấy product đầu tiên để gọi API vouchers
+      const storeProductMap = new Map<string, string>(); // storeId -> productId
+      items.forEach((item) => {
+        if (item.type === 'PRODUCT') {
+          const product = productCache.get(item.refId);
+          if (product?.storeId && !storeProductMap.has(product.storeId)) {
+            storeProductMap.set(product.storeId, item.refId);
+          }
+        }
+      });
+
+      // Gọi API cho từng store (chỉ gọi 1 lần mỗi store)
+      const voucherPromises = Array.from(storeProductMap.entries()).map(
+        async ([storeId, productId]) => {
+          try {
+            console.log(
+              `🎫 [ShopCartV2] Loading vouchers for store ${storeId} via product ${productId}`
+            );
+            const voucherRes = await ProductVoucherService.getProductVouchers(
+              productId,
+              'ALL',
+              null
+            );
+
+            // Lọc ra vouchers có scopeType: "ALL_SHOP_VOUCHER"
+            const shopVouchers =
+              voucherRes.data?.vouchers?.shopVouchers?.filter(
+                (v) => v.scopeType === 'ALL_SHOP_VOUCHER'
+              ) || [];
+
+            console.log(
+              `✅ [ShopCartV2] Found ${shopVouchers.length} ALL_SHOP_VOUCHER vouchers for store ${storeId}`
+            );
+
+            return { storeId, vouchers: shopVouchers };
+          } catch (error) {
+            console.error(
+              `❌ [ShopCartV2] Failed to load vouchers for store ${storeId}:`,
+              error
+            );
+            return { storeId, vouchers: [] };
+          }
+        }
+      );
+
+      const results = await Promise.all(voucherPromises);
+      const nextVouchers = new Map<string, ShopVoucher[]>();
+      results.forEach(({ storeId, vouchers }) => {
+        if (vouchers.length > 0) {
+          nextVouchers.set(storeId, vouchers);
+        }
+      });
+
+      setStoreVouchers(nextVouchers);
+    };
+
+    if (items.length > 0 && productCache.size > 0) {
+      void loadStoreVouchers();
+    }
+  }, [items, productCache]);
+
   // Group items theo cửa hàng
   const storeGroups = useMemo(() => {
     const groups = new Map<
@@ -181,12 +281,75 @@ const ShopCartV2: React.FC = () => {
     [baseSubtotal, currentSubtotal]
   );
 
+  // Tính giảm giá từ shop vouchers đã chọn (PHẢI đặt trước early return)
+  const shopVoucherDiscount = useMemo(() => {
+    let total = 0;
+    selectedShopVouchers.forEach((voucherInfo, storeId) => {
+      const vouchers = storeVouchers.get(storeId) || [];
+      const voucher = vouchers.find(
+        (v) => v.shopVoucherId === voucherInfo.shopVoucherId
+      );
+      if (!voucher) return;
+
+      // Tính subtotal của store này
+      const storeItems = items.filter((item) => {
+        if (item.type !== 'PRODUCT') return false;
+        const product = productCache.get(item.refId);
+        return product?.storeId === storeId;
+      });
+
+      const storeSubtotal = storeItems.reduce(
+        (sum, item) => sum + item.unitPrice * item.quantity,
+        0
+      );
+
+      // Kiểm tra minOrderValue
+      if (voucher.minOrderValue && storeSubtotal < voucher.minOrderValue) {
+        return;
+      }
+
+      // Tính discount
+      if (voucher.discountPercent) {
+        const discount = (storeSubtotal * voucher.discountPercent) / 100;
+        total += voucher.maxDiscountValue
+          ? Math.min(discount, voucher.maxDiscountValue)
+          : discount;
+      } else if (voucher.discountValue) {
+        total += voucher.discountValue;
+      }
+    });
+    return total;
+  }, [selectedShopVouchers, storeVouchers, items, productCache]);
+
   const formatCurrency = (value: number | null | undefined) =>
     `${(value ?? 0).toLocaleString('vi-VN')} ₫`;
 
-  // Placeholder handlers for voucher selection (sau này sẽ gắn API/voucher modal)
+  // Handler để chọn shop voucher
+  const handleSelectShopVoucher = (
+    storeId: string,
+    shopVoucherId: string,
+    code: string
+  ) => {
+    setSelectedShopVouchers((prev) => {
+      const next = new Map(prev);
+      next.set(storeId, { shopVoucherId, code });
+      return next;
+    });
+  };
+
+  // Handler để xóa shop voucher
+  const handleRemoveShopVoucher = (storeId: string) => {
+    setSelectedShopVouchers((prev) => {
+      const next = new Map(prev);
+      next.delete(storeId);
+      return next;
+    });
+  };
+
+  // Handler để mở voucher picker (có thể mở modal sau này)
   const handleOpenStoreVoucher = (storeId: string) => {
     console.log('🧾 [ShopCartV2] Open store voucher picker for storeId:', storeId);
+    // TODO: Có thể mở modal để chọn voucher
   };
 
   const handleOpenProductVoucher = (cartItemId: string) => {
@@ -237,9 +400,15 @@ const ShopCartV2: React.FC = () => {
       return;
     }
 
+    // Build storeVouchers payload: Map<storeId, { shopVoucherId, code }>
+    const storeVouchersPayload: Record<string, { shopVoucherId: string; code: string }> = {};
+    selectedShopVouchers.forEach((voucherInfo, storeId) => {
+      storeVouchersPayload[storeId] = voucherInfo;
+    });
+
     const payload = {
       selectedCartItemIds,
-      storeVouchers: {}, // placeholder cho future store vouchers
+      storeVouchers: storeVouchersPayload, // Lưu selected shopVoucherId theo storeId
       selectedAddressId: null,
       createdAt: Date.now(),
     };
@@ -353,13 +522,64 @@ const ShopCartV2: React.FC = () => {
                   <span>{group.storeName}</span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenStoreVoucher(group.storeId)}
-                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-medium text-orange-600 hover:bg-orange-100"
-                >
-                  🎟 Voucher cửa hàng
-                </button>
+                {/* Shop Vouchers Dropdown */}
+                {storeVouchers.has(group.storeId) ? (
+                  <div className="relative">
+                    <select
+                      value={
+                        selectedShopVouchers.get(group.storeId)?.shopVoucherId ||
+                        ''
+                      }
+                      onChange={(e) => {
+                        const shopVoucherId = e.target.value;
+                        if (shopVoucherId) {
+                          const vouchers = storeVouchers.get(group.storeId) || [];
+                          const voucher = vouchers.find(
+                            (v) => v.shopVoucherId === shopVoucherId
+                          );
+                          if (voucher) {
+                            handleSelectShopVoucher(
+                              group.storeId,
+                              voucher.shopVoucherId,
+                              voucher.code
+                            );
+                          }
+                        } else {
+                          // Xóa voucher đã chọn
+                          handleRemoveShopVoucher(group.storeId);
+                        }
+                      }}
+                      className="appearance-none rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 pr-8 text-xs font-medium text-orange-700 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 hover:bg-orange-100 transition-colors"
+                    >
+                      <option value="">🎟 Chọn voucher cửa hàng</option>
+                      {storeVouchers.get(group.storeId)?.map((voucher) => {
+                        const discountText =
+                          voucher.discountPercent
+                            ? `-${voucher.discountPercent}%`
+                            : voucher.discountValue
+                            ? `-${formatCurrency(voucher.discountValue)}`
+                            : '';
+                        return (
+                          <option
+                            key={voucher.shopVoucherId}
+                            value={voucher.shopVoucherId}
+                          >
+                            {voucher.title} {discountText && `(${discountText})`}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-orange-600" />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenStoreVoucher(group.storeId)}
+                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
+                  >
+                    🎟 Voucher cửa hàng
+                  </button>
+                )}
               </div>
 
               <div className="divide-y divide-gray-200">
@@ -507,12 +727,24 @@ const ShopCartV2: React.FC = () => {
               </span>
             </div>
           )}
+          {shopVoucherDiscount > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Giảm giá voucher cửa hàng</span>
+              <span className="font-medium text-red-500">
+                -{formatCurrency(shopVoucherDiscount)}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 border-t border-gray-200 pt-3">
           <div className="flex items-center justify-between text-base font-semibold text-orange-600">
             <span>Tổng giỏ hàng</span>
-            <span>{formatCurrency(currentSubtotal)}</span>
+            <span>
+              {formatCurrency(
+                Math.max(0, currentSubtotal - shopVoucherDiscount)
+              )}
+            </span>
           </div>
         </div>
 

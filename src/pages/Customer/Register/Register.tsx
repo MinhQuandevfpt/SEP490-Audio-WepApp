@@ -27,6 +27,12 @@ const Register: React.FC = () => {
     agreePromotions: false
   });
 
+  // State để lưu lỗi field-specific
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    phone?: string;
+  }>({});
+
   // Find policy category ID by name
   useEffect(() => {
     if (categories.length > 0) {
@@ -47,6 +53,14 @@ const Register: React.FC = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+
+    // Clear field error khi user nhập lại
+    if (name === 'email' || name === 'phone') {
+      setFieldErrors(prev => ({
+        ...prev,
+        [name]: undefined
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,6 +93,7 @@ const Register: React.FC = () => {
     }
 
     setIsLoading(true);
+    setFieldErrors({}); // Clear field errors trước khi submit
 
     try {
       const response = await CustomerAuthService.register(registerData);
@@ -102,6 +117,49 @@ const Register: React.FC = () => {
       }
     } catch (error) {
       const apiError = error as ApiError;
+      
+      // Bắt lỗi trùng email hoặc số điện thoại
+      if (apiError.status === 409) {
+        const message = apiError.message || '';
+        const lowerMessage = message.toLowerCase();
+        
+        // Kiểm tra nếu là lỗi trùng email
+        if (
+          lowerMessage.includes('email') && 
+          (lowerMessage.includes('already') || lowerMessage.includes('used') || lowerMessage.includes('exists'))
+        ) {
+          setFieldErrors({ email: 'Email này đã được sử dụng' });
+          showCenterError(
+            'Email này đã được sử dụng. Vui lòng sử dụng email khác hoặc đăng nhập.',
+            'Email đã tồn tại'
+          );
+          return;
+        }
+        
+        // Kiểm tra nếu là lỗi trùng số điện thoại
+        if (
+          (lowerMessage.includes('phone') || lowerMessage.includes('số điện thoại')) && 
+          (lowerMessage.includes('already') || lowerMessage.includes('used') || lowerMessage.includes('exists'))
+        ) {
+          setFieldErrors({ phone: 'Số điện thoại này đã được sử dụng' });
+          showCenterError(
+            'Số điện thoại này đã được sử dụng. Vui lòng sử dụng số điện thoại khác.',
+            'Số điện thoại đã tồn tại'
+          );
+          return;
+        }
+        
+        // Fallback cho các lỗi 409 khác
+        setFieldErrors({});
+        showCenterError(
+          'Thông tin đăng ký đã tồn tại trong hệ thống. Vui lòng kiểm tra lại email và số điện thoại.',
+          'Thông tin đã tồn tại'
+        );
+        return;
+      }
+      
+      // Xử lý các lỗi khác
+      setFieldErrors({});
       const errorMessage = CustomerAuthService.formatApiError(apiError);
       showCenterError(errorMessage, t('register.errors.registerError'));
       console.error('Registration error:', error);
@@ -155,11 +213,18 @@ const Register: React.FC = () => {
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                fieldErrors.email
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300'
+              }`}
               placeholder={t('register.emailPlaceholder')}
               required
             />
           </div>
+          {fieldErrors.email && (
+            <p className="mt-1 text-sm text-red-500">{fieldErrors.email}</p>
+          )}
         </div>
 
         {/* Phone */}
@@ -176,11 +241,18 @@ const Register: React.FC = () => {
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                fieldErrors.phone
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-gray-300'
+              }`}
               placeholder={t('register.phonePlaceholder')}
               required
             />
           </div>
+          {fieldErrors.phone && (
+            <p className="mt-1 text-sm text-red-500">{fieldErrors.phone}</p>
+          )}
         </div>
 
         {/* Password */}

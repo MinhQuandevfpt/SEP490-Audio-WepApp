@@ -243,6 +243,11 @@ const PreCheckoutV2: React.FC = () => {
     loadCart();
   }, [loadCart]);
 
+  // Selected shop vouchers: Map<storeId, { shopVoucherId, code }>
+  const [selectedShopVouchers, setSelectedShopVouchers] = useState<
+    Map<string, { shopVoucherId: string; code: string }>
+  >(() => new Map());
+
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(CHECKOUT_SESSION_KEY);
@@ -250,12 +255,32 @@ const PreCheckoutV2: React.FC = () => {
       const payload = JSON.parse(raw) as {
         selectedCartItemIds?: string[];
         selectedAddressId?: string | null;
+        storeVouchers?: Record<string, string>; // storeId -> shopVoucherId
       };
       if (payload.selectedCartItemIds?.length) {
         setSelectedCartItemIds(payload.selectedCartItemIds);
       }
       if (payload.selectedAddressId) {
         setSelectedAddressId(payload.selectedAddressId);
+      }
+      // Load selected shop vouchers
+      if (payload.storeVouchers) {
+        const vouchersMap = new Map<
+          string,
+          { shopVoucherId: string; code: string }
+        >();
+        Object.entries(payload.storeVouchers).forEach(([storeId, voucherInfo]) => {
+          // Support both old format (string) and new format (object)
+          if (typeof voucherInfo === 'string') {
+            // Old format: chỉ có shopVoucherId, cần load code từ API sau
+            vouchersMap.set(storeId, { shopVoucherId: voucherInfo, code: voucherInfo });
+          } else {
+            // New format: có cả shopVoucherId và code
+            vouchersMap.set(storeId, voucherInfo);
+          }
+        });
+        setSelectedShopVouchers(vouchersMap);
+        console.log('🎫 [PreCheckoutV2] Loaded shop vouchers:', Array.from(vouchersMap.entries()));
       }
       console.groupCollapsed('🧾 [PreCheckoutV2] Loaded checkout session payload');
       console.log('Payload:', payload);
@@ -419,18 +444,27 @@ const PreCheckoutV2: React.FC = () => {
     [items]
   );
 
-  // Tổng giảm giá nền tảng: sum (baseUnitPrice - unitPrice) * quantity cho những sản phẩm có giảm
+  // Tổng giảm giá nền tảng: lấy từ preview (ưu tiên) hoặc tính từ items
   const platformDiscountTotal = useMemo(
-    () =>
-      items.reduce((sum, item) => {
+    () => {
+      // Ưu tiên lấy từ preview response (chính xác hơn)
+      if (previewData?.stores) {
+        return previewData.stores.reduce(
+          (sum, store) => sum + (store.platformDiscount || 0),
+          0
+        );
+      }
+      // Fallback: tính từ items
+      return items.reduce((sum, item) => {
         const base = item.baseUnitPrice;
         const current = item.unitPrice;
         if (base != null && current != null && base > current) {
           return sum + (base - current) * item.quantity;
         }
         return sum;
-      }, 0),
-    [items]
+      }, 0);
+    },
+    [items, previewData]
   );
 
   // Tổng giảm giá voucher cửa hàng: lấy từ preview theo từng store
@@ -442,6 +476,67 @@ const PreCheckoutV2: React.FC = () => {
       ) ?? 0,
     [previewData]
   );
+
+  // Parse voucher details từ JSON strings
+  const parseVoucherDetails = useCallback((jsonString: string | null | undefined) => {
+    if (!jsonString) return null;
+    try {
+      return JSON.parse(jsonString);
+    } catch (e) {
+      console.error('Failed to parse voucher details:', e);
+      return null;
+    }
+  }, []);
+
+  // Lấy chi tiết discount theo từng store
+  const storeDiscountDetails = useMemo(() => {
+    if (!previewData?.stores) return [];
+    return previewData.stores.map((store) => {
+      const storeVoucherDetails = parseVoucherDetails(store.storeVoucherDetailJson);
+      const platformVoucherDetails = parseVoucherDetails(store.platformVoucherDetailJson);
+      return {
+        storeId: store.storeId,
+        storeName: store.storeName,
+        platformDiscount: store.platformDiscount || 0,
+        storeDiscount: store.storeDiscount || 0,
+        storeVoucherDetails,
+        platformVoucherDetails,
+        items: store.items || [],
+      };
+    });
+  }, [previewData, parseVoucherDetails]);
+
+  // Build storeVouchers payload từ selectedShopVouchers
+  // Format: Array<{ storeId: string; codes: string[] }>
+  const buildStoreVouchersPayload = useCallback((): Array<{
+    storeId: string;
+    codes: string[];
+  }> => {
+    if (selectedShopVouchers.size === 0) {
+      console.log('🎫 [PreCheckoutV2] No shop vouchers selected');
+      return [];
+    }
+
+    const result: Array<{ storeId: string; codes: string[] }> = [];
+    const storeVoucherMap = new Map<string, string[]>(); // storeId -> codes[]
+
+    // Với mỗi store có selected voucher, lấy code
+    selectedShopVouchers.forEach((voucherInfo, storeId) => {
+      if (!storeVoucherMap.has(storeId)) {
+        storeVoucherMap.set(storeId, []);
+      }
+      // Sử dụng code từ voucherInfo
+      storeVoucherMap.get(storeId)!.push(voucherInfo.code);
+      console.log(`🎫 [PreCheckoutV2] Added voucher for store ${storeId}:`, voucherInfo);
+    });
+
+    storeVoucherMap.forEach((codes, storeId) => {
+      result.push({ storeId, codes });
+    });
+
+    console.log('🎫 [PreCheckoutV2] Built store vouchers payload:', result);
+    return result;
+  }, [selectedShopVouchers]);
 
   const shippingTotal =
     shippingFee || previewData?.overallShipping || 0;
@@ -500,6 +595,7 @@ const PreCheckoutV2: React.FC = () => {
         const platformVouchers = await buildPlatformVouchers(
           items as ApiCartItem[]
         );
+        const storeVouchers = buildStoreVouchersPayload();
 
         const addressForMessage = addresses.find(
           (a) => a.id === selectedAddressId
@@ -510,7 +606,7 @@ const PreCheckoutV2: React.FC = () => {
           items: checkoutItemsPayload,
           addressId: selectedAddressId,
           message,
-          storeVouchers: [], // chưa áp dụng voucher shop ở bước pre-checkout
+          storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
           platformVouchers,
           serviceTypeIds,
         };
@@ -560,6 +656,7 @@ const PreCheckoutV2: React.FC = () => {
         const platformVouchers = await buildPlatformVouchers(
           items as ApiCartItem[]
         );
+        const storeVouchers = buildStoreVouchersPayload();
 
         const addressForMessage = addresses.find(
           (a) => a.id === selectedAddressId
@@ -574,7 +671,7 @@ const PreCheckoutV2: React.FC = () => {
           message: message || undefined,
           description: `Thanh toán đơn hàng (${items.length} sản phẩm)`,
           items: checkoutItemsPayload,
-          storeVouchers: [], // chưa áp dụng voucher shop ở bước pre-checkout
+          storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
           platformVouchers:
             platformVouchers.length > 0 ? platformVouchers : null,
           serviceTypeIds:
@@ -649,12 +746,13 @@ const PreCheckoutV2: React.FC = () => {
 
       const serviceTypeIds = buildServiceTypeIds(items as ApiCartItem[], productCache);
       const platformVouchers = await buildPlatformVouchers(items as ApiCartItem[]);
+      const storeVouchers = buildStoreVouchersPayload();
 
       const requestPayload: CheckoutPreviewRequest = {
         items: previewItems,
         addressId: selectedAddressId,
         message: '',
-        storeVouchers: [] as Array<{ storeId: string; codes: string[] }>,
+        storeVouchers: storeVouchers.length > 0 ? storeVouchers : undefined,
         platformVouchers,
         serviceTypeIds,
       };
@@ -676,7 +774,7 @@ const PreCheckoutV2: React.FC = () => {
     };
 
     void run();
-  }, [items, selectedAddressId, productCache]);
+  }, [items, selectedAddressId, productCache, selectedShopVouchers]);
 
   // Trạng thái loading
   if (isLoading && !cart) {
@@ -759,33 +857,95 @@ const PreCheckoutV2: React.FC = () => {
                 key={group.storeId}
                 className="rounded-xl border border-gray-200 p-3 md:p-4"
               >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-50 text-orange-600">
-                      <span className="text-sm font-semibold">
-                        {group.storeName.charAt(0).toUpperCase()}
+                <div className="mb-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+                        <span className="text-sm font-semibold">
+                          {group.storeName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {group.storeName}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {group.items.length} sản phẩm
+                        </div>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                      Tổng tạm tính:{' '}
+                      <span className="ml-1">
+                        {formatCurrency(
+                          group.items.reduce(
+                            (sum, i) => sum + i.unitPrice * i.quantity,
+                            0
+                          )
+                        )}
                       </span>
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {group.storeName}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {group.items.length} sản phẩm
-                      </div>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                    Tổng tạm tính:{' '}
-                    <span className="ml-1">
-                      {formatCurrency(
-                        group.items.reduce(
-                          (sum, i) => sum + i.unitPrice * i.quantity,
-                          0
-                        )
-                      )}
                     </span>
-                  </span>
+                  </div>
+                  
+                  {/* Hiển thị breakdown discount cho từng store */}
+                  {(() => {
+                    const storeDetail = storeDiscountDetails.find(
+                      (d) => d.storeId === group.storeId
+                    );
+                    if (!storeDetail) return null;
+                    
+                    const hasDiscounts =
+                      storeDetail.platformDiscount > 0 ||
+                      storeDetail.storeDiscount > 0;
+                    
+                    if (!hasDiscounts) return null;
+                    
+                    return (
+                      <div className="ml-10 space-y-1 rounded-lg bg-gray-50 p-2 text-xs">
+                        {storeDetail.platformDiscount > 0 && (
+                          <div className="flex items-center justify-between text-gray-600">
+                            <span>🎁 Giảm giá nền tảng:</span>
+                            <span className="font-medium text-red-500">
+                              -{formatCurrency(storeDetail.platformDiscount)}
+                            </span>
+                          </div>
+                        )}
+                        {storeDetail.storeDiscount > 0 && (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-between text-gray-600">
+                              <span>🏪 Giảm giá voucher cửa hàng:</span>
+                              <span className="font-medium text-red-500">
+                                -{formatCurrency(storeDetail.storeDiscount)}
+                              </span>
+                            </div>
+                            {storeDetail.storeVoucherDetails && (
+                              <div className="ml-2 text-gray-500">
+                                {Array.isArray(storeDetail.storeVoucherDetails) ? (
+                                  storeDetail.storeVoucherDetails.map((v: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between">
+                                      <span>• {v.title || v.code || 'Voucher'}:</span>
+                                      <span>
+                                        -{formatCurrency(v.discountAmount || v.discountValue || 0)}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : typeof storeDetail.storeVoucherDetails === 'object' ? (
+                                  <div className="flex justify-between">
+                                    <span>
+                                      • {storeDetail.storeVoucherDetails.title || storeDetail.storeVoucherDetails.code || 'Voucher'}:
+                                    </span>
+                                    <span>
+                                      -{formatCurrency(storeDetail.storeVoucherDetails.discountAmount || storeDetail.storeVoucherDetails.discountValue || 0)}
+                                    </span>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="divide-y divide-gray-200">
@@ -897,30 +1057,92 @@ const PreCheckoutV2: React.FC = () => {
                 {formatCurrency(subtotal)}
               </span>
             </div>
+
+            {/* Breakdown giảm giá theo từng loại */}
             {platformDiscountTotal > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Giảm giá nền tảng</span>
-                <span className="font-medium text-red-500">
-                  -{formatCurrency(platformDiscountTotal)}
-                </span>
+              <div className="space-y-1 border-l-2 border-orange-200 pl-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">🎁 Giảm giá nền tảng</span>
+                  <span className="font-medium text-red-500">
+                    -{formatCurrency(platformDiscountTotal)}
+                  </span>
+                </div>
+                {storeDiscountDetails.length > 0 && (
+                  <div className="ml-2 space-y-0.5 text-xs text-gray-500">
+                    {storeDiscountDetails
+                      .filter((detail) => detail.platformDiscount > 0)
+                      .map((detail) => (
+                        <div key={detail.storeId} className="flex justify-between">
+                          <span>{detail.storeName}:</span>
+                          <span>-{formatCurrency(detail.platformDiscount)}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
+
             {storeDiscountTotal > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Giảm giá voucher cửa hàng</span>
-                <span className="font-medium text-red-500">
-                  -{formatCurrency(storeDiscountTotal)}
-                </span>
+              <div className="space-y-1 border-l-2 border-blue-200 pl-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">🏪 Giảm giá voucher cửa hàng</span>
+                  <span className="font-medium text-red-500">
+                    -{formatCurrency(storeDiscountTotal)}
+                  </span>
+                </div>
+                {storeDiscountDetails.length > 0 && (
+                  <div className="ml-2 space-y-0.5 text-xs text-gray-500">
+                    {storeDiscountDetails
+                      .filter((detail) => detail.storeDiscount > 0)
+                      .map((detail) => (
+                        <div key={detail.storeId} className="space-y-0.5">
+                          <div className="flex justify-between">
+                            <span>{detail.storeName}:</span>
+                            <span>-{formatCurrency(detail.storeDiscount)}</span>
+                          </div>
+                          {detail.storeVoucherDetails && (
+                            <div className="ml-2 text-xs text-gray-400">
+                              {Array.isArray(detail.storeVoucherDetails) ? (
+                                detail.storeVoucherDetails.map((v: any, idx: number) => (
+                                  <div key={idx}>
+                                    • {v.title || v.code || 'Voucher cửa hàng'}: -{formatCurrency(v.discountAmount || v.discountValue || 0)}
+                                  </div>
+                                ))
+                              ) : typeof detail.storeVoucherDetails === 'object' ? (
+                                <div>
+                                  • {detail.storeVoucherDetails.title || detail.storeVoucherDetails.code || 'Voucher cửa hàng'}: -{formatCurrency(detail.storeVoucherDetails.discountAmount || detail.storeVoucherDetails.discountValue || 0)}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Product voucher discount (nếu có trong tương lai) */}
+            {discountTotal > platformDiscountTotal + storeDiscountTotal && (
+              <div className="space-y-1 border-l-2 border-green-200 pl-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">🎟 Giảm giá voucher sản phẩm</span>
+                  <span className="font-medium text-red-500">
+                    -{formatCurrency(discountTotal - platformDiscountTotal - storeDiscountTotal)}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {discountTotal > 0 && (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Tổng giảm giá</span>
-                <span className="font-medium text-red-500">
+              <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-medium">
+                <span className="text-gray-700">Tổng giảm giá</span>
+                <span className="text-red-500">
                   -{formatCurrency(discountTotal)}
                 </span>
               </div>
             )}
+
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Phí vận chuyển</span>
               <span className="font-medium text-gray-900">
