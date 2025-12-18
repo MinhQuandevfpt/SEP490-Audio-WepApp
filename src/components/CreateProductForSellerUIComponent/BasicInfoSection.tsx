@@ -51,6 +51,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
   // Giữ lựa chọn tạm thời trên dropdown, chỉ áp dụng khi bấm "Áp dụng"
   const [pendingCategoryIds, setPendingCategoryIds] = useState<string[]>(form.categoryIds || []);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [weightError, setWeightError] = useState<string | null>(null);
 
   useEffect(() => {
     setPendingCategoryIds(form.categoryIds || []);
@@ -104,6 +105,65 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
       }
     });
     return items;
+  };
+
+  // Giới hạn kích thước từng cạnh trong khoảng 0 - 1200 mm
+  const handleDimensionInputChange = (part: 'l' | 'w' | 'h', raw: string) => {
+    // Cho phép rỗng để user xoá nhập lại
+    if (raw.trim() === '') {
+      onDimensionChange(part, '');
+      return;
+    }
+
+    // Chỉ giữ lại chữ số
+    const numeric = raw.replace(/[^\d]/g, '');
+    if (!numeric) {
+      onDimensionChange(part, '');
+      return;
+    }
+
+    const value = Number(numeric);
+    if (Number.isNaN(value)) {
+      return;
+    }
+
+    // Không cho nhập quá 1200 mm
+    if (value > 1200) {
+      return;
+    }
+
+    onDimensionChange(part, numeric);
+  };
+
+  // Chỉ cho phép trọng lượng trong khoảng (0 - 90] kg
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Cho phép rỗng để user xoá nhập lại
+    if (raw.trim() === '') {
+      setWeightError(null);
+      onChange(e);
+      return;
+    }
+
+    // Chuẩn hoá: thay dấu phẩy thành chấm trước khi parse
+    const normalized = raw.replace(',', '.');
+    const value = Number(normalized);
+
+    // Nếu không phải số hợp lệ thì bỏ qua
+    if (Number.isNaN(value)) {
+      setWeightError('Trọng lượng không hợp lệ. Vui lòng nhập số.');
+      return;
+    }
+
+    // Chỉ chấp nhận trong khoảng (0, 90]
+    if (value <= 0 || value > 90) {
+      // Không cập nhật form nếu ngoài khoảng và hiển thị lỗi
+      setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 90 kg.');
+      return;
+    }
+
+    setWeightError(null);
+    onChange(e);
   };
 
   return (
@@ -255,7 +315,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
             <div className="mt-1 grid grid-cols-3 gap-2">
               <input
                 value={getDimensionParts.l}
-                onChange={(e) => onDimensionChange('l', e.target.value)}
+                onChange={(e) => handleDimensionInputChange('l', e.target.value)}
                 type="text"
                 inputMode="numeric"
                 placeholder="Dài (mm)"
@@ -263,7 +323,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               />
               <input
                 value={getDimensionParts.w}
-                onChange={(e) => onDimensionChange('w', e.target.value)}
+                onChange={(e) => handleDimensionInputChange('w', e.target.value)}
                 type="text"
                 inputMode="numeric"
                 placeholder="Rộng (mm)"
@@ -271,13 +331,16 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               />
               <input
                 value={getDimensionParts.h}
-                onChange={(e) => onDimensionChange('h', e.target.value)}
+                onChange={(e) => handleDimensionInputChange('h', e.target.value)}
                 type="text"
                 inputMode="numeric"
                 placeholder="Cao (mm)"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
               />
             </div>
+            <p className="mt-1 text-xs text-orange-700">
+              Lưu ý: Mỗi chiều Dài / Rộng / Cao không được vượt quá 1200 mm.
+            </p>
           </div>
         </div>
 
@@ -288,7 +351,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
           <input
             name="weight"
             value={form.weight}
-            onChange={onChange}
+            onChange={handleWeightChange}
             onKeyDown={(e) => {
               // Chặn các ký tự không phải số, dấu chấm, dấu phẩy, backspace, delete, arrow keys
               if (
@@ -307,6 +370,11 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
             placeholder="VD: 0.25"
             className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
           />
+          {weightError && (
+            <p className="mt-1 text-xs text-red-600">
+              {weightError}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

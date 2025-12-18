@@ -401,6 +401,8 @@ export interface CategoryAttribute {
   attributeName: string;
   attributeLabel: string;
   dataType: 'STRING' | 'NUMBER' | 'BOOLEAN';
+  // Optional list of allowed values (from Category detail API "options" field)
+  options?: string[];
 }
 
 export interface CategoryDetailResponse {
