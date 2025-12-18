@@ -67,6 +67,19 @@ export interface ProductVoucherResponse {
         startTime: string;
         endTime: string;
       }>;
+      shopVouchers?: Array<{
+        source: 'SHOP';
+        scopeType: 'ALL_SHOP_VOUCHER' | 'PRODUCT_VOUCHER' | string;
+        shopVoucherId: string;
+        code: string;
+        title: string;
+        discountValue: number | null;
+        discountPercent: number | null;
+        maxDiscountValue: number | null;
+        minOrderValue: number | null;
+        startTime: string;
+        endTime: string;
+      }>;
       // Legacy structure support
       platform?: Array<{
         campaignId: string;
