@@ -76,6 +76,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [cancelReason, setCancelReason] = useState<string>('CHANGE_OF_MIND');
   const [cancelNote, setCancelNote] = useState<string>('');
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -364,6 +365,23 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       message.error(getErrorMessage(err, 'Hủy đơn hàng thất bại'));
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleConfirmReceived = async () => {
+    try {
+      setIsConfirmingReceived(true);
+      await OrderHistoryService.confirmReceived(order.id);
+      message.success('Xác nhận đã nhận hàng thành công');
+      
+      // Reload page to get updated order status
+      if (onOrderCancelled) {
+        onOrderCancelled();
+      }
+    } catch (err: any) {
+      message.error(getErrorMessage(err, 'Không thể xác nhận đã nhận hàng'));
+    } finally {
+      setIsConfirmingReceived(false);
     }
   };
 
@@ -846,6 +864,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
               )}
               {order.status === 'DELIVERY_SUCCESS' && (
                 <>
+                  <Button
+                    type="primary"
+                    className="h-10 w-full"
+                    style={{ backgroundColor: '#27AE60', borderColor: '#27AE60', borderRadius: '10px' }}
+                    onClick={handleConfirmReceived}
+                    loading={isConfirmingReceived}
+                  >
+                    Đã nhận hàng
+                  </Button>
                   <Button
                     type="primary"
                     className="h-10 w-full"
