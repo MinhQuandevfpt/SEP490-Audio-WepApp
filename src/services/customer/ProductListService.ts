@@ -431,7 +431,7 @@ export class ProductListService {
       const response = await httpClient.get<{
         status: number;
         message: string;
-        data: {
+        data: Product[] | {
           data: Product[];
           page: {
             totalElements: number;
@@ -439,18 +439,72 @@ export class ProductListService {
             pageSize: number;
             totalPages: number;
           };
+        } | {
+          content: Product[];
+          pageable: ProductListPageable;
+          totalPages: number;
+          totalElements: number;
+          last: boolean;
+          size: number;
+          number: number;
+          sort: {
+            empty: boolean;
+            sorted: boolean;
+            unsorted: boolean;
+          };
+          numberOfElements: number;
+          first: boolean;
+          empty: boolean;
         };
       }>(url);
       
       console.log('📥 Raw API Response:', {
         status: response.status,
         message: response.message,
-        dataType: response.data?.data ? 'New Structure' : 'Unknown',
-        productsCount: response.data?.data?.length || 0,
-        pageInfo: response.data?.page
+        dataType: Array.isArray(response.data) ? 'Direct Array' : (response.data && 'data' in response.data ? 'Nested Structure' : 'Old Pagination'),
+        productsCount: Array.isArray(response.data) ? response.data.length : (response.data && 'data' in response.data ? response.data.data?.length : response.data?.content?.length || 0),
+        pageInfo: response.data && 'page' in response.data ? response.data.page : null
       });
       
-      // Normalize new API response structure to match expected format
+      // Handle direct array response (new API structure: { status, message, data: Product[] })
+      if (Array.isArray(response.data)) {
+        console.log('✅ API returned direct array - normalizing...');
+        const products = response.data as Product[];
+        const page = params.page ?? 0;
+        const size = params.size ?? 20;
+        const isLikelyLastPage = products.length < size;
+        const estimatedTotal = isLikelyLastPage ? (page * size + products.length) : (page + 1) * size + 1;
+        
+        const normalizedResponse: ProductListResponse = {
+          status: response.status,
+          message: response.message,
+          data: {
+            content: products,
+            pageable: {
+              pageNumber: page,
+              pageSize: size,
+              sort: { empty: true, sorted: false, unsorted: true },
+              offset: page * size,
+              unpaged: false,
+              paged: true
+            },
+            totalPages: isLikelyLastPage ? page + 1 : page + 2,
+            totalElements: estimatedTotal,
+            last: isLikelyLastPage,
+            size: size,
+            number: page,
+            sort: { empty: true, sorted: false, unsorted: true },
+            numberOfElements: products.length,
+            first: page === 0,
+            empty: products.length === 0
+          }
+        };
+        
+        setCachedData(cacheKey, normalizedResponse);
+        return normalizedResponse;
+      }
+      
+      // Normalize nested API response structure ({ data: { data: Product[], page: {...} } })
       if (response.data && 'data' in response.data && 'page' in response.data) {
         const products = response.data.data;
         const pageInfo = response.data.page;

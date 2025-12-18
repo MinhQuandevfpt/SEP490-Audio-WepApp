@@ -28,8 +28,25 @@ const parseWarrantyToMonths = (text?: string | null) => {
   return null;
 };
 
+// Helper function to get attribute value from attributeValues array
+const getAttributeValue = (product: Product, attributeName: string): string | null => {
+  if (!product.attributeValues || !Array.isArray(product.attributeValues)) {
+    return null;
+  }
+  const attr = product.attributeValues.find(a => a.attributeName === attributeName);
+  return attr ? String(attr.value) : null;
+};
+
+// Helper function to get category name from categories array
+const getCategoryName = (product: Product): string => {
+  if (product.categories && Array.isArray(product.categories) && product.categories.length > 0) {
+    return product.categories[0].categoryName;
+  }
+  return product.categoryName || product.category || '-';
+};
+
 const compareFields: CompareField[] = [
-  { key: 'category', label: 'Danh mục', extractor: (p) => ({ display: p.category || p.categoryName || '-' }) },
+  { key: 'category', label: 'Danh mục', extractor: (p) => ({ display: getCategoryName(p) }) },
   { key: 'brand', label: 'Thương hiệu', extractor: (p) => ({ display: p.brandName || '-' }) },
   { key: 'model', label: 'Model', extractor: (p) => ({ display: p.model || '-' }) },
   { key: 'material', label: 'Chất liệu', extractor: (p) => ({ display: p.material || '-' }) },
@@ -91,17 +108,50 @@ const compareFields: CompareField[] = [
     key: 'frequency',
     label: 'Tần số đáp ứng',
     description: 'Dải tần rộng hơn tái tạo âm thanh tốt hơn',
-    extractor: (p) => ({ display: p.frequencyResponse || '-' }),
+    extractor: (p) => ({ display: getAttributeValue(p, 'frequencyResponse') || p.frequencyResponse || '-' }),
   },
-  { key: 'sensitivity', label: 'Độ nhạy (Sensitivity)', extractor: (p) => ({ display: p.sensitivity || '-' }) },
-  { key: 'impedance', label: 'Trở kháng (Impedance)', extractor: (p) => ({ display: p.impedance || '-' }) },
-  { key: 'power', label: 'Công suất (Power Handling)', extractor: (p) => ({ display: p.powerHandling || '-' }) },
+  { 
+    key: 'sensitivity', 
+    label: 'Độ nhạy (Sensitivity)', 
+    extractor: (p) => ({ display: getAttributeValue(p, 'sensitivity') || p.sensitivity || '-' }) 
+  },
+  { 
+    key: 'impedance', 
+    label: 'Trở kháng (Impedance)', 
+    extractor: (p) => ({ display: getAttributeValue(p, 'impedance') || p.impedance || '-' }) 
+  },
+  { 
+    key: 'power', 
+    label: 'Công suất (Power Handling)', 
+    extractor: (p) => ({ display: getAttributeValue(p, 'powerHandling') || p.powerHandling || '-' }) 
+  },
   { key: 'connection', label: 'Kiểu kết nối', extractor: (p) => ({ display: p.connectionType || '-' }) },
   { key: 'headphoneType', label: 'Kiểu headphone', extractor: (p) => ({ display: p.headphoneType || '-' }) },
   {
     key: 'features',
     label: 'Tính năng nổi bật',
-    extractor: (p) => ({ display: p.headphoneFeatures || '-' }),
+    extractor: (p) => ({ display: p.headphoneFeatures || getAttributeValue(p, 'headphoneFeatures') || '-' }),
+  },
+  // Additional dynamic attributes from attributeValues
+  {
+    key: 'driverConfiguration',
+    label: 'Cấu hình driver',
+    extractor: (p) => ({ display: getAttributeValue(p, 'driverConfiguration') || p.driverConfiguration || '-' }),
+  },
+  {
+    key: 'driverSize',
+    label: 'Kích thước driver',
+    extractor: (p) => ({ display: getAttributeValue(p, 'driverSize') || p.driverSize || '-' }),
+  },
+  {
+    key: 'enclosureType',
+    label: 'Loại thùng loa',
+    extractor: (p) => ({ display: getAttributeValue(p, 'enclosureType') || p.enclosureType || '-' }),
+  },
+  {
+    key: 'crossoverFrequency',
+    label: 'Tần cắt',
+    extractor: (p) => ({ display: getAttributeValue(p, 'crossoverFrequency') || p.crossoverFrequency || '-' }),
   },
   {
     key: 'battery',
@@ -120,15 +170,112 @@ const compareFields: CompareField[] = [
   },
 ];
 
+// Helper function to check if a field has at least one product with a value
+const hasAnyValue = (field: CompareField, products: Product[]): boolean => {
+  return products.some((product) => {
+    const { display } = field.extractor(product);
+    
+    // Handle ReactNode (like price variants)
+    if (React.isValidElement(display)) {
+      // If it's a React element, check if it has children/content
+      return true; // Assume React elements have content
+    }
+    
+    // Handle string values
+    const displayStr = String(display || '').trim();
+    return displayStr !== '-' && displayStr !== '' && displayStr.toLowerCase() !== 'không';
+  });
+};
+
+// Helper function to get all dynamic attributes from products' attributeValues
+const getDynamicAttributeFields = (products: Product[]): CompareField[] => {
+  // Collect all unique attributes from all products
+  const attributeMap = new Map<string, { attributeLabel: string; dataType: string }>();
+  
+  products.forEach((product) => {
+    if (product.attributeValues && Array.isArray(product.attributeValues)) {
+      product.attributeValues.forEach((attr) => {
+        if (!attributeMap.has(attr.attributeName)) {
+          attributeMap.set(attr.attributeName, {
+            attributeLabel: attr.attributeLabel || attr.attributeName,
+            dataType: attr.dataType || 'STRING',
+          });
+        }
+      });
+    }
+  });
+  
+  // Get list of already covered attribute names from hardcoded fields
+  const coveredAttributeNames = new Set<string>([
+    'frequencyResponse',
+    'sensitivity',
+    'impedance',
+    'powerHandling',
+    'headphoneFeatures',
+    'driverConfiguration',
+    'driverSize',
+    'enclosureType',
+    'crossoverFrequency',
+  ]);
+  
+  // Create CompareField for each uncovered attribute
+  const dynamicFields: CompareField[] = [];
+  attributeMap.forEach((info, attributeName) => {
+    // Skip if already covered by hardcoded fields
+    if (coveredAttributeNames.has(attributeName)) {
+      return;
+    }
+    
+    // Create extractor for this attribute
+    const extractor = (p: Product) => {
+      const value = getAttributeValue(p, attributeName);
+      const displayValue = value || '-';
+      
+      // Try to parse numeric value for potential highlighting
+      let numericValue: number | null = null;
+      if (info.dataType === 'NUMBER' && value) {
+        const parsed = Number(value);
+        if (!Number.isNaN(parsed)) {
+          numericValue = parsed;
+        }
+      }
+      
+      return {
+        display: displayValue,
+        numericValue,
+      };
+    };
+    
+    dynamicFields.push({
+      key: `attr_${attributeName}`,
+      label: info.attributeLabel,
+      extractor,
+    });
+  });
+  
+  return dynamicFields;
+};
+
 export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
   open,
   products,
   onClose,
   onRemove,
 }) => {
+  // Combine hardcoded fields with dynamic attribute fields
+  const allFields = React.useMemo(() => {
+    const dynamicFields = getDynamicAttributeFields(products);
+    return [...compareFields, ...dynamicFields];
+  }, [products]);
+  
+  // Filter fields to only show those with at least one product having a value
+  const visibleFields = React.useMemo(() => {
+    return allFields.filter((field) => hasAnyValue(field, products));
+  }, [allFields, products]);
+
   const highlightMap = React.useMemo(() => {
     const map: Record<string, Set<string>> = {};
-    compareFields.forEach((field) => {
+    visibleFields.forEach((field) => {
       if (!field.highlight) return;
       let bestValue: number | null = null;
       let bestSet = new Set<string>();
@@ -153,7 +300,7 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
       map[field.key] = bestSet;
     });
     return map;
-  }, [products]);
+  }, [products, visibleFields]);
 
   return (
     <Modal
@@ -209,7 +356,7 @@ export const ProductCompareModal: React.FC<ProductCompareModalProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {compareFields.map((field, fieldIndex) => (
+                {visibleFields.map((field, fieldIndex) => (
                   <tr
                     key={field.label}
                     className={`border-t border-gray-200 ${

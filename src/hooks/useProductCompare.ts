@@ -145,11 +145,14 @@ export const useProductCompare = () => {
 
       // Extract products from response
       let products: Product[] = [];
+      // Handle direct array response (new API: { status, message, data: Product[] })
       if (Array.isArray(response.data)) {
         products = response.data;
       } else if (response.data && 'content' in response.data) {
+        // Old pagination structure: { content: Product[], ... }
         products = response.data.content;
       } else if (response.data && 'data' in response.data && Array.isArray(response.data.data)) {
+        // Nested structure: { data: { data: Product[], page: {...} } }
         products = response.data.data;
       }
 
