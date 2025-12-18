@@ -253,7 +253,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
       key: 'amount',
       render: (value: number, record: WalletTransaction) => {
         const isWithdraw = record.type === 'WITHDRAW_REQUEST' || record.type === 'WITHDRAW';
-        const isPositive = value >= 0 && !isWithdraw;
+        // For withdrawals: always red (money going out)
+        // For non-withdrawals: check actual value sign - positive = blue (money in), negative = red (money out)
+        const isPositive = isWithdraw ? false : value > 0;
         const displayValue = isWithdraw ? -Math.abs(value) : value;
         return (
           <span className={isPositive ? 'text-blue-600 font-semibold' : 'text-red-500 font-semibold'}>

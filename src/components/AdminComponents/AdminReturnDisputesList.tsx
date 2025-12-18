@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Tag, Typography, Space, Pagination, Empty, Spin, Button, Modal, Input, Radio, message, Divider } from 'antd';
 import { ZoomIn, Video as VideoIcon, Package, CheckCircle, AlertTriangle, Calendar, DollarSign } from 'lucide-react';
 import type { ReturnRequestResponse } from '../../types/api';
@@ -79,6 +79,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
     url: '',
   });
   const [productCache, setProductCache] = useState<Map<string, { image?: string; variantOptionName?: string; variantOptionValue?: string; variantUrl?: string }>>(new Map());
+  const loadedProductIdsRef = useRef<Set<string>>(new Set());
   const [showResolveModal, setShowResolveModal] = useState<{ visible: boolean; returnId: string | null }>({
     visible: false,
     returnId: null,
@@ -92,7 +93,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
   useEffect(() => {
     const loadProductDetails = async () => {
       const productIds = Array.from(new Set(data.map(item => item.productId)));
-      const missingIds = productIds.filter(id => !productCache.has(id));
+      const missingIds = productIds.filter(id => !loadedProductIdsRef.current.has(id));
       
       if (missingIds.length === 0) return;
 
@@ -122,16 +123,21 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
           })
         );
 
-        const newCache = new Map(productCache);
-        productDetails.forEach(detail => {
-          newCache.set(detail.productId, {
-            image: detail.image,
-            variantOptionName: detail.variantOptionName,
-            variantOptionValue: detail.variantOptionValue,
-            variantUrl: detail.variantUrl,
+        // Update cache using functional update to avoid dependency on productCache
+        setProductCache((prevCache) => {
+          const newCache = new Map(prevCache);
+          productDetails.forEach(detail => {
+            newCache.set(detail.productId, {
+              image: detail.image,
+              variantOptionName: detail.variantOptionName,
+              variantOptionValue: detail.variantOptionValue,
+              variantUrl: detail.variantUrl,
+            });
+            // Track loaded IDs in ref
+            loadedProductIdsRef.current.add(detail.productId);
           });
+          return newCache;
         });
-        setProductCache(newCache);
       } catch (error) {
         console.error('Error loading product details:', error);
       }
@@ -140,7 +146,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
     if (data.length > 0) {
       loadProductDetails();
     }
-  }, [data, productCache]);
+  }, [data]);
 
   // Helper function to get product image from cache
   const getProductImage = (record: ReturnRequestResponse): string | undefined => {

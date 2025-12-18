@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AdminReturnService, type AdminReturnDisputesParams } from '../services/admin/AdminReturnService';
 import type { ReturnRequestResponse } from '../types/api';
 
@@ -27,7 +27,7 @@ export const useAdminReturnDisputes = (
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
-  const fetchDisputes = async () => {
+  const fetchDisputes = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -50,11 +50,11 @@ export const useAdminReturnDisputes = (
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, pageSize]);
 
   useEffect(() => {
     fetchDisputes();
-  }, [page, pageSize]);
+  }, [fetchDisputes]);
 
   const refresh = () => {
     fetchDisputes();

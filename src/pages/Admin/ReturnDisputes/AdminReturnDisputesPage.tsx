@@ -20,7 +20,8 @@ const AdminReturnDisputesPage: React.FC = () => {
       setPageSize(newPageSize);
       setPage(0); // Reset to first page when page size changes
     } else {
-      setPage(newPage);
+      // Convert from 1-based (pagination component) to 0-based (hook)
+      setPage(newPage - 1);
     }
   };
 

@@ -52,6 +52,10 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
   const [pendingCategoryIds, setPendingCategoryIds] = useState<string[]>(form.categoryIds || []);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [weightError, setWeightError] = useState<string | null>(null);
+  const [dimensionError, setDimensionError] = useState<{ part: 'l' | 'w' | 'h' | null; message: string | null }>({
+    part: null,
+    message: null,
+  });
 
   useEffect(() => {
     setPendingCategoryIds(form.categoryIds || []);
@@ -111,6 +115,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
   const handleDimensionInputChange = (part: 'l' | 'w' | 'h', raw: string) => {
     // Cho phép rỗng để user xoá nhập lại
     if (raw.trim() === '') {
+      setDimensionError({ part: null, message: null });
       onDimensionChange(part, '');
       return;
     }
@@ -118,30 +123,41 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     // Chỉ giữ lại chữ số
     const numeric = raw.replace(/[^\d]/g, '');
     if (!numeric) {
+      setDimensionError({ part: null, message: null });
       onDimensionChange(part, '');
       return;
     }
 
+    // numeric is guaranteed to be a non-empty digit string here, so Number(numeric) will never be NaN
     const value = Number(numeric);
-    if (Number.isNaN(value)) {
-      return;
-    }
 
-    // Không cho nhập quá 1200 mm
+    // Không cho nhập quá 1200 mm - nhưng vẫn cập nhật form state để đồng bộ
     if (value > 1200) {
+      const partLabels = { l: 'Dài', w: 'Rộng', h: 'Cao' };
+      setDimensionError({
+        part,
+        message: `Chiều ${partLabels[part]} không được vượt quá 1200 mm.`,
+      });
+      // Still update form state to keep input in sync
+      onDimensionChange(part, numeric);
       return;
     }
 
+    // Giá trị hợp lệ - xóa lỗi
+    setDimensionError({ part: null, message: null });
     onDimensionChange(part, numeric);
   };
 
   // Chỉ cho phép trọng lượng trong khoảng (0 - 90] kg
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
+    
+    // Luôn cập nhật form state để đồng bộ với input field
+    onChange(e);
+    
     // Cho phép rỗng để user xoá nhập lại
     if (raw.trim() === '') {
       setWeightError(null);
-      onChange(e);
       return;
     }
 
@@ -149,7 +165,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     const normalized = raw.replace(',', '.');
     const value = Number(normalized);
 
-    // Nếu không phải số hợp lệ thì bỏ qua
+    // Nếu không phải số hợp lệ thì hiển thị lỗi nhưng vẫn giữ giá trị trong form
     if (Number.isNaN(value)) {
       setWeightError('Trọng lượng không hợp lệ. Vui lòng nhập số.');
       return;
@@ -157,13 +173,13 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
 
     // Chỉ chấp nhận trong khoảng (0, 90]
     if (value <= 0 || value > 90) {
-      // Không cập nhật form nếu ngoài khoảng và hiển thị lỗi
+      // Hiển thị lỗi nhưng vẫn giữ giá trị trong form để đồng bộ với input
       setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 90 kg.');
       return;
     }
 
+    // Giá trị hợp lệ - xóa lỗi
     setWeightError(null);
-    onChange(e);
   };
 
   return (
@@ -338,6 +354,11 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
               />
             </div>
+            {dimensionError.message && dimensionError.part && (
+              <p className="mt-1 text-xs text-red-600 font-medium">
+                {dimensionError.message}
+              </p>
+            )}
             <p className="mt-1 text-xs text-orange-700">
               Lưu ý: Mỗi chiều Dài / Rộng / Cao không được vượt quá 1200 mm.
             </p>

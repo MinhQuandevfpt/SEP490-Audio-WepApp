@@ -86,7 +86,20 @@ const NotificationPage: React.FC = () => {
 
         // Nếu chưa có, fallback parse từ actionUrl dạng /seller/orders/{customerOrderId}
         if (!customerOrderId && route.startsWith('/seller/orders/')) {
-          customerOrderId = route.substring('/seller/orders/'.length);
+          try {
+            // Parse URL properly to handle query parameters
+            const url = new URL(route, window.location.origin);
+            const pathSegments = url.pathname.split('/').filter(Boolean);
+            // Find 'orders' in path and get the next segment as customerOrderId
+            const ordersIndex = pathSegments.indexOf('orders');
+            if (ordersIndex !== -1 && ordersIndex + 1 < pathSegments.length) {
+              customerOrderId = pathSegments[ordersIndex + 1];
+            }
+          } catch {
+            // Fallback to substring if URL parsing fails (relative path)
+            const pathWithoutQuery = route.split('?')[0];
+            customerOrderId = pathWithoutQuery.substring('/seller/orders/'.length);
+          }
         }
         
         if (route.startsWith('/seller/orders/')) {

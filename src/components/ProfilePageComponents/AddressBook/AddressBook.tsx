@@ -51,7 +51,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
     ward: '',
     street: '',
     addressLine: '',
-    postalCode: '70000',
+    postalCode: '', // Postal code will be set based on province/ward selection or left empty for backend to handle
     note: '',
     isDefault: false,
     provinceCode: '',
@@ -434,7 +434,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
                 placeholder="Ví dụ: 58/4"
               />
             </div>
-            {/* postalCode is hidden, default value is '70000' */}
+            {/* postalCode is hidden, will be set by backend based on province/ward or left empty */}
             <input
               type="hidden"
               value={formData.postalCode}
