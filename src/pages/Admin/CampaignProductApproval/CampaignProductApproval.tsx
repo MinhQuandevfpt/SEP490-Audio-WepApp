@@ -813,10 +813,15 @@ const CampaignProductApproval: React.FC = () => {
 
                 const basePrice =
                   record.originalPrice || record.fullProduct?.finalPrice || record.fullProduct?.price || 0;
-                const baseStock = record.fullProduct?.variants?.reduce((sum, v) => sum + (v.variantStock || 0), 0) || 0;
+                
+                // Fix: For products without variants, use stockQuantity instead of summing variants
+                const hasVariants = record.variantData && record.variantData.length > 0;
+                const baseStock = hasVariants 
+                  ? record.fullProduct?.variants?.reduce((sum, v) => sum + (v.variantStock || 0), 0) || 0
+                  : record.fullProduct?.stockQuantity ?? 0;
 
                 const dataSource: VariantRow[] =
-                  record.variantData && record.variantData.length > 0
+                  hasVariants && record.variantData
                     ? record.variantData
                     : [
                         {
