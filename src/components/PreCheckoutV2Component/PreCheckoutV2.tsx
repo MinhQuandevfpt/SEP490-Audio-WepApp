@@ -671,34 +671,23 @@ const PreCheckoutV2: React.FC = () => {
     return total;
   }, [selectedProductVouchers, productVoucherDetailsCache, items]);
 
-  // Parse voucher details từ JSON strings
-  const parseVoucherDetails = useCallback((jsonString: string | null | undefined) => {
-    if (!jsonString) return null;
-    try {
-      return JSON.parse(jsonString);
-    } catch (e) {
-      console.error('Failed to parse voucher details:', e);
-      return null;
-    }
-  }, []);
 
   // Lấy chi tiết discount theo từng store
   const storeDiscountDetails = useMemo(() => {
     if (!previewData?.stores) return [];
     return previewData.stores.map((store) => {
-      const storeVoucherDetails = parseVoucherDetails(store.storeVoucherDetailJson);
-      const platformVoucherDetails = parseVoucherDetails(store.platformVoucherDetailJson);
+      // Lưu raw JSON strings thay vì parse
       return {
         storeId: store.storeId,
         storeName: store.storeName,
         platformDiscount: store.platformDiscount || 0,
         storeDiscount: store.storeDiscount || 0,
-        storeVoucherDetails,
-        platformVoucherDetails,
+        storeVoucherDetailJson: store.storeVoucherDetailJson || null,
+        platformVoucherDetailJson: store.platformVoucherDetailJson || null,
         items: store.items || [],
       };
     });
-  }, [previewData, parseVoucherDetails]);
+  }, [previewData]);
 
   // Build storeVouchers payload từ selectedShopVouchers
   // Format: Array<{ storeId: string; codes: string[] }>
@@ -1212,78 +1201,7 @@ const PreCheckoutV2: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                      Tổng tạm tính:{' '}
-                      <span className="ml-1">
-                        {formatCurrency(
-                          group.items.reduce(
-                            (sum, i) => sum + i.unitPrice * i.quantity,
-                            0
-                          )
-                        )}
-                      </span>
-                    </span>
                   </div>
-                  
-                  {/* Hiển thị breakdown discount cho từng store */}
-                  {(() => {
-                    const storeDetail = storeDiscountDetails.find(
-                      (d) => d.storeId === group.storeId
-                    );
-                    if (!storeDetail) return null;
-                    
-                    const hasDiscounts =
-                      storeDetail.platformDiscount > 0 ||
-                      storeDetail.storeDiscount > 0;
-                    
-                    if (!hasDiscounts) return null;
-                    
-                    return (
-                      <div className="ml-10 space-y-1 rounded-lg bg-gray-50 p-2 text-xs">
-                        {storeDetail.platformDiscount > 0 && (
-                          <div className="flex items-center justify-between text-gray-600">
-                            <span>🎁 Giảm giá nền tảng:</span>
-                            <span className="font-medium text-red-500">
-                              -{formatCurrency(storeDetail.platformDiscount)}
-                            </span>
-                          </div>
-                        )}
-                        {storeDetail.storeDiscount > 0 && (
-                          <div className="space-y-0.5">
-                            <div className="flex items-center justify-between text-gray-600">
-                              <span>🏪 Giảm giá voucher cửa hàng:</span>
-                              <span className="font-medium text-red-500">
-                                -{formatCurrency(storeDetail.storeDiscount)}
-                              </span>
-                            </div>
-                            {storeDetail.storeVoucherDetails && (
-                              <div className="ml-2 text-gray-500">
-                                {Array.isArray(storeDetail.storeVoucherDetails) ? (
-                                  storeDetail.storeVoucherDetails.map((v: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between">
-                                      <span>• {v.title || v.code || 'Voucher'}:</span>
-                                      <span>
-                                        -{formatCurrency(v.discountAmount || v.discountValue || 0)}
-                                      </span>
-                                    </div>
-                                  ))
-                                ) : typeof storeDetail.storeVoucherDetails === 'object' ? (
-                                  <div className="flex justify-between">
-                                    <span>
-                                      • {storeDetail.storeVoucherDetails.title || storeDetail.storeVoucherDetails.code || 'Voucher'}:
-                                    </span>
-                                    <span>
-                                      -{formatCurrency(storeDetail.storeVoucherDetails.discountAmount || storeDetail.storeVoucherDetails.discountValue || 0)}
-                                    </span>
-                                  </div>
-                                ) : null}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
                 </div>
 
                 <div className="divide-y divide-gray-200">
@@ -1439,26 +1357,9 @@ const PreCheckoutV2: React.FC = () => {
                     {storeDiscountDetails
                       .filter((detail) => detail.storeDiscount > 0)
                       .map((detail) => (
-                        <div key={detail.storeId} className="space-y-0.5">
-                          <div className="flex justify-between">
-                            <span>{detail.storeName}:</span>
-                            <span>-{formatCurrency(detail.storeDiscount)}</span>
-                          </div>
-                          {detail.storeVoucherDetails && (
-                            <div className="ml-2 text-xs text-gray-400">
-                              {Array.isArray(detail.storeVoucherDetails) ? (
-                                detail.storeVoucherDetails.map((v: any, idx: number) => (
-                                  <div key={idx}>
-                                    • {v.title || v.code || 'Voucher cửa hàng'}: -{formatCurrency(v.discountAmount || v.discountValue || 0)}
-                                  </div>
-                                ))
-                              ) : typeof detail.storeVoucherDetails === 'object' ? (
-                                <div>
-                                  • {detail.storeVoucherDetails.title || detail.storeVoucherDetails.code || 'Voucher cửa hàng'}: -{formatCurrency(detail.storeVoucherDetails.discountAmount || detail.storeVoucherDetails.discountValue || 0)}
-                                </div>
-                              ) : null}
-                            </div>
-                          )}
+                        <div key={detail.storeId} className="flex justify-between">
+                          <span>{detail.storeName}:</span>
+                          <span>-{formatCurrency(detail.storeDiscount)}</span>
                         </div>
                       ))}
                   </div>
