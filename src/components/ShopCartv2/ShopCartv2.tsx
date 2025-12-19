@@ -41,6 +41,7 @@ const ShopCartV2: React.FC = () => {
     minOrderValue: number | null;
     startTime: string;
     endTime: string;
+    scopeType?: string; // 'ALL_SHOP_VOUCHER' | 'PRODUCT_VOUCHER'
   };
   const [storeVouchers, setStoreVouchers] = useState<Map<string, ShopVoucher[]>>(
     () => new Map()
@@ -48,6 +49,16 @@ const ShopCartV2: React.FC = () => {
   
   // Selected shop vouchers: Map<storeId, { shopVoucherId, code }>
   const [selectedShopVouchers, setSelectedShopVouchers] = useState<
+    Map<string, { shopVoucherId: string; code: string }>
+  >(() => new Map());
+
+  // Product vouchers theo cartItemId: Map<cartItemId, Array<productVoucher>>
+  const [productVouchers, setProductVouchers] = useState<Map<string, ShopVoucher[]>>(
+    () => new Map()
+  );
+
+  // Selected product vouchers: Map<cartItemId, { shopVoucherId, code }>
+  const [selectedProductVouchers, setSelectedProductVouchers] = useState<
     Map<string, { shopVoucherId: string; code: string }>
   >(() => new Map());
 
@@ -179,14 +190,16 @@ const ShopCartV2: React.FC = () => {
       const voucherPromises = Array.from(storeProductMap.entries()).map(
         async ([storeId, productId]) => {
           try {
-            console.log(
-              `🎫 [ShopCartV2] Loading vouchers for store ${storeId} via product ${productId}`
-            );
+            console.groupCollapsed('🎫 [ShopCartV2] Fetch shop vouchers');
+            console.log('StoreId:', storeId);
+            console.log('ProductId:', productId);
+            console.log('Request URL:', `/api/products/view/${productId}/vouchers?type=ALL`);
             const voucherRes = await ProductVoucherService.getProductVouchers(
               productId,
               'ALL',
               null
             );
+            console.log('Response Body:', voucherRes);
 
             // Lọc ra vouchers có scopeType: "ALL_SHOP_VOUCHER"
             const shopVouchers =
@@ -197,6 +210,7 @@ const ShopCartV2: React.FC = () => {
             console.log(
               `✅ [ShopCartV2] Found ${shopVouchers.length} ALL_SHOP_VOUCHER vouchers for store ${storeId}`
             );
+            console.groupEnd();
 
             return { storeId, vouchers: shopVouchers };
           } catch (error) {
@@ -224,6 +238,74 @@ const ShopCartV2: React.FC = () => {
       void loadStoreVouchers();
     }
   }, [items, productCache]);
+
+  // Load product vouchers (PRODUCT_VOUCHER) cho từng cart item
+  useEffect(() => {
+    const loadProductVouchers = async () => {
+      // Lấy danh sách PRODUCT items cần load vouchers
+      const productItems = items.filter((item) => item.type === 'PRODUCT');
+
+      if (productItems.length === 0) return;
+
+      // Gọi API cho từng product (chỉ gọi nếu chưa có trong cache)
+      const voucherPromises = productItems
+        .filter((item) => {
+          // Chỉ load nếu chưa có trong productVouchers cache
+          return !productVouchers.has(item.cartItemId);
+        })
+        .map(async (item) => {
+          try {
+            console.groupCollapsed('🎫 [ShopCartV2] Fetch product vouchers');
+            console.log('CartItemId:', item.cartItemId);
+            console.log('ProductId:', item.refId);
+            console.log('Request URL:', `/api/products/view/${item.refId}/vouchers?type=ALL`);
+            const voucherRes = await ProductVoucherService.getProductVouchers(
+              item.refId,
+              'ALL',
+              null
+            );
+            console.log('Response Body:', voucherRes);
+
+            // Lọc ra vouchers có scopeType: "PRODUCT_VOUCHER"
+            const productVouchersList =
+              voucherRes.data?.vouchers?.shopVouchers?.filter(
+                (v) => v.scopeType === 'PRODUCT_VOUCHER'
+              ) || [];
+
+            console.log(
+              `✅ [ShopCartV2] Found ${productVouchersList.length} PRODUCT_VOUCHER vouchers for cartItemId ${item.cartItemId}`
+            );
+            console.groupEnd();
+
+            return { cartItemId: item.cartItemId, vouchers: productVouchersList };
+          } catch (error) {
+            console.error(
+              `❌ [ShopCartV2] Failed to load product vouchers for cartItemId ${item.cartItemId}:`,
+              error
+            );
+            return { cartItemId: item.cartItemId, vouchers: [] };
+          }
+        });
+
+      if (voucherPromises.length === 0) return;
+
+      const results = await Promise.all(voucherPromises);
+      setProductVouchers((prev) => {
+        const next = new Map(prev);
+        results.forEach(({ cartItemId, vouchers }) => {
+          if (vouchers.length > 0) {
+            next.set(cartItemId, vouchers);
+          }
+        });
+        return next;
+      });
+    };
+
+    if (items.length > 0) {
+      void loadProductVouchers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   // Group items theo cửa hàng
   const storeGroups = useMemo(() => {
@@ -291,8 +373,8 @@ const ShopCartV2: React.FC = () => {
       );
       if (!voucher) return;
 
-      // Tính subtotal của store này
-      const storeItems = items.filter((item) => {
+      // Tính subtotal của store này (chỉ tính items được chọn)
+      const storeItems = selectedItems.filter((item) => {
         if (item.type !== 'PRODUCT') return false;
         const product = productCache.get(item.refId);
         return product?.storeId === storeId;
@@ -319,7 +401,46 @@ const ShopCartV2: React.FC = () => {
       }
     });
     return total;
-  }, [selectedShopVouchers, storeVouchers, items, productCache]);
+  }, [selectedShopVouchers, storeVouchers, selectedItems, productCache]);
+
+  // Tính giảm giá từ product vouchers đã chọn
+  const productVoucherDiscount = useMemo(() => {
+    let total = 0;
+    selectedProductVouchers.forEach((voucherInfo, cartItemId) => {
+      const vouchers = productVouchers.get(cartItemId) || [];
+      const voucher = vouchers.find(
+        (v) => v.shopVoucherId === voucherInfo.shopVoucherId
+      );
+      if (!voucher) return;
+
+      // Tìm item tương ứng
+      const item = items.find((it) => it.cartItemId === cartItemId);
+      if (!item) return;
+
+      // Chỉ tính nếu item được chọn
+      const isSelected = selectedIds === null || selectedIds.has(cartItemId);
+      if (!isSelected) return;
+
+      // Tính subtotal của item này
+      const itemSubtotal = item.unitPrice * item.quantity;
+
+      // Kiểm tra minOrderValue
+      if (voucher.minOrderValue && itemSubtotal < voucher.minOrderValue) {
+        return;
+      }
+
+      // Tính discount
+      if (voucher.discountPercent) {
+        const discount = (itemSubtotal * voucher.discountPercent) / 100;
+        total += voucher.maxDiscountValue
+          ? Math.min(discount, voucher.maxDiscountValue)
+          : discount;
+      } else if (voucher.discountValue) {
+        total += voucher.discountValue;
+      }
+    });
+    return total;
+  }, [selectedProductVouchers, productVouchers, items, selectedIds]);
 
   const formatCurrency = (value: number | null | undefined) =>
     `${(value ?? 0).toLocaleString('vi-VN')} ₫`;
@@ -352,11 +473,26 @@ const ShopCartV2: React.FC = () => {
     // TODO: Có thể mở modal để chọn voucher
   };
 
-  const handleOpenProductVoucher = (cartItemId: string) => {
-    console.log(
-      '🧾 [ShopCartV2] Open product voucher picker for cartItemId:',
-      cartItemId
-    );
+  // Handler để chọn product voucher
+  const handleSelectProductVoucher = (
+    cartItemId: string,
+    shopVoucherId: string,
+    code: string
+  ) => {
+    setSelectedProductVouchers((prev) => {
+      const next = new Map(prev);
+      next.set(cartItemId, { shopVoucherId, code });
+      return next;
+    });
+  };
+
+  // Handler để xóa product voucher
+  const handleRemoveProductVoucher = (cartItemId: string) => {
+    setSelectedProductVouchers((prev) => {
+      const next = new Map(prev);
+      next.delete(cartItemId);
+      return next;
+    });
   };
 
   // Trạng thái loading
@@ -406,9 +542,19 @@ const ShopCartV2: React.FC = () => {
       storeVouchersPayload[storeId] = voucherInfo;
     });
 
+    // Build productVouchers payload: Map<cartItemId, { shopVoucherId, code }>
+    const productVouchersPayload: Record<string, { shopVoucherId: string; code: string }> = {};
+    selectedProductVouchers.forEach((voucherInfo, cartItemId) => {
+      // Chỉ lưu voucher của items được chọn
+      if (selectedCartItemIds.includes(cartItemId)) {
+        productVouchersPayload[cartItemId] = voucherInfo;
+      }
+    });
+
     const payload = {
       selectedCartItemIds,
       storeVouchers: storeVouchersPayload, // Lưu selected shopVoucherId theo storeId
+      productVouchers: productVouchersPayload, // Lưu selected productVoucherId theo cartItemId
       selectedAddressId: null,
       createdAt: Date.now(),
     };
@@ -416,7 +562,7 @@ const ShopCartV2: React.FC = () => {
     try {
       sessionStorage.setItem(CHECKOUT_SESSION_KEY, JSON.stringify(payload));
       console.groupCollapsed('🧾 [ShopCartV2] Saved checkout session payload');
-      console.log('Payload:', payload);
+      console.log('Payload JSON:', JSON.stringify(payload, null, 2));
       console.groupEnd();
     } catch (err) {
       console.error('[ShopCartV2] Failed to save checkout session payload:', err);
@@ -628,13 +774,69 @@ const ShopCartV2: React.FC = () => {
                           {item.variantOptionName}: {item.variantOptionValue}
                         </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenProductVoucher(item.cartItemId)}
-                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-600 hover:bg-orange-100"
-                      >
-                        🎟 Chọn voucher cho sản phẩm
-                      </button>
+                      {/* Product Voucher Dropdown */}
+                      {productVouchers.has(item.cartItemId) ? (
+                        <div className="relative">
+                          <select
+                            value={
+                              selectedProductVouchers.get(item.cartItemId)?.shopVoucherId ||
+                              ''
+                            }
+                            onChange={(e) => {
+                              const shopVoucherId = e.target.value;
+                              if (shopVoucherId) {
+                                const vouchers = productVouchers.get(item.cartItemId) || [];
+                                const voucher = vouchers.find(
+                                  (v) => v.shopVoucherId === shopVoucherId
+                                );
+                                if (voucher) {
+                                  handleSelectProductVoucher(
+                                    item.cartItemId,
+                                    voucher.shopVoucherId,
+                                    voucher.code
+                                  );
+                                }
+                              } else {
+                                // Xóa voucher đã chọn
+                                handleRemoveProductVoucher(item.cartItemId);
+                              }
+                            }}
+                            className="appearance-none rounded-lg border border-orange-200 bg-orange-50 px-2 py-1 pr-6 text-xs font-medium text-orange-700 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 hover:bg-orange-100 transition-colors"
+                          >
+                            <option value="">🎟 Chọn voucher sản phẩm</option>
+                            {productVouchers.get(item.cartItemId)?.map((voucher) => {
+                              const discountText =
+                                voucher.discountPercent
+                                  ? `-${voucher.discountPercent}%`
+                                  : voucher.discountValue
+                                  ? `-${formatCurrency(voucher.discountValue)}`
+                                  : '';
+                              return (
+                                <option
+                                  key={voucher.shopVoucherId}
+                                  value={voucher.shopVoucherId}
+                                >
+                                  {voucher.title} {discountText && `(${discountText})`}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-1 top-1/2 h-3 w-3 -translate-y-1/2 text-orange-600" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            console.log(
+                              '🧾 [ShopCartV2] Open product voucher picker for cartItemId:',
+                              item.cartItemId
+                            );
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border border-dashed border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-600 hover:bg-orange-100"
+                        >
+                          🎟 Chọn voucher cho sản phẩm
+                        </button>
+                      )}
                       {item.inPlatformCampaign && !item.campaignUsageExceeded && (
                         <span className="inline-flex cursor-pointer items-center rounded-md border border-dashed border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-600">
                           🎟 Đang áp dụng khuyến mãi nền tảng
@@ -735,6 +937,14 @@ const ShopCartV2: React.FC = () => {
               </span>
             </div>
           )}
+          {productVoucherDiscount > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Giảm giá voucher sản phẩm</span>
+              <span className="font-medium text-red-500">
+                -{formatCurrency(productVoucherDiscount)}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 border-t border-gray-200 pt-3">
@@ -742,7 +952,7 @@ const ShopCartV2: React.FC = () => {
             <span>Tổng giỏ hàng</span>
             <span>
               {formatCurrency(
-                Math.max(0, currentSubtotal - shopVoucherDiscount)
+                Math.max(0, currentSubtotal - shopVoucherDiscount - productVoucherDiscount)
               )}
             </span>
           </div>
