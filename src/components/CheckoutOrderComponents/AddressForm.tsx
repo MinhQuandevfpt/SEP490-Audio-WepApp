@@ -457,6 +457,7 @@ const AddressForm: React.FC<AddressFormProps> = ({
             <input
               type="hidden"
               value={formData.postalCode}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
             />
             <input
               className="border rounded px-3 py-2"

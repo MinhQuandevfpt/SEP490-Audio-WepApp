@@ -159,12 +159,16 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
         accountName: values.accountName,
       });
 
-      // Calculate new balance after withdrawal (before reload for accurate display)
-      const newBalance = (walletInfo?.balance || 0) - values.amount;
-      message.success(`Rút tiền thành công! Số dư hiện tại của bạn là ${formatCurrency(newBalance)}`);
+      // Reload wallet info to get accurate balance from backend
+      // (backend may apply fees or other adjustments that affect the actual balance)
+      if (reloadWalletInfo) {
+        await reloadWalletInfo();
+      }
       
-      // Reload wallet info to update the UI
-      reloadWalletInfo();
+      // Show success message without balance to avoid showing incorrect client-calculated value
+      // The UI will automatically update with the correct balance from backend after reload
+      message.success('Rút tiền thành công! Số dư của bạn đã được cập nhật.');
+      
       setIsWithdrawModalOpen(false);
       withdrawForm.resetFields();
       reloadWithdrawRequests();
@@ -256,7 +260,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
         // For withdrawals: always red (money going out)
         // For non-withdrawals: check actual value sign - positive = blue (money in), negative = red (money out)
         const isPositive = isWithdraw ? false : value > 0;
-        const displayValue = isWithdraw ? -Math.abs(value) : value;
+        // For withdrawals: display as negative (money going out)
+        // If backend sends positive value, negate it; if backend already sends negative, use as-is
+        // This ensures withdrawals always display as negative regardless of backend format
+        const displayValue = isWithdraw ? Math.abs(value) * -1 : value;
         return (
           <span className={isPositive ? 'text-blue-600 font-semibold' : 'text-red-500 font-semibold'}>
             {isPositive ? '+' : ''}{formatCurrency(displayValue)}
@@ -668,9 +675,17 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
               }
               optionRender={(option) => {
                 const bank = vietnamBanks.find(b => b.code === option.value);
+                if (!bank) {
+                  // Fallback nếu không tìm thấy bank code
+                  return (
+                    <div className="flex items-center gap-2 py-1">
+                      <span>{option.label || option.value || 'Ngân hàng không xác định'}</span>
+                    </div>
+                  );
+                }
                 return (
                   <div className="flex items-center gap-2 py-1">
-                    {bank?.logo && (
+                    {bank.logo && (
                       <img 
                         src={bank.logo} 
                         alt={bank.shortName} 
@@ -680,7 +695,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ customerId }) => {
                         }}
                       />
                     )}
-                    <span>{bank?.shortName} - {bank?.name}</span>
+                    <span>{bank.shortName} - {bank.name}</span>
                   </div>
                 );
               }}

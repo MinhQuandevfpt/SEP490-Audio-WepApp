@@ -2350,8 +2350,8 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                       className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white"
                     >
                       <option value="">Chọn giá trị</option>
-                      {attr.options.map((opt: string) => (
-                        <option key={opt} value={opt}>
+                      {attr.options.map((opt: string, index: number) => (
+                        <option key={`${attr.attributeId}-${index}-${opt}`} value={opt}>
                           {opt}
                         </option>
                       ))}

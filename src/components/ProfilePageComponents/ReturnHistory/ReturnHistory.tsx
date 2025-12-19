@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Table, Tag, Typography, Pagination, Empty, Spin, Button, message, Modal, Space, Input, Upload } from 'antd';
 import { ZoomIn, Video as VideoIcon, AlertTriangle, Upload as UploadIcon, X } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
@@ -95,9 +95,17 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
     returnId: null,
   });
   const [complaintReason, setComplaintReason] = useState('');
-  const [complaintImageFiles, setComplaintImageFiles] = useState<File[]>([]);
+  // Use objects with unique IDs instead of File[] to avoid index-based key issues
+  type ComplaintImageFile = {
+    id: string;
+    file: File;
+  };
+  const [complaintImageFiles, setComplaintImageFiles] = useState<ComplaintImageFile[]>([]);
   const [complaintVideoFile, setComplaintVideoFile] = useState<File | null>(null);
   const [isSubmittingComplaint, setIsSubmittingComplaint] = useState(false);
+  // Track object URLs for memory cleanup - use Map with unique IDs as keys
+  const complaintImageUrlsRef = useRef<Map<string, string>>(new Map());
+  const complaintVideoUrlRef = useRef<string | null>(null);
 
   const handleOpenPackingModal = async (record: ReturnRequestResponse) => {
     setSelectedReturn(record);
@@ -167,23 +175,102 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
         message.warning('Chỉ có thể tải lên tối đa 5 ảnh');
         return;
       }
-      setComplaintImageFiles((prev) => [...prev, file]);
+      
+      // Validate file type and size
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+      
+      if (!validation.isValid) {
+        message.error(`${file.name}: ${validation.error}`);
+        return;
+      }
+      
+      setComplaintImageFiles((prev) => {
+        // Create unique ID for new file and object URL
+        const id = `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const url = URL.createObjectURL(file);
+        complaintImageUrlsRef.current.set(id, url);
+        return [...prev, { id, file }];
+      });
     } else {
       if (complaintVideoFile) {
         message.warning('Chỉ có thể tải lên 1 video');
         return;
       }
+      
+      // Validate video file type and size
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+      const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+      
+      if (!validation.isValid) {
+        message.error(`${file.name}: ${validation.error}`);
+        return;
+      }
+      
+      // Revoke previous video URL if exists
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+      }
+      // Create new object URL
+      complaintVideoUrlRef.current = URL.createObjectURL(file);
       setComplaintVideoFile(file);
     }
   };
 
-  const removeComplaintImage = (index: number) => {
-    setComplaintImageFiles((prev) => prev.filter((_, i) => i !== index));
+  const removeComplaintImage = (fileId: string) => {
+    setComplaintImageFiles((prev) => {
+      // Revoke object URL for removed file
+      const url = complaintImageUrlsRef.current.get(fileId);
+      if (url) {
+        URL.revokeObjectURL(url);
+        complaintImageUrlsRef.current.delete(fileId);
+      }
+      return prev.filter(item => item.id !== fileId);
+    });
   };
 
   const removeComplaintVideo = () => {
+    // Revoke object URL before clearing video file
+    if (complaintVideoUrlRef.current) {
+      URL.revokeObjectURL(complaintVideoUrlRef.current);
+      complaintVideoUrlRef.current = null;
+    }
     setComplaintVideoFile(null);
   };
+
+  // Cleanup object URLs when modal closes or component unmounts
+  useEffect(() => {
+    return () => {
+      // Revoke all image URLs
+      complaintImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      complaintImageUrlsRef.current.clear();
+      // Revoke video URL
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+        complaintVideoUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup when complaint modal closes
+  useEffect(() => {
+    if (!showComplaintModal.visible) {
+      // Revoke all image URLs
+      complaintImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      complaintImageUrlsRef.current.clear();
+      // Revoke video URL
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+        complaintVideoUrlRef.current = null;
+      }
+    }
+  }, [showComplaintModal.visible]);
 
   const handleSubmitComplaint = async () => {
     if (!showComplaintModal.returnId) {
@@ -202,7 +289,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       // Upload images
       let imageUrls: string[] = [];
       if (complaintImageFiles.length > 0) {
-        const uploadPromises = complaintImageFiles.map(file => FileUploadService.uploadImage(file));
+        const uploadPromises = complaintImageFiles.map(item => FileUploadService.uploadImage(item.file));
         const uploadResults = await Promise.all(uploadPromises);
         imageUrls = uploadResults.map(result => result.url);
       }
@@ -227,6 +314,15 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       setComplaintReason('');
       setComplaintImageFiles([]);
       setComplaintVideoFile(null);
+      // Revoke URLs after successful submission
+      complaintImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      complaintImageUrlsRef.current.clear();
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+        complaintVideoUrlRef.current = null;
+      }
       onReload?.();
     } catch (e: any) {
       message.error(e?.message || 'Không thể gửi khiếu nại. Vui lòng thử lại.');
@@ -542,6 +638,15 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
                 setComplaintReason('');
                 setComplaintImageFiles([]);
                 setComplaintVideoFile(null);
+                // Clear and revoke any existing URLs when opening the modal
+                complaintImageUrlsRef.current.forEach((url) => {
+                  URL.revokeObjectURL(url);
+                });
+                complaintImageUrlsRef.current.clear();
+                if (complaintVideoUrlRef.current) {
+                  URL.revokeObjectURL(complaintVideoUrlRef.current);
+                  complaintVideoUrlRef.current = null;
+                }
               }}
             >
               Khiếu nại
@@ -732,6 +837,15 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
             setComplaintReason('');
             setComplaintImageFiles([]);
             setComplaintVideoFile(null);
+            // Cleanup object URLs before closing modal
+            complaintImageUrlsRef.current.forEach((url) => {
+              URL.revokeObjectURL(url);
+            });
+            complaintImageUrlsRef.current.clear();
+            if (complaintVideoUrlRef.current) {
+              URL.revokeObjectURL(complaintVideoUrlRef.current);
+              complaintVideoUrlRef.current = null;
+            }
           }}
         footer={null}
         width={600}
@@ -775,22 +889,47 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
             <div className="space-y-2">
               {complaintImageFiles.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mb-2">
-                  {complaintImageFiles.map((file, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
-                      />
-                      <button
-                        onClick={() => removeComplaintImage(index)}
-                        disabled={isSubmittingComplaint}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+                  {complaintImageFiles.map((item) => {
+                    // Get object URL from Map using unique ID
+                    const objectUrl = complaintImageUrlsRef.current.get(item.id);
+                    if (!objectUrl) {
+                      // This should not happen, but create URL if missing
+                      const url = URL.createObjectURL(item.file);
+                      complaintImageUrlsRef.current.set(item.id, url);
+                      return (
+                        <div key={item.id} className="relative group">
+                          <img
+                            src={url}
+                            alt={`Preview ${item.file.name}`}
+                            className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                          <button
+                            onClick={() => removeComplaintImage(item.id)}
+                            disabled={isSubmittingComplaint}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={item.id} className="relative group">
+                        <img
+                          src={objectUrl}
+                          alt={`Preview ${item.file.name}`}
+                          className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
+                        />
+                        <button
+                          onClick={() => removeComplaintImage(item.id)}
+                          disabled={isSubmittingComplaint}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {complaintImageFiles.length < 5 && (
@@ -816,22 +955,28 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
               Video (tối đa 1 video)
             </label>
             <div className="space-y-2">
-              {complaintVideoFile && (
-                <div className="relative group">
-                  <video
-                    src={URL.createObjectURL(complaintVideoFile)}
-                    controls
-                    className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
-                  />
+              {complaintVideoFile && (() => {
+                // Create object URL if not already created
+                if (!complaintVideoUrlRef.current) {
+                  complaintVideoUrlRef.current = URL.createObjectURL(complaintVideoFile);
+                }
+                return (
+                  <div className="relative group">
+                    <video
+                      src={complaintVideoUrlRef.current}
+                      controls
+                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
+                    />
                   <button
                     onClick={removeComplaintVideo}
                     disabled={isSubmittingComplaint}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+                    </button>
+                  </div>
+                );
+              })()}
               {!complaintVideoFile && (
                 <Upload
                   accept="video/*"
@@ -859,6 +1004,15 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
                 setComplaintReason('');
                 setComplaintImageFiles([]);
                 setComplaintVideoFile(null);
+                // Cleanup object URLs before closing modal
+                complaintImageUrlsRef.current.forEach((url) => {
+                  URL.revokeObjectURL(url);
+                });
+                complaintImageUrlsRef.current.clear();
+                if (complaintVideoUrlRef.current) {
+                  URL.revokeObjectURL(complaintVideoUrlRef.current);
+                  complaintVideoUrlRef.current = null;
+                }
               }}
               disabled={isSubmittingComplaint}
             >

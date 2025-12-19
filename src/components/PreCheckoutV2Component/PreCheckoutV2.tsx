@@ -196,12 +196,13 @@ const buildPlatformVouchers = async (
         );
       }
       console.log('🎁 [PreCheckoutV2] Built platform vouchers for this product:', result);
-      console.groupEnd();
     } catch (error) {
       console.error(
         `❌ [PreCheckoutV2] Failed to build platform vouchers for product ${productId}:`,
         error
       );
+    } finally {
+      console.groupEnd();
     }
   }
 
@@ -255,6 +256,19 @@ const PreCheckoutV2: React.FC = () => {
     Map<string, { shopVoucherId: string; code: string }>
   >(() => new Map());
 
+  // Cache product voucher details để tính discount (tương tự ShopCartv2)
+  type ProductVoucherDetail = {
+    shopVoucherId: string;
+    code: string;
+    discountValue: number | null;
+    discountPercent: number | null;
+    maxDiscountValue: number | null;
+    minOrderValue: number | null;
+  };
+  const [productVoucherDetailsCache, setProductVoucherDetailsCache] = useState<
+    Map<string, ProductVoucherDetail>
+  >(() => new Map());
+
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(CHECKOUT_SESSION_KEY);
@@ -276,26 +290,43 @@ const PreCheckoutV2: React.FC = () => {
       }
       
       // Load selected shop vouchers
+      let loadedShopVouchers: Map<string, { shopVoucherId: string; code: string }> = new Map();
       if (payload.storeVouchers) {
         const vouchersMap = new Map<
           string,
           { shopVoucherId: string; code: string }
         >();
+        const oldFormatVouchers: Array<{ storeId: string; shopVoucherId: string }> = [];
+        
         Object.entries(payload.storeVouchers).forEach(([storeId, voucherInfo]) => {
           // Support both old format (string) and new format (object)
           if (typeof voucherInfo === 'string') {
             // Old format: chỉ có shopVoucherId, cần load code từ API sau
+            // Tạm thời dùng shopVoucherId làm code, nhưng sẽ cố gắng load code thực từ API
             vouchersMap.set(storeId, { shopVoucherId: voucherInfo, code: voucherInfo });
+            oldFormatVouchers.push({ storeId, shopVoucherId: voucherInfo });
+            console.warn(
+              `⚠️ [PreCheckoutV2] Old format voucher detected for store ${storeId}. ` +
+              `Using shopVoucherId as code temporarily. Voucher may not work correctly. ` +
+              `Please re-select voucher from cart page.`
+            );
           } else {
             // New format: có cả shopVoucherId và code
             vouchersMap.set(storeId, voucherInfo);
           }
         });
+        
+        loadedShopVouchers = vouchersMap;
         setSelectedShopVouchers(vouchersMap);
         console.log('🎫 [PreCheckoutV2] Loaded shop vouchers:', Array.from(vouchersMap.entries()));
+        
+        // TODO: Load actual voucher codes from API for old format vouchers
+        // This requires productId from items, which may not be available at this point
+        // For now, we log a warning and use shopVoucherId as code (may cause backend validation failure)
       }
 
       // Load selected product vouchers
+      let loadedProductVouchers: Map<string, { shopVoucherId: string; code: string }> = new Map();
       if (payload.productVouchers) {
         const productVouchersMap = new Map<
           string,
@@ -304,6 +335,7 @@ const PreCheckoutV2: React.FC = () => {
         Object.entries(payload.productVouchers).forEach(([cartItemId, voucherInfo]) => {
           productVouchersMap.set(cartItemId, voucherInfo);
         });
+        loadedProductVouchers = productVouchersMap;
         setSelectedProductVouchers(productVouchersMap);
         console.log('🎟 [PreCheckoutV2] Loaded product vouchers:', Array.from(productVouchersMap.entries()));
       }
@@ -311,8 +343,8 @@ const PreCheckoutV2: React.FC = () => {
       console.groupCollapsed('🧾 [PreCheckoutV2] Loaded checkout session payload');
       console.log('Payload:', payload);
       console.log('Selected Cart Item IDs:', payload.selectedCartItemIds);
-      console.log('Shop Vouchers:', Array.from(selectedShopVouchers.entries()));
-      console.log('Product Vouchers:', Array.from(selectedProductVouchers.entries()));
+      console.log('Shop Vouchers:', Array.from(loadedShopVouchers.entries()));
+      console.log('Product Vouchers:', Array.from(loadedProductVouchers.entries()));
       console.groupEnd();
     } catch (e) {
       console.error('[PreCheckoutV2] Failed to parse checkout session payload:', e);
@@ -389,6 +421,7 @@ const PreCheckoutV2: React.FC = () => {
     }
   }, [items, productCache]);
 
+
   // Tự động tính phí vận chuyển giống CheckoutOrderContainer
   useAutoShippingFee({
     items: shippingItems,
@@ -463,6 +496,92 @@ const PreCheckoutV2: React.FC = () => {
 
   const [previewData, setPreviewData] = useState<CheckoutPreviewData | null>(null);
 
+  // Load product voucher details để tính discount khi không có preview data
+  useEffect(() => {
+    const loadProductVoucherDetails = async () => {
+      // Chỉ load nếu không có preview data (cần tính thủ công)
+      if (previewData?.overallDiscount !== undefined) {
+        return;
+      }
+
+      if (selectedProductVouchers.size === 0) {
+        return;
+      }
+
+      // Lấy danh sách shopVoucherId cần load
+      const voucherIdsToLoad = Array.from(selectedProductVouchers.values())
+        .map((v) => v.shopVoucherId)
+        .filter((id) => !productVoucherDetailsCache.has(id));
+
+      if (voucherIdsToLoad.length === 0) {
+        return;
+      }
+
+      // Load voucher details từ API cho từng product
+      // Cần productId để gọi API, lấy từ items
+      const productIds = Array.from(
+        new Set(
+          items
+            .filter((item) => item.type === 'PRODUCT' && selectedProductVouchers.has(item.cartItemId))
+            .map((item) => item.refId)
+        )
+      );
+
+      if (productIds.length === 0) {
+        return;
+      }
+
+      try {
+        // Load vouchers cho từng product và extract details
+        const voucherPromises = productIds.map(async (productId) => {
+          try {
+            const voucherRes = await ProductVoucherService.getProductVouchers(
+              productId,
+              'ALL',
+              null
+            );
+            const productVouchersList =
+              voucherRes.data?.vouchers?.shopVouchers?.filter(
+                (v: any) => v.scopeType === 'PRODUCT_VOUCHER'
+              ) || [];
+            return productVouchersList;
+          } catch (error) {
+            console.error(`Failed to load vouchers for product ${productId}:`, error);
+            return [];
+          }
+        });
+
+        const voucherResults = await Promise.all(voucherPromises);
+        const allVouchers = voucherResults.flat();
+
+        // Cache voucher details
+        const nextCache = new Map(productVoucherDetailsCache);
+        allVouchers.forEach((voucher: any) => {
+          if (voucherIdsToLoad.includes(voucher.shopVoucherId)) {
+            nextCache.set(voucher.shopVoucherId, {
+              shopVoucherId: voucher.shopVoucherId,
+              code: voucher.code || '',
+              discountValue: voucher.discountValue || null,
+              discountPercent: voucher.discountPercent || null,
+              maxDiscountValue: voucher.maxDiscountValue || null,
+              minOrderValue: voucher.minOrderValue || null,
+            });
+          }
+        });
+
+        if (nextCache.size > productVoucherDetailsCache.size) {
+          setProductVoucherDetailsCache(nextCache);
+        }
+      } catch (error) {
+        console.error('Failed to load product voucher details:', error);
+      }
+    };
+
+    if (items.length > 0 && selectedProductVouchers.size > 0) {
+      void loadProductVoucherDetails();
+    }
+  }, [items, selectedProductVouchers, previewData, productVoucherDetailsCache]);
+
   // Tổng giá gốc (chưa giảm) = baseUnitPrice * quantity (fallback về unitPrice nếu không có baseUnitPrice)
   const baseSubtotal = useMemo(
     () =>
@@ -508,14 +627,49 @@ const PreCheckoutV2: React.FC = () => {
 
   // Tính giảm giá từ product vouchers đã chọn
   // Lưu ý: Product vouchers được backend tính trong preview response
-  // Nếu preview không có, có thể tính thủ công từ items và voucher info
+  // Nếu preview không có, tính thủ công từ items và voucher info trong cache
   const productVoucherDiscount = useMemo(() => {
-    // Ưu tiên lấy từ preview data (backend đã tính chính xác)
-    // Product vouchers có thể được tính trong storeDiscount hoặc riêng
-    // Tạm thời return 0 vì backend sẽ tính trong preview/checkout
-    // Nếu cần tính thủ công, có thể load voucher details và tính từ items
-    return 0;
-  }, [selectedProductVouchers, previewData, items]);
+    // Nếu có preview data, backend đã tính discount (có thể trong storeDiscount hoặc overallDiscount)
+    // Nhưng để đảm bảo UI hiển thị đúng khi không có preview data, tính thủ công từ cache
+    if (selectedProductVouchers.size === 0) {
+      return 0;
+    }
+
+    let total = 0;
+    selectedProductVouchers.forEach((voucherInfo, cartItemId) => {
+      // Lấy voucher details từ cache
+      const voucher = productVoucherDetailsCache.get(voucherInfo.shopVoucherId);
+      if (!voucher) {
+        // Nếu chưa có trong cache, skip (sẽ được load bởi useEffect)
+        return;
+      }
+
+      // Tìm item tương ứng
+      const item = items.find((it) => it.cartItemId === cartItemId);
+      if (!item) {
+        return;
+      }
+
+      // Tính subtotal của item này (sử dụng baseUnitPrice nếu có, fallback về unitPrice)
+      const itemSubtotal = (item.baseUnitPrice ?? item.unitPrice) * item.quantity;
+
+      // Kiểm tra minOrderValue
+      if (voucher.minOrderValue && itemSubtotal < voucher.minOrderValue) {
+        return;
+      }
+
+      // Tính discount
+      if (voucher.discountPercent) {
+        const discount = (itemSubtotal * voucher.discountPercent) / 100;
+        total += voucher.maxDiscountValue
+          ? Math.min(discount, voucher.maxDiscountValue)
+          : discount;
+      } else if (voucher.discountValue) {
+        total += voucher.discountValue;
+      }
+    });
+    return total;
+  }, [selectedProductVouchers, productVoucherDetailsCache, items]);
 
   // Parse voucher details từ JSON strings
   const parseVoucherDetails = useCallback((jsonString: string | null | undefined) => {
@@ -591,15 +745,43 @@ const PreCheckoutV2: React.FC = () => {
 
     const result: Array<{ storeId: string; codes: string[] }> = [];
     const storeVoucherMap = new Map<string, string[]>(); // storeId -> codes[]
+    const unmappedVouchers: Array<{
+      cartItemId: string;
+      reason: string;
+      voucher: { shopVoucherId: string; code: string };
+    }> = [];
 
     // Map product vouchers từ cartItemId sang storeId
     selectedProductVouchers.forEach((voucherInfo, cartItemId) => {
       // Tìm item tương ứng để lấy storeId
       const item = items.find((it) => it.cartItemId === cartItemId);
-      if (!item || item.type !== 'PRODUCT') return;
+      if (!item) {
+        unmappedVouchers.push({
+          cartItemId,
+          reason: 'Cart item not found for this cartItemId (possibly removed/changed before checkout)',
+          voucher: voucherInfo,
+        });
+        return;
+      }
+
+      if (item.type !== 'PRODUCT') {
+        unmappedVouchers.push({
+          cartItemId,
+          reason: `Cart item type is ${item.type}, expected PRODUCT for product voucher`,
+          voucher: voucherInfo,
+        });
+        return;
+      }
 
       const product = productCache.get(item.refId);
-      if (!product?.storeId) return;
+      if (!product?.storeId) {
+        unmappedVouchers.push({
+          cartItemId,
+          reason: 'Product or storeId not found in productCache for this cart item',
+          voucher: voucherInfo,
+        });
+        return;
+      }
 
       const storeId = product.storeId;
       if (!storeVoucherMap.has(storeId)) {
@@ -607,8 +789,22 @@ const PreCheckoutV2: React.FC = () => {
       }
       // Thêm code của product voucher vào store vouchers
       storeVoucherMap.get(storeId)!.push(voucherInfo.code);
-      console.log(`🎟 [PreCheckoutV2] Added product voucher for cartItemId ${cartItemId} (store ${storeId}):`, voucherInfo);
+      console.log(
+        `🎟 [PreCheckoutV2] Added product voucher for cartItemId ${cartItemId} (store ${storeId}):`,
+        voucherInfo
+      );
     });
+
+    if (unmappedVouchers.length > 0) {
+      console.warn(
+        '⚠️ [PreCheckoutV2] Some selected product vouchers could not be mapped to store vouchers and will not be sent to backend:',
+        {
+          unmappedVouchers,
+          itemsSnapshot: items,
+          productCacheKeys: Array.from(productCache.keys()),
+        }
+      );
+    }
 
     storeVoucherMap.forEach((codes, storeId) => {
       result.push({ storeId, codes });
@@ -653,8 +849,29 @@ const PreCheckoutV2: React.FC = () => {
 
   // Tổng giảm giá chung từ BE (nếu có), fallback = platform + store + product
   // Lưu ý: Product vouchers có thể được tính trong storeDiscount hoặc overallDiscount
-  const discountTotal =
-    previewData?.overallDiscount ?? platformDiscountTotal + storeDiscountTotal + productVoucherDiscount;
+  // Nếu có overallDiscount, backend đã tính tổng tất cả discounts (bao gồm product voucher)
+  // Nếu có previewData?.stores với storeDiscount, backend có thể đã tính product voucher trong storeDiscount
+  // Chỉ tính thủ công productVoucherDiscount khi không có preview data từ backend
+  const discountTotal = useMemo(() => {
+    if (previewData?.overallDiscount !== undefined) {
+      // Có overallDiscount từ backend, sử dụng trực tiếp (đã bao gồm tất cả discounts)
+      return previewData.overallDiscount;
+    }
+    
+    // Không có overallDiscount, tính fallback
+    // Nếu có previewData?.stores, backend có thể đã tính product voucher trong storeDiscount
+    // Trong trường hợp này, không cộng thêm productVoucherDiscount để tránh double-counting
+    // Chỉ cộng productVoucherDiscount khi không có preview data (tính thủ công hoàn toàn)
+    const hasPreviewData = previewData?.stores && previewData.stores.length > 0;
+    if (hasPreviewData) {
+      // Có preview data từ backend, không cộng thêm productVoucherDiscount
+      // vì backend có thể đã tính trong storeDiscount
+      return platformDiscountTotal + storeDiscountTotal;
+    }
+    
+    // Không có preview data, tính thủ công tất cả
+    return platformDiscountTotal + storeDiscountTotal + productVoucherDiscount;
+  }, [previewData, platformDiscountTotal, storeDiscountTotal, productVoucherDiscount]);
 
   // Tổng thanh toán: ưu tiên giá trị từ BE, nếu không có thì tự tính
   const grandTotal =
@@ -1249,17 +1466,10 @@ const PreCheckoutV2: React.FC = () => {
               </div>
             )}
 
-            {/* Product voucher discount (nếu có trong tương lai) */}
-            {discountTotal > platformDiscountTotal + storeDiscountTotal && (
-              <div className="space-y-1 border-l-2 border-green-200 pl-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">🎟 Giảm giá voucher sản phẩm</span>
-                  <span className="font-medium text-red-500">
-                    -{formatCurrency(discountTotal - platformDiscountTotal - storeDiscountTotal)}
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* Product voucher discount - KHÔNG hiển thị riêng vì đã được bao gồm trong discountTotal */}
+            {/* Hiển thị breakdown chỉ khi có overallDiscount từ backend để user thấy chi tiết */}
+            {/* Khi không có overallDiscount, discountTotal đã bao gồm productVoucherDiscount,
+                nên không cần hiển thị riêng để tránh confusion */}
 
             {discountTotal > 0 && (
               <div className="flex items-center justify-between border-t border-gray-200 pt-2 font-medium">

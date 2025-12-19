@@ -210,7 +210,6 @@ const ShopCartV2: React.FC = () => {
             console.log(
               `✅ [ShopCartV2] Found ${shopVouchers.length} ALL_SHOP_VOUCHER vouchers for store ${storeId}`
             );
-            console.groupEnd();
 
             return { storeId, vouchers: shopVouchers };
           } catch (error) {
@@ -219,6 +218,8 @@ const ShopCartV2: React.FC = () => {
               error
             );
             return { storeId, vouchers: [] };
+          } finally {
+            console.groupEnd();
           }
         }
       );
@@ -275,7 +276,6 @@ const ShopCartV2: React.FC = () => {
             console.log(
               `✅ [ShopCartV2] Found ${productVouchersList.length} PRODUCT_VOUCHER vouchers for cartItemId ${item.cartItemId}`
             );
-            console.groupEnd();
 
             return { cartItemId: item.cartItemId, vouchers: productVouchersList };
           } catch (error) {
@@ -284,6 +284,8 @@ const ShopCartV2: React.FC = () => {
               error
             );
             return { cartItemId: item.cartItemId, vouchers: [] };
+          } finally {
+            console.groupEnd();
           }
         });
 
@@ -304,8 +306,7 @@ const ShopCartV2: React.FC = () => {
     if (items.length > 0) {
       void loadProductVouchers();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
+  }, [items, productVouchers]);
 
   // Group items theo cửa hàng
   const storeGroups = useMemo(() => {
@@ -413,16 +414,13 @@ const ShopCartV2: React.FC = () => {
       );
       if (!voucher) return;
 
-      // Tìm item tương ứng
-      const item = items.find((it) => it.cartItemId === cartItemId);
+      // Tìm item tương ứng từ selectedItems để đảm bảo consistency với shopVoucherDiscount
+      const item = selectedItems.find((it) => it.cartItemId === cartItemId);
       if (!item) return;
 
-      // Chỉ tính nếu item được chọn
-      const isSelected = selectedIds === null || selectedIds.has(cartItemId);
-      if (!isSelected) return;
-
-      // Tính subtotal của item này
-      const itemSubtotal = item.unitPrice * item.quantity;
+      // Tính subtotal của item này (sử dụng baseUnitPrice nếu có, fallback về unitPrice)
+      // Đảm bảo discount được tính dựa trên giá gốc, không phải giá đã điều chỉnh bởi campaign
+      const itemSubtotal = (item.baseUnitPrice ?? item.unitPrice) * item.quantity;
 
       // Kiểm tra minOrderValue
       if (voucher.minOrderValue && itemSubtotal < voucher.minOrderValue) {
@@ -440,7 +438,7 @@ const ShopCartV2: React.FC = () => {
       }
     });
     return total;
-  }, [selectedProductVouchers, productVouchers, items, selectedIds]);
+  }, [selectedProductVouchers, productVouchers, selectedItems]);
 
   const formatCurrency = (value: number | null | undefined) =>
     `${(value ?? 0).toLocaleString('vi-VN')} ₫`;

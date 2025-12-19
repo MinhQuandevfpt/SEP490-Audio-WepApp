@@ -123,27 +123,38 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     // Chỉ giữ lại chữ số
     const numeric = raw.replace(/[^\d]/g, '');
     if (!numeric) {
-      setDimensionError({ part: null, message: null });
-      onDimensionChange(part, '');
+      const partLabels = { l: 'Dài', w: 'Rộng', h: 'Cao' };
+      setDimensionError({
+        part,
+        message: `Chiều ${partLabels[part]} chỉ được nhập số.`,
+      });
+      // Không cập nhật form state khi không có số hợp lệ
       return;
     }
 
     // numeric is guaranteed to be a non-empty digit string here, so Number(numeric) will never be NaN
     const value = Number(numeric);
 
-    // Không cho nhập quá 1200 mm - nhưng vẫn cập nhật form state để đồng bộ
+    // Không cho nhập giá trị = 0 hoặc quá 1200 mm - không cập nhật form state với giá trị không hợp lệ
+    const partLabels = { l: 'Dài', w: 'Rộng', h: 'Cao' };
+    if (value === 0) {
+      setDimensionError({
+        part,
+        message: `Chiều ${partLabels[part]} phải lớn hơn 0 mm.`,
+      });
+      // Không cập nhật form state với giá trị = 0
+      return;
+    }
     if (value > 1200) {
-      const partLabels = { l: 'Dài', w: 'Rộng', h: 'Cao' };
       setDimensionError({
         part,
         message: `Chiều ${partLabels[part]} không được vượt quá 1200 mm.`,
       });
-      // Still update form state to keep input in sync
-      onDimensionChange(part, numeric);
+      // Không cập nhật form state với giá trị vượt quá giới hạn
       return;
     }
 
-    // Giá trị hợp lệ - xóa lỗi
+    // Giá trị hợp lệ (0 < value <= 1200) - xóa lỗi và cập nhật form state
     setDimensionError({ part: null, message: null });
     onDimensionChange(part, numeric);
   };
@@ -152,12 +163,10 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     
-    // Luôn cập nhật form state để đồng bộ với input field
-    onChange(e);
-    
     // Cho phép rỗng để user xoá nhập lại
     if (raw.trim() === '') {
       setWeightError(null);
+      onChange(e); // Cập nhật form state với giá trị rỗng
       return;
     }
 
@@ -165,7 +174,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     const normalized = raw.replace(',', '.');
     const value = Number(normalized);
 
-    // Nếu không phải số hợp lệ thì hiển thị lỗi nhưng vẫn giữ giá trị trong form
+    // Nếu không phải số hợp lệ thì hiển thị lỗi và không cập nhật form state
     if (Number.isNaN(value)) {
       setWeightError('Trọng lượng không hợp lệ. Vui lòng nhập số.');
       return;
@@ -173,13 +182,14 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
 
     // Chỉ chấp nhận trong khoảng (0, 90]
     if (value <= 0 || value > 90) {
-      // Hiển thị lỗi nhưng vẫn giữ giá trị trong form để đồng bộ với input
+      // Hiển thị lỗi và không cập nhật form state với giá trị không hợp lệ
       setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 90 kg.');
       return;
     }
 
-    // Giá trị hợp lệ - xóa lỗi
+    // Giá trị hợp lệ - xóa lỗi và cập nhật form state
     setWeightError(null);
+    onChange(e);
   };
 
   return (

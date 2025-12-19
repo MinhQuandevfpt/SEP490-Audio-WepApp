@@ -438,6 +438,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
             <input
               type="hidden"
               value={formData.postalCode}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
             />
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>

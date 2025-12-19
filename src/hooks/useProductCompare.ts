@@ -19,27 +19,46 @@ export const useProductCompare = () => {
   const [compareDetails, setCompareDetails] = useState<Product[]>([]);
 
   /**
+   * Chuẩn hóa category identifier về string (dù BE có thể trả number hoặc string)
+   */
+  const normalizeCategoryIdentifier = (value: unknown): string | null => {
+    if (value === null || value === undefined) return null;
+    // Hỗ trợ cả number lẫn string, luôn convert về string để so sánh ổn định
+    if (typeof value === 'number' || typeof value === 'string') {
+      return String(value);
+    }
+    return null;
+  };
+
+  /**
    * Get category identifier from product (prioritize categoryId)
    */
   const getCategoryIdentifier = (product: any): string | null => {
     // Priority 1: categoryId (most reliable)
-    if (product.categoryId) {
-      return product.categoryId;
+    if (product.categoryId !== undefined && product.categoryId !== null) {
+      const normalized = normalizeCategoryIdentifier(product.categoryId);
+      if (normalized) return normalized;
     }
     
     // Priority 2: First category from categories array
     if (product.categories && Array.isArray(product.categories) && product.categories.length > 0) {
-      return product.categories[0].categoryId;
+      const firstCat = product.categories[0];
+      if (firstCat && firstCat.categoryId !== undefined && firstCat.categoryId !== null) {
+        const normalized = normalizeCategoryIdentifier(firstCat.categoryId);
+        if (normalized) return normalized;
+      }
     }
     
     // Priority 3: categoryName (fallback for comparison)
     if (product.categoryName) {
-      return product.categoryName;
+      const normalized = normalizeCategoryIdentifier(product.categoryName);
+      if (normalized) return normalized;
     }
     
     // Priority 4: category (fallback)
     if (product.category) {
-      return product.category;
+      const normalized = normalizeCategoryIdentifier(product.category);
+      if (normalized) return normalized;
     }
     
     return null;
@@ -47,10 +66,11 @@ export const useProductCompare = () => {
 
   /**
    * Check if two category identifiers match
+   * Luôn so sánh trên string đã normalize để tránh case 123 !== "123"
    */
   const isSameCategory = (cat1: string | null, cat2: string | null): boolean => {
     if (!cat1 || !cat2) return false;
-    return cat1 === cat2;
+    return String(cat1) === String(cat2);
   };
 
   const toggleProduct = (product: any) => {

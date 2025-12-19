@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Table, Tag, Typography, Space, Pagination, Empty, Spin, Button, message, Modal, Input } from 'antd';
 import { ZoomIn, Video as VideoIcon, X, Package, AlertTriangle, Upload, Image as ImageIcon } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
@@ -155,9 +155,17 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   });
   const [disputeReason, setDisputeReason] = useState('');
   const [disputingId, setDisputingId] = useState<string | null>(null);
-  const [disputeImageFiles, setDisputeImageFiles] = useState<File[]>([]);
+  // Use objects with unique IDs instead of File[] to avoid index-based key issues
+  type DisputeImageFile = {
+    id: string;
+    file: File;
+  };
+  const [disputeImageFiles, setDisputeImageFiles] = useState<DisputeImageFile[]>([]);
   const [disputeVideoFile, setDisputeVideoFile] = useState<File | null>(null);
   const [isUploadingDisputeMedia, setIsUploadingDisputeMedia] = useState(false);
+  // Track object URLs for memory cleanup - use Map with unique IDs as keys
+  const disputeImageUrlsRef = useRef<Map<string, string>>(new Map());
+  const disputeVideoUrlRef = useRef<string | null>(null);
 
   // Load product details for all return requests
   useEffect(() => {
@@ -251,6 +259,15 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     setDisputeReason('');
     setDisputeImageFiles([]);
     setDisputeVideoFile(null);
+    // Clear and revoke any existing URLs when opening the modal
+    disputeImageUrlsRef.current.forEach((url) => {
+      URL.revokeObjectURL(url);
+    });
+    disputeImageUrlsRef.current.clear();
+    if (disputeVideoUrlRef.current) {
+      URL.revokeObjectURL(disputeVideoUrlRef.current);
+      disputeVideoUrlRef.current = null;
+    }
   };
 
   const handleDisputeFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
@@ -277,7 +294,16 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
         }
       }
 
-      setDisputeImageFiles(prev => [...prev, ...validFiles]);
+      setDisputeImageFiles(prev => {
+        // Create unique IDs for new files and object URLs
+        const newFilesWithIds: DisputeImageFile[] = validFiles.map(file => {
+          const id = `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const url = URL.createObjectURL(file);
+          disputeImageUrlsRef.current.set(id, url);
+          return { id, file };
+        });
+        return [...prev, ...newFilesWithIds];
+      });
     } else if (type === 'video') {
       const maxSize = 50 * 1024 * 1024; // 50MB
       const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
@@ -290,6 +316,12 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       const file = files[0];
       const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
       if (validation.isValid) {
+        // Revoke previous video URL if exists
+        if (disputeVideoUrlRef.current) {
+          URL.revokeObjectURL(disputeVideoUrlRef.current);
+        }
+        // Create new object URL
+        disputeVideoUrlRef.current = URL.createObjectURL(file);
         setDisputeVideoFile(file);
       } else {
         message.error(`${file.name}: ${validation.error}`);
@@ -300,13 +332,58 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     e.target.value = '';
   };
 
-  const removeDisputeImage = (index: number) => {
-    setDisputeImageFiles(prev => prev.filter((_, i) => i !== index));
+  const removeDisputeImage = (fileId: string) => {
+    setDisputeImageFiles(prev => {
+      // Revoke object URL for removed file
+      const url = disputeImageUrlsRef.current.get(fileId);
+      if (url) {
+        URL.revokeObjectURL(url);
+        disputeImageUrlsRef.current.delete(fileId);
+      }
+      return prev.filter(item => item.id !== fileId);
+    });
   };
 
   const removeDisputeVideo = () => {
+    // Revoke object URL before clearing video file
+    if (disputeVideoUrlRef.current) {
+      URL.revokeObjectURL(disputeVideoUrlRef.current);
+      disputeVideoUrlRef.current = null;
+    }
     setDisputeVideoFile(null);
   };
+
+  // Cleanup object URLs when modal closes or component unmounts
+  useEffect(() => {
+    return () => {
+      // Revoke all image URLs
+      disputeImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      disputeImageUrlsRef.current.clear();
+      // Revoke video URL
+      if (disputeVideoUrlRef.current) {
+        URL.revokeObjectURL(disputeVideoUrlRef.current);
+        disputeVideoUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup when dispute modal closes
+  useEffect(() => {
+    if (!showDisputeModal.visible) {
+      // Revoke all image URLs
+      disputeImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      disputeImageUrlsRef.current.clear();
+      // Revoke video URL
+      if (disputeVideoUrlRef.current) {
+        URL.revokeObjectURL(disputeVideoUrlRef.current);
+        disputeVideoUrlRef.current = null;
+      }
+    }
+  }, [showDisputeModal.visible]);
 
   const handleDispute = async () => {
     if (!showDisputeModal.returnId) {
@@ -326,7 +403,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       // Upload images
       let imageUrls: string[] = [];
       if (disputeImageFiles.length > 0) {
-        const uploadPromises = disputeImageFiles.map(file => FileUploadService.uploadImage(file));
+        const uploadPromises = disputeImageFiles.map(item => FileUploadService.uploadImage(item.file));
         const uploadResults = await Promise.all(uploadPromises);
         imageUrls = uploadResults.map(result => result.url);
       }
@@ -350,6 +427,15 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       setDisputeReason('');
       setDisputeImageFiles([]);
       setDisputeVideoFile(null);
+      // Revoke URLs after successful submission
+      disputeImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      disputeImageUrlsRef.current.clear();
+      if (disputeVideoUrlRef.current) {
+        URL.revokeObjectURL(disputeVideoUrlRef.current);
+        disputeVideoUrlRef.current = null;
+      }
       onReload?.();
     } catch (e: any) {
       message.error(e?.message || 'Không thể gửi khiếu nại. Vui lòng thử lại.');
@@ -616,7 +702,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 <div className="grid grid-cols-3 gap-2">
                   {filteredImages.slice(0, 3).map((url, index) => (
                     <div
-                      key={index}
+                      key={`${record.id}-${index}-${url}`}
                       className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all shadow-sm hover:shadow-md cursor-pointer"
                       onClick={() => setImagePreview({ visible: true, urls: filteredImages, current: index })}
                     >
@@ -1390,22 +1476,47 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
             </div>
             {disputeImageFiles.length > 0 && (
               <div className="mt-3 grid grid-cols-5 gap-2">
-                {disputeImageFiles.map((file, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={`Dispute image ${index + 1}`}
-                      className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                    />
-                    <button
-                      onClick={() => removeDisputeImage(index)}
-                      disabled={disputingId !== null || isUploadingDisputeMedia}
-                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+                {disputeImageFiles.map((item) => {
+                  // Get object URL from Map using unique ID
+                  const objectUrl = disputeImageUrlsRef.current.get(item.id);
+                  if (!objectUrl) {
+                    // This should not happen, but create URL if missing
+                    const url = URL.createObjectURL(item.file);
+                    disputeImageUrlsRef.current.set(item.id, url);
+                    return (
+                      <div key={item.id} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Dispute image ${item.file.name}`}
+                          className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                        />
+                        <button
+                          onClick={() => removeDisputeImage(item.id)}
+                          disabled={disputingId !== null || isUploadingDisputeMedia}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={item.id} className="relative group">
+                      <img
+                        src={objectUrl}
+                        alt={`Dispute image ${item.file.name}`}
+                        className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                      />
+                      <button
+                        onClick={() => removeDisputeImage(item.id)}
+                        disabled={disputingId !== null || isUploadingDisputeMedia}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1442,13 +1553,18 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 </span>
               </label>
             </div>
-            {disputeVideoFile && (
-              <div className="mt-3 relative">
-                <video
-                  src={URL.createObjectURL(disputeVideoFile)}
-                  controls
-                  className="w-full h-48 object-cover rounded-lg border border-gray-200"
-                />
+            {disputeVideoFile && (() => {
+              // Use cached object URL if available, otherwise create one
+              if (!disputeVideoUrlRef.current) {
+                disputeVideoUrlRef.current = URL.createObjectURL(disputeVideoFile);
+              }
+              return (
+                <div className="mt-3 relative">
+                  <video
+                    src={disputeVideoUrlRef.current}
+                    controls
+                    className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                  />
                 <button
                   onClick={removeDisputeVideo}
                   disabled={disputingId !== null || isUploadingDisputeMedia}
@@ -1456,14 +1572,24 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 >
                   <X className="w-4 h-4" />
                 </button>
-              </div>
-            )}
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
             <Button
               onClick={() => {
                 if (disputingId || isUploadingDisputeMedia) return;
+                // Cleanup object URLs before closing modal
+                disputeImageUrlsRef.current.forEach((url) => {
+                  URL.revokeObjectURL(url);
+                });
+                disputeImageUrlsRef.current.clear();
+                if (disputeVideoUrlRef.current) {
+                  URL.revokeObjectURL(disputeVideoUrlRef.current);
+                  disputeVideoUrlRef.current = null;
+                }
                 setShowDisputeModal({ visible: false, returnId: null });
                 setDisputeReason('');
                 setDisputeImageFiles([]);

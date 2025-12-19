@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Table, Tag, Button, Tooltip, Modal, Typography, Space, Card, Row, Col, Statistic, Tabs, Empty } from 'antd';
 import { 
@@ -39,19 +39,6 @@ const CampaignManagement: React.FC = () => {
     newStatus: CampaignStatus;
   } | null>(null);
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
-
-  // Refresh khi quay lại từ trang tạo/chỉnh sửa (khi location key thay đổi)
-  useEffect(() => {
-    // Chỉ refresh khi đang ở trang campaigns và location key thay đổi (navigate mới)
-    if (location.pathname === '/admin/campaigns') {
-      fetchCampaigns();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.key]);
-
   const fetchCampaigns = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -71,6 +58,29 @@ const CampaignManagement: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  // Track previous location.key để chỉ refresh khi navigate từ trang khác về
+  const prevLocationKeyRef = useRef<string | undefined>(location.key);
+
+  // Refresh khi quay lại từ trang tạo/chỉnh sửa (khi location key thay đổi)
+  useEffect(() => {
+    // Chỉ refresh khi:
+    // 1. Đang ở trang campaigns
+    // 2. location.key thay đổi (navigate mới)
+    // 3. Không phải lần mount đầu tiên (prevLocationKeyRef đã được set)
+    if (
+      location.pathname === '/admin/campaigns' &&
+      location.key !== prevLocationKeyRef.current &&
+      prevLocationKeyRef.current !== undefined
+    ) {
+      fetchCampaigns();
+    }
+    // Update ref sau mỗi render
+    prevLocationKeyRef.current = location.key;
+  }, [location.key, location.pathname, fetchCampaigns]);
 
   const handleStatusChange = useCallback(async (
     id: string, 
