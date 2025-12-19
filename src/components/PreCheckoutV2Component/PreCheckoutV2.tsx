@@ -1193,9 +1193,6 @@ const PreCheckoutV2: React.FC = () => {
                         </span>
                       </div>
                       <div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          {group.storeName}
-                        </div>
                         <div className="text-xs text-gray-500">
                           {group.items.length} sản phẩm
                         </div>
@@ -1330,12 +1327,12 @@ const PreCheckoutV2: React.FC = () => {
                   </span>
                 </div>
                 {storeDiscountDetails.length > 0 && (
-                  <div className="ml-2 space-y-0.5 text-xs text-gray-500">
+                  <div className="ml-2 space-y-0.5 text-xs text-gray-500 hidden">
                     {storeDiscountDetails
                       .filter((detail) => detail.platformDiscount > 0)
                       .map((detail) => (
                         <div key={detail.storeId} className="flex justify-between">
-                          <span>{detail.storeName}:</span>
+                          <span>-</span>
                           <span>-{formatCurrency(detail.platformDiscount)}</span>
                         </div>
                       ))}
@@ -1353,12 +1350,12 @@ const PreCheckoutV2: React.FC = () => {
                   </span>
                 </div>
                 {storeDiscountDetails.length > 0 && (
-                  <div className="ml-2 space-y-0.5 text-xs text-gray-500">
+                  <div className="ml-2 space-y-0.5 text-xs text-gray-500 hidden">
                     {storeDiscountDetails
                       .filter((detail) => detail.storeDiscount > 0)
                       .map((detail) => (
                         <div key={detail.storeId} className="flex justify-between">
-                          <span>{detail.storeName}:</span>
+                          <span>-</span>
                           <span>-{formatCurrency(detail.storeDiscount)}</span>
                         </div>
                       ))}

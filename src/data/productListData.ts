@@ -53,7 +53,7 @@ export const PRICE_RANGES = [
 ] as const;
 
 export const RATING_OPTIONS = [
-  { value: 5, label: '5 sao trở lên', icon: '★★★★★' },
+  { value: 5, label: '5 sao', icon: '★★★★★' },
   { value: 4, label: '4 sao trở lên', icon: '★★★★☆' },
   { value: 3, label: '3 sao trở lên', icon: '★★★☆☆' },
   { value: 2, label: '2 sao trở lên', icon: '★★☆☆☆' },
