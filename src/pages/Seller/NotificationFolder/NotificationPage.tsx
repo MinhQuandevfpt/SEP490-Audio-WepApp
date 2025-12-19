@@ -57,14 +57,28 @@ const NotificationPage: React.FC = () => {
 
   const handleNotificationClick = async (notification: StoreNotification) => {
     try {
-      // Mark as read if not already read
+      // Mark as read ngay lập tức khi click (không cần check !notification.read)
       if (!notification.read) {
+        // Gọi API mark as read ngay lập tức
         await NotificationService.markAsRead(notification.id);
-        // Update local state
+        
+        // Update local state ngay lập tức để UI responsive
         setNotifications(prev => 
           prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
         );
-        message.success('Đã đánh dấu đã đọc');
+        
+        // Refresh unread count từ API và dispatch event để SellerDashboardLayout cập nhật
+        try {
+          const newUnreadCount = await NotificationService.getUnreadCount();
+          // Dispatch custom event để SellerDashboardLayout refresh
+          window.dispatchEvent(new CustomEvent('sellerNotificationRead', { 
+            detail: { unreadCount: newUnreadCount } 
+          }));
+        } catch (error) {
+          console.error('Error refreshing unread count:', error);
+          // Vẫn dispatch event để SellerDashboardLayout tự refresh
+          window.dispatchEvent(new CustomEvent('sellerNotificationRead'));
+        }
       }
 
       // Navigate to action URL if available
@@ -135,12 +149,27 @@ const NotificationPage: React.FC = () => {
         return;
       }
       
+      // Gọi API mark as read cho tất cả thông báo chưa đọc
       await Promise.all(unreadNotifications.map(n => NotificationService.markAsRead(n.id)));
+      
+      // Update local state
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      
+      // Refresh unread count từ API và dispatch event để SellerDashboardLayout cập nhật
+      const newUnreadCount = await NotificationService.getUnreadCount();
+      window.dispatchEvent(new CustomEvent('sellerNotificationRead', { 
+        detail: { unreadCount: newUnreadCount } 
+      }));
+      
+      // Reload lại danh sách thông báo để đảm bảo sync với backend
+      await loadNotifications();
+      
       message.success(`Đã đánh dấu ${unreadNotifications.length} thông báo đã đọc`);
     } catch (error) {
       console.error('Error marking all as read:', error);
       message.error('Không thể đánh dấu tất cả đã đọc. Vui lòng thử lại.');
+      // Reload lại để revert optimistic update
+      loadNotifications();
     }
   };
 

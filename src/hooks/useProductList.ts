@@ -14,7 +14,11 @@ const initialFilters: ProductListFilters = {
   maxPrice: undefined,
   brandName: undefined,
   rating: undefined,
+  minRating: undefined,
   inStock: undefined,
+  provinceCode: undefined,
+  districtCode: undefined,
+  wardCode: undefined,
 };
 
 const initialPagination: ProductListPagination = {
@@ -29,6 +33,8 @@ const initialPagination: ProductListPagination = {
 const initialSort: ProductListSort = {
   field: 'createdAt',
   direction: 'desc',
+  sortBy: undefined,
+  sortDir: undefined,
 };
 
 export const useProductList = () => {
@@ -72,6 +78,19 @@ export const useProductList = () => {
         // Add price range filters (allow 0)
         ...(state.filters.minPrice !== undefined && state.filters.minPrice >= 0 && { minPrice: state.filters.minPrice }),
         ...(state.filters.maxPrice !== undefined && state.filters.maxPrice >= 0 && { maxPrice: state.filters.maxPrice }),
+        // Add minRating filter
+        ...(state.filters.minRating !== undefined && state.filters.minRating >= 0 && { minRating: state.filters.minRating }),
+        // Add location filters
+        ...(state.filters.provinceCode && { provinceCode: state.filters.provinceCode }),
+        ...(state.filters.districtCode && { districtCode: state.filters.districtCode }),
+        ...(state.filters.wardCode && { wardCode: state.filters.wardCode }),
+        // Add sorting params (use sortBy/sortDir if available, otherwise convert from field/direction)
+        ...(state.sort.sortBy ? { sortBy: state.sort.sortBy } : {}),
+        ...(state.sort.sortDir ? { sortDir: state.sort.sortDir } : {}),
+        // Fallback: convert field/direction to sortBy/sortDir for backward compatibility
+        ...(!state.sort.sortBy && state.sort.field === 'name' && { sortBy: 'name' as const }),
+        ...(!state.sort.sortBy && state.sort.field === 'price' && { sortBy: 'price' as const }),
+        ...(!state.sort.sortDir && state.sort.direction && { sortDir: state.sort.direction }),
       };
 
       const response: ProductListResponse = await ProductListService.getProducts(params);
@@ -140,7 +159,7 @@ export const useProductList = () => {
       }));
       showError('Lỗi', errorMessage);
     }
-  }, [state.filters, state.pagination.page, state.pagination.size]);
+  }, [state.filters, state.pagination.page, state.pagination.size, state.sort]);
 
   // Set filters
   const setFilters = useCallback((newFilters: Partial<ProductListFilters>) => {

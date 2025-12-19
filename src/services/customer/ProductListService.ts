@@ -134,6 +134,12 @@ export interface ProductListParams {
   status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED' | 'REJECT' | 'PENDING_APPROVAL';
   minPrice?: number;
   maxPrice?: number;
+  minRating?: number; // Lọc theo số sao tối thiểu
+  provinceCode?: string; // Lọc theo địa chỉ cửa hàng - tỉnh/thành phố
+  districtCode?: string; // Lọc theo địa chỉ cửa hàng - quận/huyện
+  wardCode?: string; // Lọc theo địa chỉ cửa hàng - phường/xã
+  sortBy?: 'name' | 'price'; // Sắp xếp theo field
+  sortDir?: 'asc' | 'desc'; // Hướng sắp xếp
 }
 
 export interface ProductVariant {
@@ -412,6 +418,14 @@ export class ProductListService {
       if (params.maxPrice !== undefined && params.maxPrice >= 0) {
         queryParams.append('maxPrice', String(params.maxPrice));
       }
+      if (params.minRating !== undefined && params.minRating >= 0) {
+        queryParams.append('minRating', String(params.minRating));
+      }
+      if (params.provinceCode) queryParams.append('provinceCode', params.provinceCode);
+      if (params.districtCode) queryParams.append('districtCode', params.districtCode);
+      if (params.wardCode) queryParams.append('wardCode', params.wardCode);
+      if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+      if (params.sortDir) queryParams.append('sortDir', params.sortDir);
 
       // Use new endpoint /api/products/view
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { ProductListFilters } from '../../types/productList';
+import type { ProductListFilters, ProductListSort as ProductListSortType } from '../../types/productList';
 import { useCategories } from '../../hooks/useCategories';
 import type { CategoryItem } from '../../types/api';
 
@@ -8,6 +8,8 @@ interface ProductListFilterProps {
   onFiltersChange: (filters: Partial<ProductListFilters>) => void;
   onReset: () => void;
   loading?: boolean;
+  sort?: ProductListSortType;
+  onSortChange?: (sort: ProductListSortType) => void;
 }
 
 export const ProductListFilter: React.FC<ProductListFilterProps> = ({
@@ -15,6 +17,8 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
   onFiltersChange,
   onReset,
   loading = false,
+  sort,
+  onSortChange,
 }) => {
   const { categories, loading: categoriesLoading } = useCategories();
   const [minPriceInput, setMinPriceInput] = useState<string>(
@@ -24,13 +28,15 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
     filters.maxPrice?.toString() || ''
   );
   const [priceError, setPriceError] = useState<string>('');
+  const [minRating, setMinRating] = useState<number | undefined>(filters.minRating);
 
   // Sync input fields when filters change from outside (e.g., reset, URL params)
   useEffect(() => {
     setMinPriceInput(filters.minPrice?.toString() || '');
     setMaxPriceInput(filters.maxPrice?.toString() || '');
+    setMinRating(filters.minRating);
     setPriceError(''); // Clear error when filters change from outside
-  }, [filters.minPrice, filters.maxPrice]);
+  }, [filters.minPrice, filters.maxPrice, filters.minRating]);
 
   const handleSelectCategory = (categoryId: string, categoryName: string) => {
     if (loading || categoriesLoading) return;
@@ -90,10 +96,29 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
     }
   };
 
+  const handleMinRatingChange = (rating: number | undefined) => {
+    if (loading) return;
+    setMinRating(rating);
+    onFiltersChange({ minRating: rating });
+  };
+
   const handleReset = () => {
     setMinPriceInput('');
     setMaxPriceInput('');
+    setMinRating(undefined);
     setPriceError('');
+    
+    // Reset sort to default if onSortChange is provided
+    if (onSortChange) {
+      onSortChange({ 
+        sortBy: undefined, 
+        sortDir: undefined,
+        field: undefined,
+        direction: undefined
+      });
+    }
+    
+    // Call parent reset handler (this will reset filters)
     onReset();
   };
 
@@ -109,6 +134,41 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
     if (isNaN(numValue)) return '';
     return numValue.toLocaleString('vi-VN');
   };
+
+  // Sort handling
+  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!onSortChange) return;
+    
+    const value = e.target.value;
+    
+    if (!value || value === '') {
+      // Reset to default (no sort)
+      onSortChange({ 
+        sortBy: undefined, 
+        sortDir: undefined,
+        field: undefined,
+        direction: undefined
+      });
+      return;
+    }
+    
+    // Parse value: "name_asc", "price_desc", etc.
+    const parts = value.split('_');
+    if (parts.length === 2) {
+      const [sortBy, sortDir] = parts as ['name' | 'price', 'asc' | 'desc'];
+      onSortChange({ 
+        sortBy, 
+        sortDir,
+        field: undefined, // Clear old field/direction when using new format
+        direction: undefined
+      });
+    }
+  };
+
+  // Determine current sort value
+  const currentSortBy = sort?.sortBy || (sort?.field === 'price' ? 'price' : sort?.field === 'name' ? 'name' : '');
+  const currentSortDir = sort?.sortDir || sort?.direction || 'asc';
+  const currentSortValue = currentSortBy ? `${currentSortBy}_${currentSortDir}` : '';
 
   return (
     <div className="w-full">
@@ -155,6 +215,25 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
         </div>
       </div>
 
+      {/* Sort Section */}
+      {onSortChange && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-4 w-full">
+          <p className="text-sm font-semibold text-gray-800 mb-4">Sắp xếp</p>
+          <select
+            value={currentSortValue}
+            onChange={handleSortChange}
+            disabled={loading}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
+          >
+            <option value="">Mặc định</option>
+            <option value="name_asc">Tên A-Z</option>
+            <option value="name_desc">Tên Z-A</option>
+            <option value="price_asc">Giá tăng dần</option>
+            <option value="price_desc">Giá giảm dần</option>
+          </select>
+        </div>
+      )}
+
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-4 w-full">
         <p className="text-sm font-semibold text-gray-800 mb-4">Khoảng Giá</p>
         <div className="space-y-3">
@@ -188,6 +267,30 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
           >
             ÁP DỤNG
           </button>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-4 w-full">
+        <p className="text-sm font-semibold text-gray-800 mb-4">Đánh giá tối thiểu</p>
+        <div className="space-y-2">
+          {[5, 4, 3, 2, 1].map((rating) => (
+            <button
+              key={rating}
+              type="button"
+              onClick={() => handleMinRatingChange(minRating === rating ? undefined : rating)}
+              disabled={loading}
+              className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg border-2 transition-all duration-200 ${
+                minRating === rating
+                  ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200'
+                  : 'text-gray-700 border-gray-200 bg-white hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-yellow-400">⭐</span>
+                <span>{rating} sao trở lên</span>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>

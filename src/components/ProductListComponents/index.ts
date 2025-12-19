@@ -1,6 +1,6 @@
 export { ProductListFilter } from './ProductListFilter';
 export { ProductListSearchBar } from './ProductListSearchBar';
-export { ProductListSort } from './ProductListSort';
+// ProductListSort has been merged into ProductListFilter
 export { ProductListPagination } from './ProductListPagination';
 export { ProductListGrid } from './ProductListGrid';
 export { ProductListViewToggle } from './ProductListViewToggle';

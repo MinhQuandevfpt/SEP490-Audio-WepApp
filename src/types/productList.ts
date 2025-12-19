@@ -7,8 +7,12 @@ export interface ProductListFilters {
   minPrice?: number;
   maxPrice?: number;
   brandName?: string;
-  rating?: number;
+  rating?: number; // Keep for backward compatibility
+  minRating?: number; // New: minimum rating filter (số sao tối thiểu)
   inStock?: boolean;
+  provinceCode?: string; // Lọc theo địa chỉ cửa hàng - tỉnh/thành phố
+  districtCode?: string; // Lọc theo địa chỉ cửa hàng - quận/huyện
+  wardCode?: string; // Lọc theo địa chỉ cửa hàng - phường/xã
 }
 
 export interface ProductListPagination {
@@ -21,8 +25,10 @@ export interface ProductListPagination {
 }
 
 export interface ProductListSort {
-  field: 'name' | 'price' | 'rating' | 'createdAt' | 'viewCount' | 'soldCount';
-  direction: 'asc' | 'desc';
+  field?: 'name' | 'price' | 'rating' | 'createdAt' | 'viewCount' | 'soldCount'; // Keep for backward compatibility
+  direction?: 'asc' | 'desc'; // Keep for backward compatibility
+  sortBy?: 'name' | 'price'; // New: API format - sortBy field
+  sortDir?: 'asc' | 'desc'; // New: API format - sort direction
 }
 
 export interface ProductListState {

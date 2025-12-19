@@ -56,6 +56,26 @@ const SellerDashboardLayout: React.FC = () => {
     loadStoreInfo();
     loadNotificationCount();
     loadRiskWarning();
+
+    // Listen for notification read events from NotificationPage
+    const handleNotificationRead = (event: CustomEvent<{ unreadCount?: number }>) => {
+      if (event.detail?.unreadCount !== undefined) {
+        // Update count directly if provided
+        setNotificationCount(event.detail.unreadCount);
+        // Also reload notifications to sync state
+        loadNotifications();
+      } else {
+        // Otherwise refresh from API
+        loadNotificationCount();
+        loadNotifications();
+      }
+    };
+
+    window.addEventListener('sellerNotificationRead', handleNotificationRead as EventListener);
+    
+    return () => {
+      window.removeEventListener('sellerNotificationRead', handleNotificationRead as EventListener);
+    };
   }, []);
 
   // Close menus when clicking outside

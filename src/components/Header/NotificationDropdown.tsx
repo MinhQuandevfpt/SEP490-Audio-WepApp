@@ -67,6 +67,32 @@ const NotificationDropdown: React.FC = () => {
     }
   }, [isAuthenticated]);
 
+  // Listen for notification read events from NotificationPage
+  useEffect(() => {
+    const handleNotificationRead = (event: CustomEvent<{ unreadCount?: number }>) => {
+      if (event.detail?.unreadCount !== undefined) {
+        // Update count directly if provided
+        setUnreadCount(event.detail.unreadCount);
+        // Also reload notifications to sync state
+        if (isAuthenticated) {
+          loadNotifications();
+        }
+      } else {
+        // Otherwise refresh from API
+        if (isAuthenticated) {
+          loadUnreadCount();
+          loadNotifications();
+        }
+      }
+    };
+
+    window.addEventListener('customerNotificationRead', handleNotificationRead as EventListener);
+    
+    return () => {
+      window.removeEventListener('customerNotificationRead', handleNotificationRead as EventListener);
+    };
+  }, [isAuthenticated]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
