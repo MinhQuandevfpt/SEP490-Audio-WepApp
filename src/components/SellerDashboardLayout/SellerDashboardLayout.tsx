@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  BarChart3,
   Settings,
   Store,
   User,
@@ -326,8 +325,7 @@ const SellerDashboardLayout: React.FC = () => {
       subItems: [
         { label: 'Tất cả sản phẩm', path: '/seller/dashboard/products' },
         { label: 'Thêm sản phẩm', path: '/seller/dashboard/products/add' },
-        { label: 'Cập nhật sản phẩm', path: '/seller/dashboard/products/update' },
-        { label: 'Sản phẩm hết hàng', path: '/seller/dashboard/products/out-of-stock' }
+        { label: 'Cập nhật sản phẩm', path: '/seller/dashboard/products/update' }
       ]
     },
     {
@@ -384,12 +382,6 @@ const SellerDashboardLayout: React.FC = () => {
         { label: 'Chi trả cho cửa hàng', path: '/seller/dashboard/store-payout-v2' },
         { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
       ]
-    },
-    {
-      icon: BarChart3,
-      label: 'Báo cáo & Phân tích',
-      path: '/seller/dashboard/analytics',
-      badge: null
     },
     {
       icon: MessageSquare,

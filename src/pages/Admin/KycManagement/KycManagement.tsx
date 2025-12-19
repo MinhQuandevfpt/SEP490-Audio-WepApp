@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Button, Modal, Input, Space, Tooltip, Typography, Card, Row, Col, Statistic, Tabs, Empty } from 'antd';
-import { EyeOutlined, CheckCircleOutlined, CloseCircleOutlined, FileImageOutlined } from '@ant-design/icons';
+import { EyeOutlined, CheckCircleOutlined, CloseCircleOutlined, FileImageOutlined, CopyOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { AdminKycService } from '../../../services/admin/AdminKycService';
 import type { KycData, KycStatus } from '../../../types/admin';
-import { showError } from '../../../utils/notification';
+import { showError, showTikiNotification } from '../../../utils/notification';
 
 const { TextArea } = Input;
 
@@ -117,16 +117,32 @@ const KycManagement: React.FC = () => {
     navigate(`/admin/kyc/${kycId}`);
   }, [navigate]);
 
+  const handleCopyId = useCallback((id: string) => {
+    navigator.clipboard.writeText(id).then(() => {
+      showTikiNotification('Đã sao chép ID!', 'Thành công', 'success');
+    }).catch(() => {
+      showTikiNotification('Không thể sao chép ID', 'Lỗi', 'error');
+    });
+  }, []);
+
   const columns: ColumnsType<KycData> = useMemo(() => [
     {
       title: 'Cửa hàng',
       dataIndex: 'storeName',
       key: 'storeName',
-      width: 200,
+      width: 250,
       render: (storeName: string, record: KycData) => (
         <div>
           <div className="font-medium text-gray-900">{storeName}</div>
-          <div className="text-xs text-gray-500">ID: {record.id.slice(0, 8)}...</div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-gray-500 font-mono">ID: {record.id}</span>
+            <Tooltip title="Sao chép ID">
+              <CopyOutlined 
+                className="text-blue-500 cursor-pointer hover:text-blue-600 transition-colors" 
+                onClick={() => handleCopyId(record.id)}
+              />
+            </Tooltip>
+          </div>
         </div>
       ),
     },
@@ -136,8 +152,10 @@ const KycManagement: React.FC = () => {
       width: 180,
       render: (_: any, record: KycData) => (
         <div>
-          <div className="text-sm text-gray-900">{record.phoneNumber}</div>
-          <div className="text-xs text-gray-500">Mã thuế: {record.taxCode}</div>
+          <div className="text-sm text-gray-900">
+            <span className="text-xs text-gray-500">SĐT: </span>
+            {record.phoneNumber}
+          </div>
         </div>
       ),
     },
@@ -145,13 +163,14 @@ const KycManagement: React.FC = () => {
       title: 'Giấy phép KD',
       dataIndex: 'businessLicenseNumber',
       key: 'businessLicenseNumber',
-      width: 150,
+      width: 200,
       render: (businessLicenseNumber: string, record: KycData) => (
         <div>
-          <div className="text-sm text-gray-900">{businessLicenseNumber}</div>
-          <div className="text-xs text-gray-500">
-            {record.official ? 'Chính thức' : 'Hộ kinh doanh'}
+          <div className="text-sm text-gray-900">
+            <span className="text-xs text-gray-500">Số GPKD: </span>
+            {businessLicenseNumber}
           </div>
+          <div className="text-xs text-gray-500">Mã thuế: {record.taxCode}</div>
         </div>
       ),
     },
@@ -265,7 +284,7 @@ const KycManagement: React.FC = () => {
         </Space>
       ),
     },
-  ], [getStatusTag, handleViewDetail, handleApprove, handleReject, openImageModal]);
+  ], [getStatusTag, handleViewDetail, handleApprove, handleReject, openImageModal, handleCopyId]);
 
   // Filter data based on selected status - memoized for performance
   const filteredData = useMemo(() => {

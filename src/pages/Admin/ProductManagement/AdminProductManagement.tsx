@@ -467,32 +467,6 @@ const AdminProductManagement: React.FC = () => {
               )}
             </Space>
           </Col>
-          <Col xs={24} md={12}>
-            <Space direction="vertical" size={4}>
-              <Text strong>Đánh giá:</Text>
-              {record.ratingAverage ? (
-                <Space direction="vertical" size={0}>
-                  <Text strong style={{ color: '#faad14' }}>
-                    ⭐ {record.ratingAverage.toFixed(1)}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    ({record.reviewCount} đánh giá)
-                  </Text>
-                </Space>
-              ) : (
-                <Text type="secondary">Chưa có</Text>
-              )}
-            </Space>
-          </Col>
-          <Col xs={24}>
-            <Space direction="vertical" size={4}>
-              <Text strong>Mô tả ngắn:</Text>
-              <Text type="secondary">
-                {record.shortDescription || record.description?.slice(0, 200) || '-'}
-                {record.description && record.description.length > 200 ? '…' : ''}
-              </Text>
-            </Space>
-          </Col>
           {variants.length > 0 && (
             <Col xs={24}>
               <Space direction="vertical" size={4} style={{ width: '100%' }}>
@@ -951,6 +925,14 @@ const AdminProductManagement: React.FC = () => {
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
+            getCheckboxProps: (record) => {
+              // Disable checkbox nếu sản phẩm đã được duyệt (ACTIVE) hoặc từ chối (REJECTED, REJECT)
+              const isApproved = record.status === 'ACTIVE';
+              const isRejected = record.status === 'REJECTED' || record.status === 'REJECT';
+              return {
+                disabled: isApproved || isRejected,
+              };
+            },
           }}
           locale={{
             emptyText: (

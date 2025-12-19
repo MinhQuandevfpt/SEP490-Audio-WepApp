@@ -15,7 +15,6 @@ import {
   Alert,
   Spin,
   Empty,
-  DatePicker,
   Upload,
   Row,
   Col
@@ -36,11 +35,9 @@ import { AdminWalletService } from '../../../services/admin/AdminWalletService';
 import { formatCurrency } from '../../../utils/orderStatus';
 
 const { TextArea } = Input;
-const { RangePicker } = DatePicker;
 
 const CustomerWithdrawRequestsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<WithdrawRequestStatus | undefined>(undefined);
-  const [_dateRange, setDateRange] = useState<[string, string] | null>(null);
   const { 
     withdrawRequests, 
     loading, 
@@ -434,24 +431,6 @@ const CustomerWithdrawRequestsPage: React.FC = () => {
                 { label: 'Từ chối', value: 'REJECTED' },
                 { label: 'Đã thanh toán', value: 'PAID' },
               ]}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={10} lg={8}>
-            <RangePicker
-              style={{ width: '100%' }}
-              placeholder={['Từ ngày', 'Đến ngày']}
-              format="DD/MM/YYYY"
-              onChange={(dates) => {
-                if (dates && dates[0] && dates[1]) {
-                  setDateRange([
-                    dates[0].startOf('day').toISOString(),
-                    dates[1].endOf('day').toISOString()
-                  ]);
-                } else {
-                  setDateRange(null);
-                }
-                setPage(1);
-              }}
             />
           </Col>
           <Col xs={24} sm={12} md={6} lg={4}>

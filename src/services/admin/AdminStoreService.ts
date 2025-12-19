@@ -454,6 +454,31 @@ export class AdminStoreService {
   }
 
   /**
+   * Get all KYC requests for a store
+   * GET /api/stores/{storeId}/kyc
+   */
+  static async getStoreKycHistory(storeId: string): Promise<any[]> {
+    try {
+      const response: any = await adminHttpClient.get<any>(`/api/stores/${storeId}/kyc`);
+      
+      // API returns array directly
+      if (Array.isArray(response)) {
+        return response;
+      }
+      
+      // Or wrapped in data property
+      if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching store KYC history:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Clear store cache
    */
   static clearCache() {

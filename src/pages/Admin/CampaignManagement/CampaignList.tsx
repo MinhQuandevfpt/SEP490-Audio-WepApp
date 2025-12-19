@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Table, Tag, Button, Tooltip, Modal, Typography, Space, Card, Row, Col, Statistic, Tabs, Empty } from 'antd';
 import { 
   EyeOutlined, 
   EditOutlined, 
-  DeleteOutlined, 
   SendOutlined,
   StopOutlined,
   PlusOutlined,
@@ -19,6 +18,7 @@ import { showTikiNotification } from '../../../utils/notification';
 
 const CampaignManagement: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<CampaignStatus | 'ALL'>('ALL');
@@ -43,11 +43,27 @@ const CampaignManagement: React.FC = () => {
     fetchCampaigns();
   }, []);
 
+  // Refresh khi quay lại từ trang tạo/chỉnh sửa (khi location key thay đổi)
+  useEffect(() => {
+    // Chỉ refresh khi đang ở trang campaigns và location key thay đổi (navigate mới)
+    if (location.pathname === '/admin/campaigns') {
+      fetchCampaigns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
   const fetchCampaigns = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await CampaignService.getAllCampaigns();
-      setCampaigns(data);
+      // Sắp xếp theo thời gian tạo/update mới nhất lên đầu
+      const sortedData = [...data].sort((a, b) => {
+        // Ưu tiên updatedAt, nếu không có thì dùng createdAt
+        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return timeB - timeA; // Mới nhất lên đầu
+      });
+      setCampaigns(sortedData);
     } catch (error: any) {
       showTikiNotification(error.message || 'Không thể tải danh sách chiến dịch', 'Lỗi', 'error');
     } finally {
@@ -55,24 +71,6 @@ const CampaignManagement: React.FC = () => {
     }
   }, []);
 
-  const handleDelete = useCallback(async (id: string, name: string) => {
-    Modal.confirm({
-      title: 'Xác nhận xóa',
-      content: `Bạn có chắc chắn muốn xóa chiến dịch "${name}"?`,
-      okText: 'Xóa',
-      cancelText: 'Hủy',
-      okButtonProps: { danger: true },
-      onOk: async () => {
-        try {
-          await CampaignService.deleteCampaign(id);
-          showTikiNotification('Xóa chiến dịch thành công!', 'Thành công', 'success');
-          fetchCampaigns();
-        } catch (error: any) {
-          showTikiNotification(error.message || 'Không thể xóa chiến dịch', 'Lỗi', 'error');
-        }
-      }
-    });
-  }, [fetchCampaigns]);
 
   const handleStatusChange = useCallback(async (
     id: string, 
@@ -504,19 +502,10 @@ const CampaignManagement: React.FC = () => {
               onClick={() => navigate(`/admin/campaigns/${record.id}/edit`)}
             />
           </Tooltip>
-
-          <Tooltip title="Xóa">
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.id, record.name)}
-            />
-          </Tooltip>
         </div>
       ),
     },
-  ], [getStatusTag, getTypeTag, handleStatusChange, handleDelete, navigate]);
+  ], [getStatusTag, getTypeTag, handleStatusChange, navigate]);
 
   // Filter data based on selected status
   const filteredData = useMemo(() => {

@@ -13,7 +13,8 @@ import {
   Alert,
   Typography,
   Tooltip,
-  Empty
+  Empty,
+  Modal
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -72,8 +73,10 @@ const CampaignProductDetails: React.FC = () => {
     endTime: string;
     registeredAt: string;
     badgeIconUrl?: string;
+    status?: string;
   } | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [withdrawingProductId, setWithdrawingProductId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStoreId();
@@ -111,17 +114,33 @@ const CampaignProductDetails: React.FC = () => {
 
       setProducts(campaignProducts);
 
+      // Try to get campaign status from joined campaigns list
+      let campaignStatus: string | undefined;
+      try {
+        const joinedCampaigns = await SellerCampaignService.getJoinedCampaigns(storeId);
+        const campaign = joinedCampaigns.find(c => c.id === campaignId);
+        if (campaign) {
+          campaignStatus = campaign.status;
+          console.log('✅ Campaign status from joined campaigns:', campaignStatus);
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not fetch joined campaigns:', error);
+      }
+
       // Extract campaign info from first product
       if (campaignProducts.length > 0) {
         const first = campaignProducts[0];
-        setCampaignInfo({
+        const info = {
           name: first.campaignName,
           type: first.campaignType,
           startTime: first.startTime,
           endTime: first.endTime,
           registeredAt: first.registeredAt,
-          badgeIconUrl: (first as any).badgeIconUrl
-        });
+          badgeIconUrl: (first as any).badgeIconUrl,
+          status: campaignStatus
+        };
+        console.log('📊 Setting campaign info:', info);
+        setCampaignInfo(info);
       }
 
       // Fetch full product details to get images and stock
@@ -218,6 +237,67 @@ const CampaignProductDetails: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Check if can withdraw (chiến dịch chưa bắt đầu và vẫn trong thời gian đăng ký)
+  const canWithdraw = useMemo(() => {
+    if (!campaignInfo || !campaignInfo.startTime) {
+      console.log('❌ Cannot withdraw: Missing campaign info or startTime');
+      return false;
+    }
+    const now = new Date().getTime();
+    const startTime = new Date(campaignInfo.startTime).getTime();
+    const isBeforeStart = now < startTime;
+    
+    // Nếu có status, kiểm tra status là ONOPEN (vẫn trong thời gian đăng ký)
+    // Nếu không có status, chỉ cần kiểm tra chiến dịch chưa bắt đầu
+    const isInRegistrationPeriod = campaignInfo.status 
+      ? campaignInfo.status === 'ONOPEN' 
+      : isBeforeStart; // Fallback: nếu không có status, chỉ cần chưa bắt đầu
+    
+    console.log('🔍 Withdraw check:', {
+      now: new Date(now).toLocaleString('vi-VN'),
+      startTime: new Date(startTime).toLocaleString('vi-VN'),
+      isBeforeStart,
+      status: campaignInfo.status,
+      isInRegistrationPeriod,
+      canWithdraw: isBeforeStart && isInRegistrationPeriod
+    });
+    
+    // Chiến dịch chưa bắt đầu và vẫn trong thời gian đăng ký
+    return isBeforeStart && isInRegistrationPeriod;
+  }, [campaignInfo]);
+
+  // Handle withdraw product from campaign
+  const handleWithdraw = async (campaignProductId: string, productName: string) => {
+    Modal.confirm({
+      title: 'Xác nhận hủy tham gia',
+      content: `Bạn có chắc chắn muốn hủy tham gia sản phẩm "${productName}" khỏi chiến dịch này?`,
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          setWithdrawingProductId(campaignProductId);
+          await SellerCampaignService.withdrawCampaignProduct(campaignProductId);
+          showTikiNotification(
+            'Hủy tham gia sản phẩm thành công',
+            'Thành công',
+            'success'
+          );
+          // Refresh data
+          await fetchData();
+        } catch (error: any) {
+          showTikiNotification(
+            error.message || 'Không thể hủy tham gia sản phẩm',
+            'Lỗi',
+            'error'
+          );
+        } finally {
+          setWithdrawingProductId(null);
+        }
+      }
+    });
   };
 
   // Statistics
@@ -550,9 +630,8 @@ const CampaignProductDetails: React.FC = () => {
     {
       title: 'Trạng thái',
       key: 'status',
-      width: 110,
+      width: 150,
       align: 'center',
-      fixed: 'right',
       render: (_, record) => (
         <div>
           <Tag
@@ -572,6 +651,50 @@ const CampaignProductDetails: React.FC = () => {
           )}
         </div>
       )
+    },
+    {
+      title: 'Thao tác',
+      key: 'action',
+      width: 120,
+      align: 'center',
+      fixed: 'right',
+      render: (_, record) => {
+        // Chỉ hiển thị nút hủy khi:
+        // 1. Chiến dịch chưa bắt đầu và vẫn trong thời gian đăng ký (canWithdraw)
+        // 2. Sản phẩm chưa được duyệt (status = 'DRAFT')
+        const canWithdrawThisProduct = canWithdraw && record.status === 'DRAFT';
+        
+        if (canWithdrawThisProduct) {
+          return (
+            <Button
+              danger
+              size="small"
+              onClick={() => handleWithdraw(record.campaignProductId, record.productName)}
+              loading={withdrawingProductId === record.campaignProductId}
+              disabled={withdrawingProductId !== null}
+            >
+              Hủy tham gia
+            </Button>
+          );
+        }
+        
+        // Nếu chiến dịch chưa bắt đầu nhưng sản phẩm đã được duyệt, hiển thị nút disabled
+        if (canWithdraw && record.status !== 'DRAFT') {
+          return (
+            <Tooltip title="Sản phẩm đã được duyệt, không thể hủy tham gia">
+              <Button
+                danger
+                size="small"
+                disabled
+              >
+                Hủy tham gia
+              </Button>
+            </Tooltip>
+          );
+        }
+        
+        return <span className="text-gray-400">-</span>;
+      }
     }
   ];
 
