@@ -198,31 +198,46 @@ const AIChatbot: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Listen to context changes
+  // Listen to context changes - sync local state with context
   useEffect(() => {
-    if (chatContext.isOpen && !isOpen) {
-      setIsOpen(true);
-      
-      // If opening chat with a specific store, switch to list mode
-      if (chatContext.chatMode === 'store' && chatContext.storeId) {
+    // Sync isOpen state with context
+    setIsOpen(chatContext.isOpen);
+    
+    // When context says chat is open, sync mode and storeId
+    if (chatContext.isOpen) {
+      // If opening chat with a store, always switch to list mode (to show conversations list)
+      if (chatContext.chatMode === 'store') {
         setChatMode('list');
-        setStoreId(chatContext.storeId);
-        // Load conversations will happen in next effect
-      } else {
-        setChatMode(chatContext.chatMode);
+        // Sync storeId if provided
         if (chatContext.storeId) {
           setStoreId(chatContext.storeId);
         }
+        // Load conversations will happen in next effect
+      } else {
+        // For AI mode, sync chatMode
+        setChatMode(chatContext.chatMode);
       }
     }
-  }, [chatContext.isOpen, chatContext.chatMode, chatContext.storeId, isAuthenticated]);
+  }, [chatContext.isOpen, chatContext.chatMode, chatContext.storeId]);
 
   // Load conversations when switching to list mode
   useEffect(() => {
     if (isOpen && chatMode === 'list' && isAuthenticated) {
-      loadConversationsAndSelectStore();
+      // Only auto-select store if we have a storeId from context (from product detail or store page)
+      // Don't auto-select if user manually selected a conversation from the list
+      if (chatContext.storeId && !selectedStore) {
+        // StoreId from context (external trigger), load and select that store
+        loadConversationsAndSelectStore();
+      } else if (!selectedStore) {
+        // No selectedStore yet, just load all conversations (only if list is empty)
+        if (conversations.length === 0) {
+          loadConversations();
+        }
+      }
+      // If selectedStore already exists, don't reload (user already selected manually)
     }
-  }, [isOpen, chatMode, isAuthenticated, storeId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, chatMode, isAuthenticated, chatContext.storeId]);
 
   // Helper function to detect media type from URL or type field (shared across component)
   const detectMediaType = useCallback((mediaItem: any): 'image' | 'video' => {
@@ -439,12 +454,7 @@ const AIChatbot: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Load store messages when switching to store mode
-  useEffect(() => {
-    if (isOpen && chatMode === 'store' && storeId) {
-      loadStoreMessages();
-    }
-  }, [isOpen, chatMode, storeId]);
+  // Note: Store messages loading is handled by the effect below when selectedStore changes
 
   // Get store ID from URL or context (for store chat)
   useEffect(() => {
@@ -718,31 +728,42 @@ const AIChatbot: React.FC = () => {
   const loadConversationsAndSelectStore = async () => {
     const convList = await loadConversations();
     
-    // If we have a storeId from context
-    if (storeId) {
+    // Use storeId from context if available, otherwise use local state
+    const targetStoreId = chatContext.storeId || storeId;
+    
+    // If we have a storeId from context or state
+    if (targetStoreId) {
       // Try to find existing conversation
-      const targetConv = convList?.find(conv => conv.storeId === storeId);
+      const targetConv = convList?.find(conv => conv.storeId === targetStoreId);
       
       if (targetConv) {
         // Found existing conversation, select it
         setSelectedStore(targetConv);
+        // Also update local storeId to keep in sync
+        if (targetStoreId !== storeId) {
+          setStoreId(targetStoreId);
+        }
       } else {
         // No existing conversation (either convList is empty or store not in list)
         // Create a new one by fetching store info
         try {
-          const storeDetail = await CustomerStoreService.getStoreById(storeId);
+          const storeDetail = await CustomerStoreService.getStoreById(targetStoreId);
           const newConv: ConversationWithStoreInfo = {
-            id: `${ChatService.getCurrentUserId()}_${storeId}`,
-            storeId: storeId,
+            id: `${ChatService.getCurrentUserId()}_${targetStoreId}`,
+            storeId: targetStoreId,
             customerId: ChatService.getCurrentUserId() || '',
             lastMessage: '',
             lastMessageTime: new Date().toISOString(),
-            storeName: storeDetail.storeName || `Shop ${storeId.substring(0, 8)}`,
+            storeName: storeDetail.storeName || `Shop ${targetStoreId.substring(0, 8)}`,
             storeAvatar: storeDetail.logoUrl || CustomerStoreService.getDefaultAvatar(storeDetail.storeName),
           };
           setSelectedStore(newConv);
           // Add to conversations list
           setConversations(prev => [newConv, ...prev]);
+          // Also update local storeId to keep in sync
+          if (targetStoreId !== storeId) {
+            setStoreId(targetStoreId);
+          }
         } catch (error) {
           // Silent fail
         }
@@ -793,10 +814,19 @@ const AIChatbot: React.FC = () => {
   };
 
   const handleSelectConversation = (conv: ConversationWithStoreInfo) => {
-    // Update ref immediately
+    // Skip if already selected to avoid unnecessary re-renders
+    if (selectedStoreIdRef.current === conv.storeId) return;
+    
+    // Update ref immediately for other functions to use
     selectedStoreIdRef.current = conv.storeId;
     
+    // Batch all state updates together - React will batch these automatically
+    // But we order them logically: storeId first, then selectedStore
+    setStoreId(conv.storeId);
+    setSelectedStore(conv);
+    
     // Update unreadCount to 0 immediately when clicking (optimistic update)
+    // This happens in a separate update but React should batch it
     setConversations((prev) => 
       prev.map((c) => 
         c.storeId === conv.storeId
@@ -804,10 +834,7 @@ const AIChatbot: React.FC = () => {
           : c
       )
     );
-    
-    setStoreId(conv.storeId);
-    setSelectedStore(conv);
-    // Firebase listener in useEffect will handle loading messages
+    // Messages will be loaded by the effect when selectedStore changes
   };
 
   const handleSendMessage = async () => {
@@ -1396,11 +1423,12 @@ const AIChatbot: React.FC = () => {
       chatContext.openChat('ai');
       setIsOpen(true);
     } else {
-      setChatMode('list');
-      loadConversations();
-      // Với chat cửa hàng, đánh dấu ChatContext ở mode 'store'
+      // Với chat cửa hàng, đánh dấu ChatContext ở mode 'store' trước
       chatContext.openChat('store', storeId || undefined);
+      // Set chatMode to 'list' để hiển thị danh sách conversations
+      setChatMode('list');
       setIsOpen(true);
+      // loadConversations will be triggered by the effect when conditions are met
     }
   };
 

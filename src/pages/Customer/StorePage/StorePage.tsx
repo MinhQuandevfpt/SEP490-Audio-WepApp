@@ -221,9 +221,7 @@ const StorePage: React.FC = () => {
     }
     
     // Open chat with this store
-    if (storeId) {
-      chatContext.openChat('store', storeId);
-    }
+    chatContext.openChat('store', storeId);
   };
 
   const defaultAvatar = storeName 

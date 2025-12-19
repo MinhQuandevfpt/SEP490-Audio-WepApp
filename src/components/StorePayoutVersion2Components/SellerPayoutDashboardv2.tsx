@@ -268,7 +268,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                 <DollarSign className="h-5 w-5 text-white" />
               </div>
               <span className="text-sm font-semibold text-gray-700">
-                Tiền có thể rút
+                Tổng tiền đã giải ngân
               </span>
             </div>
           </div>
