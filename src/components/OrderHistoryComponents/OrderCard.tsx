@@ -531,8 +531,27 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                     {Array.isArray(storeOrder.items) && storeOrder.items.length > 0 ? (
                       storeOrder.items.map((item) => {
                         const itemImage = resolveOrderItemImage(item);
+                        const productId = item.refId;
                         return (
-                          <div key={item.id} className="flex gap-3 rounded-xl bg-white p-3 shadow-sm">
+                          <div 
+                            key={item.id} 
+                            className="flex gap-3 rounded-xl bg-white p-3 shadow-sm cursor-pointer transition-all hover:shadow-md hover:bg-gray-50"
+                            onClick={() => {
+                              if (productId && item.type === 'PRODUCT') {
+                                navigate(`/product/${productId}`);
+                              }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                if (productId && item.type === 'PRODUCT') {
+                                  navigate(`/product/${productId}`);
+                                }
+                              }
+                            }}
+                          >
                             <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
                               {itemImage ? (
                                 <img src={itemImage} alt={item.name} className="h-full w-full object-cover" />
@@ -617,14 +636,48 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   const isChecking = loadingReviewStatus[productId];
                   return (
                     <div key={item.id} className="flex items-center gap-3 rounded-xl border border-gray-100 p-3">
-                      <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                      <div 
+                        className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-gray-100 bg-gray-50 cursor-pointer transition-all hover:opacity-80"
+                        onClick={() => {
+                          if (productId) {
+                            navigate(`/product/${productId}`);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (productId) {
+                              navigate(`/product/${productId}`);
+                            }
+                          }
+                        }}
+                      >
                         {item.image ? (
                           <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
                         ) : (
                           <Package className="h-full w-full p-2 text-gray-400" />
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div 
+                        className="min-w-0 flex-1 cursor-pointer"
+                        onClick={() => {
+                          if (productId) {
+                            navigate(`/product/${productId}`);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (productId) {
+                              navigate(`/product/${productId}`);
+                            }
+                          }
+                        }}
+                      >
                         <p className="truncate text-sm font-medium text-gray-900">{item.name}</p>
                         {formatVariantLabel(item) && (
                           <p className="text-xs text-gray-500">{formatVariantLabel(item)}</p>
@@ -634,7 +687,10 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                       <Button
                         type="primary"
                         disabled={reviewed || isChecking}
-                        onClick={() => handleSelectReviewItem(item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectReviewItem(item);
+                        }}
                         loading={isChecking}
                         style={{
                           backgroundColor: reviewed ? '#D1D5DB' : '#FF6A00',

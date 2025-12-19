@@ -3,7 +3,6 @@ import Header from '../Header';
 import Footer from '../Footer';
 import AIChatbot from '../AIChatbot';
 import ChatAgent from '../ChatAgent/ChatAgent';
-import { ChatProvider } from '../../contexts/ChatContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,7 +10,6 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
-    <ChatProvider>
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1">
@@ -25,7 +23,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Chat Agent - Product search and advice */}
       <ChatAgent />
     </div>
-    </ChatProvider>
   );
 };
 

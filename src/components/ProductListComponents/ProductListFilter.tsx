@@ -273,24 +273,27 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-4 w-full">
         <p className="text-sm font-semibold text-gray-800 mb-4">Đánh giá tối thiểu</p>
         <div className="space-y-2">
-          {[5, 4, 3, 2, 1].map((rating) => (
-            <button
-              key={rating}
-              type="button"
-              onClick={() => handleMinRatingChange(minRating === rating ? undefined : rating)}
-              disabled={loading}
-              className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg border-2 transition-all duration-200 ${
-                minRating === rating
-                  ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200'
-                  : 'text-gray-700 border-gray-200 bg-white hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-yellow-400">⭐</span>
-                <span>{rating} sao trở lên</span>
-              </div>
-            </button>
-          ))}
+          {[5, 4, 3, 2, 1].map((rating) => {
+            const label = rating === 5 ? '5 sao' : `${rating} sao trở lên`;
+            return (
+              <button
+                key={rating}
+                type="button"
+                onClick={() => handleMinRatingChange(minRating === rating ? undefined : rating)}
+                disabled={loading}
+                className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg border-2 transition-all duration-200 ${
+                  minRating === rating
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200'
+                    : 'text-gray-700 border-gray-200 bg-white hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-yellow-400">⭐</span>
+                  <span>{label}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

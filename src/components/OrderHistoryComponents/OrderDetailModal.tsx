@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal, Button, Select, Input, Space, message } from 'antd';
 import type { CustomerOrder } from '../../types/api';
 import { 
@@ -37,6 +38,7 @@ const formatVariantLabel = (item: { variantOptionName?: string | null; variantOp
 const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, onOrderCancelled }) => {
   if (!order) return null;
 
+  const navigate = useNavigate();
   const [copiedGhnCode, setCopiedGhnCode] = React.useState<string | null>(null);
   const [showTrackingGuide, setShowTrackingGuide] = React.useState<Record<string, boolean>>({});
   const [showCancelModal, setShowCancelModal] = React.useState(false);
@@ -202,8 +204,27 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                       {Array.isArray(storeOrder.items) && storeOrder.items.length > 0 ? (
                         storeOrder.items.map((item) => {
                           const itemImage = resolveOrderItemImage(item);
+                          const productId = item.refId;
                           return (
-                            <div key={item.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                            <div 
+                              key={item.id} 
+                              className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg cursor-pointer transition-all hover:bg-gray-100 hover:shadow-sm"
+                              onClick={() => {
+                                if (productId && item.type === 'PRODUCT') {
+                                  navigate(`/product/${productId}`);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  if (productId && item.type === 'PRODUCT') {
+                                    navigate(`/product/${productId}`);
+                                  }
+                                }
+                              }}
+                            >
                               <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
                                 {itemImage ? (
                                   <img 
