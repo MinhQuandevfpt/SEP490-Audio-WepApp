@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
-import { Card, Table, Tag, Typography, Pagination, Empty, Spin, Button, message, Modal, Space } from 'antd';
-import { ZoomIn, Video as VideoIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Table, Tag, Typography, Pagination, Empty, Spin, Button, message, Modal, Space, Input, Upload } from 'antd';
+import { ZoomIn, Video as VideoIcon, AlertTriangle, Upload as UploadIcon, X } from 'lucide-react';
 import type { ColumnsType } from 'antd/es/table';
 import type { ReturnRequestResponse } from '../../../types/api';
 import { formatCurrency, formatDate } from '../../../utils/orderStatus';
 import { ReturnPackingModal, type PackingFormValues } from '../../ReturnPackingModal';
 import { ReturnPackingService } from '../../../services/customer/ReturnPackingService';
 import { ProductListService } from '../../../services/customer/ProductListService';
+import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
+import { FileUploadService } from '../../../services/FileUploadService';
 
 const { Text } = Typography;
+const { TextArea } = Input;
+
 
 export interface ReturnHistoryProps {
   data: ReturnRequestResponse[];
@@ -86,6 +90,22 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
     visible: false,
     url: '',
   });
+  const [showComplaintModal, setShowComplaintModal] = useState<{ visible: boolean; returnId: string | null }>({
+    visible: false,
+    returnId: null,
+  });
+  const [complaintReason, setComplaintReason] = useState('');
+  // Use objects with unique IDs instead of File[] to avoid index-based key issues
+  type ComplaintImageFile = {
+    id: string;
+    file: File;
+  };
+  const [complaintImageFiles, setComplaintImageFiles] = useState<ComplaintImageFile[]>([]);
+  const [complaintVideoFile, setComplaintVideoFile] = useState<File | null>(null);
+  const [isSubmittingComplaint, setIsSubmittingComplaint] = useState(false);
+  // Track object URLs for memory cleanup - use Map with unique IDs as keys
+  const complaintImageUrlsRef = useRef<Map<string, string>>(new Map());
+  const complaintVideoUrlRef = useRef<string | null>(null);
 
   const handleOpenPackingModal = async (record: ReturnRequestResponse) => {
     setSelectedReturn(record);
@@ -146,6 +166,168 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       message.error(e?.message || 'Không thể xác nhận đóng gói đơn hoàn trả');
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const handleComplaintFileSelect = (type: 'image' | 'video', file: File) => {
+    if (type === 'image') {
+      if (complaintImageFiles.length >= 5) {
+        message.warning('Chỉ có thể tải lên tối đa 5 ảnh');
+        return;
+      }
+      
+      // Validate file type and size
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+      
+      if (!validation.isValid) {
+        message.error(`${file.name}: ${validation.error}`);
+        return;
+      }
+      
+      setComplaintImageFiles((prev) => {
+        // Create unique ID for new file and object URL
+        const id = `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const url = URL.createObjectURL(file);
+        complaintImageUrlsRef.current.set(id, url);
+        return [...prev, { id, file }];
+      });
+    } else {
+      if (complaintVideoFile) {
+        message.warning('Chỉ có thể tải lên 1 video');
+        return;
+      }
+      
+      // Validate video file type and size
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+      const validation = FileUploadService.validateFile(file, maxSize, allowedTypes);
+      
+      if (!validation.isValid) {
+        message.error(`${file.name}: ${validation.error}`);
+        return;
+      }
+      
+      // Revoke previous video URL if exists
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+      }
+      // Create new object URL
+      complaintVideoUrlRef.current = URL.createObjectURL(file);
+      setComplaintVideoFile(file);
+    }
+  };
+
+  const removeComplaintImage = (fileId: string) => {
+    setComplaintImageFiles((prev) => {
+      // Revoke object URL for removed file
+      const url = complaintImageUrlsRef.current.get(fileId);
+      if (url) {
+        URL.revokeObjectURL(url);
+        complaintImageUrlsRef.current.delete(fileId);
+      }
+      return prev.filter(item => item.id !== fileId);
+    });
+  };
+
+  const removeComplaintVideo = () => {
+    // Revoke object URL before clearing video file
+    if (complaintVideoUrlRef.current) {
+      URL.revokeObjectURL(complaintVideoUrlRef.current);
+      complaintVideoUrlRef.current = null;
+    }
+    setComplaintVideoFile(null);
+  };
+
+  // Cleanup object URLs when modal closes or component unmounts
+  useEffect(() => {
+    return () => {
+      // Revoke all image URLs
+      complaintImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      complaintImageUrlsRef.current.clear();
+      // Revoke video URL
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+        complaintVideoUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup when complaint modal closes
+  useEffect(() => {
+    if (!showComplaintModal.visible) {
+      // Revoke all image URLs
+      complaintImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      complaintImageUrlsRef.current.clear();
+      // Revoke video URL
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+        complaintVideoUrlRef.current = null;
+      }
+    }
+  }, [showComplaintModal.visible]);
+
+  const handleSubmitComplaint = async () => {
+    if (!showComplaintModal.returnId) {
+      message.error('Không tìm thấy thông tin yêu cầu hoàn trả.');
+      return;
+    }
+
+    if (!complaintReason.trim()) {
+      message.warning('Vui lòng nhập lý do khiếu nại');
+      return;
+    }
+
+    try {
+      setIsSubmittingComplaint(true);
+
+      // Upload images
+      let imageUrls: string[] = [];
+      if (complaintImageFiles.length > 0) {
+        const uploadPromises = complaintImageFiles.map(item => FileUploadService.uploadImage(item.file));
+        const uploadResults = await Promise.all(uploadPromises);
+        imageUrls = uploadResults.map(result => result.url);
+      }
+
+      // Upload video
+      let videoUrl: string | undefined;
+      if (complaintVideoFile) {
+        const videoResult = await FileUploadService.uploadVideo(complaintVideoFile);
+        videoUrl = videoResult.url;
+      }
+
+      // Submit complaint
+      await OrderHistoryService.submitComplaint({
+        returnRequestId: showComplaintModal.returnId,
+        reason: complaintReason.trim(),
+        customerVideoUrl: videoUrl || undefined,
+        customerImageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      });
+
+      message.success('Đã gửi khiếu nại thành công. Hệ thống sẽ xem xét và xử lý.');
+      setShowComplaintModal({ visible: false, returnId: null });
+      setComplaintReason('');
+      setComplaintImageFiles([]);
+      setComplaintVideoFile(null);
+      // Revoke URLs after successful submission
+      complaintImageUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+      complaintImageUrlsRef.current.clear();
+      if (complaintVideoUrlRef.current) {
+        URL.revokeObjectURL(complaintVideoUrlRef.current);
+        complaintVideoUrlRef.current = null;
+      }
+      onReload?.();
+    } catch (e: any) {
+      message.error(e?.message || 'Không thể gửi khiếu nại. Vui lòng thử lại.');
+    } finally {
+      setIsSubmittingComplaint(false);
     }
   };
 
@@ -435,6 +617,51 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
           );
         }
 
+        // Customer can complain when:
+        // 1. REJECTED - Shop rejected the return request
+        // 2. DISPUTE_RESOLVED_SHOP - Dispute resolved in favor of shop
+        // 3. Other cases where customer doesn't agree with shop's decision
+        const canComplain = 
+          record.status === 'REJECTED' || 
+          record.status === 'DISPUTE_RESOLVED_SHOP' ||
+          (record.status === 'RECEIVED' && record.faultType === 'CUSTOMER'); // Shop received but marked as customer fault
+
+        if (canComplain) {
+          return (
+            <Button
+              type="default"
+              size="small"
+              danger
+              icon={<AlertTriangle className="w-4 h-4" />}
+              onClick={() => {
+                setShowComplaintModal({ visible: true, returnId: record.id });
+                setComplaintReason('');
+                setComplaintImageFiles([]);
+                setComplaintVideoFile(null);
+                // Clear and revoke any existing URLs when opening the modal
+                complaintImageUrlsRef.current.forEach((url) => {
+                  URL.revokeObjectURL(url);
+                });
+                complaintImageUrlsRef.current.clear();
+                if (complaintVideoUrlRef.current) {
+                  URL.revokeObjectURL(complaintVideoUrlRef.current);
+                  complaintVideoUrlRef.current = null;
+                }
+              }}
+            >
+              Khiếu nại
+            </Button>
+          );
+        }
+
+        if (record.status === 'DISPUTE' || record.status === 'DISPUTE_ESCALATED') {
+          return (
+            <Text type="secondary" className="text-xs">
+              Đang xử lý khiếu nại
+            </Text>
+          );
+        }
+
         if (record.status !== 'APPROVED') {
           return <Text type="secondary">—</Text>;
         }
@@ -593,6 +820,218 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
         >
           Trình duyệt không hỗ trợ video
         </video>
+      </Modal>
+
+      {/* Complaint Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-orange-500" />
+            <span>Khiếu nại về xử lý hoàn trả</span>
+          </div>
+        }
+        open={showComplaintModal.visible}
+          onCancel={() => {
+            if (isSubmittingComplaint) return;
+            setShowComplaintModal({ visible: false, returnId: null });
+            setComplaintReason('');
+            setComplaintImageFiles([]);
+            setComplaintVideoFile(null);
+            // Cleanup object URLs before closing modal
+            complaintImageUrlsRef.current.forEach((url) => {
+              URL.revokeObjectURL(url);
+            });
+            complaintImageUrlsRef.current.clear();
+            if (complaintVideoUrlRef.current) {
+              URL.revokeObjectURL(complaintVideoUrlRef.current);
+              complaintVideoUrlRef.current = null;
+            }
+          }}
+        footer={null}
+        width={600}
+        maskClosable={!isSubmittingComplaint}
+        closable={!isSubmittingComplaint}
+      >
+        <div className="space-y-4 py-2">
+          <div className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-orange-900 mb-1">
+                  Thông tin quan trọng
+                </p>
+                <p className="text-sm text-orange-800">
+                  Nếu bạn không đồng ý với quyết định của shop, vui lòng cung cấp lý do và bằng chứng (ảnh/video) để hệ thống xem xét lại.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Lý do khiếu nại <span className="text-red-500">*</span>
+            </label>
+            <TextArea
+              value={complaintReason}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setComplaintReason(e.target.value)}
+              placeholder="Vui lòng mô tả chi tiết lý do bạn không đồng ý với quyết định của shop..."
+              rows={4}
+              maxLength={1000}
+              showCount
+              disabled={isSubmittingComplaint}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Hình ảnh (tối đa 5 ảnh)
+            </label>
+            <div className="space-y-2">
+              {complaintImageFiles.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {complaintImageFiles.map((item) => {
+                    // Get object URL from Map using unique ID
+                    const objectUrl = complaintImageUrlsRef.current.get(item.id);
+                    if (!objectUrl) {
+                      // This should not happen, but create URL if missing
+                      const url = URL.createObjectURL(item.file);
+                      complaintImageUrlsRef.current.set(item.id, url);
+                      return (
+                        <div key={item.id} className="relative group">
+                          <img
+                            src={url}
+                            alt={`Preview ${item.file.name}`}
+                            className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                          <button
+                            onClick={() => removeComplaintImage(item.id)}
+                            disabled={isSubmittingComplaint}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={item.id} className="relative group">
+                        <img
+                          src={objectUrl}
+                          alt={`Preview ${item.file.name}`}
+                          className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
+                        />
+                        <button
+                          onClick={() => removeComplaintImage(item.id)}
+                          disabled={isSubmittingComplaint}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {complaintImageFiles.length < 5 && (
+                <Upload
+                  accept="image/*"
+                  beforeUpload={(file) => {
+                    handleComplaintFileSelect('image', file);
+                    return false;
+                  }}
+                  showUploadList={false}
+                  disabled={isSubmittingComplaint}
+                >
+                  <Button icon={<UploadIcon className="w-4 h-4" />} disabled={isSubmittingComplaint}>
+                    Chọn ảnh
+                  </Button>
+                </Upload>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Video (tối đa 1 video)
+            </label>
+            <div className="space-y-2">
+              {complaintVideoFile && (() => {
+                // Create object URL if not already created
+                if (!complaintVideoUrlRef.current) {
+                  complaintVideoUrlRef.current = URL.createObjectURL(complaintVideoFile);
+                }
+                return (
+                  <div className="relative group">
+                    <video
+                      src={complaintVideoUrlRef.current}
+                      controls
+                      className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
+                    />
+                  <button
+                    onClick={removeComplaintVideo}
+                    disabled={isSubmittingComplaint}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })()}
+              {!complaintVideoFile && (
+                <Upload
+                  accept="video/*"
+                  beforeUpload={(file) => {
+                    handleComplaintFileSelect('video', file);
+                    return false;
+                  }}
+                  showUploadList={false}
+                  disabled={isSubmittingComplaint}
+                >
+                  <Button icon={<UploadIcon className="w-4 h-4" />} disabled={isSubmittingComplaint}>
+                    Chọn video
+                  </Button>
+                </Upload>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button
+              size="large"
+              onClick={() => {
+                if (isSubmittingComplaint) return;
+                setShowComplaintModal({ visible: false, returnId: null });
+                setComplaintReason('');
+                setComplaintImageFiles([]);
+                setComplaintVideoFile(null);
+                // Cleanup object URLs before closing modal
+                complaintImageUrlsRef.current.forEach((url) => {
+                  URL.revokeObjectURL(url);
+                });
+                complaintImageUrlsRef.current.clear();
+                if (complaintVideoUrlRef.current) {
+                  URL.revokeObjectURL(complaintVideoUrlRef.current);
+                  complaintVideoUrlRef.current = null;
+                }
+              }}
+              disabled={isSubmittingComplaint}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              size="large"
+              danger
+              icon={<AlertTriangle className="w-4 h-4" />}
+              onClick={handleSubmitComplaint}
+              disabled={isSubmittingComplaint || !complaintReason.trim()}
+              loading={isSubmittingComplaint}
+              className="min-w-[160px]"
+            >
+              {isSubmittingComplaint ? 'Đang gửi...' : 'Gửi khiếu nại'}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </Card>
   );

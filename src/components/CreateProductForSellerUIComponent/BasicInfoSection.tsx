@@ -51,6 +51,11 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
   // Giữ lựa chọn tạm thời trên dropdown, chỉ áp dụng khi bấm "Áp dụng"
   const [pendingCategoryIds, setPendingCategoryIds] = useState<string[]>(form.categoryIds || []);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [weightError, setWeightError] = useState<string | null>(null);
+  const [dimensionError, setDimensionError] = useState<{ part: 'l' | 'w' | 'h' | null; message: string | null }>({
+    part: null,
+    message: null,
+  });
 
   useEffect(() => {
     setPendingCategoryIds(form.categoryIds || []);
@@ -104,6 +109,87 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
       }
     });
     return items;
+  };
+
+  // Giới hạn kích thước từng cạnh trong khoảng 0 - 1200 mm
+  const handleDimensionInputChange = (part: 'l' | 'w' | 'h', raw: string) => {
+    // Cho phép rỗng để user xoá nhập lại
+    if (raw.trim() === '') {
+      setDimensionError({ part: null, message: null });
+      onDimensionChange(part, '');
+      return;
+    }
+
+    // Chỉ giữ lại chữ số
+    const numeric = raw.replace(/[^\d]/g, '');
+    if (!numeric) {
+      const partLabels = { l: 'Dài', w: 'Rộng', h: 'Cao' };
+      setDimensionError({
+        part,
+        message: `Chiều ${partLabels[part]} chỉ được nhập số.`,
+      });
+      // Không cập nhật form state khi không có số hợp lệ
+      return;
+    }
+
+    // numeric is guaranteed to be a non-empty digit string here, so Number(numeric) will never be NaN
+    const value = Number(numeric);
+
+    // Không cho nhập giá trị = 0 hoặc quá 1200 mm - không cập nhật form state với giá trị không hợp lệ
+    const partLabels = { l: 'Dài', w: 'Rộng', h: 'Cao' };
+    if (value === 0) {
+      setDimensionError({
+        part,
+        message: `Chiều ${partLabels[part]} phải lớn hơn 0 mm.`,
+      });
+      // Không cập nhật form state với giá trị = 0
+      return;
+    }
+    if (value > 1200) {
+      setDimensionError({
+        part,
+        message: `Chiều ${partLabels[part]} không được vượt quá 1200 mm.`,
+      });
+      // Không cập nhật form state với giá trị vượt quá giới hạn
+      return;
+    }
+
+    // Giá trị hợp lệ (0 < value <= 1200) - xóa lỗi và cập nhật form state
+    setDimensionError({ part: null, message: null });
+    onDimensionChange(part, numeric);
+  };
+
+  // Chỉ cho phép trọng lượng trong khoảng (0 - 90] kg
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    
+    // Cho phép rỗng để user xoá nhập lại
+    if (raw.trim() === '') {
+      setWeightError(null);
+      onChange(e); // Cập nhật form state với giá trị rỗng
+      return;
+    }
+
+    // Chuẩn hoá: thay dấu phẩy thành chấm trước khi parse
+    const normalized = raw.replace(',', '.');
+    const value = Number(normalized);
+
+    // Nếu không phải số hợp lệ thì hiển thị lỗi và không cập nhật form state
+    if (Number.isNaN(value)) {
+      setWeightError('Trọng lượng không hợp lệ. Vui lòng nhập số.');
+      return;
+    }
+
+    // Chỉ chấp nhận trong khoảng (0, 90]
+    if (value <= 0 || value > 90) {
+      // Hiển thị lỗi và không cập nhật form state với giá trị không hợp lệ
+      setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 90 kg.');
+      return;
+    }
+
+    // Giá trị hợp lệ - xóa lỗi và cập nhật form state
+    setWeightError(null);
+    onChange(e);
   };
 
   return (
@@ -255,7 +341,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
             <div className="mt-1 grid grid-cols-3 gap-2">
               <input
                 value={getDimensionParts.l}
-                onChange={(e) => onDimensionChange('l', e.target.value)}
+                onChange={(e) => handleDimensionInputChange('l', e.target.value)}
                 type="text"
                 inputMode="numeric"
                 placeholder="Dài (mm)"
@@ -263,7 +349,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               />
               <input
                 value={getDimensionParts.w}
-                onChange={(e) => onDimensionChange('w', e.target.value)}
+                onChange={(e) => handleDimensionInputChange('w', e.target.value)}
                 type="text"
                 inputMode="numeric"
                 placeholder="Rộng (mm)"
@@ -271,13 +357,21 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               />
               <input
                 value={getDimensionParts.h}
-                onChange={(e) => onDimensionChange('h', e.target.value)}
+                onChange={(e) => handleDimensionInputChange('h', e.target.value)}
                 type="text"
                 inputMode="numeric"
                 placeholder="Cao (mm)"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
               />
             </div>
+            {dimensionError.message && dimensionError.part && (
+              <p className="mt-1 text-xs text-red-600 font-medium">
+                {dimensionError.message}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-orange-700">
+              Lưu ý: Mỗi chiều Dài / Rộng / Cao không được vượt quá 1200 mm.
+            </p>
           </div>
         </div>
 
@@ -288,7 +382,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
           <input
             name="weight"
             value={form.weight}
-            onChange={onChange}
+            onChange={handleWeightChange}
             onKeyDown={(e) => {
               // Chặn các ký tự không phải số, dấu chấm, dấu phẩy, backspace, delete, arrow keys
               if (
@@ -307,6 +401,11 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
             placeholder="VD: 0.25"
             className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
           />
+          {weightError && (
+            <p className="mt-1 text-xs text-red-600">
+              {weightError}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

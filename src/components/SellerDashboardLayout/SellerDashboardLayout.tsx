@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  BarChart3,
   Settings,
   Store,
   User,
@@ -24,8 +23,7 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertTriangle,
-  DollarSign
+  AlertTriangle
 } from 'lucide-react';
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
@@ -58,6 +56,26 @@ const SellerDashboardLayout: React.FC = () => {
     loadStoreInfo();
     loadNotificationCount();
     loadRiskWarning();
+
+    // Listen for notification read events from NotificationPage
+    const handleNotificationRead = (event: CustomEvent<{ unreadCount?: number }>) => {
+      if (event.detail?.unreadCount !== undefined) {
+        // Update count directly if provided
+        setNotificationCount(event.detail.unreadCount);
+        // Also reload notifications to sync state
+        loadNotifications();
+      } else {
+        // Otherwise refresh from API
+        loadNotificationCount();
+        loadNotifications();
+      }
+    };
+
+    window.addEventListener('sellerNotificationRead', handleNotificationRead as EventListener);
+    
+    return () => {
+      window.removeEventListener('sellerNotificationRead', handleNotificationRead as EventListener);
+    };
   }, []);
 
   // Close menus when clicking outside
@@ -327,8 +345,7 @@ const SellerDashboardLayout: React.FC = () => {
       subItems: [
         { label: 'Tất cả sản phẩm', path: '/seller/dashboard/products' },
         { label: 'Thêm sản phẩm', path: '/seller/dashboard/products/add' },
-        { label: 'Cập nhật sản phẩm', path: '/seller/dashboard/products/update' },
-        { label: 'Sản phẩm hết hàng', path: '/seller/dashboard/products/out-of-stock' }
+        { label: 'Cập nhật sản phẩm', path: '/seller/dashboard/products/update' }
       ]
     },
     {
@@ -338,7 +355,7 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
-        // { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
+        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
         { label: 'Voucher toàn shop', path: '/seller/dashboard/shop-wide-voucher' }
       ]
     },
@@ -382,15 +399,9 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Ví cửa hàng', path: '/seller/dashboard/finance' },
-        { label: 'Quản lý chi trả', path: '/seller/dashboard/payout' },
+        { label: 'Chi trả cho cửa hàng', path: '/seller/dashboard/store-payout-v2' },
         { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
       ]
-    },
-    {
-      icon: BarChart3,
-      label: 'Báo cáo & Phân tích',
-      path: '/seller/dashboard/analytics',
-      badge: null
     },
     {
       icon: MessageSquare,
@@ -407,12 +418,6 @@ const SellerDashboardLayout: React.FC = () => {
       icon: AlertTriangle,
       label: 'Cảnh báo rủi ro',
       path: '/seller/dashboard/risk-warning',
-      badge: null
-    },
-    {
-      icon: DollarSign,
-      label: 'Chi trả cho cửa hàng',
-      path: '/seller/dashboard/store-payout-v2',
       badge: null
     }
   ], [notificationCount, storeInfo?.id]);

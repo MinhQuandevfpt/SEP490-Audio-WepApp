@@ -113,18 +113,22 @@ export class NotificationService {
 
   /**
    * Mark notification as read
-   * POST /api/store/notifications/{id}/read
+   * PATCH /api/store/notifications/{id}/read
    */
   static async markAsRead(notificationId: string): Promise<void> {
     try {
       const url = `${API_URL}/store/notifications/${notificationId}/read`;
-      await HttpInterceptor.post(url, {}, {
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'application/json',
-        },
-        userType: 'seller',
-      });
+      await HttpInterceptor.patch(
+        url,
+        {},
+        {
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'application/json',
+          },
+          userType: 'seller',
+        }
+      );
     } catch (error) {
       console.error('❌ Error marking notification as read:', error);
       throw error;

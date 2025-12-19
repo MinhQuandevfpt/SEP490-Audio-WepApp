@@ -8,6 +8,10 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  Timer,
+  Wallet,
+  TriangleAlert,
 } from 'lucide-react';
 import { FinanceService } from '../../services/seller/FinanceService';
 import type { PayoutSummary, PayoutItem, PayoutBucket } from '../../types/seller';
@@ -58,6 +62,21 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
   // Payout modal state
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [payoutResult, setPayoutResult] = useState<{
+    processedCount: number;
+    skippedCount: number;
+    addedToDefaultBalance: number;
+    defaultBalanceBefore?: number;
+    defaultBalanceAfter?: number;
+    totalPlatformFee?: number;
+    totalGross?: number;
+    processedItemIds?: string[];
+    skippedReasons?: string[];
+    ranAt?: string;
+    storeId?: string;
+  } | null>(null);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -143,21 +162,24 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
 
       console.log('✅ [Auto Process Payout] Success:', result);
 
-      // Close modal
+      // Close confirmation modal
       setShowPayoutModal(false);
+
+      // Set result and show result modal
+      setPayoutResult(result);
+      setShowResultModal(true);
 
       // Refresh summary and items
       await Promise.all([loadSummary(), loadItems()]);
-
-      // Show success message (you can use a toast/notification library here)
-      alert(
-        `Payout thành công!\n` +
-        `- Số item đã xử lý: ${result.totalItemsProcessed}\n` +
-        `- Tổng tiền đã chuyển: ${formatCurrency(result.totalAmountTransferred)}`
-      );
     } catch (err: any) {
       console.error('❌ [Auto Process Payout] Error:', err);
-      alert(`Lỗi: ${err?.message || 'Không thể thực hiện payout tự động'}`);
+      // Set error result
+      setPayoutResult({
+        processedCount: 0,
+        skippedCount: 0,
+        addedToDefaultBalance: 0,
+      });
+      setShowResultModal(true);
     } finally {
       setIsProcessing(false);
     }
@@ -282,7 +304,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             <div className="mb-3 flex items-center gap-2">
               <Clock className="h-4 w-4 text-yellow-600" />
               <span className="text-sm font-semibold text-gray-700">
-                Đang bị giữ (Pending Balance)
+                Đang bị giữ
               </span>
             </div>
             <div className="space-y-2 text-sm">
@@ -298,8 +320,8 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                   {formatCurrency(summary.pendingGross)}
                 </span>
               </div>
-              <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800">
-                🔒 Tiền này đang bị HOLD, shop chưa được sử dụng
+              <div className="mt-2 rounded bg-yellow-100 p-2 text-xs text-yellow-800 flex items-center gap-1">
+                <Lock className="h-3 w-3" /> Tiền này đang bị giữ, chưa thể rút hoặc sử dụng
               </div>
             </div>
           </div>
@@ -309,7 +331,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             <div className="mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-semibold text-gray-700">
-                Đã đủ điều kiện (Eligible Not Payout)
+                Đã đủ điều kiện thanh toán
               </span>
             </div>
             <div className="space-y-2 text-sm">
@@ -331,8 +353,8 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                   {formatCurrency(summary.platformFeePayable)}
                 </span>
               </div>
-              <div className="mt-2 rounded bg-blue-100 p-2 text-xs text-blue-800">
-                ⏳ Đã đủ điều kiện nhưng hệ thống chưa giải ngân
+              <div className="mt-2 rounded bg-blue-100 p-2 text-xs text-blue-800 flex items-center gap-1">
+                <Timer className="h-3 w-3" /> Đã đủ điều kiện nhưng hệ thống chưa giải ngân
               </div>
             </div>
           </div>
@@ -342,7 +364,7 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             <div className="mb-3 flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-orange-600" />
               <span className="text-sm font-semibold text-gray-700">
-                Đã giải ngân (Available Balance)
+                Đã giải ngân 
               </span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -367,8 +389,8 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
             </div>
             <div className="mt-4 rounded-lg border-2 border-orange-400 bg-white p-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700">
-                  💵 Tiền shop thực nhận / có thể rút:
+                <span className="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                  <Wallet className="h-4 w-4" /> Tiền shop thực nhận / có thể rút:
                 </span>
                 <span className="text-2xl font-bold text-orange-600">
                   {formatCurrency(summary.availableNet)}
@@ -493,15 +515,12 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                         <div className="font-medium text-gray-900">
                           {item.orderCode}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {item.itemId.slice(0, 8)}...
-                        </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-900">
+                      <td className="px-4 py-3 text-blue-600 font-medium">
                         {formatCurrency(item.finalLineTotal)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="text-gray-900">
+                        <div className="text-red-600 font-medium">
                           {formatCurrency(item.platformFeeAmount)}
                         </div>
                         <div className="text-xs text-gray-500">
@@ -521,13 +540,24 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                               Đã trả hàng
                             </span>
                           )}
-                          {item.eligibleForPayout && (
+                          {/* Hiển thị trạng thái dựa trên bucket đang chọn */}
+                          {selectedBucket === 'PENDING' && !item.eligibleForPayout && !item.isPayout && (
+                            <span className="inline-flex w-fit items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">
+                              Đang bị giữ
+                            </span>
+                          )}
+                          {item.eligibleForPayout && !item.isPayout && (
                             <span className="inline-flex w-fit items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
                               Đủ điều kiện
                             </span>
                           )}
-                          {item.isPayout && (
+                          {!item.eligibleForPayout && !item.isPayout && selectedBucket !== 'PENDING' && (
                             <span className="inline-flex w-fit items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                              Chưa đủ điều kiện
+                            </span>
+                          )}
+                          {item.isPayout && (
+                            <span className="inline-flex w-fit items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
                               Đã giải ngân
                             </span>
                           )}
@@ -624,10 +654,9 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                 </div>
               </div>
               <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                <p className="text-xs text-yellow-800">
-                  ⚠️ Hệ thống sẽ tự động đánh dấu tất cả các StoreOrderItem đủ điều kiện
-                  (eligibleForPayout = true AND isPayout = false) thành đã payout và tạo
-                  transaction ghi nhận việc rút tiền vào ví của shop.
+                <p className="text-xs text-yellow-800 flex items-start gap-1">
+                  <TriangleAlert className="h-3 w-3 mt-0.5 flex-shrink-0" /> 
+                  <span>Hệ thống sẽ tự động thanh toán các sản phẩm trong đơn hàng đã đủ điều kiện thanh toán (Giao hàng thành công lớn hơn 7 ngày và không bị hoàn trả sản phẩm).</span>
                 </p>
               </div>
             </div>
@@ -654,6 +683,144 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Result Modal */}
+      {showResultModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl">
+            {payoutError ? (
+              // Error State
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-full bg-red-100 p-2">
+                    <AlertCircle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900">Lỗi xử lý</h3>
+                </div>
+                <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm text-red-700">{payoutError}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowResultModal(false);
+                    setPayoutError(null);
+                  }}
+                  className="w-full rounded-lg bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-600"
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : payoutResult ? (
+              // Success/Info State
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className={`rounded-full p-2 ${
+                    payoutResult.processedCount > 0 
+                      ? 'bg-green-100' 
+                      : 'bg-blue-100'
+                  }`}>
+                    {payoutResult.processedCount > 0 ? (
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    ) : (
+                      <AlertCircle className="h-6 w-6 text-blue-600" />
+                    )}
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {payoutResult.processedCount > 0 
+                      ? 'Payout thành công!' 
+                      : 'Không có item nào đủ điều kiện'}
+                  </h3>
+                </div>
+
+                <div className="mb-6 space-y-3">
+                  {payoutResult.processedCount > 0 ? (
+                    <>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Số item đã xử lý:</span>
+                            <span className="text-sm font-semibold text-gray-900">
+                              {payoutResult.processedCount}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600">Tổng tiền đã chuyển:</span>
+                            <span className="text-sm font-semibold text-green-600">
+                              {formatCurrency(payoutResult.addedToDefaultBalance)}
+                            </span>
+                          </div>
+                          {payoutResult.defaultBalanceBefore !== undefined && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Số dư trước:</span>
+                              <span className="text-sm text-gray-900">
+                                {formatCurrency(payoutResult.defaultBalanceBefore)}
+                              </span>
+                            </div>
+                          )}
+                          {payoutResult.defaultBalanceAfter !== undefined && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Số dư sau:</span>
+                              <span className="text-sm font-semibold text-blue-600">
+                                {formatCurrency(payoutResult.defaultBalanceAfter)}
+                              </span>
+                            </div>
+                          )}
+                          {payoutResult.totalPlatformFee !== undefined && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Tổng phí nền tảng:</span>
+                              <span className="text-sm text-gray-900">
+                                {formatCurrency(payoutResult.totalPlatformFee)}
+                              </span>
+                            </div>
+                          )}
+                          {payoutResult.totalGross !== undefined && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600">Tổng tiền gốc:</span>
+                              <span className="text-sm text-gray-900">
+                                {formatCurrency(payoutResult.totalGross)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {payoutResult.processedItemIds && payoutResult.processedItemIds.length > 0 && (
+                        <div className="">
+                          
+                         
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <p className="text-sm text-blue-700">
+                        Không có item nào đủ điều kiện payout (eligibleForPayout = true AND isPayout = false).
+                      </p>
+                      {payoutResult.defaultBalanceAfter !== undefined && (
+                        <div className="mt-3 flex justify-between border-t border-blue-200 pt-3">
+                          <span className="text-sm text-blue-600">Số dư hiện tại:</span>
+                          <span className="text-sm font-semibold text-blue-900">
+                            {formatCurrency(payoutResult.defaultBalanceAfter)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowResultModal(false);
+                    setPayoutResult(null);
+                  }}
+                  className="w-full rounded-lg bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-orange-600 hover:to-red-600"
+                >
+                  Đóng
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

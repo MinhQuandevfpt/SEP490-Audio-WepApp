@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X } from 'lucide-react';
@@ -9,6 +9,7 @@ import { formatCurrency, getStatusLabel } from '../../../utils/orderStatus';
 import { StoreOrderService } from '../../../services/seller/OrderService';
 import { GhnService } from '../../../services/seller/GhnService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const { Text } = Typography;
 
@@ -54,6 +55,8 @@ const maskCustomerInfo = (value: string | undefined | null): string => {
 };
 
 const OrderManageForStoreOwner: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     status,
     setStatus,
@@ -74,6 +77,14 @@ const OrderManageForStoreOwner: React.FC = () => {
     refresh,
   } = useStoreOrders();
 
+  // Track expanded rows for auto-expand behavior
+  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+
+  // Read customerOrderId from query (used when coming from notification)
+  const searchParams = new URLSearchParams(location.search);
+  const targetCustomerOrderId = searchParams.get('customerOrderId');
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
+
   const [preparingOrderId, setPreparingOrderId] = useState<string | null>(null);
   const [ghnTransferOrderId, setGhnTransferOrderId] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -89,6 +100,26 @@ const OrderManageForStoreOwner: React.FC = () => {
   const [processingCancelRequest, setProcessingCancelRequest] = useState<Record<string, boolean>>({});
   const [showRejectModal, setShowRejectModal] = useState<{ orderId: string; requestId: string } | null>(null);
   const [rejectNote, setRejectNote] = useState('');
+
+  // Auto-expand order when navigated from notification with customerOrderId
+  useEffect(() => {
+    if (!targetCustomerOrderId || hasAutoExpanded || isLoading || !orders || orders.length === 0) {
+      return;
+    }
+
+    const targetOrder = orders.find((o) => o.customerOrderId === targetCustomerOrderId || o.id === targetCustomerOrderId);
+    if (targetOrder) {
+      setExpandedRowKeys((prev) =>
+        prev.includes(targetOrder.id) ? prev : [...prev, targetOrder.id]
+      );
+      setHasAutoExpanded(true);
+
+      // Xóa query param để tránh tự expand lại khi user điều hướng trong trang
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('customerOrderId');
+      navigate(cleanUrl.pathname + cleanUrl.search, { replace: true });
+    }
+  }, [targetCustomerOrderId, hasAutoExpanded, isLoading, orders, navigate]);
 
   const handlePrepareOrder = async (orderId: string) => {
     try {
@@ -412,8 +443,14 @@ const OrderManageForStoreOwner: React.FC = () => {
           columns={columns}
           dataSource={orders}
           expandable={{
+            expandedRowKeys,
             expandRowByClick: true,
             onExpand: async (expanded, record) => {
+              // Manage expanded row keys
+              setExpandedRowKeys((prev) =>
+                expanded ? [...prev, record.id] : prev.filter((key) => key !== record.id)
+              );
+
               // Load GHN order data when row is expanded
               if (expanded && !ghnOrderData[record.id] && !loadingGhnOrders[record.id]) {
                 try {

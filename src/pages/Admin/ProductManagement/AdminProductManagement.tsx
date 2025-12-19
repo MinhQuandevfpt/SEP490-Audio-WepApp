@@ -380,6 +380,12 @@ const AdminProductManagement: React.FC = () => {
             Tạm khóa
           </Tag>
         );
+      case 'SUSPENDED_DEBT':
+        return (
+          <Tag color="error" icon={<ExclamationCircleOutlined />}>
+            Tạm khóa do nợ
+          </Tag>
+        );
       case 'DELETED':
         return (
           <Tag color="error" icon={<DeleteOutlined />}>
@@ -459,32 +465,6 @@ const AdminProductManagement: React.FC = () => {
                   ))}
                 </Space>
               )}
-            </Space>
-          </Col>
-          <Col xs={24} md={12}>
-            <Space direction="vertical" size={4}>
-              <Text strong>Đánh giá:</Text>
-              {record.ratingAverage ? (
-                <Space direction="vertical" size={0}>
-                  <Text strong style={{ color: '#faad14' }}>
-                    ⭐ {record.ratingAverage.toFixed(1)}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    ({record.reviewCount} đánh giá)
-                  </Text>
-                </Space>
-              ) : (
-                <Text type="secondary">Chưa có</Text>
-              )}
-            </Space>
-          </Col>
-          <Col xs={24}>
-            <Space direction="vertical" size={4}>
-              <Text strong>Mô tả ngắn:</Text>
-              <Text type="secondary">
-                {record.shortDescription || record.description?.slice(0, 200) || '-'}
-                {record.description && record.description.length > 200 ? '…' : ''}
-              </Text>
             </Space>
           </Col>
           {variants.length > 0 && (
@@ -830,6 +810,7 @@ const AdminProductManagement: React.FC = () => {
                 <Option value="DISCONTINUED" label="Ngưng sản xuất">Ngưng sản xuất</Option>
                 <Option value="UNLISTED" label="Ẩn danh sách">Ẩn danh sách</Option>
                 <Option value="SUSPENDED" label="Tạm khóa">Tạm khóa</Option>
+                <Option value="SUSPENDED_DEBT" label="Tạm khóa do nợ">Tạm khóa do nợ</Option>
                 <Option value="DELETED" label="Đã xóa">Đã xóa</Option>
                 <Option value="BANNED" label="Cấm">Cấm</Option>
               </Select>
@@ -944,6 +925,14 @@ const AdminProductManagement: React.FC = () => {
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
+            getCheckboxProps: (record) => {
+              // Disable checkbox nếu sản phẩm đã được duyệt (ACTIVE) hoặc từ chối (REJECTED, REJECT)
+              const isApproved = record.status === 'ACTIVE';
+              const isRejected = record.status === 'REJECTED' || record.status === 'REJECT';
+              return {
+                disabled: isApproved || isRejected,
+              };
+            },
           }}
           locale={{
             emptyText: (

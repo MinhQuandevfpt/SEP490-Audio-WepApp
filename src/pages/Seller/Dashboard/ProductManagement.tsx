@@ -191,15 +191,10 @@ const ProductManagement: React.FC = () => {
 
   // Memoized stats calculations
   const stats = useMemo(() => {
-    if (!Array.isArray(products)) return { active: 0, outOfStock: 0, pending: 0 };
+    if (!Array.isArray(products)) return { active: 0, pending: 0 };
     
     return {
       active: products.filter(p => p.status === 'ACTIVE').length,
-      outOfStock: products.filter(p => {
-        if (p.status === 'OUT_OF_STOCK') return true;
-        // Backend already calculates total stock (sum of variants or base stock)
-        return p.stockQuantity === 0;
-      }).length,
       pending: products.filter(p => p.status === 'PENDING').length,
     };
   }, [products]);
@@ -370,6 +365,7 @@ const ProductManagement: React.FC = () => {
           'REJECTED': 'red',
           'REJECT': 'red',
           'PENDING_APPROVAL': 'orange',
+          'SUSPENDED_DEBT': 'red',
         };
         
         const approvalReason = (record.originalProduct as any)?.approvalReason;
@@ -491,6 +487,7 @@ const ProductManagement: React.FC = () => {
     { value: 'DISCONTINUED', label: 'Ngưng sản xuất' },
     { value: 'UNLISTED', label: 'Ẩn danh sách' },
     { value: 'SUSPENDED', label: 'Tạm khóa' },
+    { value: 'SUSPENDED_DEBT', label: 'Tạm khóa do nợ' },
     { value: 'DELETED', label: 'Đã xóa' },
     { value: 'BANNED', label: 'Cấm' },
   ];
@@ -631,7 +628,7 @@ const ProductManagement: React.FC = () => {
         </div>
 
         {/* Stats Summary - Compact */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -656,20 +653,6 @@ const ProductManagement: React.FC = () => {
               </div>
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Package className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-xs text-gray-600">Hết hàng</p>
-                <p className="text-lg md:text-xl font-bold text-red-600">
-                  {isLoading ? '...' : stats.outOfStock}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Package className="w-5 h-5 text-red-600" />
               </div>
             </div>
           </div>

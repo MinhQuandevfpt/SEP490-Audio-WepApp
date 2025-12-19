@@ -4,7 +4,6 @@ import Layout from '../../../components/Layout';
 import {
   ProductListFilter,
   ProductListSearchBar,
-  ProductListSort,
   ProductListPagination,
   ProductListGrid,
   ProductListViewToggle,
@@ -157,6 +156,8 @@ const ProductListPage: React.FC = () => {
                 onFiltersChange={handleFiltersChange}
                 onReset={resetFilters}
                 loading={loading}
+                sort={sort}
+                onSortChange={handleSortChange}
               />
             </div>
           </aside>
@@ -174,13 +175,8 @@ const ProductListPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Sort and View Toggle */}
+              {/* View Toggle */}
               <div className="flex items-center gap-4">
-                <ProductListSort
-                  sort={sort}
-                  onSortChange={handleSortChange}
-                  loading={loading}
-                />
                 <ProductListViewToggle
                   viewMode={viewMode}
                   onViewModeChange={handleViewModeChange}

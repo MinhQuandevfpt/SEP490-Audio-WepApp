@@ -302,4 +302,25 @@ export class SellerCampaignService {
   static hasEnded(endTime: string): boolean {
     return new Date(endTime).getTime() < new Date().getTime();
   }
+
+  /**
+   * Withdraw product from campaign
+   * DELETE /api/campaigns/campaign-products/{campaignProductId}/withdraw
+   */
+  static async withdrawCampaignProduct(campaignProductId: string): Promise<void> {
+    try {
+      const response = await HttpInterceptor.fetch<any>(
+        `${API_BASE_URL}/campaign-products/${campaignProductId}/withdraw`,
+        {
+          method: 'DELETE',
+          userType: 'seller'
+        }
+      );
+      
+      console.log('✅ Withdraw campaign product response:', response);
+    } catch (error: any) {
+      console.error('❌ Error withdrawing campaign product:', error);
+      throw new Error(error.message || 'Không thể hủy tham gia sản phẩm chiến dịch');
+    }
+  }
 }

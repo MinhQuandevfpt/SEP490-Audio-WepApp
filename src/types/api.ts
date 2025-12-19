@@ -330,8 +330,15 @@ export type ReturnReasonType = 'CUSTOMER_FAULT' | 'SHOP_FAULT';
 export interface CreateReturnRequest {
   orderItemId: string;
   productId: string;
-  itemPrice: number;
+  // itemPrice removed - BE will calculate from order item snapshot
   reasonType: ReturnReasonType;
+  reason: string;
+  customerVideoUrl?: string | null;
+  customerImageUrls?: string[];
+}
+
+export interface CreateComplaintRequest {
+  returnRequestId: string;
   reason: string;
   customerVideoUrl?: string | null;
   customerImageUrls?: string[];

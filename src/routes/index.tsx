@@ -63,7 +63,6 @@ import { OrderManageForStoreOwner } from '../pages/Seller/OrderManagement';
 import StoreOwnerWarranty from '../pages/Seller/Warranty/StoreOwnerWarranty';
 import KycStatusPage from '../pages/Seller/KycStatus';
 import FinancePage from '../pages/Seller/Finance/FinancePage';
-import PayoutManagementPage from '../pages/Seller/Payout/PayoutManagementPage';
 import PayoutRevenue from '../pages/Seller/Dashboard/PayoutRevenue';
 import PayoutRevenueDetail from '../pages/Seller/Dashboard/PayoutRevenueDetail';
 import StoreAddressPage from '../pages/Seller/StoreAddress/StoreAddressPage';
@@ -92,6 +91,7 @@ import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
 import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
 import { StorePayoutV2 } from '../pages/Seller/StorePayoutVersion2';
+import AdminReturnDisputesPage from '../pages/Admin/ReturnDisputes/AdminReturnDisputesPage';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -169,11 +169,11 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
     return <Navigate to="/seller/login" replace />;
   }
   
-  // Chỉ block khi status là INACTIVE (yêu cầu KYC lần đầu)
-  // Các status khác (PENDING, REJECTED, ACTIVE, PAUSED) đều cho phép vào dashboard
-  if (storeStatus === 'INACTIVE') {
+  // Cho phép ACTIVE và SUSPENDED_DEBT (vượt ngưỡng) vào dashboard
+  // INACTIVE, PENDING, REJECTED đều redirect về trang KYC status
+  if (storeStatus !== 'ACTIVE' && storeStatus !== 'SUSPENDED_DEBT') {
     if (error) {
-      console.warn('⚠️ Redirecting to KYC status due to INACTIVE status:', error);
+      console.warn('⚠️ Redirecting to KYC status due to non-ACTIVE/SUSPENDED_DEBT status:', storeStatus, error);
     }
     return <Navigate to="/seller/kyc-status" replace />;
   }
@@ -451,10 +451,6 @@ export const router = createBrowserRouter([
         element: <FinancePage />
       },
       {
-        path: 'payout',
-        element: <PayoutManagementPage />
-      },
-      {
         path: 'revenue',
         element: <PayoutRevenue />
       },
@@ -724,6 +720,10 @@ export const router = createBrowserRouter([
       {
         path: 'orders/cancelled',
         element: <div>Cancelled Orders Page (Coming Soon)</div>
+      },
+      {
+        path: 'returns/disputes',
+        element: <PermissionProtectedRoute permission="manage_orders" element={<AdminReturnDisputesPage />} />
       },
       {
         path: 'finance',

@@ -165,11 +165,23 @@ const NotificationPage: React.FC = () => {
         unreadNotifications.map(n => NotificationService.markAsRead(n.id))
       );
 
+      // Refresh unread count từ API và lấy giá trị để dispatch event
+      const newUnreadCount = await NotificationService.getUnreadCount();
+      setUnreadCount(newUnreadCount);
+
+      // Reload lại danh sách thông báo để đảm bảo sync với backend
+      await loadNotifications(currentPage - 1);
+
+      // Dispatch event để NotificationDropdown trong Header cũng refresh
+      window.dispatchEvent(new CustomEvent('customerNotificationRead', { 
+        detail: { unreadCount: newUnreadCount } 
+      }));
+
       showCenterSuccess('Đã đánh dấu tất cả là đã đọc');
-      await loadUnreadCount();
     } catch (error) {
       console.error('Error marking all as read:', error);
       showCenterError('Không thể đánh dấu tất cả là đã đọc');
+      // Reload lại để revert optimistic update
       loadNotifications(currentPage - 1);
     }
   };

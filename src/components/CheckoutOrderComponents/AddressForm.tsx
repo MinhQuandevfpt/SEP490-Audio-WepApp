@@ -25,7 +25,7 @@ const createEmptyForm = () => ({
   ward: '',
   street: '',
   addressLine: '',
-  postalCode: '',
+  postalCode: '', // Postal code will be set based on province/ward selection or left empty for backend to handle
   note: '',
   isDefault: false,
   provinceCode: '',
@@ -453,11 +453,11 @@ const AddressForm: React.FC<AddressFormProps> = ({
               value={formData.addressLine}
               onChange={e => setFormData({ ...formData, addressLine: e.target.value })}
             />
+            {/* postalCode is hidden, will be set by backend based on province/ward or left empty */}
             <input
-              className="border rounded px-3 py-2"
-              placeholder="Mã bưu chính"
+              type="hidden"
               value={formData.postalCode}
-              onChange={e => setFormData({ ...formData, postalCode: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
             />
             <input
               className="border rounded px-3 py-2"

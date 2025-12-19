@@ -25,10 +25,12 @@ import {
   ClockCircleOutlined,
   MailOutlined,
   PhoneOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { AdminStoreService } from '../../../services/admin/AdminStoreService';
 import { showError } from '../../../utils/notification';
+import StoreKycHistoryModal from './StoreKycHistoryModal';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -63,6 +65,8 @@ const StoreManagement: React.FC = () => {
     pageSizeOptions: ['10', '20', '50', '100'],
     showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} cửa hàng`,
   });
+  const [kycModalVisible, setKycModalVisible] = useState(false);
+  const [selectedStore, setSelectedStore] = useState<{ storeId: string; storeName: string } | null>(null);
 
   // Fetch stores
   const fetchStores = useCallback(async (page: number = 0, size: number = 10) => {
@@ -151,6 +155,16 @@ const StoreManagement: React.FC = () => {
     navigate(`/admin/stores/${storeId}`);
   }, [navigate]);
 
+  const handleViewKycHistory = useCallback((storeId: string, storeName: string) => {
+    setSelectedStore({ storeId, storeName });
+    setKycModalVisible(true);
+  }, []);
+
+  const handleCloseKycModal = useCallback(() => {
+    setKycModalVisible(false);
+    setSelectedStore(null);
+  }, []);
+
   // Handle reset
   const handleReset = useCallback(() => {
     setSearchKeyword('');
@@ -232,7 +246,7 @@ const StoreManagement: React.FC = () => {
             {text}
           </Text>
           <Text type="secondary" style={{ fontSize: '12px' }} copyable>
-            ID: {record.storeId.slice(0, 8)}...
+            ID: {record.storeId}
           </Text>
         </Space>
       ),
@@ -252,18 +266,6 @@ const StoreManagement: React.FC = () => {
             <Text style={{ fontSize: '13px' }}>{record.phoneNumber}</Text>
           </Space>
         </Space>
-      ),
-    },
-    {
-      title: 'Đánh giá',
-      dataIndex: 'rating',
-      key: 'rating',
-      width: 100,
-      align: 'center',
-      render: (rating) => (
-        <Text strong style={{ color: '#faad14' }}>
-          {rating ? `⭐ ${rating.toFixed(1)}` : 'Chưa có'}
-        </Text>
       ),
     },
     {
@@ -287,17 +289,26 @@ const StoreManagement: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 100,
+      width: 150,
       fixed: 'right',
       align: 'center',
       render: (_, record) => (
-        <Tooltip title="Xem chi tiết">
-          <Button
-            type="primary"
-            icon={<EyeOutlined />}
-            onClick={() => handleViewDetail(record.storeId)}
-          />
-        </Tooltip>
+        <Space size="small">
+          <Tooltip title="Xem chi tiết">
+            <Button
+              type="primary"
+              icon={<EyeOutlined />}
+              onClick={() => handleViewDetail(record.storeId)}
+            />
+          </Tooltip>
+          <Tooltip title="Lịch sử KYC">
+            <Button
+              type="default"
+              icon={<FileTextOutlined />}
+              onClick={() => handleViewKycHistory(record.storeId, record.storeName)}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];
@@ -410,6 +421,16 @@ const StoreManagement: React.FC = () => {
           }}
         />
       </Card>
+
+      {/* KYC History Modal */}
+      {selectedStore && (
+        <StoreKycHistoryModal
+          visible={kycModalVisible}
+          storeId={selectedStore.storeId}
+          storeName={selectedStore.storeName}
+          onClose={handleCloseKycModal}
+        />
+      )}
     </div>
   );
 };

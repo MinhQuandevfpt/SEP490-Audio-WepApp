@@ -2329,8 +2329,37 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             {categoryAttributes.length === 0 && (
               <p className="text-sm text-gray-500">Danh mục này chưa có thông số riêng.</p>
             )}
-            {categoryAttributes.map((attr) => {
+            {categoryAttributes.map((attr: CategoryAttribute) => {
               const value = extraSpecs[attr.attributeName] || '';
+
+              // Nếu attribute có sẵn danh sách options -> hiển thị select để chọn nhanh
+              if (Array.isArray(attr.options) && attr.options.length > 0 && attr.dataType !== 'BOOLEAN') {
+                return (
+                  <div key={attr.attributeId}>
+                    <label className="block text-sm font-medium text-gray-700">
+                      {attr.attributeLabel}
+                    </label>
+                    <select
+                      value={value}
+                      onChange={(e) =>
+                        setExtraSpecs((prev) => ({
+                          ...prev,
+                          [attr.attributeName]: e.target.value,
+                        }))
+                      }
+                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white"
+                    >
+                      <option value="">Chọn giá trị</option>
+                      {attr.options.map((opt: string, index: number) => (
+                        <option key={`${attr.attributeId}-${index}-${opt}`} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
+
               if (attr.dataType === 'BOOLEAN') {
                 const checked = String(value) === 'true';
                 return (

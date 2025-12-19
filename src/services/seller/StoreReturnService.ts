@@ -86,6 +86,31 @@ export class StoreReturnService {
       throw new Error(error?.message || 'Không thể hoàn tiền không cần trả hàng');
     }
   }
+
+  /**
+   * Escalate dispute to admin
+   * POST /api/store/returns/{id}/dispute
+   */
+  static async dispute(
+    id: string,
+    payload: {
+      reason: string;
+      videoUrl?: string;
+      imageUrls?: string[];
+    }
+  ): Promise<ReturnRequestResponse> {
+    try {
+      const endpoint = `/api/store/returns/${id}/dispute`;
+      const response = await HttpInterceptor.post<ReturnRequestResponse>(
+        endpoint,
+        payload,
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      throw new Error(error?.message || 'Không thể khiếu nại yêu cầu hoàn trả');
+    }
+  }
 }
 
 export default StoreReturnService;

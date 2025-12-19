@@ -134,6 +134,12 @@ export interface ProductListParams {
   status?: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' | 'UNLISTED' | 'SUSPENDED' | 'BANNED' | 'REJECT' | 'PENDING_APPROVAL';
   minPrice?: number;
   maxPrice?: number;
+  minRating?: number; // Lọc theo số sao tối thiểu
+  provinceCode?: string; // Lọc theo địa chỉ cửa hàng - tỉnh/thành phố
+  districtCode?: string; // Lọc theo địa chỉ cửa hàng - quận/huyện
+  wardCode?: string; // Lọc theo địa chỉ cửa hàng - phường/xã
+  sortBy?: 'name' | 'price'; // Sắp xếp theo field
+  sortDir?: 'asc' | 'desc'; // Hướng sắp xếp
 }
 
 export interface ProductVariant {
@@ -412,6 +418,14 @@ export class ProductListService {
       if (params.maxPrice !== undefined && params.maxPrice >= 0) {
         queryParams.append('maxPrice', String(params.maxPrice));
       }
+      if (params.minRating !== undefined && params.minRating >= 0) {
+        queryParams.append('minRating', String(params.minRating));
+      }
+      if (params.provinceCode) queryParams.append('provinceCode', params.provinceCode);
+      if (params.districtCode) queryParams.append('districtCode', params.districtCode);
+      if (params.wardCode) queryParams.append('wardCode', params.wardCode);
+      if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+      if (params.sortDir) queryParams.append('sortDir', params.sortDir);
 
       // Use new endpoint /api/products/view
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
@@ -431,7 +445,7 @@ export class ProductListService {
       const response = await httpClient.get<{
         status: number;
         message: string;
-        data: {
+        data: Product[] | {
           data: Product[];
           page: {
             totalElements: number;
@@ -439,18 +453,72 @@ export class ProductListService {
             pageSize: number;
             totalPages: number;
           };
+        } | {
+          content: Product[];
+          pageable: ProductListPageable;
+          totalPages: number;
+          totalElements: number;
+          last: boolean;
+          size: number;
+          number: number;
+          sort: {
+            empty: boolean;
+            sorted: boolean;
+            unsorted: boolean;
+          };
+          numberOfElements: number;
+          first: boolean;
+          empty: boolean;
         };
       }>(url);
       
       console.log('📥 Raw API Response:', {
         status: response.status,
         message: response.message,
-        dataType: response.data?.data ? 'New Structure' : 'Unknown',
-        productsCount: response.data?.data?.length || 0,
-        pageInfo: response.data?.page
+        dataType: Array.isArray(response.data) ? 'Direct Array' : (response.data && 'data' in response.data ? 'Nested Structure' : 'Old Pagination'),
+        productsCount: Array.isArray(response.data) ? response.data.length : (response.data && 'data' in response.data ? response.data.data?.length : response.data?.content?.length || 0),
+        pageInfo: response.data && 'page' in response.data ? response.data.page : null
       });
       
-      // Normalize new API response structure to match expected format
+      // Handle direct array response (new API structure: { status, message, data: Product[] })
+      if (Array.isArray(response.data)) {
+        console.log('✅ API returned direct array - normalizing...');
+        const products = response.data as Product[];
+        const page = params.page ?? 0;
+        const size = params.size ?? 20;
+        const isLikelyLastPage = products.length < size;
+        const estimatedTotal = isLikelyLastPage ? (page * size + products.length) : (page + 1) * size + 1;
+        
+        const normalizedResponse: ProductListResponse = {
+          status: response.status,
+          message: response.message,
+          data: {
+            content: products,
+            pageable: {
+              pageNumber: page,
+              pageSize: size,
+              sort: { empty: true, sorted: false, unsorted: true },
+              offset: page * size,
+              unpaged: false,
+              paged: true
+            },
+            totalPages: isLikelyLastPage ? page + 1 : page + 2,
+            totalElements: estimatedTotal,
+            last: isLikelyLastPage,
+            size: size,
+            number: page,
+            sort: { empty: true, sorted: false, unsorted: true },
+            numberOfElements: products.length,
+            first: page === 0,
+            empty: products.length === 0
+          }
+        };
+        
+        setCachedData(cacheKey, normalizedResponse);
+        return normalizedResponse;
+      }
+      
+      // Normalize nested API response structure ({ data: { data: Product[], page: {...} } })
       if (response.data && 'data' in response.data && 'page' in response.data) {
         const products = response.data.data;
         const pageInfo = response.data.page;

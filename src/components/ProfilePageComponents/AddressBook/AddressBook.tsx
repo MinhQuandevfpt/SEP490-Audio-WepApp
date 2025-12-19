@@ -51,7 +51,7 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
     ward: '',
     street: '',
     addressLine: '',
-    postalCode: '',
+    postalCode: '', // Postal code will be set based on province/ward selection or left empty for backend to handle
     note: '',
     isDefault: false,
     provinceCode: '',
@@ -434,16 +434,12 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
                 placeholder="Ví dụ: 58/4"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mã bưu chính</label>
-              <input
-                type="text"
-                value={formData.postalCode}
-                onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="Ví dụ: 70004"
-              />
-            </div>
+            {/* postalCode is hidden, will be set by backend based on province/ward or left empty */}
+            <input
+              type="hidden"
+              value={formData.postalCode}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+            />
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
               <input

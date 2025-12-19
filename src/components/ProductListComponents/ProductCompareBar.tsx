@@ -51,7 +51,9 @@ export const ProductCompareBar: React.FC<ProductCompareBarProps> = ({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-gray-800 truncate">{item.name}</p>
-                <p className="text-[11px] text-gray-500 truncate">{item.categoryName}</p>
+                <p className="text-[11px] text-gray-500 truncate">
+                  {item.categoryName || item.category || 'Không có danh mục'}
+                </p>
               </div>
               <button
                 onClick={() => onRemove(item.productId)}

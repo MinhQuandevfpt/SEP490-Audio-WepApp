@@ -57,19 +57,64 @@ const NotificationPage: React.FC = () => {
 
   const handleNotificationClick = async (notification: StoreNotification) => {
     try {
-      // Mark as read if not already read
+      // Mark as read ngay lập tức khi click (không cần check !notification.read)
       if (!notification.read) {
+        // Gọi API mark as read ngay lập tức
         await NotificationService.markAsRead(notification.id);
-        // Update local state
+        
+        // Update local state ngay lập tức để UI responsive
         setNotifications(prev => 
           prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
         );
-        message.success('Đã đánh dấu đã đọc');
+        
+        // Refresh unread count từ API và dispatch event để SellerDashboardLayout cập nhật
+        try {
+          const newUnreadCount = await NotificationService.getUnreadCount();
+          // Dispatch custom event để SellerDashboardLayout refresh
+          window.dispatchEvent(new CustomEvent('sellerNotificationRead', { 
+            detail: { unreadCount: newUnreadCount } 
+          }));
+        } catch (error) {
+          console.error('Error refreshing unread count:', error);
+          // Vẫn dispatch event để SellerDashboardLayout tự refresh
+          window.dispatchEvent(new CustomEvent('sellerNotificationRead'));
+        }
       }
 
       // Navigate to action URL if available
       if (notification.actionUrl) {
         let route = notification.actionUrl;
+        let customerOrderId: string | null = null;
+
+        // Ưu tiên lấy customerOrderId từ metadataJson nếu có
+        if (notification.metadataJson) {
+          try {
+            const metadata = JSON.parse(notification.metadataJson) as { customerOrderId?: string };
+            if (metadata.customerOrderId) {
+              customerOrderId = metadata.customerOrderId;
+            }
+          } catch {
+            // ignore JSON parse errors
+          }
+        }
+
+        // Nếu chưa có, fallback parse từ actionUrl dạng /seller/orders/{customerOrderId}
+        if (!customerOrderId && route.startsWith('/seller/orders/')) {
+          try {
+            // Parse URL properly to handle query parameters
+            const url = new URL(route, window.location.origin);
+            const pathSegments = url.pathname.split('/').filter(Boolean);
+            // Find 'orders' in path and get the next segment as customerOrderId
+            const ordersIndex = pathSegments.indexOf('orders');
+            if (ordersIndex !== -1 && ordersIndex + 1 < pathSegments.length) {
+              customerOrderId = pathSegments[ordersIndex + 1];
+            }
+          } catch {
+            // Fallback to substring if URL parsing fails (relative path)
+            const pathWithoutQuery = route.split('?')[0];
+            customerOrderId = pathWithoutQuery.substring('/seller/orders/'.length);
+          }
+        }
         
         if (route.startsWith('/seller/orders/')) {
           route = '/seller/dashboard/orders';
@@ -80,8 +125,15 @@ const NotificationPage: React.FC = () => {
         } else {
           route = `/seller/dashboard${route}`;
         }
-        
-        navigate(route);
+
+        // Gắn customerOrderId vào query để trang orders biết cần auto-expand đơn nào
+        if (customerOrderId) {
+          const url = new URL(route, window.location.origin);
+          url.searchParams.set('customerOrderId', customerOrderId);
+          navigate(url.pathname + url.search);
+        } else {
+          navigate(route);
+        }
       }
     } catch (error) {
       console.error('Error handling notification click:', error);
@@ -97,12 +149,27 @@ const NotificationPage: React.FC = () => {
         return;
       }
       
+      // Gọi API mark as read cho tất cả thông báo chưa đọc
       await Promise.all(unreadNotifications.map(n => NotificationService.markAsRead(n.id)));
+      
+      // Update local state
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      
+      // Refresh unread count từ API và dispatch event để SellerDashboardLayout cập nhật
+      const newUnreadCount = await NotificationService.getUnreadCount();
+      window.dispatchEvent(new CustomEvent('sellerNotificationRead', { 
+        detail: { unreadCount: newUnreadCount } 
+      }));
+      
+      // Reload lại danh sách thông báo để đảm bảo sync với backend
+      await loadNotifications();
+      
       message.success(`Đã đánh dấu ${unreadNotifications.length} thông báo đã đọc`);
     } catch (error) {
       console.error('Error marking all as read:', error);
       message.error('Không thể đánh dấu tất cả đã đọc. Vui lòng thử lại.');
+      // Reload lại để revert optimistic update
+      loadNotifications();
     }
   };
 
