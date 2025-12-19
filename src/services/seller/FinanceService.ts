@@ -493,20 +493,36 @@ export class FinanceService {
    * POST /api/stores/me/payout/auto-process
    */
   static async autoProcessPayout(): Promise<{
-    totalItemsProcessed: number;
-    totalAmountTransferred: number;
+    processedCount: number;
+    skippedCount: number;
+    addedToDefaultBalance: number;
+    defaultBalanceBefore?: number;
+    defaultBalanceAfter?: number;
+    totalPlatformFee?: number;
+    totalGross?: number;
+    processedItemIds?: string[];
+    skippedReasons?: string[];
+    ranAt?: string;
+    storeId?: string;
   }> {
     try {
       const endpoint = `${API_URL}/stores/me/payout/auto-process`;
 
       console.log('📡 [Auto Process Payout] POST:', endpoint);
 
-      const response = await HttpInterceptor.post<
-        ApiResponse<{
-          totalItemsProcessed: number;
-          totalAmountTransferred: number;
-        }>
-      >(endpoint, {}, { userType: 'seller' });
+      const response = await HttpInterceptor.post<ApiResponse<{
+        processedCount: number;
+        skippedCount: number;
+        addedToDefaultBalance: number;
+        defaultBalanceBefore?: number;
+        defaultBalanceAfter?: number;
+        totalPlatformFee?: number;
+        totalGross?: number;
+        processedItemIds?: string[];
+        skippedReasons?: string[];
+        ranAt?: string;
+        storeId?: string;
+      }>>(endpoint, {}, { userType: 'seller' });
 
       console.log('✅ [Auto Process Payout] Response:', response);
 
