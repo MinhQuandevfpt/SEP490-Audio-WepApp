@@ -108,19 +108,6 @@ const UserManagement: React.FC = () => {
     return <Tag color={config.color}>{config.text}</Tag>;
   }, []);
 
-  const getLoyaltyTag = useCallback((level: string) => {
-    if (!level) return <Tag>Chưa có</Tag>;
-    const levelConfig = {
-      'BRONZE': { color: 'orange' },
-      'SILVER': { color: 'default' },
-      'GOLD': { color: 'gold' },
-      'PLATINUM': { color: 'blue' },
-      'DIAMOND': { color: 'purple' }
-    };
-    const config = levelConfig[level as keyof typeof levelConfig] || { color: 'default' };
-    return <Tag color={config.color}>{level}</Tag>;
-  }, []);
-
   // Define table columns
   const columns: ColumnsType<CustomerProfileResponse> = useMemo(() => [
     {
@@ -145,33 +132,6 @@ const UserManagement: React.FC = () => {
       ),
     },
     {
-      title: 'Số đơn hàng',
-      dataIndex: 'orderCount',
-      key: 'orderCount',
-      width: 120,
-      align: 'center',
-      sorter: (a: CustomerProfileResponse, b: CustomerProfileResponse) => 
-        (a.orderCount || 0) - (b.orderCount || 0),
-      render: (count: number) => (
-        <span className="text-sm font-semibold text-gray-900">{count || 0}</span>
-      ),
-    },
-    {
-      title: 'Cấp độ',
-      dataIndex: 'loyaltyLevel',
-      key: 'loyaltyLevel',
-      width: 120,
-      filters: [
-        { text: 'Bronze', value: 'BRONZE' },
-        { text: 'Silver', value: 'SILVER' },
-        { text: 'Gold', value: 'GOLD' },
-        { text: 'Platinum', value: 'PLATINUM' },
-        { text: 'Diamond', value: 'DIAMOND' },
-      ],
-      onFilter: (value: any, record: CustomerProfileResponse) => record.loyaltyLevel === value,
-      render: (level: string) => getLoyaltyTag(level),
-    },
-    {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
@@ -184,22 +144,6 @@ const UserManagement: React.FC = () => {
       ],
       onFilter: (value: any, record: CustomerProfileResponse) => record.status === value,
       render: (status: CustomerStatus) => getStatusTag(status),
-    },
-    {
-      title: 'Ngày đăng nhập cuối',
-      dataIndex: 'lastLogin',
-      key: 'lastLogin',
-      width: 140,
-      sorter: (a: CustomerProfileResponse, b: CustomerProfileResponse) => {
-        const aTime = a.lastLogin ? new Date(a.lastLogin).getTime() : 0;
-        const bTime = b.lastLogin ? new Date(b.lastLogin).getTime() : 0;
-        return aTime - bTime;
-      },
-      render: (lastLogin: string | null) => (
-        <span className="text-sm text-gray-600">
-          {lastLogin ? new Date(lastLogin).toLocaleDateString('vi-VN') : 'Chưa đăng nhập'}
-        </span>
-      ),
     },
     {
       title: 'Hành động',
@@ -222,7 +166,7 @@ const UserManagement: React.FC = () => {
         </Space>
       ),
     },
-  ], [getStatusTag, getLoyaltyTag, handleViewDetail]);
+  ], [getStatusTag, handleViewDetail]);
 
   // Show error message if API fails
   useEffect(() => {
