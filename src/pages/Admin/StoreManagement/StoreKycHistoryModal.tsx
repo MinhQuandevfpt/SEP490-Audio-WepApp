@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Table, Tag, Space, Typography, Empty, Spin, Image, Button, Tooltip } from 'antd';
+import { Modal, Table, Tag, Space, Typography, Empty, Spin, Image, Button} from 'antd';
 import {
   FileImageOutlined,
   CheckCircleOutlined,
