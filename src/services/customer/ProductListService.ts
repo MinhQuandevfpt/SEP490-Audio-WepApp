@@ -480,14 +480,186 @@ export class ProductListService {
         pageInfo: response.data && 'page' in response.data ? response.data.page : null
       });
       
-      // Handle direct array response (new API structure: { status, message, data: Product[] })
+      // Helper function để map ProductViewItem sang Product (tái sử dụng logic từ ProductSuggestions)
+      const mapViewItemToProduct = (viewItem: any): Product => {
+        // Nếu đã là Product format (có đầy đủ fields như variantPrice), return trực tiếp
+        if (viewItem.variants && Array.isArray(viewItem.variants) && viewItem.variants.length > 0 && viewItem.variants[0].variantPrice !== undefined) {
+          return viewItem as Product;
+        }
+        
+        // Áp dụng logic tính giá từ ProductSuggestions
+        let originalPrice: number = 0;
+        let finalPrice: number = 0;
+        let discountPercent = 0;
+        
+        // Xử lý giá: Ưu tiên từ variants nếu có, sau đó mới dùng price từ root
+        if (viewItem.variants && viewItem.variants.length > 0) {
+          const variantPrices = viewItem.variants
+            .filter((v: any) => v.price > 0)
+            .map((v: any) => v.price);
+          if (variantPrices.length > 0) {
+            const minVariantPrice = Math.min(...variantPrices);
+            originalPrice = minVariantPrice;
+            if (viewItem.finalPrice !== null && viewItem.finalPrice !== undefined && viewItem.finalPrice !== minVariantPrice) {
+              finalPrice = viewItem.finalPrice;
+            } else {
+              finalPrice = minVariantPrice;
+            }
+          } else {
+            originalPrice = viewItem.price ?? 0;
+            finalPrice = viewItem.finalPrice ?? viewItem.price ?? 0;
+          }
+        } else {
+          originalPrice = viewItem.price ?? 0;
+          if (viewItem.finalPrice !== null && viewItem.finalPrice !== undefined && viewItem.finalPrice !== originalPrice) {
+            finalPrice = viewItem.finalPrice;
+          } else {
+            finalPrice = originalPrice;
+          }
+        }
+        
+        // Tính discount từ campaign nếu cần
+        const hasCampaign = viewItem.vouchers?.platformVouchers && viewItem.vouchers.platformVouchers.length > 0;
+        const needsCampaignCalculation = 
+          (viewItem.discountPrice === null || viewItem.discountPrice === undefined) &&
+          (viewItem.finalPrice === null || viewItem.finalPrice === undefined || finalPrice === originalPrice) &&
+          originalPrice > 0 &&
+          hasCampaign;
+        
+        if (needsCampaignCalculation && hasCampaign && viewItem.vouchers?.platformVouchers) {
+          const campaign = viewItem.vouchers.platformVouchers[0];
+          if (campaign.vouchers && campaign.vouchers.length > 0) {
+            const voucher = campaign.vouchers[0];
+            const now = new Date();
+            let isActive = false;
+            
+            if (voucher.slotOpenTime && voucher.slotCloseTime) {
+              const slotOpen = new Date(voucher.slotOpenTime);
+              const slotClose = new Date(voucher.slotCloseTime);
+              isActive = now >= slotOpen && now <= slotClose && voucher.slotStatus === 'ACTIVE';
+            } else if (voucher.startTime && voucher.endTime) {
+              const startTime = new Date(voucher.startTime);
+              const endTime = new Date(voucher.endTime);
+              isActive = now >= startTime && now <= endTime && voucher.status === 'ACTIVE';
+            } else {
+              isActive = voucher.status === 'ACTIVE';
+            }
+            
+            if (isActive) {
+              if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+                const discountAmount = (originalPrice * voucher.discountPercent) / 100;
+                const finalDiscount = voucher.maxDiscountValue
+                  ? Math.min(discountAmount, voucher.maxDiscountValue)
+                  : discountAmount;
+                finalPrice = Math.max(0, originalPrice - finalDiscount);
+                discountPercent = voucher.discountPercent;
+              } else if (voucher.type === 'FIXED' && voucher.discountValue) {
+                finalPrice = Math.max(0, originalPrice - voucher.discountValue);
+                if (originalPrice > 0) {
+                  discountPercent = Math.round(((voucher.discountValue / originalPrice) * 100));
+                }
+              }
+            }
+          }
+        }
+        
+        if (finalPrice === 0 && originalPrice > 0) {
+          finalPrice = originalPrice;
+        }
+        
+        if (discountPercent === 0 && originalPrice > 0 && finalPrice > 0 && finalPrice < originalPrice) {
+          discountPercent = Math.round(((originalPrice - finalPrice) / originalPrice) * 100);
+        }
+        
+        const categoryName = viewItem.categories && viewItem.categories.length > 0
+          ? viewItem.categories.map((c: any) => c.categoryName).join(', ')
+          : '';
+        
+        return {
+          productId: viewItem.productId,
+          storeId: viewItem.store?.id || '',
+          storeName: viewItem.store?.name || '',
+          categoryId: viewItem.categories && viewItem.categories.length > 0 ? viewItem.categories[0].categoryId : '',
+          categoryName: categoryName,
+          brandName: viewItem.brandName || '',
+          name: viewItem.name,
+          slug: '',
+          shortDescription: '',
+          description: '',
+          model: '',
+          color: '',
+          material: '',
+          dimensions: '',
+          weight: 0,
+          variants: (viewItem.variants || []).map((v: any) => ({
+            variantId: v.variantId,
+            optionName: v.optionName,
+            optionValue: v.optionValue,
+            variantPrice: v.price,
+            variantStock: v.stock || 0,
+            variantUrl: v.imageUrl || '',
+            variantSku: v.variantSku || '',
+            price: v.price,
+            stock: v.stock,
+            imageUrl: v.imageUrl,
+          })),
+          images: viewItem.thumbnailUrl ? [viewItem.thumbnailUrl] : [],
+          videoUrl: null,
+          sku: '',
+          price: originalPrice,
+          discountPrice: discountPercent > 0 ? finalPrice : null,
+          promotionPercent: discountPercent > 0 ? discountPercent : null,
+          priceAfterPromotion: finalPrice,
+          priceBeforeVoucher: originalPrice,
+          voucherAmount: null,
+          finalPrice: finalPrice,
+          platformFeePercent: null,
+          currency: 'VND',
+          stockQuantity: 0,
+          warehouseLocation: null,
+          provinceCode: viewItem.store?.provinceCode || null,
+          districtCode: viewItem.store?.districtCode || null,
+          wardCode: viewItem.store?.wardCode || null,
+          shippingAddress: null,
+          shippingFee: null,
+          supportedShippingMethodIds: [],
+          bulkDiscounts: [],
+          status: viewItem.status || 'ACTIVE',
+          isFeatured: false,
+          ratingAverage: viewItem.ratingAverage ?? null,
+          reviewCount: viewItem.reviewCount ?? null,
+          viewCount: null,
+          createdAt: '',
+          updatedAt: '',
+          lastUpdatedAt: '',
+          lastUpdateIntervalDays: 0,
+          createdBy: '',
+          updatedBy: '',
+          store: viewItem.store ? {
+            id: viewItem.store.id,
+            name: viewItem.store.name,
+            status: viewItem.store.status,
+            provinceCode: viewItem.store.provinceCode || '',
+            districtCode: viewItem.store.districtCode || '',
+            wardCode: viewItem.store.wardCode || '',
+          } : undefined,
+          vouchers: viewItem.vouchers ? {
+            platformVouchers: viewItem.vouchers.platformVouchers || [],
+          } : undefined,
+        } as Product;
+      };
+
+      // Handle direct array response (new API structure: { status, message, data: Product[] | ProductViewItem[] })
       if (Array.isArray(response.data)) {
         console.log('✅ API returned direct array - normalizing...');
-        const products = response.data as Product[];
+        const rawProducts = response.data;
         const page = params.page ?? 0;
         const size = params.size ?? 20;
-        const isLikelyLastPage = products.length < size;
-        const estimatedTotal = isLikelyLastPage ? (page * size + products.length) : (page + 1) * size + 1;
+        const isLikelyLastPage = rawProducts.length < size;
+        const estimatedTotal = isLikelyLastPage ? (page * size + rawProducts.length) : (page + 1) * size + 1;
+        
+        // Map ProductViewItem to Product nếu cần
+        const products: Product[] = rawProducts.map(mapViewItemToProduct);
         
         const normalizedResponse: ProductListResponse = {
           status: response.status,
@@ -518,10 +690,13 @@ export class ProductListService {
         return normalizedResponse;
       }
       
-      // Normalize nested API response structure ({ data: { data: Product[], page: {...} } })
+      // Normalize nested API response structure ({ data: { data: Product[] | ProductViewItem[], page: {...} } })
       if (response.data && 'data' in response.data && 'page' in response.data) {
-        const products = response.data.data;
+        const rawProducts = response.data.data;
         const pageInfo = response.data.page;
+        
+        // Map ProductViewItem to Product nếu cần
+        const products: Product[] = rawProducts.map(mapViewItemToProduct);
         
         const normalizedResponse: ProductListResponse = {
           status: response.status,
@@ -604,8 +779,21 @@ export class ProductListService {
       const paginatedData = (response as any).data;
       if (paginatedData && paginatedData.content) {
         console.log('✅ API returned old pagination structure');
-        setCachedData(cacheKey, response as ProductListResponse);
-        return response as ProductListResponse;
+        // Map ProductViewItem to Product nếu cần
+        const rawProducts = paginatedData.content;
+        const mappedProducts: Product[] = rawProducts.map(mapViewItemToProduct);
+        
+        const normalizedResponse: ProductListResponse = {
+          status: response.status,
+          message: response.message,
+          data: {
+            ...paginatedData,
+            content: mappedProducts,
+          }
+        };
+        
+        setCachedData(cacheKey, normalizedResponse);
+        return normalizedResponse;
       }
       
       // If we get here, something unexpected happened

@@ -27,7 +27,7 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
   }
 
   return (
-    <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'space-y-4'}>
+    <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-stretch' : 'space-y-4'}>
       {products.map((product) => {
         const productId = product.productId || product.id;
         const key = productId;
@@ -53,11 +53,11 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
           <div
             key={key}
             onClick={handleCardClick}
-            className={`bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer ${
+            className={`bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer flex flex-col h-full ${
               isSelected ? 'ring-2 ring-orange-400' : ''
             }`}
           >
-            <div className="w-full h-48 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden">
+            <div className="w-full h-48 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
               {firstImage ? (
                 <img
                   src={firstImage}
@@ -69,12 +69,13 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
               )}
             </div>
 
-            <div className="flex-1 flex flex-col mt-3">
-              <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[3rem]">
+            <div className="flex-1 flex flex-col mt-3 min-h-0">
+              <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[3rem] flex-shrink-0">
                 {product.name}
               </h3>
-              {/* Price Section - Show original and discounted price if has discount */}
-              <div className="mt-2">
+              
+              {/* Price Section - Fixed height để đảm bảo đồng bộ */}
+              <div className="mt-2 min-h-[3.5rem] flex flex-col justify-center flex-shrink-0">
                 {product.finalPrice !== null && product.price !== null && product.finalPrice < product.price ? (
                   <div className="space-y-1">
                     {/* Discounted Price - Red color when has discount */}
@@ -90,12 +91,14 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
                   </div>
                 ) : (
                   // Original price when no discount - orange color
-                  <div className="text-lg font-bold text-orange-600">
+                  // Thêm padding để đồng bộ với trường hợp có discount
+                  <div className="text-lg font-bold text-orange-600 py-1">
                     {price ? price.toLocaleString('vi-VN') : '0'}đ
                   </div>
                 )}
               </div>
 
+              {/* Compare Button - Luôn ở dưới cùng */}
               {onToggleCompare && (
                 <button
                   type="button"
@@ -103,7 +106,7 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
                     e.stopPropagation();
                     onToggleCompare(product);
                   }}
-                  className={`mt-auto w-full border rounded-full py-2 text-sm font-medium transition-colors ${
+                  className={`mt-auto w-full border rounded-full py-2 text-sm font-medium transition-colors flex-shrink-0 ${
                     isSelected
                       ? 'border-orange-500 text-orange-600 bg-orange-50'
                       : 'border-gray-200 text-gray-700 hover:border-orange-400 hover:text-orange-600 hover:bg-orange-50'
