@@ -247,30 +247,31 @@ export class ProductService {
 
   /**
    * Get product by ID
-   * TODO: Implement when API is ready
+   * GET /api/products/{productId}
    */
   static async getProductById(productId: string): Promise<Product> {
     try {
-      const token = localStorage.getItem('seller_token') || localStorage.getItem('accessToken');
+      console.log('🔍 Fetching product detail:', productId);
+      console.log('📡 API URL:', `${API_URL}/products/${productId}`);
       
-      if (!token) {
-        throw new Error('Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
-      }
-
-      const response = await fetch(`${API_URL}/products/${productId}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+      const data = await HttpInterceptor.get<{
+        status: number;
+        message: string;
+        data: Product;
+      }>(`${API_URL}/products/${productId}`, {
+        userType: 'seller',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
+      console.log('✅ Product detail response:', {
+        status: data.status,
+        message: data.message,
+        productId: data.data?.productId,
+        name: data.data?.name,
+        categories: (data.data as any)?.categories,
+        attributeValues: (data.data as any)?.attributeValues,
+        variants: data.data?.variants,
+      });
 
-      const data = await response.json();
       return data.data || data;
     } catch (error) {
       console.error('❌ Error fetching product:', error);
