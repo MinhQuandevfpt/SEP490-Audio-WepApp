@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import useCart from '../../hooks/useCart';
@@ -159,6 +159,18 @@ const ShopCartV2: React.FC = () => {
     }
   }, [items]);
 
+  // Tạo stable dependency cho items (chỉ thay đổi khi cartItemId list thay đổi)
+  const itemsCartItemIds = useMemo(
+    () => items.map(item => item.cartItemId).sort().join(','),
+    [items]
+  );
+
+  // Cache shop vouchers theo storeId để tránh load lại (dùng ref để tránh stale closure)
+  const shopVouchersCacheByStoreIdRef = useRef<Map<string, ShopVoucher[]>>(new Map());
+
+  // Cache vouchers theo productId để tránh load lại khi cùng một product (dùng ref để tránh stale closure)
+  const productVouchersCacheByProductIdRef = useRef<Map<string, ShopVoucher[]>>(new Map());
+
   // Load shop vouchers (ALL_SHOP_VOUCHER) cho từng store
   useEffect(() => {
     const loadStoreVouchers = async () => {
@@ -186,8 +198,28 @@ const ShopCartV2: React.FC = () => {
         }
       });
 
-      // Gọi API cho từng store (chỉ gọi 1 lần mỗi store)
-      const voucherPromises = Array.from(storeProductMap.entries()).map(
+      // Chỉ gọi API cho các store chưa có trong cache (sử dụng ref để có giá trị mới nhất)
+      const storesToLoad = Array.from(storeProductMap.entries()).filter(
+        ([storeId]) => !shopVouchersCacheByStoreIdRef.current.has(storeId)
+      );
+
+      if (storesToLoad.length === 0) {
+        // Nếu không có store nào cần load, update từ cache (sử dụng ref để có giá trị mới nhất)
+        setStoreVouchers((prev) => {
+          const next = new Map(prev);
+          Array.from(storeIds).forEach((storeId) => {
+            const cachedVouchers = shopVouchersCacheByStoreIdRef.current.get(storeId);
+            if (cachedVouchers) {
+              next.set(storeId, cachedVouchers);
+            }
+          });
+          return next;
+        });
+        return;
+      }
+
+      // Gọi API cho từng store (chỉ gọi 1 lần mỗi store và chỉ khi chưa có trong cache)
+      const voucherPromises = storesToLoad.map(
         async ([storeId, productId]) => {
           try {
             console.groupCollapsed('🎫 [ShopCartV2] Fetch shop vouchers');
@@ -225,20 +257,33 @@ const ShopCartV2: React.FC = () => {
       );
 
       const results = await Promise.all(voucherPromises);
-      const nextVouchers = new Map<string, ShopVoucher[]>();
+      
+      // Update cache theo storeId (chỉ dùng ref)
       results.forEach(({ storeId, vouchers }) => {
-        if (vouchers.length > 0) {
-          nextVouchers.set(storeId, vouchers);
-        }
+        shopVouchersCacheByStoreIdRef.current.set(storeId, vouchers); // Lưu cả empty array để tránh gọi lại
       });
 
-      setStoreVouchers(nextVouchers);
+      // Update storeVouchers từ cache (bao gồm cả cache mới và cache cũ)
+      setStoreVouchers((prev) => {
+        const next = new Map(prev);
+        Array.from(storeIds).forEach((storeId) => {
+          const cachedVouchers = 
+            results.find(r => r.storeId === storeId)?.vouchers ||
+            shopVouchersCacheByStoreIdRef.current.get(storeId);
+          if (cachedVouchers && cachedVouchers.length > 0) {
+            next.set(storeId, cachedVouchers);
+          }
+        });
+        return next;
+      });
     };
 
     if (items.length > 0 && productCache.size > 0) {
       void loadStoreVouchers();
     }
-  }, [items, productCache]);
+    // Chỉ trigger khi items hoặc productCache thay đổi, không phải khi cache state thay đổi
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsCartItemIds, productCache.size]);
 
   // Load product vouchers (PRODUCT_VOUCHER) cho từng cart item
   useEffect(() => {
@@ -246,57 +291,91 @@ const ShopCartV2: React.FC = () => {
       // Lấy danh sách PRODUCT items cần load vouchers
       const productItems = items.filter((item) => item.type === 'PRODUCT');
 
-      if (productItems.length === 0) return;
+      if (productItems.length === 0) {
+        setProductVouchers(new Map());
+        return;
+      }
 
-      // Gọi API cho từng product (chỉ gọi nếu chưa có trong cache)
-      const voucherPromises = productItems
-        .filter((item) => {
-          // Chỉ load nếu chưa có trong productVouchers cache
-          return !productVouchers.has(item.cartItemId);
-        })
-        .map(async (item) => {
-          try {
-            console.groupCollapsed('🎫 [ShopCartV2] Fetch product vouchers');
-            console.log('CartItemId:', item.cartItemId);
-            console.log('ProductId:', item.refId);
-            console.log('Request URL:', `/api/products/view/${item.refId}/vouchers?type=ALL`);
-            const voucherRes = await ProductVoucherService.getProductVouchers(
-              item.refId,
-              'ALL',
-              null
-            );
-            console.log('Response Body:', voucherRes);
+      // Gọi API cho từng product (chỉ gọi nếu chưa có trong cache theo productId)
+      // Sử dụng ref để có giá trị mới nhất và tránh stale closure
+      const itemsToLoad = productItems.filter((item) => {
+        // Chỉ load nếu chưa có trong cache theo productId
+        return !productVouchersCacheByProductIdRef.current.has(item.refId);
+      });
 
-            // Lọc ra vouchers có scopeType: "PRODUCT_VOUCHER"
-            const productVouchersList =
-              voucherRes.data?.vouchers?.shopVouchers?.filter(
-                (v) => v.scopeType === 'PRODUCT_VOUCHER'
-              ) || [];
-
-            console.log(
-              `✅ [ShopCartV2] Found ${productVouchersList.length} PRODUCT_VOUCHER vouchers for cartItemId ${item.cartItemId}`
-            );
-
-            return { cartItemId: item.cartItemId, vouchers: productVouchersList };
-          } catch (error) {
-            console.error(
-              `❌ [ShopCartV2] Failed to load product vouchers for cartItemId ${item.cartItemId}:`,
-              error
-            );
-            return { cartItemId: item.cartItemId, vouchers: [] };
-          } finally {
-            console.groupEnd();
-          }
+      if (itemsToLoad.length === 0) {
+        // Nếu không có item nào cần load, chỉ update productVouchers từ cache (sử dụng ref)
+        setProductVouchers((prev) => {
+          const next = new Map(prev);
+          productItems.forEach((item) => {
+            const cachedVouchers = productVouchersCacheByProductIdRef.current.get(item.refId);
+            if (cachedVouchers) {
+              next.set(item.cartItemId, cachedVouchers);
+            } else {
+              // Xóa nếu không còn trong cache
+              next.delete(item.cartItemId);
+            }
+          });
+          return next;
         });
+        return;
+      }
 
-      if (voucherPromises.length === 0) return;
+      const voucherPromises = itemsToLoad.map(async (item) => {
+        try {
+          console.groupCollapsed('🎫 [ShopCartV2] Fetch product vouchers');
+          console.log('CartItemId:', item.cartItemId);
+          console.log('ProductId:', item.refId);
+          console.log('Request URL:', `/api/products/view/${item.refId}/vouchers?type=ALL`);
+          const voucherRes = await ProductVoucherService.getProductVouchers(
+            item.refId,
+            'ALL',
+            null
+          );
+          console.log('Response Body:', voucherRes);
+
+          // Lọc ra vouchers có scopeType: "PRODUCT_VOUCHER"
+          const productVouchersList =
+            voucherRes.data?.vouchers?.shopVouchers?.filter(
+              (v) => v.scopeType === 'PRODUCT_VOUCHER'
+            ) || [];
+
+          console.log(
+            `✅ [ShopCartV2] Found ${productVouchersList.length} PRODUCT_VOUCHER vouchers for productId ${item.refId}`
+          );
+
+          return { productId: item.refId, vouchers: productVouchersList };
+        } catch (error) {
+          console.error(
+            `❌ [ShopCartV2] Failed to load product vouchers for productId ${item.refId}:`,
+            error
+          );
+          return { productId: item.refId, vouchers: [] };
+        } finally {
+          console.groupEnd();
+        }
+      });
 
       const results = await Promise.all(voucherPromises);
+      
+      // Update cache theo productId (chỉ dùng ref)
+      results.forEach(({ productId, vouchers }) => {
+        productVouchersCacheByProductIdRef.current.set(productId, vouchers); // Lưu cả empty array để tránh gọi lại
+      });
+
+      // Update productVouchers theo cartItemId (map từ productId cache)
       setProductVouchers((prev) => {
         const next = new Map(prev);
-        results.forEach(({ cartItemId, vouchers }) => {
-          if (vouchers.length > 0) {
-            next.set(cartItemId, vouchers);
+        productItems.forEach((item) => {
+          // Lấy từ cache mới hoặc cache cũ (sử dụng ref để có giá trị mới nhất)
+          const cachedVouchers = 
+            results.find(r => r.productId === item.refId)?.vouchers ||
+            productVouchersCacheByProductIdRef.current.get(item.refId);
+          if (cachedVouchers && cachedVouchers.length > 0) {
+            next.set(item.cartItemId, cachedVouchers);
+          } else {
+            // Xóa nếu không có vouchers
+            next.delete(item.cartItemId);
           }
         });
         return next;
@@ -306,7 +385,9 @@ const ShopCartV2: React.FC = () => {
     if (items.length > 0) {
       void loadProductVouchers();
     }
-  }, [items, productVouchers]);
+    // Chỉ trigger khi items thay đổi, không phải khi cache state thay đổi
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsCartItemIds]);
 
   // Group items theo cửa hàng
   const storeGroups = useMemo(() => {

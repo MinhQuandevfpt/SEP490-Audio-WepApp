@@ -19,6 +19,7 @@ import type { PaymentMethod } from '../../data/checkout';
 import { useAutoShippingFee } from '../../hooks/useAutoShippingFee';
 import { CustomerCartService } from '../../services/customer/CartService';
 import ProductVoucherService from '../../services/customer/ProductVoucherService';
+import { showCenterError } from '../../utils/notification';
 
 const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
 
@@ -495,6 +496,7 @@ const PreCheckoutV2: React.FC = () => {
   }, [items, productCache]);
 
   const [previewData, setPreviewData] = useState<CheckoutPreviewData | null>(null);
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
 
   // Load product voucher details để tính discount khi không có preview data
   useEffect(() => {
@@ -873,16 +875,90 @@ const PreCheckoutV2: React.FC = () => {
   const formatCurrency = (value: number | null | undefined) =>
     `${(value ?? 0).toLocaleString('vi-VN')} ₫`;
 
+  // Helper function để parse error message từ API response và dịch sang tiếng Việt
+  const parseErrorMessage = (err: any): string => {
+    let apiMessage = '';
+    
+    // Lấy message từ API response
+    if (err?.response?.data?.message) {
+      apiMessage = err.response.data.message;
+    } else if (err?.message) {
+      apiMessage = err.message;
+    }
+    
+    // Nếu không có message, trả về thông báo mặc định
+    if (!apiMessage) {
+      return 'Đã xảy ra lỗi khi xử lý yêu cầu. Vui lòng thử lại.';
+    }
+    
+    // Dịch các thông báo lỗi phổ biến sang tiếng Việt
+    const lowerMessage = apiMessage.toLowerCase();
+    
+    // Lỗi hết hàng
+    if (lowerMessage.includes('out of stock') || lowerMessage.includes('hết hàng') || lowerMessage.includes('product out of stock')) {
+      // Tìm tên sản phẩm trong message nếu có
+      const productMatch = apiMessage.match(/when preview checkout:\s*(.+)/i);
+      if (productMatch && productMatch[1]) {
+        const productName = productMatch[1].trim();
+        return `Sản phẩm "${productName}" đã hết hàng. Vui lòng quay lại giỏ hàng và cập nhật số lượng hoặc xóa sản phẩm đã hết hàng.`;
+      }
+      return 'Một số sản phẩm trong giỏ hàng đã hết hàng. Vui lòng quay lại giỏ hàng và cập nhật số lượng hoặc xóa sản phẩm đã hết hàng.';
+    }
+    
+    // Lỗi không đủ số lượng
+    if (lowerMessage.includes('insufficient') || lowerMessage.includes('không đủ')) {
+      return 'Số lượng sản phẩm trong giỏ hàng vượt quá số lượng tồn kho. Vui lòng giảm số lượng hoặc xóa sản phẩm.';
+    }
+    
+    // Lỗi sản phẩm không tồn tại
+    if (lowerMessage.includes('not found') || lowerMessage.includes('không tìm thấy')) {
+      return 'Một số sản phẩm không còn tồn tại. Vui lòng quay lại giỏ hàng và kiểm tra lại.';
+    }
+    
+    // Lỗi voucher không hợp lệ
+    if (lowerMessage.includes('voucher') && (lowerMessage.includes('invalid') || lowerMessage.includes('không hợp lệ'))) {
+      return 'Voucher không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại voucher.';
+    }
+    
+    // Lỗi địa chỉ
+    if (lowerMessage.includes('address') && (lowerMessage.includes('invalid') || lowerMessage.includes('không hợp lệ'))) {
+      return 'Địa chỉ nhận hàng không hợp lệ. Vui lòng chọn lại địa chỉ.';
+    }
+    
+    // Lỗi thanh toán
+    if (lowerMessage.includes('payment') || lowerMessage.includes('thanh toán')) {
+      return 'Có lỗi xảy ra khi xử lý thanh toán. Vui lòng thử lại.';
+    }
+    
+    // Lỗi server
+    if (lowerMessage.includes('internal server error') || lowerMessage.includes('server error')) {
+      return 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.';
+    }
+    
+    // Nếu message đã là tiếng Việt hoặc không match với các pattern trên, trả về nguyên bản
+    // Nhưng nếu là tiếng Anh, cố gắng dịch một số từ khóa phổ biến
+    if (apiMessage.includes('when preview checkout')) {
+      return 'Không thể xem trước đơn hàng. Vui lòng kiểm tra lại thông tin sản phẩm và thử lại.';
+    }
+    
+    // Trả về message gốc nếu không match với bất kỳ pattern nào
+    return apiMessage;
+  };
+
   // Xử lý nút "Tiếp tục đến thanh toán"
   const handleProceed = async () => {
     if (!items.length) {
       console.warn('[PreCheckoutV2] No items to checkout.');
+      showCenterError('Không có sản phẩm nào để thanh toán.', 'Lỗi');
       return;
     }
     if (!selectedAddressId) {
       console.warn('[PreCheckoutV2] No address selected.');
+      showCenterError('Vui lòng chọn địa chỉ nhận hàng.', 'Thiếu thông tin');
       return;
     }
+
+    setIsProcessingCheckout(true);
 
     // Nếu chọn COD: gọi luôn API checkout-cod tại bước pre-checkout
     if (paymentMethod === 'cod') {
@@ -942,8 +1018,12 @@ const PreCheckoutV2: React.FC = () => {
 
         // Sau khi đặt hàng COD thành công: chuyển sang lịch sử đơn hàng
         navigate('/orders');
-      } catch (err) {
+      } catch (err: any) {
         console.error('❌ [PreCheckoutV2] COD checkout failed:', err);
+        const errorMessage = parseErrorMessage(err);
+        showCenterError(errorMessage, 'Lỗi đặt hàng', 5000);
+      } finally {
+        setIsProcessingCheckout(false);
       }
       return;
     }
@@ -1025,8 +1105,14 @@ const PreCheckoutV2: React.FC = () => {
           '❌ [PreCheckoutV2] PayOS checkout failed:',
           resp.message
         );
-      } catch (err) {
+        const errorMessage = resp.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại.';
+        showCenterError(errorMessage, 'Lỗi thanh toán', 5000);
+      } catch (err: any) {
         console.error('❌ [PreCheckoutV2] PayOS checkout error:', err);
+        const errorMessage = parseErrorMessage(err);
+        showCenterError(errorMessage, 'Lỗi thanh toán', 5000);
+      } finally {
+        setIsProcessingCheckout(false);
       }
       return;
     }
@@ -1092,8 +1178,13 @@ const PreCheckoutV2: React.FC = () => {
         console.log('Response Body:', resp);
         console.log('Response Body JSON:', JSON.stringify(resp, null, 2));
         setPreviewData(resp.data);
-      } catch (err) {
+      } catch (err: any) {
         console.error('❌ [PreCheckoutV2] Failed to preview checkout:', err);
+        
+        // Parse error message sang tiếng Việt
+        const errorMessage = parseErrorMessage(err);
+        
+        showCenterError(errorMessage, 'Lỗi xem trước đơn hàng', 5000);
       } finally {
         console.groupEnd();
       }
@@ -1402,14 +1493,31 @@ const PreCheckoutV2: React.FC = () => {
             <button
               type="button"
               onClick={handleProceed}
-              className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
+              disabled={isProcessingCheckout}
+              className={`w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 transition-all ${
+                isProcessingCheckout
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+              }`}
             >
-              Tiếp tục đến thanh toán
+              {isProcessingCheckout ? (
+                <span className="flex items-center justify-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Đang xử lý...
+                </span>
+              ) : (
+                'Tiếp tục đến thanh toán'
+              )}
             </button>
             <button
               type="button"
               onClick={() => navigate('/cartv2')}
-              className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={isProcessingCheckout}
+              className={`w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all ${
+                isProcessingCheckout
+                  ? 'opacity-50 cursor-not-allowed'
+                  : ''
+              }`}
             >
               Quay lại giỏ hàng
             </button>
