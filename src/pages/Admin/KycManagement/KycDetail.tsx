@@ -157,20 +157,6 @@ const KycDetail: React.FC = () => {
                   {kyc.phoneNumber}
                 </p>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Loại hình</label>
-                <p className="text-base text-gray-900 mt-1">
-                  {kyc.official ? (
-                    <span className="text-blue-600 font-medium">Doanh nghiệp chính thức</span>
-                  ) : (
-                    <span className="text-gray-600">Hộ kinh doanh</span>
-                  )}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Phiên bản</label>
-                <p className="text-base text-gray-900 mt-1">Version {kyc.version}</p>
-              </div>
             </div>
           </div>
 
@@ -350,10 +336,6 @@ const KycDetail: React.FC = () => {
               <div className="flex justify-between">
                 <span>ID yêu cầu:</span>
                 <span className="font-mono text-gray-900">{kyc.id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Phiên bản:</span>
-                <span className="font-semibold text-gray-900">{kyc.version}</span>
               </div>
             </div>
           </div>

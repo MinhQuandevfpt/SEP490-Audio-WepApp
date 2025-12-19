@@ -194,23 +194,11 @@ const StoreDetail: React.FC = () => {
               {storeDetail.storeName}
             </Text>
           </Descriptions.Item>
-          <Descriptions.Item label="Mô tả" span={2}>
-            {storeDetail.description || 'Chưa có mô tả'}
-          </Descriptions.Item>
           <Descriptions.Item label={<><MailOutlined /> Email</>}>
             <Text copyable>{storeDetail.email}</Text>
           </Descriptions.Item>
           <Descriptions.Item label={<><PhoneOutlined /> Số điện thoại</>}>
             <Text copyable>{storeDetail.phoneNumber}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Đánh giá">
-            {storeDetail.rating ? (
-              <Text strong style={{ color: '#faad14' }}>
-                ⭐ {storeDetail.rating.toFixed(1)}
-              </Text>
-            ) : (
-              <Text type="secondary">Chưa có đánh giá</Text>
-            )}
           </Descriptions.Item>
           <Descriptions.Item label="Trạng thái">
             {getStatusTag(storeDetail.status)}
