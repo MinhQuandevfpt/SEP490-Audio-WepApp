@@ -418,9 +418,18 @@ const ShopCartV2: React.FC = () => {
       const item = selectedItems.find((it) => it.cartItemId === cartItemId);
       if (!item) return;
 
-      // Tính subtotal của item này (sử dụng baseUnitPrice nếu có, fallback về unitPrice)
-      // Đảm bảo discount được tính dựa trên giá gốc, không phải giá đã điều chỉnh bởi campaign
-      const itemSubtotal = (item.baseUnitPrice ?? item.unitPrice) * item.quantity;
+      // Tính subtotal của item này để tính voucher discount
+      // Nếu sản phẩm có tham gia platform campaign và đang được áp dụng campaign,
+      // thì dùng giá sau campaign (platformCampaignPrice) để tính voucher discount
+      // Ngược lại, dùng giá gốc (baseUnitPrice) hoặc unitPrice
+      const priceForVoucherCalculation = 
+        item.inPlatformCampaign && 
+        !item.campaignUsageExceeded && 
+        item.platformCampaignPrice !== undefined
+          ? item.platformCampaignPrice
+          : (item.baseUnitPrice ?? item.unitPrice);
+      
+      const itemSubtotal = priceForVoucherCalculation * item.quantity;
 
       // Kiểm tra minOrderValue
       if (voucher.minOrderValue && itemSubtotal < voucher.minOrderValue) {
