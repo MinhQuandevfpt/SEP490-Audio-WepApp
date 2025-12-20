@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Grid } from '@react-three/drei';
+import * as THREE from 'three';
 import Room3D from './Room3D';
 import Furniture3D from './Furniture3D';
 import ListenerAvatar3D from './ListenerAvatar3D';
@@ -25,6 +26,154 @@ interface Canvas3DProps {
   isTestObjectSelected?: boolean;
   onSelectTestObject?: () => void;
 }
+
+// Component để sync listener với camera và cung cấp listener cho toàn scene
+const ListenerSync: React.FC = () => {
+  const { camera } = useThree();
+  const listenerRef = useRef<THREE.AudioListener | null>(null);
+
+  useFrame(() => {
+    // Tạo AudioListener nếu chưa có
+    if (!listenerRef.current) {
+      listenerRef.current = new THREE.AudioListener();
+      camera.add(listenerRef.current);
+    }
+
+    // Sync listener position với camera (tai người nghe = vị trí camera)
+    listenerRef.current.position.copy(camera.position);
+    
+    // Note: Orientation được Three.js tự động xử lý khi listener được add vào camera
+    // Camera rotation tự động được áp dụng cho listener
+  });
+
+  // Expose listener qua context hoặc global để Speaker3D có thể dùng
+  React.useEffect(() => {
+    if (listenerRef.current) {
+      // Store listener trong camera để các component khác có thể access
+      (camera as any).audioListener = listenerRef.current;
+    }
+  }, [camera]);
+
+  return null;
+};
+
+// Component riêng để render scene content
+const SceneContent: React.FC<{
+  dimensions: Dimensions;
+  colors: RoomColors;
+  furniture: Furniture[];
+  listeners: Listener[];
+  speakers: Speaker[];
+  testObjectPosition: [number, number, number] | null;
+  selectedFurnitureId: string | null;
+  setSelectedFurnitureId: (id: string | null) => void;
+  selectedListenerId: string | null;
+  setSelectedListenerId: (id: string | null) => void;
+  isTestObjectSelected: boolean;
+  onSelectTestObject?: () => void;
+}> = ({
+  dimensions,
+  colors,
+  furniture,
+  listeners,
+  speakers,
+  testObjectPosition,
+  selectedFurnitureId,
+  setSelectedFurnitureId,
+  selectedListenerId,
+  setSelectedListenerId,
+  isTestObjectSelected,
+  onSelectTestObject
+}) => {
+  return (
+    <>
+      {/* Lighting */}
+      <ambientLight intensity={0.6} />
+      <directionalLight 
+        position={[10, 10, 5]} 
+        intensity={1}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+      />
+      <pointLight position={[-10, 10, -10]} intensity={0.5} />
+
+      {/* Grid Helper - hiển thị mặt phẳng sàn */}
+      <Grid
+        args={[20, 20]}
+        cellColor="#6f6f6f"
+        sectionColor="#9d4b4b"
+        cellThickness={0.5}
+        sectionThickness={1}
+        fadeDistance={25}
+        fadeStrength={1}
+      />
+
+      {/* Axes Helper - hiển thị trục XYZ - Đã ẩn theo yêu cầu */}
+      {/* <axesHelper args={[5]} /> */}
+
+      {/* Room */}
+      <Room3D 
+        length={dimensions.length} 
+        width={dimensions.width} 
+        height={dimensions.height}
+        colors={colors}
+      />
+
+      {/* Furniture */}
+      {furniture.map((item) => (
+        <Furniture3D 
+          key={item.id} 
+          furniture={item}
+          isSelected={selectedFurnitureId === item.id}
+          onSelect={() => {
+            setSelectedFurnitureId(item.id);
+            setSelectedListenerId(null); // Deselect listener when selecting furniture
+          }}
+        />
+      ))}
+
+      {/* Listeners (Human avatars) */}
+      {listeners.map((l) => (
+        <ListenerAvatar3D 
+          key={l.id} 
+          listener={l}
+          isSelected={selectedListenerId === l.id}
+          onSelect={() => {
+            setSelectedListenerId(l.id);
+            setSelectedFurnitureId(null); // Deselect furniture when selecting listener
+          }}
+        />
+      ))}
+
+      {/* Speakers */}
+      {speakers.map((speaker) => (
+        <Speaker3D 
+          key={speaker.id} 
+          speaker={speaker}
+          listeners={listeners}
+          selectedListenerId={selectedListenerId}
+        />
+      ))}
+
+      {/* Test Object - Movable object */}
+      {testObjectPosition && (
+        <TestObject3D 
+          position={testObjectPosition}
+          isSelected={isTestObjectSelected}
+          onSelect={() => {
+            if (onSelectTestObject) {
+              onSelectTestObject();
+            }
+            // Deselect other objects when selecting test object
+            setSelectedListenerId(null);
+            setSelectedFurnitureId(null);
+          }}
+        />
+      )}
+    </>
+  );
+};
 
 const Canvas3D: React.FC<Canvas3DProps> = ({ 
   dimensions, 
@@ -67,6 +216,32 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
   };
   
   const moveStep = 0.5; // Bước di chuyển 0.5m
+
+  // Helper function để kiểm tra và giới hạn vị trí trong phòng
+  // Phòng: X từ -length/2 đến +length/2, Y từ 0 đến height, Z từ -width/2 đến +width/2
+  const clampPositionToRoom = useCallback((position: [number, number, number], objectSize: number = 0.2): [number, number, number] => {
+    const halfLength = dimensions.length / 2;
+    const halfWidth = dimensions.width / 2;
+    const halfObjectSize = objectSize / 2;
+    
+    // Giới hạn X: -length/2 + objectSize/2 đến +length/2 - objectSize/2
+    const minX = -halfLength + halfObjectSize;
+    const maxX = halfLength - halfObjectSize;
+    
+    // Giới hạn Y: objectSize/2 đến height - objectSize/2
+    const minY = halfObjectSize;
+    const maxY = dimensions.height - halfObjectSize;
+    
+    // Giới hạn Z: -width/2 + objectSize/2 đến +width/2 - objectSize/2
+    const minZ = -halfWidth + halfObjectSize;
+    const maxZ = halfWidth - halfObjectSize;
+    
+    return [
+      Math.max(minX, Math.min(maxX, position[0])),
+      Math.max(minY, Math.min(maxY, position[1])),
+      Math.max(minZ, Math.min(maxZ, position[2]))
+    ];
+  }, [dimensions]);
 
   // Keyboard event handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -173,7 +348,9 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
         }
 
         if (shouldUpdate) {
-          onUpdateFurniture(selectedFurnitureId, { position: newPosition });
+          // Giới hạn vị trí furniture trong phòng (furniture có kích thước ~0.5m)
+          const clampedPosition = clampPositionToRoom(newPosition, 0.5);
+          onUpdateFurniture(selectedFurnitureId, { position: clampedPosition });
         }
       }
     }
@@ -217,10 +394,12 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
       }
 
       if (shouldUpdate) {
-        onUpdateTestObjectPosition(newPosition);
+        // Giới hạn vị trí trong phòng (test object có kích thước ~0.2m)
+        const clampedPosition = clampPositionToRoom(newPosition, 0.2);
+        onUpdateTestObjectPosition(clampedPosition);
       }
     }
-  }, [selectedListenerId, selectedFurnitureId, isTestObjectSelected, testObjectPosition, listeners, furniture, onUpdateListener, onUpdateFurniture, onUpdateTestObjectPosition, moveStep]);
+  }, [selectedListenerId, selectedFurnitureId, isTestObjectSelected, testObjectPosition, listeners, furniture, onUpdateListener, onUpdateFurniture, onUpdateTestObjectPosition, moveStep, clampPositionToRoom]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -234,7 +413,7 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
     <div className="flex-1 relative">
       <Canvas
         camera={{ 
-          position: [8, 5, 8], 
+          position: [8, 1.6, 8], // Camera ở độ cao 1.6m (chiều cao người đứng)
           fov: 60,
           near: 0.1,
           far: 1000
@@ -250,71 +429,23 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
           }
         }}
       >
-        {/* Lighting */}
-        <ambientLight intensity={0.6} />
-        <directionalLight 
-          position={[10, 10, 5]} 
-          intensity={1}
-          castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-        />
-        <pointLight position={[-10, 10, -10]} intensity={0.5} />
+        {/* Sync listener với camera */}
+        <ListenerSync />
 
-        {/* Room */}
-        <Room3D 
-          length={dimensions.length} 
-          width={dimensions.width} 
-          height={dimensions.height}
+        <SceneContent
+          dimensions={dimensions}
           colors={colors}
+          furniture={furniture}
+          listeners={listeners}
+          speakers={speakers}
+          testObjectPosition={testObjectPosition}
+          selectedFurnitureId={selectedFurnitureId}
+          setSelectedFurnitureId={setSelectedFurnitureId}
+          selectedListenerId={selectedListenerId}
+          setSelectedListenerId={setSelectedListenerId}
+          isTestObjectSelected={isTestObjectSelected}
+          onSelectTestObject={onSelectTestObject}
         />
-
-        {/* Furniture */}
-        {furniture.map((item) => (
-          <Furniture3D 
-            key={item.id} 
-            furniture={item}
-            isSelected={selectedFurnitureId === item.id}
-            onSelect={() => {
-              setSelectedFurnitureId(item.id);
-              setSelectedListenerId(null); // Deselect listener when selecting furniture
-            }}
-          />
-        ))}
-
-        {/* Listeners (Human avatars) */}
-        {listeners.map((l) => (
-          <ListenerAvatar3D 
-            key={l.id} 
-            listener={l}
-            isSelected={selectedListenerId === l.id}
-            onSelect={() => {
-              setSelectedListenerId(l.id);
-              setSelectedFurnitureId(null); // Deselect furniture when selecting listener
-            }}
-          />
-        ))}
-
-        {/* Speakers */}
-        {speakers.map((speaker) => (
-          <Speaker3D key={speaker.id} speaker={speaker} />
-        ))}
-
-        {/* Test Object - Movable object */}
-        {testObjectPosition && (
-          <TestObject3D 
-            position={testObjectPosition}
-            isSelected={isTestObjectSelected}
-            onSelect={() => {
-              if (onSelectTestObject) {
-                onSelectTestObject();
-              }
-              // Deselect other objects when selecting test object
-              setSelectedListenerId(null);
-              setSelectedFurnitureId(null);
-            }}
-          />
-        )}
 
         {/* Controls */}
         <OrbitControls 

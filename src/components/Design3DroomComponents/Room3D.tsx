@@ -25,44 +25,48 @@ const Room3D: React.FC<Room3DProps> = ({ length, width, height, colors }) => {
   const roomColors = colors || defaultColors;
 
   // Tạo 5 mặt của căn phòng (bỏ mặt trước để quan sát)
+  // Sàn nhà nằm ở Y = 0 (mặt phẳng x-y)
+  const floorThickness = 0.1;
+  const wallThickness = 0.1;
+  
   const roomGeometry = [
-    // Sàn nhà
+    // Sàn nhà - nằm ở Y = 0 (mặt phẳng x-y)
     { 
-      position: [0, -height/2, 0], 
+      position: [0, floorThickness / 2, 0], 
       rotation: [-Math.PI/2, 0, 0], 
-      size: [length, width, 0.1],
+      size: [length, width, floorThickness],
       color: roomColors.floor,
       name: 'floor'
     },
-    // Trần nhà
+    // Trần nhà - nằm ở Y = height
     { 
-      position: [0, height/2, 0], 
+      position: [0, height - floorThickness / 2, 0], 
       rotation: [Math.PI/2, 0, 0], 
-      size: [length, width, 0.1],
+      size: [length, width, floorThickness],
       color: roomColors.ceiling,
       name: 'ceiling'
     },
-    // Tường trái
+    // Tường trái - từ Y = 0 đến Y = height
     { 
-      position: [-length/2, 0, 0], 
+      position: [-length/2, height/2, 0], 
       rotation: [0, 0, 0], 
-      size: [0.1, height, width],
+      size: [wallThickness, height, width],
       color: roomColors.leftWall,
       name: 'leftWall'
     },
-    // Tường phải
+    // Tường phải - từ Y = 0 đến Y = height
     { 
-      position: [length/2, 0, 0], 
+      position: [length/2, height/2, 0], 
       rotation: [0, 0, 0], 
-      size: [0.1, height, width],
+      size: [wallThickness, height, width],
       color: roomColors.rightWall,
       name: 'rightWall'
     },
-    // Tường sau
+    // Tường sau - từ Y = 0 đến Y = height
     { 
-      position: [0, 0, -width/2], 
+      position: [0, height/2, -width/2], 
       rotation: [0, 0, 0], 
-      size: [length, height, 0.1],
+      size: [length, height, wallThickness],
       color: roomColors.backWall,
       name: 'backWall'
     }
@@ -87,12 +91,9 @@ const Room3D: React.FC<Room3DProps> = ({ length, width, height, colors }) => {
         </Box>
       ))}
       
-      {/* Thêm grid trên sàn để dễ quan sát */}
-      <gridHelper args={[Math.max(length, width), 20, "#666666", "#333333"]} position={[0, -height/2 + 0.01, 0]} />
-      
       {/* Thêm text hiển thị kích thước */}
       <Text
-        position={[0, height/2 + 0.5, 0]}
+        position={[0, height + 0.5, 0]}
         fontSize={0.5}
         color="#000000"
         anchorX="center"

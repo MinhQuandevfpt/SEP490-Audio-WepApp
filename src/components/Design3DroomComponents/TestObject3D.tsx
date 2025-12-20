@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { Text, useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
 
 interface TestObject3DProps {
   position: [number, number, number];
@@ -7,8 +8,13 @@ interface TestObject3DProps {
   onSelect?: () => void;
 }
 
-const TestObject3D: React.FC<TestObject3DProps> = ({ position, isSelected = false, onSelect }) => {
+const TestObject3D: React.FC<TestObject3DProps> = ({ 
+  position, 
+  isSelected = false, 
+  onSelect
+}) => {
   const [isHovered, setIsHovered] = useState(false);
+  const groupRef = useRef<THREE.Group | null>(null);
   
   // Load GLB model from public/jbl.glb (served at /jbl.glb)
   const gltf = useGLTF('/jbl.glb');
@@ -24,7 +30,7 @@ const TestObject3D: React.FC<TestObject3DProps> = ({ position, isSelected = fals
   };
 
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position}>
       {/* Invisible bounding box for easier clicking */}
       <mesh
         position={[0, 0.25, 0]}
@@ -44,7 +50,7 @@ const TestObject3D: React.FC<TestObject3DProps> = ({ position, isSelected = fals
         <meshStandardMaterial transparent opacity={0} />
       </mesh>
 
-      {/* GLB speaker/object */}
+      {/* GLB model - chỉ dùng để di chuyển trong không gian, không phát nhạc */}
       <group
         userData={{ isTestObject: true }}
         onClick={handleClick}

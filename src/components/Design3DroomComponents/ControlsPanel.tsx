@@ -48,7 +48,6 @@ interface ControlsPanelProps {
   selectedListenerId?: string | null;
   onSelectListener?: (id: string | null) => void;
   // test object selection
-  isTestObjectActive?: boolean;
   isTestObjectSelected?: boolean;
   onSelectTestObject?: () => void;
 }
@@ -79,7 +78,6 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onSelectFurniture,
   selectedListenerId,
   onSelectListener,
-  isTestObjectActive = false,
   isTestObjectSelected = false,
   onSelectTestObject
 }) => {
@@ -119,9 +117,11 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onTestSpeaker={onTestSpeaker}
             onTestObjectPositionChange={onTestObjectPositionChange}
             onTestingIn3DChange={onTestingIn3DChange}
-            isTestObjectActive={isTestObjectActive}
             isTestObjectSelected={isTestObjectSelected}
             onSelectTestObject={onSelectTestObject}
+            listeners={listeners}
+            selectedListenerId={selectedListenerId}
+            dimensions={dimensions}
           />
         );
       case 'listeners':

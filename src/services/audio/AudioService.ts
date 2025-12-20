@@ -208,6 +208,7 @@ class AudioService {
   private audioBuffer: AudioBuffer | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
   private gainNode: GainNode | null = null;
+  private panNode: StereoPannerNode | null = null; // Stereo panning node
   private bassFilter: BiquadFilterNode | null = null;
   private midFilter: BiquadFilterNode | null = null;
   private trebleFilter: BiquadFilterNode | null = null;
@@ -215,6 +216,10 @@ class AudioService {
   private isPlaying: boolean = false;
   private currentSpeakerModel: SpeakerModel | null = null;
   private audioUrl: string;
+  private startOffset: number = 0; // Vị trí bắt đầu phát (giây)
+  private startTime: number = 0; // Thời điểm AudioContext bắt đầu phát
+  private currentVolume: number = 1.0; // Lưu volume hiện tại để giữ lại sau khi apply EQ
+  private currentPan: number = 0; // Lưu pan value hiện tại (-1 = left, 0 = center, +1 = right)
 
   constructor(audioUrl: string) {
     this.audioUrl = audioUrl;
@@ -234,6 +239,9 @@ class AudioService {
       // Tạo gain node
       this.gainNode = this.audioContext.createGain();
 
+      // Tạo stereo panner node
+      this.panNode = this.audioContext.createStereoPanner();
+
       // Tạo EQ filters
       this.bassFilter = this.audioContext.createBiquadFilter();
       this.bassFilter.type = 'lowshelf';
@@ -248,11 +256,12 @@ class AudioService {
       this.trebleFilter.type = 'highshelf';
       this.trebleFilter.frequency.value = 4000;
 
-      // Kết nối: source -> bass -> mid -> treble -> gain -> analyser -> destination
+      // Kết nối: source -> bass -> mid -> treble -> gain -> pan -> analyser -> destination
       this.bassFilter.connect(this.midFilter);
       this.midFilter.connect(this.trebleFilter);
       this.trebleFilter.connect(this.gainNode);
-      this.gainNode.connect(this.analyser);
+      this.gainNode.connect(this.panNode);
+      this.panNode.connect(this.analyser);
       this.analyser.connect(this.audioContext.destination);
 
       // Load audio file
@@ -295,20 +304,39 @@ class AudioService {
     // Treble (highshelf)
     this.trebleFilter.gain.value = preset.treble;
     
-    // Overall gain
-    this.gainNode.gain.value = Math.pow(10, preset.gain / 20); // Convert dB to linear
+    // Overall gain từ EQ preset (không override volume)
+    const eqGain = Math.pow(10, preset.gain / 20); // Convert dB to linear
+    
+    // Giữ lại volume đã set, chỉ áp dụng EQ gain
+    // Volume cuối cùng = currentVolume * eqGain
+    this.gainNode.gain.value = this.currentVolume * eqGain;
   }
 
   /**
    * Chọn model loa và áp dụng EQ
    */
   selectSpeakerModel(model: SpeakerModel): void {
+    // Chỉ update nếu model thực sự thay đổi (so sánh EQ preset)
+    const newEQPreset = model.eqPreset;
+    const currentEQPreset = this.currentSpeakerModel?.eqPreset;
+    
+    // Kiểm tra xem EQ preset có thay đổi không
+    const eqChanged = !currentEQPreset || 
+      currentEQPreset.bass !== newEQPreset.bass ||
+      currentEQPreset.mid !== newEQPreset.mid ||
+      currentEQPreset.treble !== newEQPreset.treble ||
+      currentEQPreset.gain !== newEQPreset.gain;
+    
     this.currentSpeakerModel = model;
-    this.applyEQPreset(model.eqPreset);
+    
+    // Chỉ apply EQ nếu preset thực sự thay đổi
+    if (eqChanged) {
+      this.applyEQPreset(model.eqPreset);
+    }
   }
 
   /**
-   * Phát nhạc
+   * Phát nhạc (tiếp tục từ vị trí đã pause)
    */
   async play(): Promise<void> {
     if (!this.audioContext || !this.audioBuffer) {
@@ -332,7 +360,10 @@ class AudioService {
 
       // Kết nối: source -> EQ chain
       this.sourceNode.connect(this.bassFilter!);
-      this.sourceNode.start(0);
+      
+      // Start từ vị trí đã pause (startOffset)
+      this.startTime = this.audioContext!.currentTime;
+      this.sourceNode.start(0, this.startOffset);
 
       this.isPlaying = true;
     } catch (error) {
@@ -342,7 +373,7 @@ class AudioService {
   }
 
   /**
-   * Dừng phát nhạc
+   * Dừng phát nhạc (reset về đầu)
    */
   stop(): void {
     if (this.sourceNode && this.isPlaying) {
@@ -354,13 +385,40 @@ class AudioService {
         console.error('Error stopping audio:', error);
       }
     }
+    // Reset về đầu khi stop
+    this.startOffset = 0;
+    this.startTime = 0;
   }
 
   /**
-   * Pause (stop và giữ lại context)
+   * Pause (stop và giữ lại context, lưu vị trí hiện tại)
    */
   pause(): void {
-    this.stop();
+    if (this.isPlaying && this.audioContext && this.startTime > 0) {
+      // Tính toán currentTime trước khi stop
+      const elapsed = this.audioContext.currentTime - this.startTime;
+      const currentTime = this.startOffset + elapsed;
+      const duration = this.audioBuffer ? this.audioBuffer.duration : 0;
+      
+      // Nếu loop và vượt quá duration, quay lại đầu
+      if (duration > 0 && currentTime >= duration) {
+        this.startOffset = currentTime % duration;
+      } else {
+        this.startOffset = currentTime;
+      }
+    }
+    
+    // Stop source node nhưng giữ lại startOffset
+    if (this.sourceNode) {
+      try {
+        this.sourceNode.stop();
+        this.sourceNode = null;
+      } catch (error) {
+        console.error('Error stopping audio:', error);
+      }
+    }
+    this.isPlaying = false;
+    this.startTime = 0;
   }
 
   /**
@@ -394,8 +452,32 @@ class AudioService {
    */
   setVolume(volume: number): void {
     if (this.gainNode) {
-      this.gainNode.gain.value = Math.max(0, Math.min(1, volume));
+      this.currentVolume = Math.max(0, Math.min(1, volume));
+      
+      // Tính toán gain cuối cùng: volume * EQ gain
+      const eqGain = this.currentSpeakerModel?.eqPreset 
+        ? Math.pow(10, this.currentSpeakerModel.eqPreset.gain / 20)
+        : 1.0;
+      
+      this.gainNode.gain.value = this.currentVolume * eqGain;
     }
+  }
+
+  /**
+   * Set panning (-1 = left, 0 = center, +1 = right)
+   */
+  setPan(pan: number): void {
+    if (this.panNode) {
+      this.currentPan = Math.max(-1, Math.min(1, pan));
+      this.panNode.pan.value = this.currentPan;
+    }
+  }
+
+  /**
+   * Get current pan value
+   */
+  getPan(): number {
+    return this.currentPan;
   }
 
   /**
@@ -410,6 +492,75 @@ class AudioService {
    */
   getCurrentSpeakerModel(): SpeakerModel | null {
     return this.currentSpeakerModel;
+  }
+
+  /**
+   * Get current playback time (giây)
+   */
+  getCurrentTime(): number {
+    if (!this.audioContext || !this.audioBuffer) {
+      return this.startOffset;
+    }
+
+    if (this.isPlaying && this.startTime > 0) {
+      // Đang phát: tính từ startTime
+      const elapsed = this.audioContext.currentTime - this.startTime;
+      const currentTime = this.startOffset + elapsed;
+      const duration = this.audioBuffer.duration;
+      
+      // Nếu loop và vượt quá duration, quay lại đầu
+      if (currentTime >= duration) {
+        return currentTime % duration;
+      }
+      return currentTime;
+    } else {
+      // Đã pause: trả về startOffset
+      return this.startOffset;
+    }
+  }
+
+  /**
+   * Get total duration (giây)
+   */
+  getDuration(): number {
+    if (!this.audioBuffer) {
+      return 0;
+    }
+    return this.audioBuffer.duration;
+  }
+
+  /**
+   * Seek đến vị trí cụ thể (giây)
+   */
+  seek(time: number): void {
+    if (!this.audioBuffer) {
+      return;
+    }
+
+    const duration = this.audioBuffer.duration;
+    const clampedTime = Math.max(0, Math.min(time, duration));
+    
+    const wasPlaying = this.isPlaying;
+    
+    // Nếu đang phát, stop source node hiện tại
+    if (wasPlaying && this.sourceNode) {
+      try {
+        this.sourceNode.stop();
+        this.sourceNode = null;
+        this.isPlaying = false;
+      } catch (error) {
+        console.error('Error stopping audio for seek:', error);
+      }
+    }
+    
+    // Cập nhật startOffset
+    this.startOffset = clampedTime;
+    this.startTime = 0;
+    
+    // Nếu đang phát, play lại từ vị trí mới
+    if (wasPlaying) {
+      this.play().catch(console.error);
+    }
   }
 
   /**

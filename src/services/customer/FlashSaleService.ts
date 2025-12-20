@@ -386,4 +386,42 @@ export class FlashSaleService {
 
     return openTime >= tomorrow && openTime < dayAfterTomorrow;
   }
+
+  /**
+   * 13. Tìm slot tiếp theo sắp bắt đầu (để polling check khi nào bắt đầu)
+   */
+  static findNextUpcomingSlot(campaigns: FlashSaleCampaign[]): {
+    campaign: FlashSaleCampaign;
+    slot: FlashSaleSlot;
+    openTime: Date;
+  } | null {
+    const now = new Date();
+    let nextSlot: {
+      campaign: FlashSaleCampaign;
+      slot: FlashSaleSlot;
+      openTime: Date;
+    } | null = null;
+    let minTimeDiff = Infinity;
+
+    for (const campaign of campaigns) {
+      if (campaign.status !== 'ACTIVE') continue;
+
+      for (const slot of campaign.slots) {
+        const openTime = new Date(slot.openTime);
+        
+        // Chỉ xét slot sắp diễn ra (chưa bắt đầu và chưa hết hạn)
+        if (openTime > now && slot.status !== 'EXPIRED' && slot.status !== 'CLOSED') {
+          const timeDiff = openTime.getTime() - now.getTime();
+          
+          // Tìm slot gần nhất
+          if (timeDiff < minTimeDiff) {
+            minTimeDiff = timeDiff;
+            nextSlot = { campaign, slot, openTime };
+          }
+        }
+      }
+    }
+
+    return nextSlot;
+  }
 }

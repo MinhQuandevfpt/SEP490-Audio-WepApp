@@ -301,6 +301,36 @@ const AdminProductManagement: React.FC = () => {
     setSelectedRowKeys([]);
   }, []);
 
+  // Handle suspend toggle
+  const handleSuspendToggle = useCallback(async (productId: string, productName: string, currentStatus: string) => {
+    try {
+      const isSuspended = currentStatus === 'SUSPENDED';
+      const action = isSuspended ? 'bỏ cấm' : 'cấm';
+      
+      Modal.confirm({
+        title: `Xác nhận ${action} sản phẩm`,
+        content: `Bạn có chắc chắn muốn ${action} sản phẩm "${productName}"?`,
+        okText: 'Xác nhận',
+        cancelText: 'Hủy',
+        okType: isSuspended ? 'default' : 'danger',
+        onOk: async () => {
+          try {
+            await AdminProductService.suspendToggleProduct(productId);
+            message.success(`Đã ${action} sản phẩm thành công`);
+            
+            // Refresh product list
+            await fetchProducts(false);
+          } catch (error: any) {
+            console.error('Suspend toggle error:', error);
+            showError(error?.message || `Không thể ${action} sản phẩm`, `Lỗi ${action} sản phẩm`);
+          }
+        },
+      });
+    } catch (error: any) {
+      console.error('Error in handleSuspendToggle:', error);
+    }
+  }, [fetchProducts]);
+
   // Stats
   const stats = useMemo(() => {
     const total = products.length;
@@ -664,17 +694,29 @@ const AdminProductManagement: React.FC = () => {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 100,
+      width: 120,
       fixed: 'right',
       align: 'center',
       render: (_, record) => (
-        <Tooltip title="Xem chi tiết">
-          <Button
-            type="primary"
-            icon={<EyeOutlined />}
-            onClick={() => handleViewDetail(record.productId)}
-          />
-        </Tooltip>
+        <Space size={[4, 4]} wrap={false}>
+          <Tooltip title="Xem chi tiết">
+            <Button
+              type="primary"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => handleViewDetail(record.productId)}
+            />
+          </Tooltip>
+          <Tooltip title={record.status === 'SUSPENDED' ? 'Bỏ cấm sản phẩm' : 'Cấm sản phẩm'}>
+            <Button
+              type={record.status === 'SUSPENDED' ? 'default' : 'default'}
+              size="small"
+              danger={record.status !== 'SUSPENDED'}
+              icon={record.status === 'SUSPENDED' ? <CheckOutlined /> : <StopOutlined />}
+              onClick={() => handleSuspendToggle(record.productId, record.name, record.status)}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];
@@ -932,11 +974,11 @@ const AdminProductManagement: React.FC = () => {
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
             getCheckboxProps: (record) => {
-              // Disable checkbox nếu sản phẩm đã được duyệt (ACTIVE) hoặc từ chối (REJECTED, REJECT)
-              const isApproved = record.status === 'ACTIVE';
-              const isRejected = record.status === 'REJECTED' || record.status === 'REJECT';
+              // Chỉ cho phép chọn sản phẩm ở trạng thái DRAFT để duyệt
+              // Disable checkbox nếu sản phẩm đã được duyệt hoặc từ chối
+              const isDraft = record.status === 'DRAFT';
               return {
-                disabled: isApproved || isRejected,
+                disabled: !isDraft,
               };
             },
           }}

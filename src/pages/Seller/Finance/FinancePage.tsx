@@ -440,7 +440,14 @@ const FinancePage: React.FC = () => {
       withdrawFromDepositForm.resetFields();
       refresh();
     } catch (error: any) {
-      message.error(error.message || 'Không thể rút tiền từ ký quỹ');
+      const errorMessage = error.message || 'Không thể rút tiền từ ký quỹ';
+      
+      // Check if error is about CREDIT < DEBT
+      if (errorMessage.includes('CREDIT < DEBT') || errorMessage.includes('creditAfter')) {
+        message.error('Không thể hoàn tiền ký quỹ về ví khả dụng do số dư sau khi hoàn không đủ để bù công nợ hiện tại.');
+      } else {
+        message.error(errorMessage);
+      }
     } finally {
       setWithdrawFromDepositLoading(false);
     }
