@@ -4,6 +4,10 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
+// GHN limits for return packages
+const MAX_RETURN_WEIGHT = 30;      // 30kg - GHN limit
+const MAX_RETURN_DIMENSION = 150;  // 150cm mỗi chiều - GHN limit
+
 export interface PackingFormValues {
   weight: number;
   length: number;
@@ -74,30 +78,22 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
 
   const productDims = parseDimensions(productDimensions);
 
-  // Tính toán max weight cho phép dựa trên product weight
-  const getMaxWeight = (): number | undefined => {
-    if (productWeight == null || productWeight <= 0) {
-      return undefined;
-    }
-
-    // Nếu sản phẩm <= 5kg: không được nhập quá 0.3kg so với weight
-    if (productWeight <= 5) {
-      return productWeight + 0.3;
+  // Tính max dimensions (không được quá 2cm so với dimension gốc và giới hạn GHN 150cm)
+  const getMaxDimensions = () => {
+    if (!productDims) {
+      // Nếu không có productDims, chỉ áp dụng giới hạn GHN
+      return {
+        length: MAX_RETURN_DIMENSION,
+        width: MAX_RETURN_DIMENSION,
+        height: MAX_RETURN_DIMENSION,
+      };
     }
     
-    // Nếu sản phẩm > 5kg: không được nhập quá 15% so với weight
-    return productWeight * 1.15;
-  };
-
-  const maxWeight = getMaxWeight();
-
-  // Tính max dimensions (không được quá 2cm so với dimension gốc)
-  const getMaxDimensions = () => {
-    if (!productDims) return null;
+    // Lấy giá trị nhỏ hơn giữa giới hạn tương đối (sản phẩm + 2cm) và giới hạn GHN tuyệt đối (150cm)
     return {
-      length: productDims.length + 2,
-      width: productDims.width + 2,
-      height: productDims.height + 2,
+      length: Math.min(productDims.length + 2, MAX_RETURN_DIMENSION),
+      width: Math.min(productDims.width + 2, MAX_RETURN_DIMENSION),
+      height: Math.min(productDims.height + 2, MAX_RETURN_DIMENSION),
     };
   };
 
@@ -153,16 +149,26 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     <Text>
                       Khối lượng sản phẩm: <Text strong>{productWeight} kg</Text>
                     </Text>
-                    {maxWeight && (
-                      <div className="mt-1">
-                        <Text type="secondary" className="text-xs">
-                          {productWeight <= 5 
-                            ? `Giới hạn: Không được nhập quá ${maxWeight.toFixed(2)} kg (sản phẩm + 0.3 kg)`
-                            : `Giới hạn: Không được nhập quá ${maxWeight.toFixed(2)} kg (sản phẩm + 15%)`
-                          }
-                        </Text>
-                      </div>
-                    )}
+                    <div className="mt-1">
+                      <Text type="secondary" className="text-xs">
+                        {productWeight != null && productWeight > 0 ? (
+                          <>
+                            {productWeight <= 5 
+                              ? `Giới hạn tương đối: Không được nhập quá ${Math.min(productWeight + 0.3, MAX_RETURN_WEIGHT).toFixed(2)} kg (sản phẩm + 0.3 kg)`
+                              : `Giới hạn tương đối: Không được nhập quá ${Math.min(productWeight * 1.15, MAX_RETURN_WEIGHT).toFixed(2)} kg (sản phẩm + 15%)`
+                            }
+                            <br />
+                            <Text type="secondary" className="text-xs text-red-600">
+                              Giới hạn GHN tuyệt đối: Tối đa {MAX_RETURN_WEIGHT} kg
+                            </Text>
+                          </>
+                        ) : (
+                          <Text type="secondary" className="text-xs text-red-600">
+                            Giới hạn GHN: Tối đa {MAX_RETURN_WEIGHT} kg
+                          </Text>
+                        )}
+                      </Text>
+                    </div>
                   </div>
                 </div>
               )}
@@ -175,13 +181,23 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                         {productDims.length} x {productDims.width} x {productDims.height} cm
                       </Text>
                     </Text>
-                    {maxDims && (
-                      <div className="mt-1">
-                        <Text type="secondary" className="text-xs">
-                          Giới hạn: Không được nhập quá {maxDims.length} x {maxDims.width} x {maxDims.height} cm (sản phẩm + 2 cm mỗi chiều)
-                        </Text>
-                      </div>
-                    )}
+                    <div className="mt-1">
+                      <Text type="secondary" className="text-xs">
+                        {productDims ? (
+                          <>
+                            Giới hạn tương đối: Không được nhập quá {maxDims.length} x {maxDims.width} x {maxDims.height} cm (sản phẩm + 2 cm mỗi chiều)
+                            <br />
+                            <Text type="secondary" className="text-xs text-red-600">
+                              Giới hạn GHN tuyệt đối: Mỗi chiều tối đa {MAX_RETURN_DIMENSION} cm
+                            </Text>
+                          </>
+                        ) : (
+                          <Text type="secondary" className="text-xs text-red-600">
+                            Giới hạn GHN: Mỗi chiều tối đa {MAX_RETURN_DIMENSION} cm
+                          </Text>
+                        )}
+                      </Text>
+                    </div>
                   </div>
                 </div>
               )}
@@ -214,6 +230,13 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                   return Promise.reject(new Error('Khối lượng phải lớn hơn 0'));
                 }
                 
+                // Kiểm tra giới hạn GHN tuyệt đối trước (30kg)
+                if (value > MAX_RETURN_WEIGHT) {
+                  return Promise.reject(
+                    new Error(`Khối lượng không được vượt quá ${MAX_RETURN_WEIGHT} kg (giới hạn GHN)`)
+                  );
+                }
+                
                 // Không được nhỏ hơn khối lượng sản phẩm
                 if (productWeight != null && productWeight > 0) {
                   if (value < productWeight) {
@@ -223,16 +246,23 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                   }
                 }
                 
-                // Không được vượt quá giới hạn tối đa
-                if (productWeight != null && productWeight > 0 && maxWeight) {
-                  if (value > maxWeight) {
+                // Không được vượt quá giới hạn tương đối (nếu có)
+                if (productWeight != null && productWeight > 0) {
+                  let relativeMax: number;
+                  if (productWeight <= 5) {
+                    relativeMax = productWeight + 0.3;
+                  } else {
+                    relativeMax = productWeight * 1.15;
+                  }
+                  
+                  if (value > relativeMax) {
                     if (productWeight <= 5) {
                       return Promise.reject(
-                        new Error(`Khối lượng không được vượt quá ${maxWeight.toFixed(2)} kg (sản phẩm + 0.3 kg)`)
+                        new Error(`Khối lượng không được vượt quá ${relativeMax.toFixed(2)} kg (sản phẩm + 0.3 kg)`)
                       );
                     } else {
                       return Promise.reject(
-                        new Error(`Khối lượng không được vượt quá ${maxWeight.toFixed(2)} kg (sản phẩm + 15%)`)
+                        new Error(`Khối lượng không được vượt quá ${relativeMax.toFixed(2)} kg (sản phẩm + 15%)`)
                       );
                     }
                   }
@@ -245,11 +275,12 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
         >
           <InputNumber 
             min={productWeight && productWeight > 0 ? productWeight : 0.1} 
-            max={maxWeight} 
+            max={MAX_RETURN_WEIGHT} 
             step={0.1} 
             className="w-full"
             precision={2}
             controls={false}
+            placeholder={`≤ ${MAX_RETURN_WEIGHT} kg`}
           />
         </Form.Item>
 
@@ -265,6 +296,13 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     return Promise.reject(new Error('Chiều dài phải lớn hơn 0'));
                   }
                   
+                  // Kiểm tra giới hạn GHN tuyệt đối trước (150cm)
+                  if (value > MAX_RETURN_DIMENSION) {
+                    return Promise.reject(
+                      new Error(`Chiều dài không được vượt quá ${MAX_RETURN_DIMENSION} cm (giới hạn GHN)`)
+                    );
+                  }
+                  
                   // Không được nhỏ hơn kích thước sản phẩm
                   if (productDims) {
                     if (value < productDims.length) {
@@ -274,11 +312,14 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     }
                   }
                   
-                  // Không được vượt quá giới hạn tối đa
-                  if (productDims && maxDims && value > maxDims.length) {
-                    return Promise.reject(
-                      new Error(`Chiều dài không được vượt quá ${maxDims.length} cm (sản phẩm + 2 cm)`)
-                    );
+                  // Không được vượt quá giới hạn tương đối (nếu có)
+                  if (productDims) {
+                    const relativeMax = productDims.length + 2;
+                    if (value > relativeMax) {
+                      return Promise.reject(
+                        new Error(`Chiều dài không được vượt quá ${relativeMax} cm (sản phẩm + 2 cm)`)
+                      );
+                    }
                   }
                   
                   return Promise.resolve();
@@ -288,10 +329,11 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
           >
             <InputNumber 
               min={productDims?.length || 1} 
-              max={maxDims?.length} 
+              max={MAX_RETURN_DIMENSION} 
               className="w-full"
               precision={1}
               controls={false}
+              placeholder={`≤ ${MAX_RETURN_DIMENSION} cm`}
             />
           </Form.Item>
           <Form.Item
@@ -305,6 +347,13 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     return Promise.reject(new Error('Chiều rộng phải lớn hơn 0'));
                   }
                   
+                  // Kiểm tra giới hạn GHN tuyệt đối trước (150cm)
+                  if (value > MAX_RETURN_DIMENSION) {
+                    return Promise.reject(
+                      new Error(`Chiều rộng không được vượt quá ${MAX_RETURN_DIMENSION} cm (giới hạn GHN)`)
+                    );
+                  }
+                  
                   // Không được nhỏ hơn kích thước sản phẩm
                   if (productDims) {
                     if (value < productDims.width) {
@@ -314,11 +363,14 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     }
                   }
                   
-                  // Không được vượt quá giới hạn tối đa
-                  if (productDims && maxDims && value > maxDims.width) {
-                    return Promise.reject(
-                      new Error(`Chiều rộng không được vượt quá ${maxDims.width} cm (sản phẩm + 2 cm)`)
-                    );
+                  // Không được vượt quá giới hạn tương đối (nếu có)
+                  if (productDims) {
+                    const relativeMax = productDims.width + 2;
+                    if (value > relativeMax) {
+                      return Promise.reject(
+                        new Error(`Chiều rộng không được vượt quá ${relativeMax} cm (sản phẩm + 2 cm)`)
+                      );
+                    }
                   }
                   
                   return Promise.resolve();
@@ -328,10 +380,11 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
           >
             <InputNumber 
               min={productDims?.width || 1} 
-              max={maxDims?.width} 
+              max={MAX_RETURN_DIMENSION} 
               className="w-full"
               precision={1}
               controls={false}
+              placeholder={`≤ ${MAX_RETURN_DIMENSION} cm`}
             />
           </Form.Item>
           <Form.Item
@@ -345,6 +398,13 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     return Promise.reject(new Error('Chiều cao phải lớn hơn 0'));
                   }
                   
+                  // Kiểm tra giới hạn GHN tuyệt đối trước (150cm)
+                  if (value > MAX_RETURN_DIMENSION) {
+                    return Promise.reject(
+                      new Error(`Chiều cao không được vượt quá ${MAX_RETURN_DIMENSION} cm (giới hạn GHN)`)
+                    );
+                  }
+                  
                   // Không được nhỏ hơn kích thước sản phẩm
                   if (productDims) {
                     if (value < productDims.height) {
@@ -354,11 +414,14 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
                     }
                   }
                   
-                  // Không được vượt quá giới hạn tối đa
-                  if (productDims && maxDims && value > maxDims.height) {
-                    return Promise.reject(
-                      new Error(`Chiều cao không được vượt quá ${maxDims.height} cm (sản phẩm + 2 cm)`)
-                    );
+                  // Không được vượt quá giới hạn tương đối (nếu có)
+                  if (productDims) {
+                    const relativeMax = productDims.height + 2;
+                    if (value > relativeMax) {
+                      return Promise.reject(
+                        new Error(`Chiều cao không được vượt quá ${relativeMax} cm (sản phẩm + 2 cm)`)
+                      );
+                    }
                   }
                   
                   return Promise.resolve();
@@ -368,10 +431,11 @@ const ReturnPackingModal: React.FC<ReturnPackingModalProps> = ({
           >
             <InputNumber 
               min={productDims?.height || 1} 
-              max={maxDims?.height} 
+              max={MAX_RETURN_DIMENSION} 
               className="w-full"
               precision={1}
               controls={false}
+              placeholder={`≤ ${MAX_RETURN_DIMENSION} cm`}
             />
           </Form.Item>
         </div>

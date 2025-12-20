@@ -271,7 +271,7 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     }));
   };
 
-  // Chỉ cho phép trọng lượng trong khoảng (0 - 90] kg
+  // Chỉ cho phép trọng lượng trong khoảng (0 - 27] kg
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     
@@ -292,10 +292,10 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
       return;
     }
 
-    // Chỉ chấp nhận trong khoảng (0, 90]
-    if (value <= 0 || value > 90) {
+    // Chỉ chấp nhận trong khoảng (0, 27]
+    if (value <= 0 || value > 27) {
       // Hiển thị lỗi và không cập nhật form state với giá trị không hợp lệ
-      setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 90 kg.');
+      setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 27 kg.');
       return;
     }
 
