@@ -62,7 +62,7 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
         </button>
         
         {listeners.length >= 1 && (
-          <div className="text-xs text-gray-500 text-center">
+          <div className="text-xs text-gray-500 text-center hidden">
             Chỉ có thể thêm 1 người nghe để tránh bug hệ thống
           </div>
         )}

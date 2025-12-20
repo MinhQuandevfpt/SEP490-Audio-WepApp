@@ -1,34 +1,56 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 import AudioService from '../../services/audio/AudioService';
 import type { SpeakerModel } from '../../services/audio/AudioService';
 
 interface AudioPlayerProps {
   speakerModel: SpeakerModel | null;
   audioUrl: string;
+  volume?: number; // Volume từ parent (0-1)
   onClose?: () => void;
+  onPlayingChange?: (isPlaying: boolean) => void; // Callback khi play/pause
 }
 
-const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, onClose }) => {
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volume = 1.0, onClose, onPlayingChange }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.7);
-  const [isMuted, setIsMuted] = useState(false);
   const [waveformData, setWaveformData] = useState<Uint8Array>(new Uint8Array(0));
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
   const audioServiceRef = useRef<AudioService | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const isInitializedRef = useRef<boolean>(false);
 
-  // Khởi tạo AudioService
+  // Khởi tạo AudioService - CHỈ MỘT LẦN khi mount hoặc audioUrl thay đổi
   useEffect(() => {
-    if (!speakerModel || !audioUrl) return;
+    if (!audioUrl) return;
 
+    // Dispose service cũ nếu có
+    if (audioServiceRef.current) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      audioServiceRef.current.dispose();
+      audioServiceRef.current = null;
+      isInitializedRef.current = false;
+      setIsPlaying(false);
+    }
+
+    // Tạo và initialize service mới
     const audioService = new AudioService(audioUrl);
     audioServiceRef.current = audioService;
 
     const initializeAudio = async () => {
       try {
         await audioService.initialize();
-        audioService.selectSpeakerModel(speakerModel);
+        if (speakerModel) {
+          audioService.selectSpeakerModel(speakerModel);
+        }
         audioService.setVolume(volume);
+        // Lấy duration sau khi initialize
+        const audioDuration = audioService.getDuration();
+        setDuration(audioDuration);
+        isInitializedRef.current = true;
       } catch (error) {
         console.error('Error initializing audio:', error);
       }
@@ -37,28 +59,56 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, onClo
     initializeAudio();
 
     return () => {
+      // Cleanup khi component unmount hoặc audioUrl thay đổi
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      audioService.dispose();
+      if (audioServiceRef.current) {
+        audioServiceRef.current.dispose();
+        audioServiceRef.current = null;
+        isInitializedRef.current = false;
+      }
     };
-  }, [speakerModel, audioUrl]);
+  }, [audioUrl]); // Chỉ phụ thuộc vào audioUrl
 
-  // Update volume
+  // Update EQ settings khi speakerModel thay đổi - KHÔNG PAUSE NHẠC
+  // Chỉ trigger khi EQ preset thực sự thay đổi, không phải khi object reference thay đổi
   useEffect(() => {
-    if (audioServiceRef.current) {
-      audioServiceRef.current.setVolume(isMuted ? 0 : volume);
-    }
-  }, [volume, isMuted]);
+    if (!audioServiceRef.current || !speakerModel || !isInitializedRef.current) return;
 
-  // Waveform animation
+    // Update EQ settings mà không re-initialize
+    // selectSpeakerModel sẽ tự kiểm tra xem EQ có thay đổi không
+    try {
+      audioServiceRef.current.selectSpeakerModel(speakerModel);
+      // Sau khi selectSpeakerModel, đảm bảo volume được giữ nguyên
+      audioServiceRef.current.setVolume(volume);
+    } catch (error) {
+      console.error('Error updating speaker model:', error);
+    }
+  }, [speakerModel?.eqPreset?.bass, speakerModel?.eqPreset?.mid, speakerModel?.eqPreset?.treble, speakerModel?.eqPreset?.gain, volume]); // Chỉ phụ thuộc vào EQ preset values và volume
+
+  // Update volume khi prop volume thay đổi
+  useEffect(() => {
+    if (audioServiceRef.current && isInitializedRef.current) {
+      audioServiceRef.current.setVolume(volume);
+    }
+  }, [volume]);
+
+  // Waveform animation và progress update
   const updateWaveform = useCallback(() => {
     if (audioServiceRef.current && isPlaying) {
       const data = audioServiceRef.current.getWaveformData();
       setWaveformData(data);
+      
+      // Cập nhật currentTime nếu không đang seek
+      if (!isSeeking) {
+        const time = audioServiceRef.current.getCurrentTime();
+        setCurrentTime(time);
+      }
+      
       animationFrameRef.current = requestAnimationFrame(updateWaveform);
     }
-  }, [isPlaying]);
+  }, [isPlaying, isSeeking]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -76,27 +126,57 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, onClo
     };
   }, [isPlaying, updateWaveform]);
 
+  // Update duration khi audio buffer load xong
+  useEffect(() => {
+    if (audioServiceRef.current && isInitializedRef.current) {
+      const audioDuration = audioServiceRef.current.getDuration();
+      if (audioDuration > 0) {
+        setDuration(audioDuration);
+      }
+    }
+  }, [audioServiceRef.current, isInitializedRef.current]);
+
   const handlePlayPause = async () => {
     if (!audioServiceRef.current) return;
 
     if (isPlaying) {
       audioServiceRef.current.pause();
       setIsPlaying(false);
+      if (onPlayingChange) {
+        onPlayingChange(false);
+      }
     } else {
       await audioServiceRef.current.play();
       setIsPlaying(true);
+      if (onPlayingChange) {
+        onPlayingChange(true);
+      }
     }
   };
 
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value);
-    setVolume(newVolume);
-    setIsMuted(false);
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioServiceRef.current || duration === 0) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    const newTime = percentage * duration;
+
+    setIsSeeking(true);
+    setCurrentTime(newTime);
+    audioServiceRef.current.seek(newTime);
+    
+    // Reset seeking flag sau một chút
+    setTimeout(() => setIsSeeking(false), 100);
   };
 
-  const handleMute = () => {
-    setIsMuted(!isMuted);
+  const formatTime = (seconds: number): string => {
+    if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
 
   if (!speakerModel) {
     return null;
@@ -152,6 +232,27 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, onClo
           )}
         </div>
 
+        {/* Progress Bar */}
+        <div className="mb-3">
+          <div
+            className="w-full h-2 bg-gray-200 rounded-full cursor-pointer relative group"
+            onClick={handleSeek}
+          >
+            <div
+              className="h-full bg-orange-600 rounded-full transition-all"
+              style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+            />
+            <div
+              className="absolute top-1/2 transform -translate-y-1/2 w-4 h-4 bg-orange-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{ left: `calc(${duration > 0 ? (currentTime / duration) * 100 : 0}% - 8px)` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
+        </div>
+
         {/* Controls */}
         <div className="flex items-center space-x-3">
           {/* Play/Pause */}
@@ -161,28 +262,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, onClo
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
           </button>
-
-          {/* Volume Control */}
-          <div className="flex-1 flex items-center space-x-2">
-            <button
-              onClick={handleMute}
-              className="text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={isMuted ? 0 : volume}
-              onChange={handleVolumeChange}
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
-            />
-            <span className="text-xs text-gray-600 w-10 text-right">
-              {Math.round((isMuted ? 0 : volume) * 100)}%
-            </span>
-          </div>
         </div>
 
         {/* Specs */}

@@ -1,18 +1,12 @@
-import React, { useEffect, useRef } from 'react';
-import { Box, Text, PositionalAudio } from '@react-three/drei';
+import React from 'react';
+import { Box, Text } from '@react-three/drei';
 import type { Speaker } from './index';
-import type { PositionalAudio as ThreePositionalAudio } from 'three';
 
 interface Speaker3DProps {
   speaker: Speaker;
-  audioUrl?: string;
 }
 
-// Encode default URL to tránh lỗi khi tên file có dấu cách
-const DEFAULT_AUDIO_URL = '/See%20You%20Again%20Remix.mp3';
-
-const Speaker3D: React.FC<Speaker3DProps> = ({ speaker, audioUrl = DEFAULT_AUDIO_URL }) => {
-  const audioRef = useRef<ThreePositionalAudio | null>(null);
+const Speaker3D: React.FC<Speaker3DProps> = ({ speaker }) => {
 
   // Kích thước loa theo loại
   const getSpeakerDimensions = () => {
@@ -50,47 +44,6 @@ const Speaker3D: React.FC<Speaker3DProps> = ({ speaker, audioUrl = DEFAULT_AUDIO
   const dims = getSpeakerDimensions();
   const pos = getSpeakerPosition();
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    // Tham số suy giảm âm theo khoảng cách (tương tác gần-xa)
-    audio.setRefDistance(1);      // khoảng cách bắt đầu giảm âm (m)
-    audio.setMaxDistance(15);     // khoảng cách tối đa còn nghe
-    audio.setRolloffFactor(1.6);  // tốc độ suy giảm
-    audio.setDistanceModel('inverse');
-    audio.setLoop(true);
-
-    if (!audio.buffer) return; // chờ buffer load xong
-
-    const resumeIfNeeded = async () => {
-      if (audio.context.state === 'suspended') {
-        await audio.context.resume().catch(() => {});
-      }
-    };
-
-    const playSafe = async () => {
-      await resumeIfNeeded();
-      try {
-        await audio.play();
-      } catch (err) {
-        // Tránh crash do policy autoplay
-        // eslint-disable-next-line no-console
-        console.warn('PositionalAudio play blocked by browser:', err);
-      }
-    };
-
-    if (speaker.isPlaying) {
-      playSafe();
-    } else {
-      audio.stop?.();
-    }
-
-    return () => {
-      audio.stop?.();
-    };
-  }, [speaker.isPlaying]);
-
   return (
     <group position={pos} rotation={speaker.rotation}>
       {/* Thân loa chính */}
@@ -102,14 +55,6 @@ const Speaker3D: React.FC<Speaker3DProps> = ({ speaker, audioUrl = DEFAULT_AUDIO
         />
       </Box>
 
-      {/* Positional audio gắn vào loa, giảm âm theo khoảng cách tới listener (camera) */}
-      <PositionalAudio
-        ref={audioRef}
-        url={audioUrl}
-        autoplay={false}
-        loop
-      />
-      
       {/* Lưới loa (grill) */}
       <Box args={[dims.width * 0.95, dims.height * 0.8, dims.depth * 0.1]} position={[0, 0, dims.depth / 2 + 0.01]}>
         <meshStandardMaterial 
@@ -121,13 +66,13 @@ const Speaker3D: React.FC<Speaker3DProps> = ({ speaker, audioUrl = DEFAULT_AUDIO
         />
       </Box>
 
-      {/* LED indicator khi đang phát */}
+      {/* LED indicator - chỉ hiển thị visual, không phát nhạc */}
       {speaker.isPlaying && (
         <>
           <Box args={[0.02, 0.02, 0.02]} position={[dims.width / 2 - 0.05, dims.height / 2 - 0.05, dims.depth / 2 + 0.02]}>
             <meshStandardMaterial color="#00FF00" emissive="#00FF00" emissiveIntensity={1} />
           </Box>
-          {/* Sound waves effect */}
+          {/* Visual effect - chỉ để hiển thị, không phát nhạc */}
           <Box args={[dims.width * 1.2, dims.height * 1.2, 0.01]} position={[0, 0, dims.depth / 2 + 0.05]}>
             <meshStandardMaterial 
               color="#00FF00"

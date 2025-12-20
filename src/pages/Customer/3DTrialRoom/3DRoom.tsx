@@ -33,7 +33,7 @@ const ThreeDRoom: React.FC = () => {
   // Test mode states - được sử dụng qua callbacks trong SpeakerDesignSection
   const [_testSpeaker, setTestSpeaker] = useState<CustomSpeakerSpecs | null>(null);
   const [testObjectPosition, setTestObjectPosition] = useState<[number, number, number] | null>(null);
-  const [isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
+  const [_isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
 
   const handleDimensionChange = useCallback((key: keyof Dimensions, value: number) => {
     setDimensions(prev => ({
@@ -190,7 +190,6 @@ const ThreeDRoom: React.FC = () => {
             onSelectFurniture={handleSelectFurniture}
             selectedListenerId={selectedListenerId}
             onSelectListener={handleSelectListener}
-            isTestObjectActive={isTestingIn3D && testObjectPosition !== null}
             isTestObjectSelected={isTestObjectSelected}
             onSelectTestObject={handleSelectTestObject}
           />

@@ -195,6 +195,14 @@ export interface Speaker {
   quality: 'basic' | 'premium' | 'professional';
   isPlaying: boolean;
   customSpecs?: CustomSpeakerSpecs; // Custom specifications for audio processing
+  // Audio properties for PositionalAudio
+  volume?: number; // 0-1, default 1.0 (volume chuẩn)
+  refDistance?: number; // Khoảng cách bắt đầu giảm âm (m), default 1.2 (khoảng cách nghe bình thường)
+  maxDistance?: number; // Khoảng cách tối đa còn nghe (m), default 12
+  rolloffFactor?: number; // Tốc độ suy giảm, default 1 (chuẩn)
+  coneInnerAngle?: number; // Góc cone trong (degrees), default 60
+  coneOuterAngle?: number; // Góc cone ngoài (degrees), default 120
+  coneOuterGain?: number; // Gain ngoài cone (0-1), default 0.3
 }
 
 // Listener Types
