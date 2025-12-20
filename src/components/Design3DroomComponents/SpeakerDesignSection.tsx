@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Move, Headphones } from 'lucide-react';
-import type { Speaker, CustomSpeakerSpecs } from './index';
+import type { Speaker, CustomSpeakerSpecs, Listener } from './index';
 import AudioPlayer from './AudioPlayer';
 import type { EQPreset } from '../../services/audio/AudioService';
 
@@ -17,6 +17,9 @@ interface SpeakerDesignSectionProps {
   // Test object selection props
   isTestObjectSelected?: boolean;
   onSelectTestObject?: () => void;
+  // Listener props để tính toán distance
+  listeners?: Listener[];
+  selectedListenerId?: string | null;
 }
 
 
@@ -79,7 +82,9 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   onTestObjectPositionChange,
   onTestingIn3DChange,
   isTestObjectSelected = false,
-  onSelectTestObject
+  onSelectTestObject,
+  listeners = [],
+  selectedListenerId = null
 }) => {
   const [customSpecs, setCustomSpecs] = useState<CustomSpeakerSpecs>(DEFAULT_CUSTOM_SPECS);
   const [isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
@@ -87,6 +92,40 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   const [testObjectPosition, setTestObjectPosition] = useState<[number, number, number]>([0, 0.5, 0]);
   const [volume, setVolume] = useState<number>(1.0); // Volume control (0-1)
   const audioPlayerPlayingRef = useRef<boolean>(false);
+
+  // Tính toán volume đã điều chỉnh dựa trên khoảng cách giữa loa và người nghe
+  // Logic: cứ cách 1m thì giảm 10% volume
+  const calculateAdjustedVolume = useMemo(() => {
+    // Lấy vị trí listener: ưu tiên listener được chọn, nếu không có thì dùng listener đầu tiên
+    let listenerPosition: [number, number, number] | null = null;
+    
+    if (selectedListenerId) {
+      const selectedListener = listeners.find(l => l.id === selectedListenerId);
+      if (selectedListener) {
+        listenerPosition = selectedListener.position;
+      }
+    } else if (listeners.length > 0) {
+      listenerPosition = listeners[0].position;
+    }
+
+    // Nếu không có listener, không giảm volume
+    if (!listenerPosition || !isTestingIn3D) {
+      return volume;
+    }
+
+    // Tính khoảng cách giữa test object (loa) và listener
+    const dx = testObjectPosition[0] - listenerPosition[0];
+    const dy = testObjectPosition[1] - listenerPosition[1];
+    const dz = testObjectPosition[2] - listenerPosition[2];
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Tính volume đã điều chỉnh: cứ cách 1m thì giảm 10%
+    // Ví dụ: distance = 1m → giảm 10% → volume = volume * 0.9
+    const volumeReduction = distance * 0.1; // 10% mỗi mét
+    const adjustedVolume = volume * Math.max(0, 1 - volumeReduction);
+
+    return adjustedVolume;
+  }, [volume, testObjectPosition, listeners, selectedListenerId, isTestingIn3D]);
 
   // Memoize speakerModel để tránh re-create mỗi lần render (tránh trigger selectSpeakerModel không cần thiết)
   const speakerModel = useMemo(
@@ -354,7 +393,16 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
               max="1"
               step="0.01"
               value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              onChange={(e) => {
+                const newVolume = parseFloat(e.target.value);
+                setVolume(newVolume);
+                // Sync volume xuống tất cả loa 3D đang phát
+                _speakers.forEach(speaker => {
+                  if (speaker.isPlaying) {
+                    _onUpdateSpeaker(speaker.id, { volume: newVolume });
+                  }
+                });
+              }}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
             />
             <div className="flex justify-between text-xs text-gray-500">
@@ -503,7 +551,7 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
         <AudioPlayer
           speakerModel={speakerModel}
           audioUrl={AUDIO_URL}
-          volume={volume}
+          volume={calculateAdjustedVolume} // Sử dụng volume đã điều chỉnh dựa trên distance
           onClose={() => {
             setIsTestingAudio(false);
           }}

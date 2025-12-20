@@ -119,6 +119,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onTestingIn3DChange={onTestingIn3DChange}
             isTestObjectSelected={isTestObjectSelected}
             onSelectTestObject={onSelectTestObject}
+            listeners={listeners}
+            selectedListenerId={selectedListenerId}
           />
         );
       case 'listeners':

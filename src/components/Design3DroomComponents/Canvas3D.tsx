@@ -148,7 +148,12 @@ const SceneContent: React.FC<{
 
       {/* Speakers */}
       {speakers.map((speaker) => (
-        <Speaker3D key={speaker.id} speaker={speaker} />
+        <Speaker3D 
+          key={speaker.id} 
+          speaker={speaker}
+          listeners={listeners}
+          selectedListenerId={selectedListenerId}
+        />
       ))}
 
       {/* Test Object - Movable object */}
