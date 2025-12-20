@@ -355,6 +355,11 @@ const StoreManagement: React.FC = () => {
         color: 'error',
         text: 'Từ chối',
         icon: <CloseCircleOutlined />
+      },
+      SUSPENDED_DEBT: {
+        color: 'error',
+        text: 'Tạm khoá do nợ',
+        icon: <CloseCircleOutlined />
       }
     };
 
@@ -464,19 +469,21 @@ const StoreManagement: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <Title level={3} style={{ margin: 0 }}>
-          Quản lý cửa hàng
-        </Title>
-        <Text type="secondary">
-          Xem và quản lý tất cả cửa hàng trên hệ thống
-        </Text>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <Title level={3} style={{ margin: 0 }}>
+            Quản lý cửa hàng
+          </Title>
+          <Text type="secondary">
+            Xem và quản lý tất cả cửa hàng trên hệ thống
+          </Text>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+      <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
@@ -520,10 +527,10 @@ const StoreManagement: React.FC = () => {
       </Row>
 
       {/* Search & Filters */}
-      <Card style={{ marginBottom: '24px' }}>
+      <Card>
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Row gutter={[16, 16]} align="middle">
-            <Col xs={24} md={16}>
+            <Col xs={24} lg={16}>
               <Search
                 placeholder="Tìm kiếm theo tên cửa hàng..."
                 allowClear
@@ -535,8 +542,8 @@ const StoreManagement: React.FC = () => {
                 loading={isLoading}
               />
             </Col>
-            <Col xs={24} md={8}>
-              <Space>
+            <Col xs={24} lg={8}>
+              <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
                 <Button
                   type="primary"
                   icon={<CheckOutlined />}
@@ -726,7 +733,7 @@ const StoreManagement: React.FC = () => {
           onClose={handleCloseKycModal}
         />
       )}
-    </div>
+    </Space>
   );
 };
 

@@ -377,6 +377,7 @@ export class ProductService {
       'PENDING_APPROVAL': 'Chờ duyệt',
       'REJECTED': 'Bị từ chối',
       'REJECT': 'Bị từ chối',
+      'SUSPENDED': 'Vi Phạm',
       'SUSPENDED_DEBT': 'Tạm khóa do nợ'
     };
     return statusMap[status] || status;
@@ -396,6 +397,7 @@ export class ProductService {
       'PENDING_APPROVAL': 'bg-yellow-100 text-yellow-800',
       'REJECTED': 'bg-red-100 text-red-800',
       'REJECT': 'bg-red-100 text-red-800',
+      'SUSPENDED': 'bg-red-100 text-red-800',
       'SUSPENDED_DEBT': 'bg-red-100 text-red-800'
     };
     return colorMap[status] || 'bg-gray-100 text-gray-800';

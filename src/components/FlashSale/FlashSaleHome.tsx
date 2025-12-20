@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Empty, Button } from 'antd';
 import { FireOutlined, RightOutlined } from '@ant-design/icons';
@@ -16,19 +16,61 @@ const FlashSaleHome: React.FC = () => {
   const navigate = useNavigate();
   const [flashSale, setFlashSale] = useState<CurrentFlashSaleSlot | null>(null);
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const currentSlotIdRef = useRef<string | null>(null);
 
   // Fetch Flash Sale hiện tại
   useEffect(() => {
     const fetchFlashSale = async () => {
       try {
         const data = await FlashSaleService.getCurrentFlashSale();
-        setFlashSale(data);
+        if (data) {
+          setFlashSale(data);
+          currentSlotIdRef.current = data.slot.id;
+        }
       } catch (error) {
         console.error('Error loading flash sale:', error);
       }
     };
 
     fetchFlashSale();
+  }, []);
+
+  // Polling để check khi slot mới bắt đầu
+  useEffect(() => {
+    const checkForNewSlot = async () => {
+      try {
+        // Check slot hiện tại có còn active không
+        const currentData = await FlashSaleService.getCurrentFlashSale();
+        
+        if (currentData) {
+          // Nếu slot thay đổi hoặc chưa có slot nào, update ngay
+          if (currentSlotIdRef.current !== currentData.slot.id) {
+            console.log('🔄 New slot detected, updating Flash Sale');
+            setFlashSale(currentData);
+            currentSlotIdRef.current = currentData.slot.id;
+          }
+        } else {
+          // Không có slot active, clear flash sale
+          if (currentSlotIdRef.current) {
+            console.log('⏹️ No active slot, clearing Flash Sale');
+            setFlashSale(null);
+            currentSlotIdRef.current = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking for new slot:', error);
+      }
+    };
+
+    // Check ngay lập tức khi mount
+    checkForNewSlot();
+
+    // Polling mỗi 3 giây để phát hiện slot mới nhanh hơn
+    const pollingInterval = setInterval(checkForNewSlot, 3000);
+
+    return () => {
+      clearInterval(pollingInterval);
+    };
   }, []);
 
   // Đếm ngược thời gian

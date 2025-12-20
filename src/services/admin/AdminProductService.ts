@@ -233,4 +233,61 @@ export class AdminProductService {
       throw new Error(errorMessage);
     }
   }
+
+  /**
+   * Toggle suspend status of a product
+   * PATCH /api/products/{productId}/suspend-toggle
+   * - If product is SUSPENDED, change to ACTIVE
+   * - If product is other status (not ACTIVE), change to SUSPENDED
+   */
+  static async suspendToggleProduct(productId: string): Promise<{
+    newStatus: string;
+    oldStatus: string;
+    productId: string;
+  }> {
+    try {
+      console.log('📤 Toggling suspend status for product:', productId);
+      
+      const response: any = await adminHttpClient.patch<any>(
+        `/api/products/${productId}/suspend-toggle`
+      );
+      
+      console.log('📥 Suspend toggle response:', response);
+      
+      // API response structure: { status: number, message: string, data: {...} }
+      if (response?.data) {
+        return response.data;
+      }
+      
+      // If response itself is the data
+      if (response?.newStatus && response?.oldStatus) {
+        return response;
+      }
+      
+      throw new Error('Phản hồi từ server không hợp lệ');
+    } catch (error: any) {
+      console.error('Error toggling suspend status:', error);
+      
+      let errorMessage = 'Không thể cập nhật trạng thái cấm sản phẩm';
+      
+      if (error?.message && error.message.trim() !== '') {
+        errorMessage = error.message;
+        
+        // Check if error is about SUSPENDED_DEBT status
+        if (errorMessage.includes('SUSPENDED_DEBT')) {
+          errorMessage = 'Thao tác không hợp lệ\nKhông thể thay đổi trạng thái khi sản phẩm đang tạm ngưng do công nợ.';
+        }
+      } else if (error?.status) {
+        const statusMessages: Record<number, string> = {
+          401: 'Không có quyền truy cập',
+          403: 'Bị từ chối truy cập. Chỉ Admin mới có quyền thực hiện thao tác này',
+          404: 'Không tìm thấy sản phẩm',
+          500: 'Lỗi máy chủ. Vui lòng thử lại sau',
+        };
+        errorMessage = statusMessages[error.status] || `Lỗi ${error.status}: ${errorMessage}`;
+      }
+      
+      throw new Error(errorMessage);
+    }
+  }
 }

@@ -166,11 +166,12 @@ const ProductManagement: React.FC = () => {
       },
       onOk: async () => {
         try {
-          const response = await ProductService.toggleProductStatus(productId);
+          await ProductService.toggleProductStatus(productId);
           
-          // Show success message based on new status
-          const newStatus = response?.data?.status || (currentStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE');
-          if (newStatus === 'INACTIVE') {
+          // Show success message based on current action (not new status from backend)
+          // If currently ACTIVE -> we are hiding it -> show "Đã ẩn"
+          // If currently INACTIVE -> we are showing it -> show "Đã hiển thị"
+          if (isActive) {
             showCenterSuccess('Đã ẩn sản phẩm thành công', 'Thành công');
           } else {
             showCenterSuccess('Đã hiển thị sản phẩm thành công', 'Thành công');
@@ -366,6 +367,7 @@ const ProductManagement: React.FC = () => {
           'REJECTED': 'red',
           'REJECT': 'red',
           'PENDING_APPROVAL': 'orange',
+          'SUSPENDED': 'red',
           'SUSPENDED_DEBT': 'red',
         };
         
