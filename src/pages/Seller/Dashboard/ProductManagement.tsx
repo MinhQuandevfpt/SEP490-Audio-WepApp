@@ -360,6 +360,7 @@ const ProductManagement: React.FC = () => {
         const statusColors: Record<string, string> = {
           'ACTIVE': 'green',
           'INACTIVE': 'gray',
+          'INACTIVE_PAUSE': 'orange',
           'OUT_OF_STOCK': 'red',
           'PENDING': 'orange',
           'REJECTED': 'red',

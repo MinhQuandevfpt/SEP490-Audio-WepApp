@@ -326,6 +326,12 @@ const AdminProductManagement: React.FC = () => {
             Ngừng bán
           </Tag>
         );
+      case 'INACTIVE_PAUSE':
+        return (
+          <Tag color="warning" icon={<ClockCircleOutlined />}>
+            Tạm dừng
+          </Tag>
+        );
       case 'OUT_OF_STOCK':
         return (
           <Tag color="warning" icon={<WarningOutlined />}>
