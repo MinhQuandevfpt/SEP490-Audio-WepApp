@@ -59,6 +59,31 @@ const ThreeDRoom: React.FC = () => {
     setColors(DEFAULT_COLORS);
   }, []);
 
+  // Helper function để giới hạn vị trí trong phòng
+  const clampPositionToRoom = useCallback((position: [number, number, number], objectSize: number = 0.3): [number, number, number] => {
+    const halfLength = dimensions.length / 2;
+    const halfWidth = dimensions.width / 2;
+    const halfObjectSize = objectSize / 2;
+    
+    // Giới hạn X: -length/2 + objectSize/2 đến +length/2 - objectSize/2
+    const minX = -halfLength + halfObjectSize;
+    const maxX = halfLength - halfObjectSize;
+    
+    // Giới hạn Y: objectSize/2 đến height - objectSize/2
+    const minY = halfObjectSize;
+    const maxY = dimensions.height - halfObjectSize;
+    
+    // Giới hạn Z: -width/2 + objectSize/2 đến +width/2 - objectSize/2
+    const minZ = -halfWidth + halfObjectSize;
+    const maxZ = halfWidth - halfObjectSize;
+    
+    return [
+      Math.max(minX, Math.min(maxX, position[0])),
+      Math.max(minY, Math.min(maxY, position[1])),
+      Math.max(minZ, Math.min(maxZ, position[2]))
+    ];
+  }, [dimensions]);
+
   // Furniture handlers
   const handleAddFurniture = useCallback((newFurniture: Omit<Furniture, 'id'>) => {
     const furnitureItem: Furniture = {
@@ -84,12 +109,15 @@ const ThreeDRoom: React.FC = () => {
 
   // Listener handlers
   const handleAddListener = useCallback((newListener: Omit<Listener, 'id'>) => {
+    // Giới hạn vị trí ban đầu của listener trong phòng (người có kích thước ~0.5m)
+    const clampedPosition = clampPositionToRoom(newListener.position, 0.5);
     const listener: Listener = {
       ...newListener,
+      position: clampedPosition,
       id: `listener_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
     setListeners(prev => [...prev, listener]);
-  }, []);
+  }, [clampPositionToRoom]);
 
   const handleRemoveListener = useCallback((id: string) => {
     setListeners(prev => prev.filter(item => item.id !== id));
@@ -100,10 +128,18 @@ const ThreeDRoom: React.FC = () => {
   }, [selectedListenerId]);
 
   const handleUpdateListener = useCallback((id: string, updates: Partial<Listener>) => {
-    setListeners(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-  }, []);
+    setListeners(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, ...updates };
+        // Nếu có cập nhật position, giới hạn trong phòng (người có kích thước ~0.5m)
+        if (updates.position) {
+          updatedItem.position = clampPositionToRoom(updates.position, 0.5);
+        }
+        return updatedItem;
+      }
+      return item;
+    }));
+  }, [clampPositionToRoom]);
 
   // Selection handlers - mutual exclusion
   const handleSelectFurniture = useCallback((id: string | null) => {
@@ -136,27 +172,40 @@ const ThreeDRoom: React.FC = () => {
 
   // Update test object position handler
   const handleUpdateTestObjectPosition = useCallback((position: [number, number, number]) => {
-    setTestObjectPosition(position);
-  }, []);
+    // Giới hạn vị trí test object trong phòng (test object có kích thước ~0.2m)
+    const clampedPosition = clampPositionToRoom(position, 0.2);
+    setTestObjectPosition(clampedPosition);
+  }, [clampPositionToRoom]);
 
   // Speaker handlers
   const handleAddSpeaker = useCallback((newSpeaker: Omit<Speaker, 'id'>) => {
+    // Giới hạn vị trí ban đầu của speaker trong phòng (speaker có kích thước ~0.3m)
+    const clampedPosition = clampPositionToRoom(newSpeaker.position, 0.3);
     const speaker: Speaker = {
       ...newSpeaker,
+      position: clampedPosition,
       id: `speaker_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
     setSpeakers(prev => [...prev, speaker]);
-  }, []);
+  }, [clampPositionToRoom]);
 
   const handleRemoveSpeaker = useCallback((id: string) => {
     setSpeakers(prev => prev.filter(item => item.id !== id));
   }, []);
 
   const handleUpdateSpeaker = useCallback((id: string, updates: Partial<Speaker>) => {
-    setSpeakers(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ));
-  }, []);
+    setSpeakers(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, ...updates };
+        // Nếu có cập nhật position, giới hạn trong phòng (speaker có kích thước ~0.3m)
+        if (updates.position) {
+          updatedItem.position = clampPositionToRoom(updates.position, 0.3);
+        }
+        return updatedItem;
+      }
+      return item;
+    }));
+  }, [clampPositionToRoom]);
 
   try {
     return (

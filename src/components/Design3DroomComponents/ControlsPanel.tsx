@@ -121,6 +121,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onSelectTestObject={onSelectTestObject}
             listeners={listeners}
             selectedListenerId={selectedListenerId}
+            dimensions={dimensions}
           />
         );
       case 'listeners':

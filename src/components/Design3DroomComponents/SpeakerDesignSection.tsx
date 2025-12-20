@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Move, Headphones } from 'lucide-react';
+import { Move, Headphones, FileText } from 'lucide-react';
 import type { Speaker, CustomSpeakerSpecs, Listener } from './index';
 import AudioPlayer from './AudioPlayer';
+import SpeakerSpecsModal from './SpeakerSpecsModal';
 import type { EQPreset } from '../../services/audio/AudioService';
 
 interface SpeakerDesignSectionProps {
@@ -20,6 +21,8 @@ interface SpeakerDesignSectionProps {
   // Listener props để tính toán distance
   listeners?: Listener[];
   selectedListenerId?: string | null;
+  // Room dimensions để giới hạn vị trí vật thể
+  dimensions?: import('./index').Dimensions;
 }
 
 
@@ -84,13 +87,15 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   isTestObjectSelected = false,
   onSelectTestObject,
   listeners = [],
-  selectedListenerId = null
+  selectedListenerId = null,
+  dimensions
 }) => {
   const [customSpecs, setCustomSpecs] = useState<CustomSpeakerSpecs>(DEFAULT_CUSTOM_SPECS);
   const [isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
   const [isTestingAudio, setIsTestingAudio] = useState<boolean>(false);
   const [testObjectPosition, setTestObjectPosition] = useState<[number, number, number]>([0, 0.5, 0]);
   const [volume, setVolume] = useState<number>(1.0); // Volume control (0-1)
+  const [isSpecsModalOpen, setIsSpecsModalOpen] = useState<boolean>(false);
   const audioPlayerPlayingRef = useRef<boolean>(false);
 
   // Tính toán volume đã điều chỉnh và panning dựa trên khoảng cách và vị trí trái/phải
@@ -193,13 +198,44 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
     }
   };
 
+  // Helper function để giới hạn vị trí trong phòng
+  const clampPositionToRoom = (position: [number, number, number], objectSize: number = 0.2): [number, number, number] => {
+    if (!dimensions) return position; // Nếu không có dimensions, không giới hạn
+    
+    const halfLength = dimensions.length / 2;
+    const halfWidth = dimensions.width / 2;
+    const halfObjectSize = objectSize / 2;
+    
+    // Giới hạn X: -length/2 + objectSize/2 đến +length/2 - objectSize/2
+    const minX = -halfLength + halfObjectSize;
+    const maxX = halfLength - halfObjectSize;
+    
+    // Giới hạn Y: objectSize/2 đến height - objectSize/2
+    const minY = halfObjectSize;
+    const maxY = dimensions.height - halfObjectSize;
+    
+    // Giới hạn Z: -width/2 + objectSize/2 đến +width/2 - objectSize/2
+    const minZ = -halfWidth + halfObjectSize;
+    const maxZ = halfWidth - halfObjectSize;
+    
+    return [
+      Math.max(minX, Math.min(maxX, position[0])),
+      Math.max(minY, Math.min(maxY, position[1])),
+      Math.max(minZ, Math.min(maxZ, position[2]))
+    ];
+  };
+
   const handleMoveTestObject = (axis: 'x' | 'y' | 'z', direction: 1 | -1) => {
     const newPosition: [number, number, number] = [...testObjectPosition];
     const axisIndex = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
     newPosition[axisIndex] += direction * 0.5; // Move 0.5m per step
-    setTestObjectPosition(newPosition);
+    
+    // Giới hạn vị trí trong phòng (test object có kích thước ~0.2m)
+    const clampedPosition = clampPositionToRoom(newPosition, 0.2);
+    
+    setTestObjectPosition(clampedPosition);
     if (onTestObjectPositionChange) {
-      onTestObjectPositionChange(newPosition);
+      onTestObjectPositionChange(clampedPosition);
     }
   };
 
@@ -220,6 +256,14 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
           <span className="text-2xl">🔊</span>
           <h3 className="text-lg font-semibold text-gray-800">Thiết kế loa</h3>
         </div>
+        <button
+          onClick={() => setIsSpecsModalOpen(true)}
+          className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          title="Xuất thông số kỹ thuật loa"
+        >
+          <FileText className="w-4 h-4" />
+          <span>Xuất thông số</span>
+        </button>
       </div>
 
       {/* Customize Speaker Specs */}
@@ -578,6 +622,14 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
           }}
         />
       )}
+
+      {/* Speaker Specs Modal */}
+      <SpeakerSpecsModal
+        isOpen={isSpecsModalOpen}
+        onClose={() => setIsSpecsModalOpen(false)}
+        specs={customSpecs}
+        speakerName="Loa tùy chỉnh"
+      />
     </div>
   );
 };

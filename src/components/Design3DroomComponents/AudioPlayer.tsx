@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Upload, X } from 'lucide-react';
 import AudioService from '../../services/audio/AudioService';
 import type { SpeakerModel } from '../../services/audio/AudioService';
 
@@ -18,13 +18,28 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const audioServiceRef = useRef<AudioService | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isInitializedRef = useRef<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup uploaded file URL khi component unmount
+  useEffect(() => {
+    return () => {
+      if (uploadedFileUrl && uploadedFileUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(uploadedFileUrl);
+      }
+    };
+  }, [uploadedFileUrl]);
 
   // Khởi tạo AudioService - CHỈ MỘT LẦN khi mount hoặc audioUrl thay đổi
   useEffect(() => {
-    if (!audioUrl) return;
+    // Sử dụng uploadedFileUrl nếu có, nếu không thì dùng audioUrl mặc định
+    const activeAudioUrl = uploadedFileUrl || audioUrl;
+    if (!activeAudioUrl) return;
 
     // Dispose service cũ nếu có
     if (audioServiceRef.current) {
@@ -38,7 +53,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
     }
 
     // Tạo và initialize service mới
-    const audioService = new AudioService(audioUrl);
+    const audioService = new AudioService(activeAudioUrl);
     audioServiceRef.current = audioService;
 
     const initializeAudio = async () => {
@@ -71,7 +86,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
         isInitializedRef.current = false;
       }
     };
-  }, [audioUrl]); // Chỉ phụ thuộc vào audioUrl
+  }, [audioUrl, uploadedFileUrl]); // Phụ thuộc vào audioUrl và uploadedFileUrl
 
   // Update EQ settings khi speakerModel thay đổi - KHÔNG PAUSE NHẠC
   // Chỉ trigger khi EQ preset thực sự thay đổi, không phải khi object reference thay đổi
@@ -186,6 +201,68 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Kiểm tra định dạng file
+    if (!file.type.startsWith('audio/')) {
+      alert('Vui lòng chọn file âm thanh (MP3, WAV, OGG, v.v.)');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Tạo object URL từ file
+      const objectUrl = URL.createObjectURL(file);
+      
+      // Revoke URL cũ nếu có
+      if (uploadedFileUrl && uploadedFileUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(uploadedFileUrl);
+      }
+
+      setUploadedFile(file);
+      setUploadedFileUrl(objectUrl);
+      
+      // Dừng phát nhạc hiện tại nếu đang phát
+      if (isPlaying && audioServiceRef.current) {
+        audioServiceRef.current.pause();
+        setIsPlaying(false);
+        if (onPlayingChange) {
+          onPlayingChange(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Lỗi khi upload file. Vui lòng thử lại.');
+    } finally {
+      setIsUploading(false);
+      // Reset input để có thể chọn lại cùng file
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveUploadedFile = () => {
+    // Dừng phát nhạc nếu đang phát
+    if (isPlaying && audioServiceRef.current) {
+      audioServiceRef.current.pause();
+      setIsPlaying(false);
+      if (onPlayingChange) {
+        onPlayingChange(false);
+      }
+    }
+
+    // Revoke object URL
+    if (uploadedFileUrl && uploadedFileUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(uploadedFileUrl);
+    }
+
+    setUploadedFile(null);
+    setUploadedFileUrl(null);
+  };
+
 
   if (!speakerModel) {
     return null;
@@ -204,6 +281,12 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
                 EQ: {speakerModel.eqPreset.name}
               </p>
             )}
+            {uploadedFile && (
+              <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                <Upload className="w-3 h-3" />
+                File: {uploadedFile.name}
+              </p>
+            )}
           </div>
           {onClose && (
             <button
@@ -213,6 +296,51 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
               ×
             </button>
           )}
+        </div>
+
+        {/* File Upload Section */}
+        <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
+              <label className="text-xs font-medium text-gray-700 block mb-1">
+                Upload file MP3 của bạn
+              </label>
+              <p className="text-xs text-gray-500">
+                {uploadedFile ? `Đang sử dụng: ${uploadedFile.name}` : 'Chọn file để test với âm thanh của bạn'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="hidden"
+                id="audio-file-upload"
+              />
+              <label
+                htmlFor="audio-file-upload"
+                className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg cursor-pointer transition-colors ${
+                  isUploading
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                <Upload className="w-3 h-3" />
+                {isUploading ? 'Đang tải...' : uploadedFile ? 'Thay đổi' : 'Chọn file'}
+              </label>
+              {uploadedFile && (
+                <button
+                  onClick={handleRemoveUploadedFile}
+                  className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                  title="Xóa file đã upload"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Waveform Visualization */}

@@ -217,6 +217,32 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
   
   const moveStep = 0.5; // Bước di chuyển 0.5m
 
+  // Helper function để kiểm tra và giới hạn vị trí trong phòng
+  // Phòng: X từ -length/2 đến +length/2, Y từ 0 đến height, Z từ -width/2 đến +width/2
+  const clampPositionToRoom = useCallback((position: [number, number, number], objectSize: number = 0.2): [number, number, number] => {
+    const halfLength = dimensions.length / 2;
+    const halfWidth = dimensions.width / 2;
+    const halfObjectSize = objectSize / 2;
+    
+    // Giới hạn X: -length/2 + objectSize/2 đến +length/2 - objectSize/2
+    const minX = -halfLength + halfObjectSize;
+    const maxX = halfLength - halfObjectSize;
+    
+    // Giới hạn Y: objectSize/2 đến height - objectSize/2
+    const minY = halfObjectSize;
+    const maxY = dimensions.height - halfObjectSize;
+    
+    // Giới hạn Z: -width/2 + objectSize/2 đến +width/2 - objectSize/2
+    const minZ = -halfWidth + halfObjectSize;
+    const maxZ = halfWidth - halfObjectSize;
+    
+    return [
+      Math.max(minX, Math.min(maxX, position[0])),
+      Math.max(minY, Math.min(maxY, position[1])),
+      Math.max(minZ, Math.min(maxZ, position[2]))
+    ];
+  }, [dimensions]);
+
   // Keyboard event handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Ngăn chặn default behavior nếu đang nhập text hoặc trong input/textarea
@@ -322,7 +348,9 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
         }
 
         if (shouldUpdate) {
-          onUpdateFurniture(selectedFurnitureId, { position: newPosition });
+          // Giới hạn vị trí furniture trong phòng (furniture có kích thước ~0.5m)
+          const clampedPosition = clampPositionToRoom(newPosition, 0.5);
+          onUpdateFurniture(selectedFurnitureId, { position: clampedPosition });
         }
       }
     }
@@ -366,10 +394,12 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
       }
 
       if (shouldUpdate) {
-        onUpdateTestObjectPosition(newPosition);
+        // Giới hạn vị trí trong phòng (test object có kích thước ~0.2m)
+        const clampedPosition = clampPositionToRoom(newPosition, 0.2);
+        onUpdateTestObjectPosition(clampedPosition);
       }
     }
-  }, [selectedListenerId, selectedFurnitureId, isTestObjectSelected, testObjectPosition, listeners, furniture, onUpdateListener, onUpdateFurniture, onUpdateTestObjectPosition, moveStep]);
+  }, [selectedListenerId, selectedFurnitureId, isTestObjectSelected, testObjectPosition, listeners, furniture, onUpdateListener, onUpdateFurniture, onUpdateTestObjectPosition, moveStep, clampPositionToRoom]);
 
   // Add keyboard event listener
   useEffect(() => {
