@@ -17,6 +17,13 @@ interface Canvas3DProps {
   testObjectPosition?: [number, number, number] | null;
   onUpdateListener?: (id: string, updates: Partial<Listener>) => void;
   onUpdateFurniture?: (id: string, updates: Partial<Furniture>) => void;
+  onUpdateTestObjectPosition?: (position: [number, number, number]) => void;
+  selectedFurnitureId?: string | null;
+  onSelectFurniture?: (id: string | null) => void;
+  selectedListenerId?: string | null;
+  onSelectListener?: (id: string | null) => void;
+  isTestObjectSelected?: boolean;
+  onSelectTestObject?: () => void;
 }
 
 const Canvas3D: React.FC<Canvas3DProps> = ({ 
@@ -27,10 +34,38 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
   speakers = [],
   testObjectPosition = null,
   onUpdateListener,
-  onUpdateFurniture
+  onUpdateFurniture,
+  onUpdateTestObjectPosition,
+  selectedFurnitureId: propSelectedFurnitureId,
+  onSelectFurniture,
+  selectedListenerId: propSelectedListenerId,
+  onSelectListener,
+  isTestObjectSelected = false,
+  onSelectTestObject
 }) => {
-  const [selectedListenerId, setSelectedListenerId] = useState<string | null>(null);
-  const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
+  // Use props if provided, otherwise use internal state (backward compatibility)
+  const [internalSelectedListenerId, setInternalSelectedListenerId] = useState<string | null>(null);
+  const [internalSelectedFurnitureId, setInternalSelectedFurnitureId] = useState<string | null>(null);
+  
+  const selectedListenerId = propSelectedListenerId !== undefined ? propSelectedListenerId : internalSelectedListenerId;
+  const selectedFurnitureId = propSelectedFurnitureId !== undefined ? propSelectedFurnitureId : internalSelectedFurnitureId;
+  
+  const setSelectedListenerId = (id: string | null) => {
+    if (onSelectListener) {
+      onSelectListener(id);
+    } else {
+      setInternalSelectedListenerId(id);
+    }
+  };
+  
+  const setSelectedFurnitureId = (id: string | null) => {
+    if (onSelectFurniture) {
+      onSelectFurniture(id);
+    } else {
+      setInternalSelectedFurnitureId(id);
+    }
+  };
+  
   const moveStep = 0.5; // Bước di chuyển 0.5m
 
   // Keyboard event handler
@@ -142,7 +177,50 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
         }
       }
     }
-  }, [selectedListenerId, selectedFurnitureId, listeners, furniture, onUpdateListener, onUpdateFurniture, moveStep]);
+
+    // Xử lý Test Object
+    if (isTestObjectSelected && testObjectPosition && onUpdateTestObjectPosition) {
+      const newPosition = [...testObjectPosition] as [number, number, number];
+      shouldUpdate = false;
+
+      // W/S: Di chuyển lên/xuống (Y axis)
+      if (key === 'w' && !isAltPressed) {
+        e.preventDefault();
+        newPosition[1] += moveStep;
+        shouldUpdate = true;
+      } else if (key === 's' && !isAltPressed) {
+        e.preventDefault();
+        newPosition[1] -= moveStep;
+        shouldUpdate = true;
+      }
+      // A/D: Di chuyển trái/phải (X axis)
+      else if (key === 'a' && !isAltPressed) {
+        e.preventDefault();
+        newPosition[0] -= moveStep;
+        shouldUpdate = true;
+      } else if (key === 'd' && !isAltPressed) {
+        e.preventDefault();
+        newPosition[0] += moveStep;
+        shouldUpdate = true;
+      }
+      // Alt + W: Di chuyển vào trong (Z axis - backward, giảm Z)
+      else if (key === 'w' && isAltPressed) {
+        e.preventDefault();
+        newPosition[2] -= moveStep;
+        shouldUpdate = true;
+      }
+      // Alt + S: Di chuyển ra phía trước (Z axis - forward, tăng Z)
+      else if (key === 's' && isAltPressed) {
+        e.preventDefault();
+        newPosition[2] += moveStep;
+        shouldUpdate = true;
+      }
+
+      if (shouldUpdate) {
+        onUpdateTestObjectPosition(newPosition);
+      }
+    }
+  }, [selectedListenerId, selectedFurnitureId, isTestObjectSelected, testObjectPosition, listeners, furniture, onUpdateListener, onUpdateFurniture, onUpdateTestObjectPosition, moveStep]);
 
   // Add keyboard event listener
   useEffect(() => {
@@ -167,6 +245,8 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
           if (e.type === 'click') {
             setSelectedListenerId(null);
             setSelectedFurnitureId(null);
+            // Không deselect test object khi click vào không gian trống
+            // để người dùng có thể tiếp tục di chuyển bằng keyboard
           }
         }}
       >
@@ -222,7 +302,18 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
 
         {/* Test Object - Movable object */}
         {testObjectPosition && (
-          <TestObject3D position={testObjectPosition} />
+          <TestObject3D 
+            position={testObjectPosition}
+            isSelected={isTestObjectSelected}
+            onSelect={() => {
+              if (onSelectTestObject) {
+                onSelectTestObject();
+              }
+              // Deselect other objects when selecting test object
+              setSelectedListenerId(null);
+              setSelectedFurnitureId(null);
+            }}
+          />
         )}
 
         {/* Controls */}
@@ -244,7 +335,20 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
           <div className="text-xs">
             {furniture.length} nội thất • {speakers.length} loa • Sử dụng chuột để xoay/zoom
           </div>
-          {selectedListenerId ? (
+          {isTestObjectSelected && testObjectPosition ? (
+            <div className="text-xs mt-2 space-y-1">
+              <div className="flex items-center gap-1 text-orange-600 font-semibold">
+                <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                Vật thể test đã được chọn
+              </div>
+              <div className="text-orange-600 pl-3 space-y-0.5">
+                <div>💡 W/S: Lên/Xuống</div>
+                <div>💡 A/D: Trái/Phải</div>
+                <div>💡 Alt+W: Vào trong</div>
+                <div>💡 Alt+S: Ra phía trước</div>
+              </div>
+            </div>
+          ) : selectedListenerId ? (
             <div className="text-xs mt-2 space-y-1">
               <div className="flex items-center gap-1 text-green-600 font-semibold">
                 <span className="w-2 h-2 bg-green-500 rounded-full"></span>
@@ -270,9 +374,9 @@ const Canvas3D: React.FC<Canvas3DProps> = ({
                 <div>💡 Alt+S: Ra phía trước</div>
               </div>
             </div>
-          ) : (listeners.length > 0 || furniture.length > 0) && (
+          ) : (listeners.length > 0 || furniture.length > 0 || testObjectPosition) && (
             <div className="text-xs mt-2 text-gray-500">
-              💡 Click vào listener hoặc nội thất để chọn và di chuyển bằng phím
+              💡 Click vào listener, nội thất hoặc vật thể test để chọn và di chuyển bằng phím
             </div>
           )}
         </div>
