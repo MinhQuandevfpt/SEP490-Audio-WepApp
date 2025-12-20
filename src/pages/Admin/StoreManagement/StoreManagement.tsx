@@ -187,6 +187,25 @@ const StoreManagement: React.FC = () => {
     fetchStores(0, pagination.pageSize || 10);
   }, [fetchStores, pagination.pageSize]);
 
+  // Check if selected stores can be activated/deactivated
+  const canActivate = useMemo(() => {
+    if (selectedRowKeys.length === 0) return false;
+    // Can activate if at least one store is not ACTIVE
+    return selectedRowKeys.some(key => {
+      const store = stores.find(s => s.storeId === key);
+      return store && store.status !== 'ACTIVE';
+    });
+  }, [selectedRowKeys, stores]);
+
+  const canDeactivate = useMemo(() => {
+    if (selectedRowKeys.length === 0) return false;
+    // Can deactivate if at least one store is not INACTIVE
+    return selectedRowKeys.some(key => {
+      const store = stores.find(s => s.storeId === key);
+      return store && store.status !== 'INACTIVE';
+    });
+  }, [selectedRowKeys, stores]);
+
   // Handle row selection
   const rowSelection = {
     selectedRowKeys,
@@ -205,18 +224,26 @@ const StoreManagement: React.FC = () => {
       showError('Vui lòng chọn ít nhất một cửa hàng');
       return;
     }
+    if (!canActivate) {
+      showError('Tất cả cửa hàng đã chọn đều đang ở trạng thái ACTIVE');
+      return;
+    }
     setConfirmAction('activate');
     setConfirmModalVisible(true);
-  }, [selectedRowKeys]);
+  }, [selectedRowKeys, canActivate]);
 
   const handleDeactivate = useCallback(() => {
     if (selectedRowKeys.length === 0) {
       showError('Vui lòng chọn ít nhất một cửa hàng');
       return;
     }
+    if (!canDeactivate) {
+      showError('Tất cả cửa hàng đã chọn đều đang ở trạng thái INACTIVE');
+      return;
+    }
     setConfirmAction('deactivate');
     setConfirmModalVisible(true);
-  }, [selectedRowKeys]);
+  }, [selectedRowKeys, canDeactivate]);
 
   // Execute status update
   const executeStatusUpdate = useCallback(async () => {
@@ -514,7 +541,7 @@ const StoreManagement: React.FC = () => {
                   type="primary"
                   icon={<CheckOutlined />}
                   onClick={handleActivate}
-                  disabled={isLoading || isUpdating || selectedRowKeys.length === 0}
+                  disabled={isLoading || isUpdating || !canActivate}
                   size="large"
                 >
                   Kích hoạt ({selectedRowKeys.length})
@@ -523,7 +550,7 @@ const StoreManagement: React.FC = () => {
                   danger
                   icon={<PoweroffOutlined />}
                   onClick={handleDeactivate}
-                  disabled={isLoading || isUpdating || selectedRowKeys.length === 0}
+                  disabled={isLoading || isUpdating || !canDeactivate}
                   size="large"
                 >
                   Vô hiệu hóa ({selectedRowKeys.length})
