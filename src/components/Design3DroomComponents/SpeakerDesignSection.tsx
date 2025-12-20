@@ -93,9 +93,10 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   const [volume, setVolume] = useState<number>(1.0); // Volume control (0-1)
   const audioPlayerPlayingRef = useRef<boolean>(false);
 
-  // Tính toán volume đã điều chỉnh dựa trên khoảng cách giữa loa và người nghe
+  // Tính toán volume đã điều chỉnh và panning dựa trên khoảng cách và vị trí trái/phải
   // Logic: cứ cách 1m thì giảm 10% volume
-  const calculateAdjustedVolume = useMemo(() => {
+  // Panning: x > 0 (bên phải) → pan > 0 (nghe bên phải lớn hơn), x < 0 (bên trái) → pan < 0
+  const { adjustedVolume, panValue } = useMemo(() => {
     // Lấy vị trí listener: ưu tiên listener được chọn, nếu không có thì dùng listener đầu tiên
     let listenerPosition: [number, number, number] | null = null;
     
@@ -108,9 +109,9 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
       listenerPosition = listeners[0].position;
     }
 
-    // Nếu không có listener, không giảm volume
+    // Nếu không có listener, không điều chỉnh
     if (!listenerPosition || !isTestingIn3D) {
-      return volume;
+      return { adjustedVolume: volume, panValue: 0 };
     }
 
     // Tính khoảng cách giữa test object (loa) và listener
@@ -124,7 +125,15 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
     const volumeReduction = distance * 0.1; // 10% mỗi mét
     const adjustedVolume = volume * Math.max(0, 1 - volumeReduction);
 
-    return adjustedVolume;
+    // Tính panning dựa trên vị trí trái/phải (trục X)
+    // dx > 0: loa ở bên phải listener → pan > 0 (nghe bên phải lớn hơn)
+    // dx < 0: loa ở bên trái listener → pan < 0 (nghe bên trái lớn hơn)
+    // Normalize pan value: -1 (hoàn toàn trái) đến +1 (hoàn toàn phải)
+    // Sử dụng hàm tanh để tạo curve mượt mà, giới hạn trong [-1, 1]
+    const maxPanDistance = 5.0; // Khoảng cách tối đa để pan đạt -1 hoặc +1 (5m)
+    const panValue = Math.tanh(dx / maxPanDistance); // -1 đến +1
+
+    return { adjustedVolume, panValue };
   }, [volume, testObjectPosition, listeners, selectedListenerId, isTestingIn3D]);
 
   // Memoize speakerModel để tránh re-create mỗi lần render (tránh trigger selectSpeakerModel không cần thiết)
@@ -551,7 +560,8 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
         <AudioPlayer
           speakerModel={speakerModel}
           audioUrl={AUDIO_URL}
-          volume={calculateAdjustedVolume} // Sử dụng volume đã điều chỉnh dựa trên distance
+          volume={adjustedVolume} // Sử dụng volume đã điều chỉnh dựa trên distance
+          pan={panValue} // Sử dụng panning dựa trên vị trí trái/phải
           onClose={() => {
             setIsTestingAudio(false);
           }}

@@ -7,11 +7,12 @@ interface AudioPlayerProps {
   speakerModel: SpeakerModel | null;
   audioUrl: string;
   volume?: number; // Volume từ parent (0-1)
+  pan?: number; // Panning từ parent (-1 = left, 0 = center, +1 = right)
   onClose?: () => void;
   onPlayingChange?: (isPlaying: boolean) => void; // Callback khi play/pause
 }
 
-const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volume = 1.0, onClose, onPlayingChange }) => {
+const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volume = 1.0, pan = 0, onClose, onPlayingChange }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [waveformData, setWaveformData] = useState<Uint8Array>(new Uint8Array(0));
   const [currentTime, setCurrentTime] = useState(0);
@@ -47,6 +48,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
           audioService.selectSpeakerModel(speakerModel);
         }
         audioService.setVolume(volume);
+        audioService.setPan(pan);
         // Lấy duration sau khi initialize
         const audioDuration = audioService.getDuration();
         setDuration(audioDuration);
@@ -93,6 +95,13 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
       audioServiceRef.current.setVolume(volume);
     }
   }, [volume]);
+
+  // Update panning khi prop pan thay đổi
+  useEffect(() => {
+    if (audioServiceRef.current && isInitializedRef.current) {
+      audioServiceRef.current.setPan(pan);
+    }
+  }, [pan]);
 
   // Waveform animation và progress update
   const updateWaveform = useCallback(() => {

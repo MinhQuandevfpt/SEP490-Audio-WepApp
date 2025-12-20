@@ -208,6 +208,7 @@ class AudioService {
   private audioBuffer: AudioBuffer | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
   private gainNode: GainNode | null = null;
+  private panNode: StereoPannerNode | null = null; // Stereo panning node
   private bassFilter: BiquadFilterNode | null = null;
   private midFilter: BiquadFilterNode | null = null;
   private trebleFilter: BiquadFilterNode | null = null;
@@ -218,6 +219,7 @@ class AudioService {
   private startOffset: number = 0; // Vị trí bắt đầu phát (giây)
   private startTime: number = 0; // Thời điểm AudioContext bắt đầu phát
   private currentVolume: number = 1.0; // Lưu volume hiện tại để giữ lại sau khi apply EQ
+  private currentPan: number = 0; // Lưu pan value hiện tại (-1 = left, 0 = center, +1 = right)
 
   constructor(audioUrl: string) {
     this.audioUrl = audioUrl;
@@ -237,6 +239,9 @@ class AudioService {
       // Tạo gain node
       this.gainNode = this.audioContext.createGain();
 
+      // Tạo stereo panner node
+      this.panNode = this.audioContext.createStereoPanner();
+
       // Tạo EQ filters
       this.bassFilter = this.audioContext.createBiquadFilter();
       this.bassFilter.type = 'lowshelf';
@@ -251,11 +256,12 @@ class AudioService {
       this.trebleFilter.type = 'highshelf';
       this.trebleFilter.frequency.value = 4000;
 
-      // Kết nối: source -> bass -> mid -> treble -> gain -> analyser -> destination
+      // Kết nối: source -> bass -> mid -> treble -> gain -> pan -> analyser -> destination
       this.bassFilter.connect(this.midFilter);
       this.midFilter.connect(this.trebleFilter);
       this.trebleFilter.connect(this.gainNode);
-      this.gainNode.connect(this.analyser);
+      this.gainNode.connect(this.panNode);
+      this.panNode.connect(this.analyser);
       this.analyser.connect(this.audioContext.destination);
 
       // Load audio file
@@ -455,6 +461,23 @@ class AudioService {
       
       this.gainNode.gain.value = this.currentVolume * eqGain;
     }
+  }
+
+  /**
+   * Set panning (-1 = left, 0 = center, +1 = right)
+   */
+  setPan(pan: number): void {
+    if (this.panNode) {
+      this.currentPan = Math.max(-1, Math.min(1, pan));
+      this.panNode.pan.value = this.currentPan;
+    }
+  }
+
+  /**
+   * Get current pan value
+   */
+  getPan(): number {
+    return this.currentPan;
   }
 
   /**
