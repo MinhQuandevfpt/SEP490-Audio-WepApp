@@ -238,6 +238,14 @@ class AdminHttpClient {
     });
   }
 
+  async patch<T>(endpoint: string, body?: any, headers?: Record<string, string>): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
+    });
+  }
+
   async delete<T>(endpoint: string): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
@@ -474,6 +482,35 @@ export class AdminStoreService {
       return [];
     } catch (error) {
       console.error('Error fetching store KYC history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update store status
+   * PATCH /api/stores/{storeId}/status
+   */
+  static async updateStoreStatus(storeId: string, status: string): Promise<{
+    status: number;
+    message: string;
+    data: any;
+  }> {
+    try {
+      const response: any = await adminHttpClient.patch<any>(
+        `/api/stores/${storeId}/status`,
+        { status }
+      );
+      
+      // Clear cache for this store
+      storeCacheWithTTL.delete(storeId);
+      
+      return response?.data || response || {
+        status: 0,
+        message: 'Cập nhật trạng thái thành công',
+        data: {}
+      };
+    } catch (error: any) {
+      console.error('Error updating store status:', error);
       throw error;
     }
   }

@@ -8,6 +8,8 @@ interface FurnitureDesignSectionProps {
   onAddFurniture: (furniture: Omit<Furniture, 'id'>) => void;
   onRemoveFurniture: (id: string) => void;
   onUpdateFurniture: (id: string, updates: Partial<Furniture>) => void;
+  selectedFurnitureId?: string | null;
+  onSelectFurniture?: (id: string | null) => void;
 }
 
 const FURNITURE_TYPES = [
@@ -22,7 +24,9 @@ const FurnitureDesignSection: React.FC<FurnitureDesignSectionProps> = ({
   furniture,
   onAddFurniture,
   onRemoveFurniture,
-  onUpdateFurniture
+  onUpdateFurniture,
+  selectedFurnitureId,
+  onSelectFurniture
 }) => {
   const [selectedType, setSelectedType] = useState<string>('table');
 
@@ -97,29 +101,55 @@ const FurnitureDesignSection: React.FC<FurnitureDesignSectionProps> = ({
           </div>
         ) : (
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {furniture.map((item) => (
-              <div
-                key={item.id}
-                className="p-3 bg-gray-50 rounded-lg border border-gray-200"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">
-                      {FURNITURE_TYPES.find(t => t.type === item.type)?.icon}
-                    </span>
-                    <span className="text-sm font-medium text-gray-800">
-                      {item.name}
-                    </span>
+            {furniture.map((item) => {
+              const isSelected = selectedFurnitureId === item.id;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    if (onSelectFurniture) {
+                      // Toggle selection: nếu đã chọn thì deselect, nếu chưa chọn thì select
+                      onSelectFurniture(isSelected ? null : item.id);
+                    }
+                  }}
+                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-orange-50 border-orange-500 shadow-md'
+                      : 'bg-gray-50 border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">
+                        {FURNITURE_TYPES.find(t => t.type === item.type)?.icon}
+                      </span>
+                      <span className={`text-sm font-medium ${
+                        isSelected ? 'text-orange-800' : 'text-gray-800'
+                      }`}>
+                        {item.name}
+                      </span>
+                      {isSelected && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-600 text-white">
+                          Đã chọn
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  
+                  <FurnitureControls
+                    furniture={item}
+                    onUpdate={(updates) => onUpdateFurniture(item.id, updates)}
+                    onRemove={() => {
+                      onRemoveFurniture(item.id);
+                      // Deselect nếu đang chọn item này
+                      if (isSelected && onSelectFurniture) {
+                        onSelectFurniture(null);
+                      }
+                    }}
+                  />
                 </div>
-                
-                <FurnitureControls
-                  furniture={item}
-                  onUpdate={(updates) => onUpdateFurniture(item.id, updates)}
-                  onRemove={() => onRemoveFurniture(item.id)}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

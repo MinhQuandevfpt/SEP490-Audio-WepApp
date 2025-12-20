@@ -116,6 +116,197 @@ const defaultForm: FormState = {
 // Dynamic attributes: no static spec keys
 const SPEC_KEYS: string[] = [];
 
+// Mapping attribute names to their available unit options
+// Dựa trên danh sách đơn vị đo lường chuẩn cho thiết bị audio
+const ATTRIBUTE_UNIT_OPTIONS: Record<string, string[]> = {
+  // ============================================================================
+  // I. TÍN HIỆU – XỬ LÝ ÂM THANH
+  // ============================================================================
+  // Dải EQ / Số băng tần EQ
+  eqBands: ['band'],
+  
+  // Tần số cắt (High-pass / Low-pass)
+  crossoverFrequency: ['Hz', 'kHz'],
+  frequencyCut: ['Hz', 'kHz'],
+  
+  // Dải tần (Frequency Response)
+  frequencyResponse: ['Hz', 'kHz'],
+  minFrequency: ['Hz', 'kHz'],
+  maxFrequency: ['Hz', 'kHz'],
+  
+  // Tần mẫu (Sample Rate)
+  sampleRate: ['Hz', 'kHz'],
+  
+  // Độ sâu bit (Bit Depth)
+  bitDepth: ['bit'],
+  
+  // Tỷ lệ SNR (Signal-to-Noise Ratio)
+  snr: ['dB'],
+  signalToNoiseRatio: ['dB'],
+  
+  // Độ méo tiếng (THD - Total Harmonic Distortion)
+  thd: ['%', 'dB'],
+  totalHarmonicDistortion: ['%', 'dB'],
+  
+  // Độ trễ (Latency)
+  latency: ['ms', 's'],
+  
+  // ============================================================================
+  // II. CÔNG SUẤT – ĐIỆN
+  // ============================================================================
+  // Tổng công suất
+  totalPowerOutput: ['W', 'mW', 'kW'],
+  powerOutput: ['W', 'mW', 'kW'],
+  
+  // Công suất chịu đựng (Power Handling)
+  powerHandling: ['W', 'mW', 'kW'],
+  
+  // Công suất input (Điện tiêu thụ)
+  powerInput: ['W', 'mW', 'kW'],
+  powerConsumption: ['W', 'mW', 'kW'],
+  
+  // Trở kháng (Impedance)
+  impedance: ['Ω', 'ohm', 'kΩ'],
+  
+  // Trở kháng output
+  micOutputImpedance: ['Ω', 'ohm', 'kΩ'],
+  outputImpedance: ['Ω', 'ohm', 'kΩ'],
+  
+  // Điện áp phantom (Phantom Power)
+  phantomPower: ['V'],
+  phantomVoltage: ['V'],
+  
+  // Điện áp hoạt động (Operating Voltage)
+  voltageInput: ['V', 'mV', 'kV'],
+  operatingVoltage: ['V', 'mV', 'kV'],
+  
+  // ============================================================================
+  // III. ÂM HỌC (LOA – TAI NGHE – MICRO)
+  // ============================================================================
+  // Độ nhạy (Sensitivity)
+  sensitivity: ['dB', 'dB SPL'],
+  micSensitivity: ['dB', 'dB SPL'],
+  
+  // Mức áp suất âm tối đa (Max SPL)
+  maxSPL: ['dB', 'dB SPL'],
+  maxSoundPressureLevel: ['dB', 'dB SPL'],
+  
+  // Góc phủ âm (Dispersion Angle / Coverage Angle)
+  coverageAngle: ['°', 'độ'],
+  dispersionAngle: ['°', 'độ'],
+  soundCoverageAngle: ['°', 'độ'],
+  
+  // Họng kèn (Horn Size)
+  hornSize: ['inch', 'mm', 'cm'],
+  
+  // Kích thước driver (Driver Size)
+  driverSize: ['mm', 'cm', 'inch'],
+  
+  // Cấu hình driver (Driver Configuration)
+  driverConfiguration: ['mm', 'cm', 'inch'],
+  
+  // Loại thùng loa (Enclosure Type) - Không có đơn vị, nhưng có thể có text
+  enclosureType: [], // Text field, không có đơn vị
+  
+  // Loại tai nghe (Headphone Type) - Không có đơn vị
+  headphoneType: [], // Text field, không có đơn vị
+  
+  // Loại micro (Microphone Type) - Không có đơn vị
+  micType: [], // Text field, không có đơn vị
+  microphoneType: [], // Text field, không có đơn vị
+  
+  // Họng nhận âm (Polar Pattern)
+  polarPattern: [], // Text field, không có đơn vị
+  
+  // ============================================================================
+  // IV. KÊNH – KẾT NỐI
+  // ============================================================================
+  // Số kênh (Channel Count)
+  channelCount: ['kênh', 'channel'],
+  
+  // Kênh input
+  inputChannels: ['kênh', 'channel'],
+  
+  // Kênh output
+  outputChannels: ['kênh', 'channel'],
+  
+  // Cổng input/output - Không có đơn vị (text field)
+  inputPorts: [], // Text field
+  outputPorts: [], // Text field
+  
+  // Output cân bằng (Balanced Output) - Boolean, không có đơn vị
+  balancedOutput: [], // Boolean field
+  
+  // ============================================================================
+  // V. PIN – KHÔNG DÂY – KẾT NỐI
+  // ============================================================================
+  // Dung lượng pin (Battery Capacity)
+  batteryCapacity: ['mAh', 'Ah'],
+  
+  // Thời lượng pin (Battery Life / Playback Time)
+  batteryLife: ['giờ', 'h', 'phút', 'min'],
+  playbackTime: ['giờ', 'h', 'phút', 'min'],
+  
+  // Bluetooth version - Text field, không có đơn vị
+  bluetoothVersion: [], // Text field (5.0, 5.3, etc.)
+  
+  // Wi-Fi chuẩn - Text field, không có đơn vị
+  wifiStandard: [], // Text field (2.4GHz, 5GHz, etc.)
+  
+  // AirPlay - Boolean, không có đơn vị
+  supportAirplay: [], // Boolean field
+  
+  // Codec Bluetooth - Text field, không có đơn vị
+  bluetoothCodec: [], // Text field (SBC, AAC, aptX, etc.)
+  
+  // ============================================================================
+  // VI. CƠ KHÍ – VẬT LIỆU (TURNTABLE)
+  // ============================================================================
+  // Chất liệu mâm đĩa (Platter Material) - Text field
+  platterMaterial: [], // Text field (nhôm, acrylic, etc.)
+  
+  // Loại tay cần (Tonearm Type) - Text field
+  tonearmType: [], // Text field (straight, S-shape, etc.)
+  
+  // Loại động cơ (Motor Type) - Text field
+  motorType: [], // Text field (belt, direct drive, etc.)
+  
+  // Tự động trả cần (Auto Return) - Boolean
+  autoReturn: [], // Boolean field
+  
+  // ============================================================================
+  // VII. BẢO HÀNH & THỜI GIAN
+  // ============================================================================
+  // Thời gian bảo hành
+  warrantyPeriod: ['tháng', 'năm', 'ngày'],
+  
+  // ============================================================================
+  // VIII. KÍCH THƯỚC & TRỌNG LƯỢNG (Nếu có trong attributes)
+  // ============================================================================
+  // Kích thước (Dimensions) - có thể dùng cho nhiều thuộc tính
+  dimensions: ['mm', 'cm', 'm', 'inch'],
+  
+  // Trọng lượng (Weight)
+  weight: ['g', 'kg', 'oz', 'lb'],
+  
+  // ============================================================================
+  // IX. CÁC THUỘC TÍNH KHÁC
+  // ============================================================================
+  // Tần số tối thiểu / tối đa (nếu có riêng)
+  frequencyMin: ['Hz', 'kHz'],
+  frequencyMax: ['Hz', 'kHz'],
+  
+  // Độ nhạy mic (nếu tách riêng)
+  microphoneSensitivity: ['dB', 'dB SPL'],
+  
+  // Thiết bị tương thích - Text field
+  compatibleDevices: [], // Text field
+  
+  // Tính năng - Text field
+  features: [], // Text field
+  headphoneFeatures: [], // Text field
+};
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -186,6 +377,13 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
     districtCode?: string;
     wardCode?: string;
   } | null>(null);
+  
+  // State for attribute suggestions dropdown
+  const [showSuggestions, setShowSuggestions] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState<Record<string, string>>({});
+  
+  // State for selected units per attribute
+  const [selectedUnits, setSelectedUnits] = useState<Record<string, string>>({});
   
   // ============================================================================
   // LOCATION STATE MANAGEMENT (Province/District/Ward)
@@ -305,14 +503,27 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             })
           )
         );
-        const merged: Record<string, CategoryAttribute> = {};
-        results.forEach(res => {
-          const attrs = res?.data?.attributes || [];
-          attrs.forEach((attr: CategoryAttribute) => {
-            merged[attr.attributeId] = attr;
-          });
-        });
-        setCategoryAttributes(Object.values(merged));
+         const merged: Record<string, CategoryAttribute> = {};
+         const defaultUnits: Record<string, string> = {};
+         results.forEach(res => {
+           const attrs = res?.data?.attributes || [];
+           attrs.forEach((attr: CategoryAttribute) => {
+             merged[attr.attributeId] = attr;
+             // Set default unit (first option) if available and not already set
+             const availableUnits = ATTRIBUTE_UNIT_OPTIONS[attr.attributeName] || [];
+             if (availableUnits.length > 0 && !selectedUnits[attr.attributeName]) {
+               defaultUnits[attr.attributeName] = availableUnits[0];
+             }
+           });
+         });
+         setCategoryAttributes(Object.values(merged));
+         // Set default units for new attributes
+         if (Object.keys(defaultUnits).length > 0) {
+           setSelectedUnits((prev) => ({
+             ...prev,
+             ...defaultUnits,
+           }));
+         }
       } catch (e: any) {
         setCategoryAttributesError(e?.message || 'Không thể tải thuộc tính danh mục');
       } finally {
@@ -404,15 +615,29 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
   };
 
   const prefillFormFromProduct = useCallback((product: Product) => {
+    console.groupCollapsed('📦 [Suminputsection] Prefilling form from product');
+    console.log('Product data:', product);
+    
     const provinceCode = normalizeCode(product.provinceCode);
     const districtCode = normalizeCode(product.districtCode);
     const wardCode = product.wardCode || '';
+
+    // Map categories array to categoryIds array
+    // API trả về: categories: [{ categoryId, categoryName }, ...]
+    const categoryIds = Array.isArray((product as any)?.categories)
+      ? (product as any).categories.map((cat: any) => cat.categoryId).filter(Boolean)
+      : (product as any)?.categoryIds || [];
+    
+    console.log('📋 Categories mapping:', {
+      categories: (product as any)?.categories,
+      categoryIds,
+    });
 
     setForm({
       ...defaultForm,
       name: product.name || '',
       brandName: product.brandName || '',
-      categoryIds: (product as any)?.categoryIds || [],
+      categoryIds: categoryIds,
       shortDescription: product.shortDescription || '',
       description: product.description || '',
       model: product.model || '',
@@ -451,15 +676,70 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         .map((url, idx) => ({ id: `existing-${idx}`, url }))
     );
 
+    // Map attributeValues array to extraSpecs
+    // API trả về: attributeValues: [{ attributeId, attributeName, attributeLabel, dataType, value }, ...]
     const specMap: Record<string, string> = {};
+    
+    // Ưu tiên lấy từ attributeValues array (cấu trúc mới)
+    if (Array.isArray((product as any)?.attributeValues)) {
+      console.log('🔧 Mapping attributeValues:', (product as any).attributeValues);
+      (product as any).attributeValues.forEach((attr: any) => {
+        if (attr.attributeName && attr.value !== null && attr.value !== undefined && attr.value !== '') {
+          // Convert value to string based on dataType
+          if (attr.dataType === 'BOOLEAN') {
+            specMap[attr.attributeName] = String(attr.value);
+          } else if (attr.dataType === 'NUMBER') {
+            specMap[attr.attributeName] = String(attr.value);
+          } else {
+            specMap[attr.attributeName] = String(attr.value);
+          }
+        }
+      });
+      console.log('✅ Mapped attributeValues to extraSpecs:', specMap);
+    } else {
+      console.log('⚠️ No attributeValues array found in product');
+    }
+    
+    // Fallback: map từ static fields (nếu có)
     SPEC_KEYS.forEach((key) => {
-      const value = (product as Record<string, any>)[key];
-      if (value === undefined || value === null || value === '') return;
-      specMap[key] = typeof value === 'boolean' ? value.toString() : String(value);
+      // Chỉ map nếu chưa có trong specMap (từ attributeValues)
+      if (!specMap[key]) {
+        const value = (product as Record<string, any>)[key];
+        if (value === undefined || value === null || value === '') return;
+        specMap[key] = typeof value === 'boolean' ? value.toString() : String(value);
+      }
     });
+    
     setExtraSpecs(specMap);
+    
+    // Auto-detect and set units from loaded values
+    const detectedUnits: Record<string, string> = {};
+    Object.entries(specMap).forEach(([attrName, val]) => {
+      const availableUnits = ATTRIBUTE_UNIT_OPTIONS[attrName] || [];
+      if (availableUnits.length > 0 && val) {
+        // Try to find unit from value (longest match first)
+        const sortedUnits = [...availableUnits].sort((a, b) => b.length - a.length);
+        for (const unit of sortedUnits) {
+          if (String(val).endsWith(unit)) {
+            detectedUnits[attrName] = unit;
+            break;
+          }
+        }
+        // If no unit detected, use first available unit as default
+        if (!detectedUnits[attrName] && availableUnits.length > 0) {
+          detectedUnits[attrName] = availableUnits[0];
+        }
+      }
+    });
+    if (Object.keys(detectedUnits).length > 0) {
+      setSelectedUnits((prev) => ({
+        ...prev,
+        ...detectedUnits,
+      }));
+    }
 
     if (product.variants && product.variants.length > 0) {
+      console.log('🎨 Loading variants:', product.variants);
       const firstVariant = product.variants[0];
       const variantNames = firstVariant.optionName
         ? firstVariant.optionName.split(',').map(name => name.trim()).filter(Boolean)
@@ -493,22 +773,24 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         variantUrl: variant.variantUrl || '',
         variantSku: variant.variantSku || '',
       }));
+      console.log('✅ Loaded variants:', loadedVariants);
       setVariants(loadedVariants);
       // Lưu originalVariants để so sánh khi submit
       setOriginalVariants(loadedVariants);
     } else {
+      console.log('ℹ️ No variants found in product');
       setClassifications([]);
       setVariants([]);
       setOriginalVariants([]);
     }
 
-    setBulkDiscounts(
-      (product.bulkDiscounts || []).map(discount => ({
-        fromQuantity: discount.fromQuantity != null ? String(discount.fromQuantity) : '',
-        toQuantity: discount.toQuantity != null ? String(discount.toQuantity) : '',
-        unitPrice: discount.unitPrice != null ? String(discount.unitPrice) : '',
-      }))
-    );
+    const bulkDiscountsData = (product.bulkDiscounts || []).map(discount => ({
+      fromQuantity: discount.fromQuantity != null ? String(discount.fromQuantity) : '',
+      toQuantity: discount.toQuantity != null ? String(discount.toQuantity) : '',
+      unitPrice: discount.unitPrice != null ? String(discount.unitPrice) : '',
+    }));
+    console.log('💰 Bulk discounts:', bulkDiscountsData);
+    setBulkDiscounts(bulkDiscountsData);
 
     setHasDefaultStoreAddress(true);
     setLocationPrefill({
@@ -516,6 +798,15 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       districtCode,
       wardCode,
     });
+    
+    console.log('✅ Form prefilled successfully:', {
+      categoryIds,
+      extraSpecsCount: Object.keys(specMap).length,
+      variantsCount: product.variants?.length || 0,
+      bulkDiscountsCount: bulkDiscountsData.length,
+      imagesCount: (product.images || []).length,
+    });
+    console.groupEnd();
   }, []);
 
   const fetchProductDetails = useCallback(async () => {
@@ -2331,31 +2622,243 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             )}
             {categoryAttributes.map((attr: CategoryAttribute) => {
               const value = extraSpecs[attr.attributeName] || '';
+              const availableUnits = ATTRIBUTE_UNIT_OPTIONS[attr.attributeName] || [];
+              const selectedUnit = selectedUnits[attr.attributeName] || (availableUnits.length > 0 ? availableUnits[0] : '');
+              
+              // Helper function to extract numeric value and unit from string
+              const extractValueAndUnit = (val: string): { numeric: string; unit: string; hasUnit: boolean } => {
+                if (!val) return { numeric: '', unit: selectedUnit, hasUnit: false };
+                
+                // Try to find unit from available units (longest match first)
+                // Only match if unit is at the end and preceded by a space or directly attached
+                const sortedUnits = [...availableUnits].sort((a, b) => b.length - a.length);
+                for (const u of sortedUnits) {
+                  // Match unit at the end, but not if it's part of a word (e.g., "7-band" should not match "band")
+                  const unitRegex = new RegExp(`(\\s|^)${u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+                  if (unitRegex.test(val)) {
+                    const index = val.toLowerCase().lastIndexOf(u.toLowerCase());
+                    return {
+                      numeric: val.slice(0, index).trim(),
+                      unit: u,
+                      hasUnit: true
+                    };
+                  }
+                }
+                
+                // Try common units if not found in available units
+                const commonUnits = ['Hz', 'kHz', 'MHz', 'dB SPL', 'dB', 'Ω', 'ohm', 'kΩ', 'W', 'mW', 'kW', 'V', 'mV', 'kV', 'mAh', 'Ah', 'mm', 'cm', 'm', 'inch', 'g', 'kg', 'bit', '%', 'tháng', 'năm', 'ngày', 'kênh', 'channel'];
+                for (const u of commonUnits.sort((a, b) => b.length - a.length)) {
+                  // Only match if availableUnits includes this unit
+                  if (availableUnits.includes(u)) {
+                    const unitRegex = new RegExp(`(\\s|^)${u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+                    if (unitRegex.test(val)) {
+                      const index = val.toLowerCase().lastIndexOf(u.toLowerCase());
+                      return {
+                        numeric: val.slice(0, index).trim(),
+                        unit: u,
+                        hasUnit: true
+                      };
+                    }
+                  }
+                }
+                
+                // If no unit found, return the whole value as numeric (for text values without units)
+                return { numeric: val, unit: selectedUnit, hasUnit: false };
+              };
+              
+              const { numeric: numericValue, unit: currentUnit, hasUnit: valueHasUnit } = extractValueAndUnit(value);
+              
+              // Update selected unit if it changed and value has a unit
+              if (valueHasUnit && currentUnit && currentUnit !== selectedUnit && availableUnits.includes(currentUnit)) {
+                setSelectedUnits((prev) => ({
+                  ...prev,
+                  [attr.attributeName]: currentUnit
+                }));
+              }
 
-              // Nếu attribute có sẵn danh sách options -> hiển thị select để chọn nhanh
+              // Nếu attribute có sẵn danh sách options -> hiển thị input với suggestions
               if (Array.isArray(attr.options) && attr.options.length > 0 && attr.dataType !== 'BOOLEAN') {
+                const attrKey = attr.attributeId;
+                const isShowingSuggestions = showSuggestions[attrKey] || false;
+                const query = searchQuery[attrKey] ?? (valueHasUnit ? numericValue : value);
+                
+                // Helper functions để parse và format giá trị thành mảng (cho phép chọn nhiều)
+                const parseValueToArray = (val: string): string[] => {
+                  if (!val) return [];
+                  return val.split(',').map(item => item.trim()).filter(Boolean);
+                };
+                
+                const formatArrayToString = (items: string[]): string => {
+                  return items.join(', ');
+                };
+                
+                const selectedValues = parseValueToArray(value);
+                
+                // Filter options based on search query
+                const filteredOptions = attr.options.filter(opt => {
+                  const optLower = opt.toLowerCase();
+                  const queryLower = String(query).toLowerCase();
+                  return optLower.includes(queryLower);
+                });
+                
+                // Handler để toggle selection
+                const toggleSuggestion = (opt: string) => {
+                  const currentValues = parseValueToArray(value);
+                  const isSelected = currentValues.includes(opt);
+                  
+                  let newValues: string[];
+                  if (isSelected) {
+                    // Bỏ chọn
+                    newValues = currentValues.filter(v => v !== opt);
+                  } else {
+                    // Chọn thêm
+                    newValues = [...currentValues, opt];
+                  }
+                  
+                  const newValue = formatArrayToString(newValues);
+                  setExtraSpecs((prev) => ({
+                    ...prev,
+                    [attr.attributeName]: newValue,
+                  }));
+                  
+                  // Clear search query sau khi chọn để input hiển thị lại selected values
+                  setSearchQuery((prev) => ({
+                    ...prev,
+                    [attrKey]: '',
+                  }));
+                  
+                  // Không đóng dropdown, chỉ update state
+                };
+
                 return (
-                  <div key={attr.attributeId}>
+                  <div key={attr.attributeId} className="relative">
                     <label className="block text-sm font-medium text-gray-700">
                       {attr.attributeLabel}
                     </label>
-                    <select
-                      value={value}
-                      onChange={(e) =>
-                        setExtraSpecs((prev) => ({
-                          ...prev,
-                          [attr.attributeName]: e.target.value,
-                        }))
-                      }
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white"
-                    >
-                      <option value="">Chọn giá trị</option>
-                      {attr.options.map((opt: string, index: number) => (
-                        <option key={`${attr.attributeId}-${index}-${opt}`} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative mt-1">
+                      <div className="relative flex gap-2">
+                        {/* Number input */}
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={isShowingSuggestions ? query : formatArrayToString(selectedValues)}
+                            onChange={(e) => {
+                              const newInput = e.target.value;
+                              setSearchQuery((prev) => ({
+                                ...prev,
+                                [attrKey]: newInput,
+                              }));
+                            }}
+                            onFocus={() => {
+                              setShowSuggestions((prev) => ({
+                                ...prev,
+                                [attrKey]: true,
+                              }));
+                              // Khi focus, hiển thị search query (nếu có) hoặc rỗng để tìm kiếm
+                              setSearchQuery((prev) => ({
+                                ...prev,
+                                [attrKey]: prev[attrKey] || '',
+                              }));
+                            }}
+                            onBlur={() => {
+                              // Delay để cho phép click vào suggestion
+                              setTimeout(() => {
+                                setShowSuggestions((prev) => ({
+                                  ...prev,
+                                  [attrKey]: false,
+                                }));
+                                // Clear search query khi blur để hiển thị lại selected values
+                                setSearchQuery((prev) => ({
+                                  ...prev,
+                                  [attrKey]: '',
+                                }));
+                              }, 200);
+                            }}
+                            placeholder={availableUnits.length > 0 ? "Nhập số hoặc chọn từ gợi ý" : "Nhập hoặc chọn từ gợi ý"}
+                            className="w-full border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white px-3 py-2"
+                          />
+                        </div>
+                        
+                        {/* Unit selector dropdown */}
+                        {availableUnits.length > 0 && (
+                          <select
+                            value={selectedUnit}
+                            onChange={(e) => {
+                              const newUnit = e.target.value;
+                              setSelectedUnits((prev) => ({
+                                ...prev,
+                                [attr.attributeName]: newUnit,
+                              }));
+                              // Update value with new unit nếu có giá trị numeric
+                              const currentQuery = searchQuery[attrKey] || '';
+                              if (currentQuery && !valueHasUnit) {
+                                // Nếu chọn "(-)", không thêm đơn vị
+                                const newValue = newUnit === '(-)' 
+                                  ? currentQuery 
+                                  : `${currentQuery} ${newUnit}`.trim();
+                                const currentValues = parseValueToArray(value);
+                                const updatedValues = currentValues.length > 0 
+                                  ? [...currentValues.slice(0, -1), newValue]
+                                  : [newValue];
+                                setExtraSpecs((prev) => ({
+                                  ...prev,
+                                  [attr.attributeName]: formatArrayToString(updatedValues),
+                                }));
+                              }
+                            }}
+                            className="border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white px-3 py-2 text-sm min-w-[80px]"
+                          >
+                            <option value="(-)">(-)</option>
+                            {availableUnits.map((unit) => (
+                              <option key={unit} value={unit}>
+                                {unit}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                      
+                      {/* Suggestions dropdown */}
+                      {isShowingSuggestions && filteredOptions.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          <div className="p-2">
+                            <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý (chọn nhiều):</p>
+                            <div className="space-y-1">
+                              {filteredOptions.map((opt: string, index: number) => {
+                                const isSelected = selectedValues.includes(opt);
+                                return (
+                                  <button
+                                    key={`${attr.attributeId}-${index}-${opt}`}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                    }}
+                                    onClick={() => toggleSuggestion(opt)}
+                                    className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
+                                      isSelected
+                                        ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                        : 'hover:bg-orange-50 hover:text-orange-700'
+                                    }`}
+                                  >
+                                    <span className={`inline-block w-4 h-4 border-2 rounded ${
+                                      isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
+                                    } flex items-center justify-center`}>
+                                      {isSelected && <span className="text-white text-xs">✓</span>}
+                                    </span>
+                                    {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {isShowingSuggestions && filteredOptions.length === 0 && query && (
+                      <p className="mt-1 text-xs text-gray-500 px-1">
+                        Không tìm thấy gợi ý phù hợp. {availableUnits.length > 0 ? `Bạn có thể nhập số và chọn đơn vị (${availableUnits.join(', ')})` : 'Bạn có thể nhập giá trị tùy ý.'}
+                      </p>
+                    )}
                   </div>
                 );
               }
@@ -2385,22 +2888,84 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
 
               if (attr.dataType === 'NUMBER') {
                 return (
-                  <div key={attr.attributeId}>
+                  <div key={attr.attributeId} className="relative">
                     <label className="block text-sm font-medium text-gray-700">
                       {attr.attributeLabel}
                     </label>
-                    <input
-                      type="number"
-                      value={value}
-                      onChange={(e) =>
-                        setExtraSpecs((prev) => ({
-                          ...prev,
-                          [attr.attributeName]: e.target.value,
-                        }))
-                      }
-                      placeholder="Nhập giá trị"
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-                    />
+                    <div className="relative mt-1 flex gap-2">
+                      {/* Number input */}
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={valueHasUnit ? numericValue : value}
+                          onChange={(e) => {
+                            const newNumeric = e.target.value;
+                            // Combine with selected unit (add space between number and unit)
+                            // Nếu chọn "(-)", không thêm đơn vị
+                            if (availableUnits.length > 0 && selectedUnit && selectedUnit !== '(-)') {
+                              const newValue = newNumeric && selectedUnit 
+                                ? `${newNumeric} ${selectedUnit}`.trim()
+                                : newNumeric;
+                              setExtraSpecs((prev) => ({
+                                ...prev,
+                                [attr.attributeName]: newValue,
+                              }));
+                            } else {
+                              setExtraSpecs((prev) => ({
+                                ...prev,
+                                [attr.attributeName]: newNumeric,
+                              }));
+                            }
+                          }}
+                          onBlur={() => {
+                            // Auto-format with unit on blur (add space between number and unit)
+                            // Chỉ format nếu không phải "(-)"
+                            if (valueHasUnit && availableUnits.length > 0 && numericValue && selectedUnit && selectedUnit !== '(-)' && !value.includes(selectedUnit)) {
+                              const formatted = `${numericValue} ${selectedUnit}`.trim();
+                              setExtraSpecs((prev) => ({
+                                ...prev,
+                                [attr.attributeName]: formatted,
+                              }));
+                            }
+                          }}
+                          placeholder="Nhập số"
+                          className="w-full border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors px-3 py-2"
+                        />
+                      </div>
+                      
+                      {/* Unit selector dropdown */}
+                      {availableUnits.length > 0 && (
+                        <select
+                          value={selectedUnit}
+                          onChange={(e) => {
+                            const newUnit = e.target.value;
+                            setSelectedUnits((prev) => ({
+                              ...prev,
+                              [attr.attributeName]: newUnit,
+                            }));
+                            // Update value with new unit (add space between number and unit)
+                            if (numericValue) {
+                              // Nếu chọn "(-)", không thêm đơn vị
+                              const newValue = newUnit === '(-)' 
+                                ? numericValue 
+                                : `${numericValue} ${newUnit}`.trim();
+                              setExtraSpecs((prev) => ({
+                                ...prev,
+                                [attr.attributeName]: newValue,
+                              }));
+                            }
+                          }}
+                          className="border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white px-3 py-2 text-sm min-w-[80px]"
+                        >
+                          <option value="(-)">(-)</option>
+                          {availableUnits.map((unit) => (
+                            <option key={unit} value={unit}>
+                              {unit}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
                 );
               }

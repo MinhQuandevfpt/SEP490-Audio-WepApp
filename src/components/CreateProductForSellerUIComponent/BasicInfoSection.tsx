@@ -2,6 +2,45 @@ import React, { useEffect, useMemo, useState } from 'react';
 import SectionCard from './SectionCard';
 import { TinyMCEEditor } from '../common';
 
+// Danh sách suggestions cho các trường
+const BRAND_SUGGESTIONS = [
+  'Sony', 'Sennheiser', 'JBL', 'Bose', 'Audio-Technica', 'AKG', 'Shure', 
+  'Beyerdynamic', 'Focal', 'Bowers & Wilkins', 'Bang & Olufsen', 'Denon',
+  'Marantz', 'Yamaha', 'Pioneer', 'Technics', 'Rega', 'Pro-Ject', 'AudioQuest',
+  'Cambridge Audio', 'NAD', 'Rotel', 'McIntosh', 'KEF', 'Klipsch', 'Polk Audio',
+  'ELAC', 'Wharfedale', 'Monitor Audio', 'Dynaudio', 'MartinLogan', 'Sonus Faber',
+  'FiiO', 'iFi Audio', 'Chord Electronics', 'Astell & Kern', 'Audeze', 'HiFiMAN',
+  'Grado', 'Meze Audio', 'Fostex', 'Ultrasone', 'Final Audio', 'Campfire Audio',
+  'Empire Ears', '64 Audio', 'Noble Audio', 'JH Audio', 'Westone', 'Etymotic',
+  'RHA', '1MORE', 'Anker', 'Soundcore', 'Jabra', 'Plantronics', 'SteelSeries',
+  'HyperX', 'Corsair', 'Logitech', 'Razer', 'Creative', 'ASUS', 'MSI'
+];
+
+const MATERIAL_SUGGESTIONS = [
+  'Nhựa ABS', 'Nhựa PC', 'Nhựa PP', 'Nhôm', 'Thép không gỉ', 'Kim loại',
+  'Da thật', 'Da PU', 'Vải', 'Lưới', 'Gỗ', 'Gỗ MDF', 'Gỗ veneer',
+  'Carbon fiber', 'Kevlar', 'Titanium', 'Đồng', 'Bạc', 'Vàng',
+  'Silicone', 'Cao su', 'Foam', 'Memory foam', 'Gel', 'Leather',
+  'Fabric', 'Mesh', 'Metal mesh', 'Plastic', 'Polycarbonate', 'Acrylic',
+  'Glass', 'Ceramic', 'Bamboo', 'Cork', 'Felt', 'Velour', 'Suede'
+];
+
+const CONNECTION_SUGGESTIONS = [
+  'Bluetooth', 'Bluetooth 5.0', 'Bluetooth 5.1', 'Bluetooth 5.2', 'Bluetooth 5.3',
+  'USB', 'USB-A', 'USB-B', 'USB-C', 'USB 2.0', 'USB 3.0', 'USB 3.1',
+  'RCA', 'XLR', 'TRS', 'TS', '3.5mm', '6.35mm', 'Optical', 'Coaxial',
+  'HDMI', 'HDMI ARC', 'HDMI eARC', 'Ethernet', 'Wi-Fi', 'AirPlay',
+  'DLNA', 'Chromecast', 'Spotify Connect', 'Tidal Connect', 'Apple AirPlay',
+  'AptX', 'AptX HD', 'AptX Adaptive', 'LDAC', 'AAC', 'SBC', 'LC3',
+  'MQA', 'DSD', 'PCM', 'I2S', 'SPDIF', 'AES/EBU', 'Dante', 'AVB'
+];
+
+const VOLTAGE_SUGGESTIONS = [
+  '3.3V', '5V', '9V', '12V', '15V', '18V', '24V', '36V', '48V',
+  '110V', '220V', '230V', '240V', 'AC 110V', 'AC 220V', 'DC 5V', 'DC 12V',
+  'DC 24V', 'DC 48V', 'USB 5V', 'Phantom +48V', 'Phantom 48V'
+];
+
 interface FormState {
   name: string;
   brandName: string;
@@ -56,6 +95,56 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     part: null,
     message: null,
   });
+  
+  // State cho suggestions dropdown
+  const [showSuggestions, setShowSuggestions] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState<Record<string, string>>({});
+  
+  // Helper function để parse giá trị thành mảng (split by comma) - dùng cho tất cả các trường có suggestions
+  const parseValueToArray = (value: string): string[] => {
+    if (!value) return [];
+    return value.split(',').map(item => item.trim()).filter(Boolean);
+  };
+  
+  // Helper function để format mảng thành string - dùng cho tất cả các trường có suggestions
+  const formatArrayToString = (items: string[]): string => {
+    return items.join(', ');
+  };
+  
+  // Helper function để lấy giá trị hiện tại của field
+  const getFieldValue = (field: 'brandName' | 'material' | 'connectionType' | 'voltageInput'): string => {
+    switch (field) {
+      case 'brandName': return form.brandName;
+      case 'material': return form.material;
+      case 'connectionType': return form.connectionType;
+      case 'voltageInput': return form.voltageInput;
+      default: return '';
+    }
+  };
+  
+  // Helper function để thêm item vào giá trị (cho phép chọn nhiều) - dùng cho tất cả các trường có suggestions
+  const addItemToValue = (field: 'brandName' | 'material' | 'connectionType' | 'voltageInput', item: string) => {
+    const currentValue = getFieldValue(field);
+    const currentItems = parseValueToArray(currentValue);
+    
+    // Không thêm nếu đã có
+    if (currentItems.includes(item)) return;
+    
+    const newItems = [...currentItems, item];
+    const newValue = formatArrayToString(newItems);
+    
+    handleInputWithSuggestions(field, newValue);
+  };
+  
+  // Helper function để xóa item khỏi giá trị - dùng cho tất cả các trường có suggestions
+  const removeItemFromValue = (field: 'brandName' | 'material' | 'connectionType' | 'voltageInput', itemToRemove: string) => {
+    const currentValue = getFieldValue(field);
+    const currentItems = parseValueToArray(currentValue);
+    const newItems = currentItems.filter(item => item !== itemToRemove);
+    const newValue = formatArrayToString(newItems);
+    
+    handleInputWithSuggestions(field, newValue);
+  };
 
   useEffect(() => {
     setPendingCategoryIds(form.categoryIds || []);
@@ -159,7 +248,30 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     onDimensionChange(part, numeric);
   };
 
-  // Chỉ cho phép trọng lượng trong khoảng (0 - 90] kg
+  // Helper function để filter suggestions
+  const getFilteredSuggestions = (field: string, suggestions: string[]): string[] => {
+    const query = searchQuery[field] || '';
+    if (!query.trim()) return suggestions.slice(0, 10); // Hiển thị 10 gợi ý đầu tiên khi chưa nhập
+    const queryLower = query.toLowerCase();
+    return suggestions.filter(s => s.toLowerCase().includes(queryLower)).slice(0, 10);
+  };
+
+  // Handler cho input với suggestions
+  const handleInputWithSuggestions = (
+    field: 'brandName' | 'material' | 'connectionType' | 'voltageInput',
+    value: string
+  ) => {
+    onChange({
+      target: { name: field, value }
+    } as React.ChangeEvent<HTMLInputElement>);
+    
+    setSearchQuery(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Chỉ cho phép trọng lượng trong khoảng (0 - 27] kg
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
     
@@ -180,10 +292,10 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
       return;
     }
 
-    // Chỉ chấp nhận trong khoảng (0, 90]
-    if (value <= 0 || value > 90) {
+    // Chỉ chấp nhận trong khoảng (0, 27]
+    if (value <= 0 || value > 27) {
       // Hiển thị lỗi và không cập nhật form state với giá trị không hợp lệ
-      setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 90 kg.');
+      setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 27 kg.');
       return;
     }
 
@@ -251,18 +363,86 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700">
               <span className="text-red-500">* </span>Thương hiệu
             </label>
-            <input
-              name="brandName"
-              value={form.brandName}
-              onChange={onChange}
-              type="text"
-              placeholder="VD: Sony, Sennheiser, JBL"
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-            />
+            <div className="relative mt-1">
+              {/* Hiển thị các tag đã chọn */}
+              {parseValueToArray(form.brandName).length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {parseValueToArray(form.brandName).map((item, index) => (
+                    <span
+                      key={`brand-tag-${index}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
+                    >
+                      {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItemFromValue('brandName', item)}
+                        className="hover:text-orange-900 focus:outline-none"
+                        title="Xóa"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              
+              <input
+                name="brandName"
+                value={form.brandName}
+                onChange={(e) => handleInputWithSuggestions('brandName', e.target.value)}
+                onFocus={() => setShowSuggestions(prev => ({ ...prev, brandName: true }))}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowSuggestions(prev => ({ ...prev, brandName: false }));
+                  }, 200);
+                }}
+                type="text"
+                placeholder="VD: Sony, Sennheiser, JBL (có thể chọn nhiều)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+              />
+              {showSuggestions.brandName && getFilteredSuggestions('brandName', BRAND_SUGGESTIONS).length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý thương hiệu (chọn nhiều):</p>
+                    <div className="space-y-1">
+                      {getFilteredSuggestions('brandName', BRAND_SUGGESTIONS).map((brand, index) => {
+                        const isSelected = parseValueToArray(form.brandName).includes(brand);
+                        return (
+                          <button
+                            key={`brand-${index}`}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              if (isSelected) {
+                                removeItemFromValue('brandName', brand);
+                              } else {
+                                addItemToValue('brandName', brand);
+                              }
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                : 'hover:bg-orange-50 hover:text-orange-700'
+                            }`}
+                          >
+                            <span className={`inline-block w-4 h-4 border-2 rounded ${
+                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
+                            } flex items-center justify-center`}>
+                              {isSelected && <span className="text-white text-xs">✓</span>}
+                            </span>
+                            {brand}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">
@@ -322,16 +502,84 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
             />
           </div>
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700">Chất liệu</label>
-            <input
-              name="material"
-              value={form.material}
-              onChange={onChange}
-              type="text"
-              placeholder="VD: Nhựa ABS, Nhôm, Da"
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-            />
+            <div className="relative mt-1">
+              {/* Hiển thị các tag đã chọn */}
+              {parseValueToArray(form.material).length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {parseValueToArray(form.material).map((item, index) => (
+                    <span
+                      key={`material-tag-${index}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
+                    >
+                      {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItemFromValue('material', item)}
+                        className="hover:text-orange-900 focus:outline-none"
+                        title="Xóa"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              
+              <input
+                name="material"
+                value={form.material}
+                onChange={(e) => handleInputWithSuggestions('material', e.target.value)}
+                onFocus={() => setShowSuggestions(prev => ({ ...prev, material: true }))}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowSuggestions(prev => ({ ...prev, material: false }));
+                  }, 200);
+                }}
+                type="text"
+                placeholder="VD: Nhựa ABS, Nhôm, Da (có thể chọn nhiều)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+              />
+              {showSuggestions.material && getFilteredSuggestions('material', MATERIAL_SUGGESTIONS).length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý chất liệu (chọn nhiều):</p>
+                    <div className="space-y-1">
+                      {getFilteredSuggestions('material', MATERIAL_SUGGESTIONS).map((material, index) => {
+                        const isSelected = parseValueToArray(form.material).includes(material);
+                        return (
+                          <button
+                            key={`material-${index}`}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              if (isSelected) {
+                                removeItemFromValue('material', material);
+                              } else {
+                                addItemToValue('material', material);
+                              }
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                : 'hover:bg-orange-50 hover:text-orange-700'
+                            }`}
+                          >
+                            <span className={`inline-block w-4 h-4 border-2 rounded ${
+                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
+                            } flex items-center justify-center`}>
+                              {isSelected && <span className="text-white text-xs">✓</span>}
+                            </span>
+                            {material}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -409,27 +657,163 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700">Kết nối</label>
-            <input
-              name="connectionType"
-              value={form.connectionType}
-              onChange={onChange}
-              type="text"
-              placeholder="VD: Bluetooth, RCA, USB"
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-            />
+            <div className="relative mt-1">
+              {/* Hiển thị các tag đã chọn */}
+              {parseValueToArray(form.connectionType).length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {parseValueToArray(form.connectionType).map((item, index) => (
+                    <span
+                      key={`connection-tag-${index}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
+                    >
+                      {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItemFromValue('connectionType', item)}
+                        className="hover:text-orange-900 focus:outline-none"
+                        title="Xóa"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              
+              <input
+                name="connectionType"
+                value={form.connectionType}
+                onChange={(e) => handleInputWithSuggestions('connectionType', e.target.value)}
+                onFocus={() => setShowSuggestions(prev => ({ ...prev, connectionType: true }))}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowSuggestions(prev => ({ ...prev, connectionType: false }));
+                  }, 200);
+                }}
+                type="text"
+                placeholder="VD: Bluetooth, RCA, USB (có thể chọn nhiều)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+              />
+              {showSuggestions.connectionType && getFilteredSuggestions('connectionType', CONNECTION_SUGGESTIONS).length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý kết nối (chọn nhiều):</p>
+                    <div className="space-y-1">
+                      {getFilteredSuggestions('connectionType', CONNECTION_SUGGESTIONS).map((connection, index) => {
+                        const isSelected = parseValueToArray(form.connectionType).includes(connection);
+                        return (
+                          <button
+                            key={`connection-${index}`}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              if (isSelected) {
+                                removeItemFromValue('connectionType', connection);
+                              } else {
+                                addItemToValue('connectionType', connection);
+                              }
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                : 'hover:bg-orange-50 hover:text-orange-700'
+                            }`}
+                          >
+                            <span className={`inline-block w-4 h-4 border-2 rounded ${
+                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
+                            } flex items-center justify-center`}>
+                              {isSelected && <span className="text-white text-xs">✓</span>}
+                            </span>
+                            {connection}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-gray-700">Điện áp</label>
-            <input
-              name="voltageInput"
-              value={form.voltageInput}
-              onChange={onChange}
-              type="text"
-              placeholder="VD: 5V"
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-            />
+            <div className="relative mt-1">
+              {/* Hiển thị các tag đã chọn */}
+              {parseValueToArray(form.voltageInput).length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {parseValueToArray(form.voltageInput).map((item, index) => (
+                    <span
+                      key={`voltage-tag-${index}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
+                    >
+                      {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItemFromValue('voltageInput', item)}
+                        className="hover:text-orange-900 focus:outline-none"
+                        title="Xóa"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              
+              <input
+                name="voltageInput"
+                value={form.voltageInput}
+                onChange={(e) => handleInputWithSuggestions('voltageInput', e.target.value)}
+                onFocus={() => setShowSuggestions(prev => ({ ...prev, voltageInput: true }))}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowSuggestions(prev => ({ ...prev, voltageInput: false }));
+                  }, 200);
+                }}
+                type="text"
+                placeholder="VD: 5V, 12V (có thể chọn nhiều)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
+              />
+              {showSuggestions.voltageInput && getFilteredSuggestions('voltageInput', VOLTAGE_SUGGESTIONS).length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý điện áp (chọn nhiều):</p>
+                    <div className="space-y-1">
+                      {getFilteredSuggestions('voltageInput', VOLTAGE_SUGGESTIONS).map((voltage, index) => {
+                        const isSelected = parseValueToArray(form.voltageInput).includes(voltage);
+                        return (
+                          <button
+                            key={`voltage-${index}`}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              if (isSelected) {
+                                removeItemFromValue('voltageInput', voltage);
+                              } else {
+                                addItemToValue('voltageInput', voltage);
+                              }
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                : 'hover:bg-orange-50 hover:text-orange-700'
+                            }`}
+                          >
+                            <span className={`inline-block w-4 h-4 border-2 rounded ${
+                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
+                            } flex items-center justify-center`}>
+                              {isSelected && <span className="text-white text-xs">✓</span>}
+                            </span>
+                            {voltage}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -14,6 +14,10 @@ interface SpeakerDesignSectionProps {
   onTestSpeaker?: (specs: CustomSpeakerSpecs | null) => void;
   onTestObjectPositionChange?: (position: [number, number, number] | null) => void;
   onTestingIn3DChange?: (isTesting: boolean) => void;
+  // Test object selection props
+  isTestObjectActive?: boolean;
+  isTestObjectSelected?: boolean;
+  onSelectTestObject?: () => void;
 }
 
 
@@ -67,7 +71,10 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
   onUpdateSpeaker: _onUpdateSpeaker,
   onTestSpeaker,
   onTestObjectPositionChange,
-  onTestingIn3DChange
+  onTestingIn3DChange,
+  isTestObjectActive = false,
+  isTestObjectSelected = false,
+  onSelectTestObject
 }) => {
   const [customSpecs, setCustomSpecs] = useState<CustomSpeakerSpecs>(DEFAULT_CUSTOM_SPECS);
   const [isTestingAudio, setIsTestingAudio] = useState<boolean>(false);
@@ -118,6 +125,12 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
     setTestObjectPosition(newPosition);
     if (onTestObjectPositionChange) {
       onTestObjectPositionChange(newPosition);
+    }
+  };
+
+  const handleSelectTestObject = () => {
+    if (onSelectTestObject) {
+      onSelectTestObject();
     }
   };
 
@@ -310,83 +323,120 @@ const SpeakerDesignSection: React.FC<SpeakerDesignSectionProps> = ({
                 className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
               >
                 <Move className="w-4 h-4" />
-                <span>Xem 3D và di chuyển vật thể</span>
+                <span>Kích hoạt vật thể test</span>
               </button>
             ) : (
-              <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-700">Điều khiển vật thể test</span>
-                  <button
-                    onClick={handleStopTest}
-                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Dừng
-                  </button>
-                </div>
-                
-                {/* Position Display */}
-                <div className="text-xs text-gray-600 bg-white p-2 rounded">
-                  <div className="font-medium mb-1">Vị trí:</div>
-                  <div>X: {testObjectPosition[0].toFixed(1)}m</div>
-                  <div>Y: {testObjectPosition[1].toFixed(1)}m</div>
-                  <div>Z: {testObjectPosition[2].toFixed(1)}m</div>
-                </div>
+              <div className="space-y-3">
+                {/* Select Test Object Button */}
+                <button
+                  onClick={handleSelectTestObject}
+                  className={`w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg transition-colors font-medium ${
+                    isTestObjectSelected
+                      ? 'bg-orange-600 text-white border-2 border-orange-700'
+                      : 'bg-orange-100 text-orange-700 border-2 border-orange-300 hover:bg-orange-200'
+                  }`}
+                >
+                  <Move className="w-4 h-4" />
+                  <span>
+                    {isTestObjectSelected ? '✓ Đã chọn vật thể test' : 'Chọn vật thể test để di chuyển'}
+                  </span>
+                </button>
 
-                {/* Movement Controls */}
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-gray-700">Di chuyển:</div>
-                  
-                  {/* X-axis */}
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500 w-8">X:</span>
-                    <button
-                      onClick={() => handleMoveTestObject('x', -1)}
-                      className="flex-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs"
-                    >
-                      ← Trái
-                    </button>
-                    <button
-                      onClick={() => handleMoveTestObject('x', 1)}
-                      className="flex-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs"
-                    >
-                      Phải →
-                    </button>
-                  </div>
+                {/* Test Object Controls */}
+                {isTestObjectActive && (
+                  <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-gray-700">Điều khiển vật thể test</span>
+                      <button
+                        onClick={handleStopTest}
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                      >
+                        Dừng
+                      </button>
+                    </div>
+                    
+                    {/* Position Display */}
+                    <div className="text-xs text-gray-600 bg-white p-2 rounded">
+                      <div className="font-medium mb-1">Vị trí hiện tại:</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>X: <span className="font-semibold">{testObjectPosition[0].toFixed(1)}m</span></div>
+                        <div>Y: <span className="font-semibold">{testObjectPosition[1].toFixed(1)}m</span></div>
+                        <div>Z: <span className="font-semibold">{testObjectPosition[2].toFixed(1)}m</span></div>
+                      </div>
+                    </div>
 
-                  {/* Y-axis */}
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500 w-8">Y:</span>
-                    <button
-                      onClick={() => handleMoveTestObject('y', -1)}
-                      className="flex-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs"
-                    >
-                      ↓ Xuống
-                    </button>
-                    <button
-                      onClick={() => handleMoveTestObject('y', 1)}
-                      className="flex-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs"
-                    >
-                      ↑ Lên
-                    </button>
-                  </div>
+                    {/* Keyboard Controls Hint */}
+                    {isTestObjectSelected && (
+                      <div className="text-xs bg-yellow-50 border border-yellow-200 rounded p-2">
+                        <div className="font-medium text-yellow-800 mb-1">💡 Điều khiển bằng bàn phím:</div>
+                        <div className="text-yellow-700 space-y-0.5">
+                          <div>W/S: Lên/Xuống (Y)</div>
+                          <div>A/D: Trái/Phải (X)</div>
+                          <div>Alt+W: Vào trong (Z)</div>
+                          <div>Alt+S: Ra phía trước (Z)</div>
+                        </div>
+                      </div>
+                    )}
 
-                  {/* Z-axis */}
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-500 w-8">Z:</span>
-                    <button
-                      onClick={() => handleMoveTestObject('z', -1)}
-                      className="flex-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs"
-                    >
-                      ← Sau
-                    </button>
-                    <button
-                      onClick={() => handleMoveTestObject('z', 1)}
-                      className="flex-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs"
-                    >
-                      Trước →
-                    </button>
+                    {/* Movement Controls - Chỉ hiển thị khi chưa select */}
+                    {!isTestObjectSelected && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-gray-700">Hoặc di chuyển bằng nút:</div>
+                        
+                        {/* X-axis */}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-500 w-8">X:</span>
+                          <button
+                            onClick={() => handleMoveTestObject('x', -1)}
+                            className="flex-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs"
+                          >
+                            ← Trái
+                          </button>
+                          <button
+                            onClick={() => handleMoveTestObject('x', 1)}
+                            className="flex-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs"
+                          >
+                            Phải →
+                          </button>
+                        </div>
+
+                        {/* Y-axis */}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-500 w-8">Y:</span>
+                          <button
+                            onClick={() => handleMoveTestObject('y', -1)}
+                            className="flex-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs"
+                          >
+                            ↓ Xuống
+                          </button>
+                          <button
+                            onClick={() => handleMoveTestObject('y', 1)}
+                            className="flex-1 px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs"
+                          >
+                            ↑ Lên
+                          </button>
+                        </div>
+
+                        {/* Z-axis */}
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-gray-500 w-8">Z:</span>
+                          <button
+                            onClick={() => handleMoveTestObject('z', -1)}
+                            className="flex-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs"
+                          >
+                            ← Sau
+                          </button>
+                          <button
+                            onClick={() => handleMoveTestObject('z', 1)}
+                            className="flex-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs"
+                          >
+                            Trước →
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
             )}
             

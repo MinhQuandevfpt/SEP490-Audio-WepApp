@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Plus } from 'lucide-react';
 import ListenerControls from './ListenerControls';
 import type { Listener } from './index';
@@ -8,31 +8,31 @@ interface ListenerDesignSectionProps {
   onAddListener: (listener: Omit<Listener, 'id'>) => void;
   onRemoveListener: (id: string) => void;
   onUpdateListener: (id: string, updates: Partial<Listener>) => void;
+  selectedListenerId?: string | null;
+  onSelectListener?: (id: string | null) => void;
 }
 
 const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
   listeners,
   onAddListener,
   onRemoveListener,
-  onUpdateListener
+  onUpdateListener,
+  selectedListenerId,
+  onSelectListener
 }) => {
-  const [newListenerName, setNewListenerName] = useState<string>('');
-
   const handleAddListener = () => {
     // Chỉ cho phép thêm 1 người nghe duy nhất
     if (listeners.length >= 1) {
       return;
     }
     
-    const name = newListenerName.trim() || `Người nghe`;
     const newListener: Omit<Listener, 'id'> = {
-      name,
+      name: 'Người nghe',
       position: [0, 0.9, 0], // Đặt trên sàn (Y = 0.9 để người đứng trên sàn)
       rotation: [0, 0, 0],
       isActive: true
     };
     onAddListener(newListener);
-    setNewListenerName('');
   };
 
   return (
@@ -46,17 +46,6 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-gray-700">Thêm người nghe</h4>
         
-        <div className="space-y-2">
-          <label className="text-xs text-gray-600">Tên người nghe</label>
-          <input
-            type="text"
-            value={newListenerName}
-            onChange={(e) => setNewListenerName(e.target.value)}
-            placeholder="Nhập tên người nghe..."
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          />
-        </div>
-
         <button
           onClick={handleAddListener}
           disabled={listeners.length >= 1}
@@ -97,40 +86,62 @@ const ListenerDesignSection: React.FC<ListenerDesignSectionProps> = ({
           </div>
         ) : (
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {listeners.map((listener) => (
-              <div
-                key={listener.id}
-                className={`p-3 rounded-lg border-2 transition-all ${
-                  listener.isActive
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
-                    <span className={`text-lg ${
-                      listener.isActive ? 'text-green-600' : 'text-gray-400'
-                    }`}>
-                      👤
-                    </span>
-                    <span className={`text-sm font-medium ${
-                      listener.isActive ? 'text-green-800' : 'text-gray-600'
-                    }`}>
-                      {listener.name}
-                    </span>
-                    {listener.isActive && (
-                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
-                    )}
+            {listeners.map((listener) => {
+              const isSelected = selectedListenerId === listener.id;
+              return (
+                <div
+                  key={listener.id}
+                  onClick={() => {
+                    if (onSelectListener) {
+                      // Toggle selection: nếu đã chọn thì deselect, nếu chưa chọn thì select
+                      onSelectListener(isSelected ? null : listener.id);
+                    }
+                  }}
+                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-green-50 border-green-500 shadow-md'
+                      : listener.isActive
+                      ? 'bg-green-50 border-green-200 hover:border-green-300'
+                      : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-lg ${
+                        isSelected || listener.isActive ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        👤
+                      </span>
+                      <span className={`text-sm font-medium ${
+                        isSelected ? 'text-green-800' : listener.isActive ? 'text-green-800' : 'text-gray-600'
+                      }`}>
+                        {listener.name}
+                      </span>
+                      {isSelected && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-600 text-white">
+                          Đã chọn
+                        </span>
+                      )}
+                      {!isSelected && listener.isActive && (
+                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+                      )}
+                    </div>
                   </div>
+                  
+                  <ListenerControls
+                    listener={listener}
+                    onUpdate={(updates) => onUpdateListener(listener.id, updates)}
+                    onRemove={() => {
+                      onRemoveListener(listener.id);
+                      // Deselect nếu đang chọn listener này
+                      if (isSelected && onSelectListener) {
+                        onSelectListener(null);
+                      }
+                    }}
+                  />
                 </div>
-                
-                <ListenerControls
-                  listener={listener}
-                  onUpdate={(updates) => onUpdateListener(listener.id, updates)}
-                  onRemove={() => onRemoveListener(listener.id)}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

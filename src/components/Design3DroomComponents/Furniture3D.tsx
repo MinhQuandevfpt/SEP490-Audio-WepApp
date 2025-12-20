@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Ring, Text } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import type { Furniture } from './index';
 
 interface Furniture3DWrapperProps {
@@ -199,8 +199,6 @@ const Furniture3D: React.FC<Furniture3DWrapperProps> = ({
   };
 
   const boundingBox = getBoundingBox();
-  const maxDimension = Math.max(...boundingBox.size);
-  const ringRadius = maxDimension * 0.7;
 
   let furnitureComponent;
   switch (furniture.type) {
@@ -244,56 +242,7 @@ const Furniture3D: React.FC<Furniture3DWrapperProps> = ({
         <meshStandardMaterial transparent opacity={0} />
       </mesh>
 
-      {/* Selection Ring - Hiển thị khi được select */}
-      {isSelected && (
-        <>
-          {/* Outer glow ring */}
-          <Ring
-            args={[ringRadius, ringRadius + 0.2, 32]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[boundingBox.offset[0], 0.1, boundingBox.offset[2]]}
-          >
-            <meshStandardMaterial
-              color="#00ff00"
-              emissive="#00ff00"
-              emissiveIntensity={0.8}
-              transparent
-              opacity={0.6}
-            />
-          </Ring>
-          {/* Inner selection ring */}
-          <Ring
-            args={[ringRadius - 0.2, ringRadius, 32]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[boundingBox.offset[0], 0.1, boundingBox.offset[2]]}
-          >
-            <meshStandardMaterial
-              color="#00ff00"
-              emissive="#00ff00"
-              emissiveIntensity={1.2}
-              transparent
-              opacity={0.8}
-            />
-          </Ring>
-        </>
-      )}
-
-      {/* Hover Ring - Hiển thị khi hover nhưng chưa select */}
-      {!isSelected && isHovered && (
-        <Ring
-          args={[ringRadius - 0.1, ringRadius + 0.1, 32]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[boundingBox.offset[0], 0.1, boundingBox.offset[2]]}
-        >
-          <meshStandardMaterial
-            color="#ffff00"
-            emissive="#ffff00"
-            emissiveIntensity={0.4}
-            transparent
-            opacity={0.4}
-          />
-        </Ring>
-      )}
+      {/* Selection indicator - chỉ hiển thị text, không có ring */}
 
       {/* Furniture component */}
       <group

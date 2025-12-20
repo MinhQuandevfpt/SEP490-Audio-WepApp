@@ -42,6 +42,15 @@ interface ControlsPanelProps {
   onTestSpeaker?: (specs: CustomSpeakerSpecs | null) => void;
   onTestObjectPositionChange?: (position: [number, number, number] | null) => void;
   onTestingIn3DChange?: (isTesting: boolean) => void;
+  // selection
+  selectedFurnitureId?: string | null;
+  onSelectFurniture?: (id: string | null) => void;
+  selectedListenerId?: string | null;
+  onSelectListener?: (id: string | null) => void;
+  // test object selection
+  isTestObjectActive?: boolean;
+  isTestObjectSelected?: boolean;
+  onSelectTestObject?: () => void;
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({
@@ -65,7 +74,14 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   onUpdateSpeaker,
   onTestSpeaker,
   onTestObjectPositionChange,
-  onTestingIn3DChange
+  onTestingIn3DChange,
+  selectedFurnitureId,
+  onSelectFurniture,
+  selectedListenerId,
+  onSelectListener,
+  isTestObjectActive = false,
+  isTestObjectSelected = false,
+  onSelectTestObject
 }) => {
   const [activeSection, setActiveSection] = useState<ControlSection>('room');
 
@@ -89,6 +105,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onAddFurniture={onAddFurniture}
             onRemoveFurniture={onRemoveFurniture}
             onUpdateFurniture={onUpdateFurniture}
+            selectedFurnitureId={selectedFurnitureId}
+            onSelectFurniture={onSelectFurniture}
           />
         );
       case 'speakers':
@@ -101,6 +119,9 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onTestSpeaker={onTestSpeaker}
             onTestObjectPositionChange={onTestObjectPositionChange}
             onTestingIn3DChange={onTestingIn3DChange}
+            isTestObjectActive={isTestObjectActive}
+            isTestObjectSelected={isTestObjectSelected}
+            onSelectTestObject={onSelectTestObject}
           />
         );
       case 'listeners':
@@ -110,6 +131,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
             onAddListener={onAddListener}
             onRemoveListener={onRemoveListener}
             onUpdateListener={onUpdateListener}
+            selectedListenerId={selectedListenerId}
+            onSelectListener={onSelectListener}
           />
         );
       default:

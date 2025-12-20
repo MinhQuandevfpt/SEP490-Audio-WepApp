@@ -26,10 +26,14 @@ const ThreeDRoom: React.FC = () => {
   const [furniture, setFurniture] = useState<Furniture[]>([]);
   const [listeners, setListeners] = useState<Listener[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  // Selection states - quản lý object được chọn
+  const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
+  const [selectedListenerId, setSelectedListenerId] = useState<string | null>(null);
+  const [isTestObjectSelected, setIsTestObjectSelected] = useState<boolean>(false);
   // Test mode states - được sử dụng qua callbacks trong SpeakerDesignSection
   const [_testSpeaker, setTestSpeaker] = useState<CustomSpeakerSpecs | null>(null);
   const [testObjectPosition, setTestObjectPosition] = useState<[number, number, number] | null>(null);
-  const [_isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
+  const [isTestingIn3D, setIsTestingIn3D] = useState<boolean>(false);
 
   const handleDimensionChange = useCallback((key: keyof Dimensions, value: number) => {
     setDimensions(prev => ({
@@ -66,7 +70,11 @@ const ThreeDRoom: React.FC = () => {
 
   const handleRemoveFurniture = useCallback((id: string) => {
     setFurniture(prev => prev.filter(item => item.id !== id));
-  }, []);
+    // Deselect nếu đang chọn furniture này
+    if (selectedFurnitureId === id) {
+      setSelectedFurnitureId(null);
+    }
+  }, [selectedFurnitureId]);
 
   const handleUpdateFurniture = useCallback((id: string, updates: Partial<Furniture>) => {
     setFurniture(prev => prev.map(item => 
@@ -85,12 +93,50 @@ const ThreeDRoom: React.FC = () => {
 
   const handleRemoveListener = useCallback((id: string) => {
     setListeners(prev => prev.filter(item => item.id !== id));
-  }, []);
+    // Deselect nếu đang chọn listener này
+    if (selectedListenerId === id) {
+      setSelectedListenerId(null);
+    }
+  }, [selectedListenerId]);
 
   const handleUpdateListener = useCallback((id: string, updates: Partial<Listener>) => {
     setListeners(prev => prev.map(item => 
       item.id === id ? { ...item, ...updates } : item
     ));
+  }, []);
+
+  // Selection handlers - mutual exclusion
+  const handleSelectFurniture = useCallback((id: string | null) => {
+    setSelectedFurnitureId(id);
+    // Deselect listener và test object khi chọn furniture
+    if (id !== null) {
+      setSelectedListenerId(null);
+      setIsTestObjectSelected(false);
+    }
+  }, []);
+
+  const handleSelectListener = useCallback((id: string | null) => {
+    setSelectedListenerId(id);
+    // Deselect furniture và test object khi chọn listener
+    if (id !== null) {
+      setSelectedFurnitureId(null);
+      setIsTestObjectSelected(false);
+    }
+  }, []);
+
+  // Test object selection handler
+  const handleSelectTestObject = useCallback(() => {
+    setIsTestObjectSelected(prev => !prev); // Toggle selection
+    // Deselect other objects when selecting test object
+    if (!isTestObjectSelected) {
+      setSelectedFurnitureId(null);
+      setSelectedListenerId(null);
+    }
+  }, [isTestObjectSelected]);
+
+  // Update test object position handler
+  const handleUpdateTestObjectPosition = useCallback((position: [number, number, number]) => {
+    setTestObjectPosition(position);
   }, []);
 
   // Speaker handlers
@@ -140,6 +186,13 @@ const ThreeDRoom: React.FC = () => {
             onTestSpeaker={setTestSpeaker}
             onTestObjectPositionChange={setTestObjectPosition}
             onTestingIn3DChange={setIsTestingIn3D}
+            selectedFurnitureId={selectedFurnitureId}
+            onSelectFurniture={handleSelectFurniture}
+            selectedListenerId={selectedListenerId}
+            onSelectListener={handleSelectListener}
+            isTestObjectActive={isTestingIn3D && testObjectPosition !== null}
+            isTestObjectSelected={isTestObjectSelected}
+            onSelectTestObject={handleSelectTestObject}
           />
 
           <Canvas3D 
@@ -151,6 +204,13 @@ const ThreeDRoom: React.FC = () => {
             testObjectPosition={testObjectPosition}
             onUpdateListener={handleUpdateListener}
             onUpdateFurniture={handleUpdateFurniture}
+            onUpdateTestObjectPosition={handleUpdateTestObjectPosition}
+            selectedFurnitureId={selectedFurnitureId}
+            onSelectFurniture={handleSelectFurniture}
+            selectedListenerId={selectedListenerId}
+            onSelectListener={handleSelectListener}
+            isTestObjectSelected={isTestObjectSelected}
+            onSelectTestObject={handleSelectTestObject}
           />
         </div>
       </div>

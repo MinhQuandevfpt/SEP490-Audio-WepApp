@@ -67,11 +67,10 @@ interface Props {
   onSubmit?: (data: GhnTransferFormData) => void;
 }
 
-// Package packing rules
-const MAX_BOX_WEIGHT = 15000;      // 15kg / 1 kiện (gram)
+// Package packing rules - GHN limits
+const MAX_BOX_WEIGHT = 30000;      // 30kg / 1 kiện (gram) - GHN limit
 const MAX_BOX_VOLUME = 50000;      // 50,000 cm³
-const MAX_BOX_EDGE = 80;           // 80cm cạnh dài nhất
-const LARGE_ITEM_WEIGHT = 7500;   // >7.5kg coi là hàng lớn (gram)
+const MAX_BOX_EDGE = 150;          // 150cm cạnh dài nhất - GHN limit (mỗi chiều và cạnh dài nhất)
 
 const PROVINCE_PREFIXES = ['tinh', 'thanh pho', 'tp'];
 const DISTRICT_PREFIXES = ['quan', 'huyen', 'thi xa', 'thi tran', 'tx', 'tp'];
@@ -209,6 +208,10 @@ type PackingResult = {
 
 /**
  * Check if products can be packed together in one box
+ * GHN Rules:
+ * - Tổng trọng lượng ≤ 30kg (30,000 gram)
+ * - Mỗi chiều (dài, rộng, cao) của từng sản phẩm ≤ 150cm
+ * - Cạnh dài nhất của kiện ≤ 150cm
  */
 const canPackTogether = (products: Product[]): PackingResult => {
   if (products.length === 0) {
@@ -218,25 +221,38 @@ const canPackTogether = (products: Product[]): PackingResult => {
     };
   }
 
-  // Case 1: Check for large items (>7.5kg)
-  const hasLargeItem = products.some(p => p.weight >= LARGE_ITEM_WEIGHT);
-  if (hasLargeItem) {
-    const largeItems = products.filter(p => p.weight >= LARGE_ITEM_WEIGHT);
-    return {
-      canPack: false,
-      reason: `Có ${largeItems.length} sản phẩm >7.5kg. Không thể đóng chung.`,
-    };
+  // Case 1: Check each product's dimensions (GHN: mỗi chiều ≤ 150cm)
+  for (let i = 0; i < products.length; i++) {
+    const p = products[i];
+    if (p.length > MAX_BOX_EDGE) {
+      return {
+        canPack: false,
+        reason: `Sản phẩm #${i + 1}: Chiều dài (${p.length}cm) vượt quá giới hạn GHN (${MAX_BOX_EDGE}cm).`,
+      };
+    }
+    if (p.width > MAX_BOX_EDGE) {
+      return {
+        canPack: false,
+        reason: `Sản phẩm #${i + 1}: Chiều rộng (${p.width}cm) vượt quá giới hạn GHN (${MAX_BOX_EDGE}cm).`,
+      };
+    }
+    if (p.height > MAX_BOX_EDGE) {
+      return {
+        canPack: false,
+        reason: `Sản phẩm #${i + 1}: Chiều cao (${p.height}cm) vượt quá giới hạn GHN (${MAX_BOX_EDGE}cm).`,
+      };
+    }
   }
 
   // Calculate totals
   const totalWeight = products.reduce((sum, p) => sum + p.weight, 0);
   const totalVolume = products.reduce((sum, p) => sum + (p.length * p.width * p.height), 0);
 
-  // Case 2: Check total weight
+  // Case 2: Check total weight (GHN: ≤ 30kg)
   if (totalWeight > MAX_BOX_WEIGHT) {
     return {
       canPack: false,
-      reason: `Tổng cân nặng (${totalWeight.toLocaleString('vi-VN')}g) vượt mức cho phép ${MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g/kiện.`,
+      reason: `Tổng cân nặng (${totalWeight.toLocaleString('vi-VN')}g) vượt mức cho phép GHN ${MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g/kiện (30kg).`,
     };
   }
 
@@ -255,10 +271,11 @@ const canPackTogether = (products: Product[]): PackingResult => {
 
   const maxEdge = Math.max(combinedLength, combinedWidth, combinedHeight);
 
+  // GHN: Cạnh dài nhất của kiện ≤ 150cm
   if (maxEdge > MAX_BOX_EDGE) {
     return {
       canPack: false,
-      reason: `Kích thước kiện (cạnh dài nhất: ${maxEdge}cm) vượt quy chuẩn vận chuyển (${MAX_BOX_EDGE}cm).`,
+      reason: `Kích thước kiện (cạnh dài nhất: ${maxEdge}cm) vượt quy chuẩn GHN (${MAX_BOX_EDGE}cm).`,
       calculatedDimensions: {
         length: combinedLength,
         width: combinedWidth,
@@ -1071,10 +1088,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     // Check maximum increase limits
     if (field === 'weight') {
-      // Global maximum: 100kg (100,000 gram)
-      const MAX_WEIGHT = 100000;
+      // Global maximum: 30kg (30,000 gram) - GHN limit
+      const MAX_WEIGHT = 30000;
       if (numValue > MAX_WEIGHT) {
-        return `Trọng lượng không được vượt quá 100 kg (100,000 gram). Giá trị tối đa: ${MAX_WEIGHT} gram`;
+        return `Trọng lượng không được vượt quá 30 kg (30,000 gram). Giá trị tối đa: ${MAX_WEIGHT} gram`;
       }
       
       const increase = numValue - originalValue;
@@ -1093,11 +1110,17 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         }
       }
     } else {
-      // Dimension: max increase 5cm
+      // Dimension: max 150cm (GHN limit) and max increase 5cm
+      const MAX_DIMENSION = 150;
+      if (numValue > MAX_DIMENSION) {
+        const fieldName = field === 'length' ? 'Chiều dài' : field === 'width' ? 'Chiều rộng' : 'Chiều cao';
+        return `${fieldName} không được vượt quá 150 cm (giới hạn GHN). Giá trị tối đa: ${MAX_DIMENSION} cm`;
+      }
+      
       const increase = numValue - originalValue;
       if (increase > 5) {
         const fieldName = field === 'length' ? 'Chiều dài' : field === 'width' ? 'Chiều rộng' : 'Chiều cao';
-        return `${fieldName} chỉ được tăng tối đa 5 cm so với giá trị gốc (${originalValue} cm). Giá trị tối đa: ${originalValue + 5} cm`;
+        return `${fieldName} chỉ được tăng tối đa 5 cm so với giá trị gốc (${originalValue} cm). Giá trị tối đa: ${Math.min(originalValue + 5, MAX_DIMENSION)} cm`;
       }
     }
 
@@ -1534,10 +1557,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         return;
       }
       
-      // Validate package weight must not exceed 100kg (100,000 gram)
-      const MAX_PACKAGE_WEIGHT = 100000;
+      // Validate package weight must not exceed 30kg (30,000 gram) - GHN limit
+      const MAX_PACKAGE_WEIGHT = 30000;
       if (formData.weight > MAX_PACKAGE_WEIGHT) {
-        showCenterError(`Trọng lượng kiện hàng không được vượt quá 100 kg (100,000 gram). Giá trị hiện tại: ${formData.weight.toLocaleString('vi-VN')} gram`, 'Lỗi');
+        showCenterError(`Trọng lượng kiện hàng không được vượt quá 30 kg (30,000 gram). Giá trị hiện tại: ${formData.weight.toLocaleString('vi-VN')} gram`, 'Lỗi');
         setIsSubmitting(false);
         return;
       }
@@ -2370,15 +2393,23 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                           Chiều dài (cm) *
                           {itemOriginalValues[index]?.length > 0 && (
                             <span className="text-gray-500 ml-1">
-                              (Gốc: {itemOriginalValues[index].length} cm, Tối đa: {itemOriginalValues[index].length + 5} cm)
+                              (Gốc: {itemOriginalValues[index].length} cm, Tối đa: {Math.min(itemOriginalValues[index].length + 5, 150)} cm)
                             </span>
                           )}
+                          <span className="text-gray-500 ml-1">(Giới hạn tối đa: 150 cm)</span>
                         </label>
                         <input
                           type="number"
                           value={item.length}
                           required
-                          onChange={(e) => handleItemChange(index, 'length', Number(e.target.value))}
+                          max={150}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            // GHN limit: không quá 150cm
+                            if (value <= 150 || e.target.value === '') {
+                              handleItemChange(index, 'length', value);
+                            }
+                          }}
                           className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                             itemValidationErrors[index]?.length
                               ? 'border-red-500 focus:ring-red-500'
@@ -2397,15 +2428,23 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                           Chiều rộng (cm) *
                           {itemOriginalValues[index]?.width > 0 && (
                             <span className="text-gray-500 ml-1">
-                              (Gốc: {itemOriginalValues[index].width} cm, Tối đa: {itemOriginalValues[index].width + 5} cm)
+                              (Gốc: {itemOriginalValues[index].width} cm, Tối đa: {Math.min(itemOriginalValues[index].width + 5, 150)} cm)
                             </span>
                           )}
+                          <span className="text-gray-500 ml-1">(Giới hạn tối đa: 150 cm)</span>
                         </label>
                         <input
                           type="number"
                           value={item.width}
                           required
-                          onChange={(e) => handleItemChange(index, 'width', Number(e.target.value))}
+                          max={150}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            // GHN limit: không quá 150cm
+                            if (value <= 150 || e.target.value === '') {
+                              handleItemChange(index, 'width', value);
+                            }
+                          }}
                           className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                             itemValidationErrors[index]?.width
                               ? 'border-red-500 focus:ring-red-500'
@@ -2424,15 +2463,23 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                           Chiều cao (cm) *
                           {itemOriginalValues[index]?.height > 0 && (
                             <span className="text-gray-500 ml-1">
-                              (Gốc: {itemOriginalValues[index].height} cm, Tối đa: {itemOriginalValues[index].height + 5} cm)
+                              (Gốc: {itemOriginalValues[index].height} cm, Tối đa: {Math.min(itemOriginalValues[index].height + 5, 150)} cm)
                             </span>
                           )}
+                          <span className="text-gray-500 ml-1">(Giới hạn tối đa: 150 cm)</span>
                         </label>
                         <input
                           type="number"
                           value={item.height}
                           required
-                          onChange={(e) => handleItemChange(index, 'height', Number(e.target.value))}
+                          max={150}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            // GHN limit: không quá 150cm
+                            if (value <= 150 || e.target.value === '') {
+                              handleItemChange(index, 'height', value);
+                            }
+                          }}
                           className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                             itemValidationErrors[index]?.height
                               ? 'border-red-500 focus:ring-red-500'
@@ -2453,25 +2500,29 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                             <span className="text-gray-500 ml-1">
                               (Gốc: {itemOriginalValues[index].weight} g
                               {itemOriginalValues[index].weight < 5000
-                                ? `, Tối đa: ${Math.min(itemOriginalValues[index].weight + 500, 100000)} g)`
-                                : `, Tối đa: ${Math.min(itemOriginalValues[index].weight + Math.round(itemOriginalValues[index].weight * 0.15), 100000)} g (+15%))`}
-                              <span className="text-red-600">, Tuyệt đối: 100.000 g (100 kg)</span>
+                                ? `, Tối đa: ${Math.min(itemOriginalValues[index].weight + 500, 30000)} g)`
+                                : `, Tối đa: ${Math.min(itemOriginalValues[index].weight + Math.round(itemOriginalValues[index].weight * 0.15), 30000)} g (+15%))`}
+                              <span className="text-red-600">, Tuyệt đối: 30.000 g (30 kg)</span>
                             </span>
                           )}
                           {(!itemOriginalValues[index]?.weight || itemOriginalValues[index].weight === 0) && (
-                            <span className="text-gray-500 ml-1">(Tối đa: 100.000 g / 100 kg)</span>
+                            <span className="text-gray-500 ml-1">(Tối đa: 30.000 g / 30 kg)</span>
                           )}
                         </label>
                         <input
                           type="number"
                           value={item.weight}
                           required
-                          maxLength={6}
+                          maxLength={5}
+                          max={30000}
                           onChange={(e) => {
                             const inputValue = e.target.value;
-                            // Chỉ cho phép nhập tối đa 6 chữ số
-                            if (inputValue === '' || (inputValue.length <= 6 && /^\d+$/.test(inputValue))) {
-                              handleItemChange(index, 'weight', inputValue === '' ? 0 : Number(inputValue));
+                            // Chỉ cho phép nhập tối đa 5 chữ số và không vượt quá 30,000 gram
+                            if (inputValue === '' || (inputValue.length <= 5 && /^\d+$/.test(inputValue))) {
+                              const value = inputValue === '' ? 0 : Number(inputValue);
+                              if (value <= 30000 || inputValue === '') {
+                                handleItemChange(index, 'weight', value);
+                              }
                             }
                           }}
                           className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
@@ -2609,19 +2660,19 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   <input
                     type="number"
                     value={formData.weight || ''}
-                    maxLength={6}
+                    maxLength={5}
                     onChange={(e) => {
                       const inputValue = e.target.value;
-                      // Chỉ cho phép nhập tối đa 6 chữ số và không vượt quá 100,000
-                      if (inputValue === '' || (inputValue.length <= 6 && /^\d+$/.test(inputValue))) {
+                      // Chỉ cho phép nhập tối đa 5 chữ số và không vượt quá 30,000 gram (GHN limit)
+                      if (inputValue === '' || (inputValue.length <= 5 && /^\d+$/.test(inputValue))) {
                         const value = inputValue === '' ? 0 : Number(inputValue);
-                        if (value <= 100000 || inputValue === '') {
+                        if (value <= 30000 || inputValue === '') {
                           handleInputChange('weight', value);
                         }
                       }
                     }}
-                    placeholder="≤ 100.000g"
-                    max={100000}
+                    placeholder="≤ 30.000g"
+                    max={30000}
                     className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
                       packingValidation && !packingValidation.canPack
                         ? 'border-red-300 focus:ring-red-500'
@@ -2629,7 +2680,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     }`}
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Tối đa 100.000 gram (100 kg) • Giới hạn đóng kiện: {MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g
+                    Tối đa 30.000 gram (30 kg) • Giới hạn đóng kiện GHN: {MAX_BOX_WEIGHT.toLocaleString('vi-VN')}g
                   </p>
                 </div>
                 <div>
@@ -2646,6 +2697,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     value={formData.length || ''}
                     onChange={(e) => {
                       const value = Number(e.target.value);
+                      // GHN limit: không quá 150cm
                       if (value <= 150 || e.target.value === '') {
                         handleInputChange('length', value);
                       }
@@ -2658,7 +2710,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                         : 'border-gray-300 focus:ring-orange-500'
                     }`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm • Giới hạn đóng kiện: {MAX_BOX_EDGE}cm (cạnh dài nhất)</p>
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm  • Giới hạn đóng kiện: {MAX_BOX_EDGE}cm (cạnh dài nhất)</p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">
@@ -2674,6 +2726,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     value={formData.width || ''}
                     onChange={(e) => {
                       const value = Number(e.target.value);
+                      // GHN limit: không quá 150cm
                       if (value <= 150 || e.target.value === '') {
                         handleInputChange('width', value);
                       }
@@ -2686,7 +2739,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                         : 'border-gray-300 focus:ring-orange-500'
                     }`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm </p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">
@@ -2702,6 +2755,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     value={formData.height || ''}
                     onChange={(e) => {
                       const value = Number(e.target.value);
+                      // GHN limit: không quá 150cm
                       if (value <= 150 || e.target.value === '') {
                         handleInputChange('height', value);
                       }
@@ -2714,7 +2768,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                         : 'border-gray-300 focus:ring-orange-500'
                     }`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm</p>
+                  <p className="text-xs text-gray-500 mt-1">Tối đa 150 cm </p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Số tiền thu hộ (VND)</label>
