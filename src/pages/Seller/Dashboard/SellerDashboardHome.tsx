@@ -1,20 +1,36 @@
+/**
+ * Seller Dashboard Home Page
+ * 
+ * Trang tổng quan Dashboard cho người bán hàng
+ * - Hiển thị KPI Cards (Doanh thu, Phí, Đơn hàng, Sản phẩm)
+ * - Biểu đồ tăng trưởng doanh thu theo tháng/năm
+ * - Biểu đồ đơn hàng đã giao
+ * - Thống kê return và top sản phẩm bị return
+ * - Bảng top sản phẩm bán chạy
+ * 
+ * @version 3.0.0
+ */
+
 import React, { useState, useEffect } from 'react';
-import {
-  DollarSign,
-  Package,
-  TrendingDown,
-  Calendar,
-  RefreshCw
-} from 'lucide-react';
-import { ShopStatsService } from '../../../services/seller/ShopStatsService';
-import type { ShopStatsRangeResponse } from '../../../types/seller';
+import { Calendar, RefreshCw, BarChart3 } from 'lucide-react';
+import { DashboardService } from '../../../services/seller/DashboardService';
+import type { FullDashboardData } from '../../../types/dashboard';
 import { showCenterError } from '../../../utils/notification';
 
+// Import components
+import DashboardKPI from '../../../components/Dashboard/DashboardKPI';
+import RevenueLineChart from '../../../components/Dashboard/RevenueLineChart';
+import OrdersBarChart from '../../../components/Dashboard/OrdersBarChart';
+import ReturnBarChart from '../../../components/Dashboard/ReturnBarChart';
+import TopSellingTable from '../../../components/Dashboard/TopSellingTable';
+
 const SellerDashboardHome: React.FC = () => {
-  const [stats, setStats] = useState<ShopStatsRangeResponse | null>(null);
+  const [dashboardData, setDashboardData] = useState<FullDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [filterMode, setFilterMode] = useState<'dateRange' | 'year'>('dateRange');
 
   // Set default date range (last 30 days)
   useEffect(() => {
@@ -33,32 +49,45 @@ const SellerDashboardHome: React.FC = () => {
     setToDate(formatDate(today));
   }, []);
 
-  // Load stats when dates change
+  // Load dashboard when dates or year change
   useEffect(() => {
     if (fromDate && toDate) {
-      loadStats();
+      loadDashboard();
     }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, selectedYear]);
 
-  const loadStats = async () => {
+  /**
+   * Load dashboard data from API
+   */
+  const loadDashboard = async () => {
     if (!fromDate || !toDate) {
       return;
     }
 
     // Validate date range
     if (new Date(fromDate) > new Date(toDate)) {
-      showCenterError('Ngày bắt đầu phải nhỏ hơn ngày kết thúc', 'Lỗi');
+      showCenterError('Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc', 'Lỗi');
       return;
     }
 
     setIsLoading(true);
     try {
-      const data = await ShopStatsService.getShopStatsRangeForCurrentStore(fromDate, toDate);
-      setStats(data);
+      // Convert to ISO-8601 format
+      const fromDateTime = `${fromDate}T00:00:00`;
+      const toDateTime = `${toDate}T23:59:59`;
+
+      // Call API /dashboard/full (single API call)
+      const data = await DashboardService.getFullDashboard(
+        fromDateTime,
+        toDateTime,
+        selectedYear
+      );
+
+      setDashboardData(data);
     } catch (error: any) {
-      console.error('Error loading shop stats:', error);
+      console.error('Error loading dashboard:', error);
       showCenterError(
-        error?.message || 'Không thể tải thống kê. Vui lòng thử lại.',
+        error?.message || 'Không thể tải dữ liệu dashboard. Vui lòng thử lại.',
         'Lỗi'
       );
     } finally {
@@ -66,15 +95,36 @@ const SellerDashboardHome: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(amount);
+  /**
+   * Generate year options for select (current year and 4 previous years)
+   */
+  const getYearOptions = (): number[] => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 5 }, (_, i) => currentYear - i);
   };
 
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('vi-VN').format(num);
+  /**
+   * Handle year change - auto set date range to full year
+   */
+  const handleYearChange = (year: number) => {
+    setSelectedYear(year);
+    setFilterMode('year');
+    
+    // Set date range to full year
+    setFromDate(`${year}-01-01`);
+    setToDate(`${year}-12-31`);
+  };
+
+  /**
+   * Handle manual date change - switch to dateRange mode
+   */
+  const handleDateChange = (type: 'from' | 'to', value: string) => {
+    setFilterMode('dateRange');
+    if (type === 'from') {
+      setFromDate(value);
+    } else {
+      setToDate(value);
+    }
   };
 
   return (
@@ -82,224 +132,183 @@ const SellerDashboardHome: React.FC = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Thống kê cửa hàng</h1>
-          <p className="text-gray-600 mt-1">Xem thống kê doanh thu và đơn hàng theo khoảng thời gian</p>
+          <h1 className="text-3xl font-bold text-gray-800">
+            Dashboard Tổng Quan
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Thống kê doanh thu, đơn hàng và sản phẩm của cửa hàng
+          </p>
         </div>
       </div>
 
-      {/* Date Range Picker */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Từ ngày
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            </div>
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Đến ngày
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            </div>
-          </div>
+      {/* Date Range & Year Filter */}
+      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+        {/* Filter Mode Tabs */}
+        <div className="flex gap-2 mb-4">
           <button
-            onClick={loadStats}
+            onClick={() => setFilterMode('dateRange')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+              filterMode === 'dateRange'
+                ? 'bg-orange-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Theo khoảng thời gian
+          </button>
+          <button
+            onClick={() => setFilterMode('year')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
+              filterMode === 'year'
+                ? 'bg-orange-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Theo năm
+          </button>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-4 items-end">
+          {filterMode === 'dateRange' ? (
+            <>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Từ ngày
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => handleDateChange('from', e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                  />
+                </div>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Đến ngày
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => handleDateChange('to', e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Chọn năm
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => handleYearChange(Number(e.target.value))}
+                className="w-full px-4 py-2.5 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-orange-50"
+              >
+                {getYearOptions().map((year) => (
+                  <option key={year} value={year}>
+                    Năm {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          <button
+            onClick={loadDashboard}
             disabled={isLoading || !fromDate || !toDate}
-            className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+            className="px-6 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors font-medium shadow-sm hover:shadow-md"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             {isLoading ? 'Đang tải...' : 'Tải lại'}
           </button>
         </div>
-      </div>
 
-      {isLoading && !stats ? (
-        <div className="space-y-6">
-          <div className="animate-pulse">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-white p-6 rounded-xl border border-gray-200 h-32"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : stats ? (
-        <>
-          {/* Main Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Total Delivered Orders */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-lg bg-blue-100">
-                  <Package className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-              <h3 className="text-gray-600 text-sm font-medium mb-2">Đơn hàng đã giao</h3>
-              <p className="text-2xl font-bold text-gray-800 mb-2">
-                {formatNumber(stats.totalDeliveredOrders)}
-              </p>
-            </div>
-
-            {/* Total Revenue */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-lg bg-green-100">
-                  <DollarSign className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-              <h3 className="text-gray-600 text-sm font-medium mb-2">Tổng doanh thu</h3>
-              <p className="text-2xl font-bold text-gray-800 mb-2">
-                {formatCurrency(stats.totalRevenue)}
-              </p>
-            </div>
-
-            {/* Total Platform Fee */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-lg bg-purple-100">
-                  <DollarSign className="w-6 h-6 text-purple-600" />
-                </div>
-              </div>
-              <h3 className="text-gray-600 text-sm font-medium mb-2">Phí nền tảng</h3>
-              <p className="text-2xl font-bold text-gray-800 mb-2">
-                {formatCurrency(stats.totalPlatformFee)}
-              </p>
-            </div>
-
-            {/* Total Net Revenue */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-lg bg-orange-100">
-                  <DollarSign className="w-6 h-6 text-orange-600" />
-                </div>
-              </div>
-              <h3 className="text-gray-600 text-sm font-medium mb-2">Doanh thu thực</h3>
-              <p className="text-2xl font-bold text-gray-800 mb-2">
-                {formatCurrency(stats.totalNetRevenue)}
-              </p>
-            </div>
-          </div>
-
-          {/* Return Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Total Return Requests */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-800">Yêu cầu trả hàng</h3>
-                <TrendingDown className="w-5 h-5 text-red-600" />
-              </div>
-              <p className="text-3xl font-bold text-gray-800 mb-2">
-                {formatNumber(stats.totalReturnRequests)}
-              </p>
-            </div>
-
-            {/* Return Rate */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-800">Tỷ lệ trả hàng</h3>
-                <TrendingDown className="w-5 h-5 text-red-600" />
-              </div>
-              <p className="text-3xl font-bold text-red-600 mb-2">
-                {stats.returnRate.toFixed(2)}%
-              </p>
-            </div>
-
-            {/* Top Return Product */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-800">Sản phẩm trả nhiều nhất</h3>
-              </div>
-              {stats.topReturnProduct ? (
-                <div>
-                  <p className="text-sm font-medium text-gray-800 mb-1">
-                    {stats.topReturnProduct.productName}
-                  </p>
-                  <p className="text-xl font-bold text-red-600">
-                    {formatNumber(stats.topReturnProduct.returnCount)} lần trả
-                  </p>
-                </div>
-              ) : (
-                <p className="text-gray-500">Không có dữ liệu</p>
-              )}
-            </div>
-          </div>
-
-          {/* Shipping Fees */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Total Shipping Difference Fee */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Phí vận chuyển chênh lệch</h3>
-              <p className="text-3xl font-bold text-gray-800">
-                {formatCurrency(stats.totalShippingDifferenceFee)}
-              </p>
-            </div>
-
-            {/* Total Return Shipping Fee */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Phí vận chuyển trả hàng</h3>
-              <p className="text-3xl font-bold text-gray-800">
-                {formatCurrency(stats.totalReturnShippingFee)}
-              </p>
-            </div>
-          </div>
-
-          {/* Top 10 Products */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-800">Top 10 sản phẩm bán chạy</h2>
-            </div>
-            
-            {stats.top10Products && stats.top10Products.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">STT</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Tên sản phẩm</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Số lượng đã bán</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Doanh thu</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.top10Products.map((product, index) => (
-                      <tr key={product.productId} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-4 text-sm text-gray-600">{index + 1}</td>
-                        <td className="py-3 px-4 text-sm font-medium text-gray-800">{product.name}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600 text-right">
-                          {formatNumber(product.totalSoldQuantity)}
-                        </td>
-                        <td className="py-3 px-4 text-sm font-bold text-gray-800 text-right">
-                          {formatCurrency(product.totalRevenue)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        {/* Display current filter info */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-2">
+            {filterMode === 'year' ? (
+              <>
+                <BarChart3 className="w-4 h-4 text-orange-600" />
+                <p className="text-sm text-gray-600">
+                  Đang lọc toàn bộ dashboard theo{' '}
+                  <span className="font-semibold text-orange-600">năm {selectedYear}</span>
+                  {' '}(từ 01/01/{selectedYear} đến 31/12/{selectedYear})
+                </p>
+              </>
             ) : (
-              <p className="text-gray-500 text-center py-8">Không có dữ liệu sản phẩm</p>
+              <>
+                <Calendar className="w-4 h-4 text-orange-600" />
+                <p className="text-sm text-gray-600">
+                  Đang lọc theo khoảng thời gian:{' '}
+                  <span className="font-semibold text-orange-600">
+                    {new Date(fromDate).toLocaleDateString('vi-VN')} - {new Date(toDate).toLocaleDateString('vi-VN')}
+                  </span>
+                </p>
+              </>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      {isLoading && !dashboardData ? (
+        // Loading State
+        <div className="space-y-6">
+          <DashboardKPI summary={{
+            grossRevenue: 0,
+            platformFeePaid: 0,
+            netRevenue: 0,
+            deliveredOrderCount: 0,
+            itemsSold: 0,
+            top10Selling: []
+          }} loading={true} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RevenueLineChart growth={null} loading={true} />
+            <OrdersBarChart growth={null} loading={true} />
+          </div>
+        </div>
+      ) : dashboardData ? (
+        // Data Loaded
+        <>
+          {/* KPI Cards */}
+          <DashboardKPI summary={dashboardData.summary} />
+
+          {/* Revenue Line Chart - Full Width */}
+          <RevenueLineChart growth={dashboardData.growth} />
+
+          {/* Orders Bar Chart - Full Width */}
+          <OrdersBarChart growth={dashboardData.growth} />
+
+          {/* Top Selling Products Table */}
+          <TopSellingTable 
+            items={dashboardData.summary.top10Selling}
+            dateRange={{ from: fromDate, to: toDate }}
+          />
+
+          {/* Returns Bar Chart */}
+          <ReturnBarChart returns={dashboardData.returns} />
         </>
       ) : (
-        <div className="bg-white p-12 rounded-xl border border-gray-200 text-center">
-          <p className="text-gray-500">Chọn khoảng thời gian để xem thống kê</p>
+        // Empty State
+        <div className="bg-white p-16 rounded-xl border border-gray-200 text-center shadow-sm">
+          <div className="max-w-md mx-auto">
+            <div className="p-4 rounded-full bg-gray-100 inline-flex mb-4">
+              <Calendar className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+              Chưa có dữ liệu
+            </h3>
+            <p className="text-gray-500">
+              Chọn khoảng thời gian và nhấn <strong>"Tải lại"</strong> để xem dashboard
+            </p>
+          </div>
         </div>
       )}
     </div>
