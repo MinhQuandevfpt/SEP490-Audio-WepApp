@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Tag, Typography, Space, Pagination, Empty, Spin, Button, Modal, Input, Radio, message, Divider } from 'antd';
-import { ZoomIn, Video as VideoIcon, Package, CheckCircle, AlertTriangle, Calendar, DollarSign } from 'lucide-react';
+import { ZoomIn, Video as VideoIcon, Package, CheckCircle, AlertTriangle, Calendar, DollarSign, Store, User, Award, Truck, Box } from 'lucide-react';
 import type { ReturnRequestResponse } from '../../types/api';
 import { formatDate, formatCurrency } from '../../utils/orderStatus';
 import { ProductListService } from '../../services/customer/ProductListService';
@@ -260,6 +260,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
               )}
             </div>
 
+            {/* Thông tin cơ bản */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-3">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-gray-500" />
@@ -285,6 +286,164 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Thông tin khách hàng và cửa hàng */}
+            <Divider className="!my-3" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+              {/* Thông tin khách hàng */}
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-blue-600" />
+                  <Text className="text-xs font-semibold text-blue-900">Thông tin khách hàng</Text>
+                </div>
+                <div className="space-y-1">
+                  <div>
+                    <Text type="secondary" className="text-xs">Tên khách hàng</Text>
+                    <div className="font-medium text-sm text-gray-900">
+                      {record.customerName || 'N/A'}
+                    </div>
+                  </div>
+                  {record.customerLegalPoint !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <Award className="w-3 h-3 text-yellow-600" />
+                      <Text type="secondary" className="text-xs">Điểm uy tín: </Text>
+                      <Text className="text-xs font-semibold text-yellow-600">
+                        {record.customerLegalPoint}
+                      </Text>
+                    </div>
+                  )}
+                  <div>
+                    <Text type="secondary" className="text-xs">ID khách hàng</Text>
+                    <div className="font-mono text-xs text-gray-600 truncate" title={record.customerId}>
+                      {record.customerId}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông tin cửa hàng */}
+              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Store className="w-4 h-4 text-green-600" />
+                  <Text className="text-xs font-semibold text-green-900">Thông tin cửa hàng</Text>
+                </div>
+                <div className="space-y-1">
+                  <div>
+                    <Text type="secondary" className="text-xs">Tên cửa hàng</Text>
+                    <div className="font-medium text-sm text-gray-900">
+                      {record.storeName || 'N/A'}
+                    </div>
+                  </div>
+                  {record.storeLegalPoint !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <Award className="w-3 h-3 text-yellow-600" />
+                      <Text type="secondary" className="text-xs">Điểm uy tín: </Text>
+                      <Text className="text-xs font-semibold text-yellow-600">
+                        {record.storeLegalPoint}
+                      </Text>
+                    </div>
+                  )}
+                  <div>
+                    <Text type="secondary" className="text-xs">ID cửa hàng</Text>
+                    <div className="font-mono text-xs text-gray-600 truncate" title={record.shopId}>
+                      {record.shopId}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Thông tin sản phẩm và vận chuyển */}
+            {(record.orderItemId || record.ghnOrderCode || record.trackingStatus || record.shippingFee !== null) && (
+              <>
+                <Divider className="!my-3" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
+                  {record.orderItemId && (
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-gray-500" />
+                      <div>
+                        <Text type="secondary" className="text-xs">Mã đơn hàng</Text>
+                        <div className="font-mono text-xs text-gray-700 truncate" title={record.orderItemId}>
+                          {record.orderItemId}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {record.ghnOrderCode && (
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-gray-500" />
+                      <div>
+                        <Text type="secondary" className="text-xs">Mã vận đơn GHN</Text>
+                        <div className="font-mono text-xs text-gray-700 truncate" title={record.ghnOrderCode}>
+                          {record.ghnOrderCode}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {record.trackingStatus && (
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-gray-500" />
+                      <div>
+                        <Text type="secondary" className="text-xs">Trạng thái vận chuyển</Text>
+                        <div className="font-medium text-sm text-gray-700">
+                          {record.trackingStatus}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {record.shippingFee !== null && record.shippingFee !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-gray-500" />
+                      <div>
+                        <Text type="secondary" className="text-xs">Phí vận chuyển</Text>
+                        <div className="font-semibold text-sm text-gray-700">
+                          {formatCurrency(record.shippingFee)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Thông tin kích thước đóng gói */}
+            {(record.packageWeight || record.packageLength || record.packageWidth || record.packageHeight) && (
+              <>
+                <Divider className="!my-3" />
+                <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Box className="w-4 h-4 text-gray-600" />
+                    <Text className="text-xs font-semibold text-gray-900">Thông tin đóng gói</Text>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {record.packageWeight !== null && record.packageWeight !== undefined && (
+                      <div>
+                        <Text type="secondary" className="text-xs">Khối lượng (kg)</Text>
+                        <div className="font-medium text-sm">{record.packageWeight}</div>
+                      </div>
+                    )}
+                    {record.packageLength !== null && record.packageLength !== undefined && (
+                      <div>
+                        <Text type="secondary" className="text-xs">Chiều dài (cm)</Text>
+                        <div className="font-medium text-sm">{record.packageLength}</div>
+                      </div>
+                    )}
+                    {record.packageWidth !== null && record.packageWidth !== undefined && (
+                      <div>
+                        <Text type="secondary" className="text-xs">Chiều rộng (cm)</Text>
+                        <div className="font-medium text-sm">{record.packageWidth}</div>
+                      </div>
+                    )}
+                    {record.packageHeight !== null && record.packageHeight !== undefined && (
+                      <div>
+                        <Text type="secondary" className="text-xs">Chiều cao (cm)</Text>
+                        <div className="font-medium text-sm">{record.packageHeight}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Media Section */}
             {(hasRealImages || hasRealVideo) && (

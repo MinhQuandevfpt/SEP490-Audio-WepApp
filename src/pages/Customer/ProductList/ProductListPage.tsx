@@ -63,7 +63,7 @@ const ProductListPage: React.FC = () => {
         categoryId: categoryId || undefined,
         categoryName: categoryName || undefined, // Keep for backward compatibility
         keyword: keyword || undefined,
-        status: status ? (status.toUpperCase() as any) : undefined, // Convert to uppercase
+        status: status ? (status.toUpperCase() as any) : 'ACTIVE', // Default to ACTIVE if not in URL
         brandName: brandName || undefined,
       });
       

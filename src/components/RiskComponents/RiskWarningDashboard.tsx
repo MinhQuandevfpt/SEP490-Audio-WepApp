@@ -242,8 +242,17 @@ const RiskWarningDashboard: React.FC = () => {
   const getRiskMessage = (): string => {
     if (!riskData) return 'Đang tải thông tin...';
     
-    if (riskData.warningLevel === 'NONE') {
+    // Kiểm tra xem có nợ hay không dựa trên debtBalance hoặc effectiveDebt
+    const hasDebt = (riskData.debtBalance > 0) || (riskData.effectiveDebt > 0);
+    
+    // Nếu không có nợ
+    if (!hasDebt) {
       return 'Hiện tại cửa hàng không có khoản nợ nào. Không cần hiển thị cảnh báo.';
+    }
+    
+    // Nếu có nợ nhưng warningLevel là NONE (nợ < 20% creditLimit)
+    if (riskData.warningLevel === 'NONE') {
+      return 'Cửa hàng có khoản nợ nhỏ, đang ở mức an toàn. Vui lòng theo dõi tình hình.';
     }
     
     if (riskData.warningLevel === 'BLOCK_100') {

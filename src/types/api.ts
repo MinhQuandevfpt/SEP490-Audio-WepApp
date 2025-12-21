@@ -385,6 +385,11 @@ export interface ReturnRequestResponse {
    * Flag when shop refunds without requesting return shipment (refund-only)
    */
   refundWithoutReturn?: boolean;
+  // Additional fields from API response
+  customerName?: string;
+  storeName?: string;
+  customerLegalPoint?: number;
+  storeLegalPoint?: number;
   createdAt: string;
   updatedAt: string;
 }

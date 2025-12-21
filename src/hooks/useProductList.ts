@@ -9,7 +9,7 @@ const initialFilters: ProductListFilters = {
   categoryName: undefined,
   storeId: undefined,
   keyword: undefined,
-  status: undefined, // Don't set default status to avoid API errors
+  status: 'ACTIVE', // Default: chỉ hiển thị sản phẩm ACTIVE
   minPrice: undefined,
   maxPrice: undefined,
   brandName: undefined,
@@ -191,7 +191,7 @@ export const useProductList = () => {
   const resetFilters = useCallback(() => {
     setState(prev => ({
       ...prev,
-      filters: initialFilters,
+      filters: { ...initialFilters, status: 'ACTIVE' }, // Đảm bảo luôn reset về ACTIVE
       pagination: { ...prev.pagination, page: 0 },
     }));
   }, []);
