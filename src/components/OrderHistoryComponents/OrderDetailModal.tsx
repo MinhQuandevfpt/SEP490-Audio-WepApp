@@ -408,6 +408,10 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                         borderRadius: '8px',
                         height: '40px'
                       }}
+                      onClick={() => {
+                        onClose();
+                        navigate(`/orders/${order.id}`);
+                      }}
                     >
                       Theo dõi đơn hàng
                     </Button>
@@ -423,8 +427,12 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                           borderRadius: '8px',
                           height: '40px'
                         }}
+                        onClick={() => {
+                          onClose();
+                          navigate(`/orders/${order.id}`);
+                        }}
                       >
-                        Đánh giá sản phẩm
+                        Mua lại đơn hàng
                       </Button>
                       <Button 
                         className="w-full"
@@ -434,6 +442,7 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                           borderRadius: '8px',
                           height: '40px'
                         }}
+                        onClick={() => setShowReturnModal(true)}
                       >
                         Yêu cầu đổi trả
                       </Button>
@@ -495,6 +504,10 @@ const OrderDetailModal: React.FC<Props> = ({ order, onClose, ghnOrderData = {}, 
                         borderColor: '#3b82f6',
                         borderRadius: '8px',
                         height: '40px'
+                      }}
+                      onClick={() => {
+                        onClose();
+                        navigate(`/orders/${order.id}`);
                       }}
                     >
                       Thanh toán ngay

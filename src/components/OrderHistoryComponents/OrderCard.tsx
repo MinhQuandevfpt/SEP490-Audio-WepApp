@@ -900,6 +900,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   icon={<Truck className="w-4 h-4" />}
                   className="h-10 w-full"
                   style={{ backgroundColor: '#FF6A00', borderColor: '#FF6A00', borderRadius: '10px' }}
+                  onClick={() => navigate(`/orders/${order.id}`)}
                 >
                   Theo dõi đơn hàng
                 </Button>
@@ -910,10 +911,15 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                     type="primary"
                     className="h-10 w-full"
                     style={{ backgroundColor: '#27AE60', borderColor: '#27AE60', borderRadius: '10px' }}
+                    onClick={handleBuyAgain}
                   >
-                    Đánh giá sản phẩm
+                    Mua lại đơn hàng
                   </Button>
-                  <Button className="h-10 w-full" style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}>
+                  <Button 
+                    className="h-10 w-full" 
+                    style={{ borderRadius: '10px', color: '#FF6A00', borderColor: '#FF6A00' }}
+                    onClick={() => setShowReturnModal(true)}
+                  >
                     Yêu cầu đổi trả
                   </Button>
                 </>
@@ -956,6 +962,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   type="primary"
                   className="h-10 w-full"
                   style={{ backgroundColor: '#2D9CDB', borderColor: '#2D9CDB', borderRadius: '10px' }}
+                  onClick={() => navigate(`/orders/${order.id}`)}
                 >
                   Thanh toán ngay
                 </Button>
