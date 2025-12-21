@@ -612,7 +612,7 @@ const FinancePage: React.FC = () => {
                   title={
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-red-600" />
-                      <span className="text-gray-700 font-medium">Số tiền đang nợ</span>
+                      <span className="text-gray-700 font-medium">Số nợ ước tính</span>
                     </div>
                   }
                   value={walletOverview.debtBalance || 0}
@@ -624,7 +624,7 @@ const FinancePage: React.FC = () => {
                   }}
                 />
                 <div className="mt-2 text-xs text-gray-500 mb-3">
-                  Số nợ hiện tại của cửa hàng
+                  Số nợ ước tính của cửa hàng
                 </div>
                 <div className="flex flex-col gap-2 mt-3">
                   <Button

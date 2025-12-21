@@ -456,9 +456,16 @@ export type PlatformTransactionType =
   | 'PAYOUT_STORE' 
   | 'PLATFORM_FEE' 
   | 'SHIPPING_FEE_ADJUST' 
-  | 'REFUND_CUSTOMER_RETURN';
+  | 'REFUND_CUSTOMER_RETURN'
+  | 'DEBT_PAYMENT'
+  | 'TOPUP'
+  | 'TRANSFER';
 
-export type PlatformTransactionStatus = 'PENDING' | 'DONE' | 'FAILED';
+export type PlatformTransactionStatus = 'PENDING' | 'DONE' | 'FAILED' | 'SUCCESS';
+
+export type TransactionDirection = 'IN' | 'OUT';
+export type TransactionChannel = 'PAYOS' | 'INTERNAL' | 'BANK_TRANSFER';
+export type TransactionBucket = 'CASH' | 'PENDING';
 
 export interface PlatformTransaction {
   id: string;
@@ -469,8 +476,28 @@ export interface PlatformTransaction {
   amount: number;
   type: PlatformTransactionType;
   status: PlatformTransactionStatus;
+  channel: TransactionChannel;
+  bucket: TransactionBucket;
+  direction: TransactionDirection;
+  balanceBefore: number;
+  balanceAfter: number;
+  idempotencyKey: string | null;
+  externalRefId: string | null;
+  externalRefCode: string | null;
+  itemAmount: number;
+  shipCustomerPaid: number;
+  shipReal: number;
+  shipDiffChargeStore: number;
+  commissionAmount: number;
+  commissionRate: number;
+  payoutRequestId: string | null;
+  payoutGross: number;
+  debtDeducted: number;
+  payoutNet: number;
   description: string;
+  metadataJson: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface PlatformWallet {
@@ -508,6 +535,20 @@ export interface PlatformTransactionFilterParams {
   type?: PlatformTransactionType;
   from?: string; // ISO date
   to?: string; // ISO date
+  page?: number;
+  size?: number;
+}
+
+export interface PlatformTransactionsPageResponse {
+  status: number;
+  message: string;
+  data: {
+    content: PlatformTransaction[];
+    totalElements: number;
+    totalPages: number;
+    size: number;
+    number: number;
+  };
 }
 
 // Settlement Report Types

@@ -85,7 +85,6 @@ const SellerDashboardHome: React.FC = () => {
 
       setDashboardData(data);
     } catch (error: any) {
-      console.error('Error loading dashboard:', error);
       showCenterError(
         error?.message || 'Không thể tải dữ liệu dashboard. Vui lòng thử lại.',
         'Lỗi'

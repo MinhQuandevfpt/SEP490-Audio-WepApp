@@ -3,7 +3,8 @@ import type {
   PlatformWallet, 
   PlatformWalletResponse,
   PlatformTransaction,
-  PlatformTransactionFilterParams 
+  PlatformTransactionFilterParams,
+  PlatformTransactionsPageResponse
 } from '../../types/admin';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
@@ -96,6 +97,62 @@ export class PlatformWalletService {
       throw new Error('Unexpected response format');
     } catch (error: any) {
       console.error('❌ Error filtering platform transactions:', error);
+      throw new Error(error?.message || 'Không thể tải danh sách giao dịch');
+    }
+  }
+
+  /**
+   * Get platform wallet transactions with pagination
+   * GET /api/platform-wallets/platform/transactions
+   * @param params Filter and pagination parameters
+   * @returns Paginated list of platform transactions
+   */
+  static async getPlatformTransactions(
+    params: PlatformTransactionFilterParams = {}
+  ): Promise<PlatformTransactionsPageResponse['data']> {
+    try {
+      const {
+        status,
+        type,
+        from,
+        to,
+        page = 0,
+        size = 10,
+      } = params;
+
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      
+      if (status) queryParams.append('status', status);
+      if (type) queryParams.append('type', type);
+      if (from) queryParams.append('from', from);
+      if (to) queryParams.append('to', to);
+      queryParams.append('page', page.toString());
+      queryParams.append('size', size.toString());
+
+      const endpoint = `${API_URL}/platform-wallets/platform/transactions?${queryParams.toString()}`;
+      
+      console.log('📡 Calling platform transactions API:', endpoint);
+      
+      const response = await HttpInterceptor.get<PlatformTransactionsPageResponse>(
+        endpoint,
+        {
+          userType: 'admin',
+          headers: {
+            'Accept': '*/*',
+          },
+        }
+      );
+
+      console.log('📥 Platform transactions API response:', response);
+      
+      if (response && response.data) {
+        return response.data;
+      }
+      
+      throw new Error('Unexpected response format');
+    } catch (error: any) {
+      console.error('❌ Error getting platform transactions:', error);
       throw new Error(error?.message || 'Không thể tải danh sách giao dịch');
     }
   }
