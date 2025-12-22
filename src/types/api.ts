@@ -390,6 +390,7 @@ export interface ReturnRequestResponse {
   storeName?: string;
   customerLegalPoint?: number;
   storeLegalPoint?: number;
+  orderCode?: string | null;
   createdAt: string;
   updatedAt: string;
 }

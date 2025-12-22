@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, Table, Tag, Typography, Space, Pagination, Empty, Spin, Button, message, Modal, Input } from 'antd';
-import { ZoomIn, Video as VideoIcon, X, Package, AlertTriangle, Upload, Image as ImageIcon } from 'lucide-react';
-import type { ColumnsType } from 'antd/es/table';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Card, Tag, Typography, Space, Pagination, Empty, Spin, Button, message, Modal, Input } from 'antd';
+import { ZoomIn, Video as VideoIcon, X, Package, AlertTriangle, Upload, Image as ImageIcon, Calendar, DollarSign, Truck, Box, User, Store } from 'lucide-react';
 import type { ReturnRequestResponse } from '../../types/api';
 import { formatDate, formatCurrency } from '../../utils/orderStatus';
 import { StoreReturnService } from '../../services/seller/StoreReturnService';
@@ -531,23 +530,64 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       setIsCancelling(false);
     }
   };
-  const columns: ColumnsType<ReturnRequestResponse> = [
-    {
-      title: 'Sản phẩm',
-      dataIndex: 'productName',
-      key: 'productName',
-      width: 280,
-      render: (value: string, record: ReturnRequestResponse) => {
-        const productImage = getProductImage(record);
-        const variantLabel = getVariantLabel(record);
-        
-        return (
-          <div className="flex items-center gap-3">
-            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
+
+  // Render return request card
+  const renderReturnCard = (record: ReturnRequestResponse) => {
+    const productImage = getProductImage(record);
+    const variantLabel = getVariantLabel(record);
+    const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
+    const isCancelled = record.status === 'CANCELLED';
+    const isAutoRefunded = record.status === 'AUTO_REFUNDED';
+    const hasPackageInfoForGhn = hasPackageInfo(record) && record.shippingFee != null;
+    const isGhnTimeoutCase = 
+      record.status === 'APPROVED' &&
+      hasPackageInfoForGhn &&
+      !record.ghnOrderCode &&
+      (record.trackingStatus === null || record.trackingStatus === 'ready_to_pick');
+    const updatedAt = record.updatedAt ? new Date(record.updatedAt) : null;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const needsRecreateGhn = isGhnTimeoutCase && updatedAt && updatedAt <= fiveMinutesAgo;
+    const isShippingDelivered = record.status === 'SHIPPING' && record.trackingStatus === 'delivered';
+    const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
+    
+    const rawImages = Array.isArray(record.customerImageUrls)
+      ? record.customerImageUrls.filter(Boolean)
+      : [];
+    const filteredImages = rawImages.filter((url) => url !== 'string');
+    const rawVideo = record.customerVideoUrl || '';
+    const hasRealImages = filteredImages.length > 0;
+    const hasRealVideo = rawVideo && rawVideo !== 'string';
+
+    const label = isAutoApproved
+      ? 'Đã duyệt (tự động)'
+      : isCancelled
+        ? 'Đã huỷ (khách không gửi hàng)'
+        : isAutoRefunded
+          ? 'AUTO REFUND – Hệ thống hoàn tiền'
+          : statusLabelMap[record.status] || record.status;
+
+    const canRefundWithoutReturn = record.status === 'PENDING' && !record.ghnOrderCode;
+    const hasGhnOrderCode = !!record.ghnOrderCode;
+    const canCreateGhn = !isWaitingForSync && !hasGhnOrderCode;
+    const canTakeAction = !isWaitingForSync;
+
+    return (
+      <Card
+        key={record.id}
+        className="mb-4 hover:shadow-lg transition-shadow"
+        style={{ borderRadius: 12 }}
+      >
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Left: Product Image & Basic Info */}
+          <div className="flex-shrink-0 lg:w-32">
+            <div className="mb-2">
+              <Text type="secondary" className="text-xs font-medium">Hình ảnh sản phẩm</Text>
+            </div>
+            <div className="w-full aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
               {productImage ? (
                 <img
                   src={productImage}
-                  alt={value}
+                  alt={record.productName}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
@@ -555,11 +595,11 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                   }}
                 />
               ) : (
-                <Package className="w-6 h-6 text-gray-400" />
+                <Package className="w-8 h-8 text-gray-400" />
               )}
             </div>
-            <div className="flex-1 min-w-0">
-              <Text strong className="block text-sm leading-tight">{value}</Text>
+            <div className="mt-2">
+              <Text strong className="block text-xs leading-tight">{record.productName}</Text>
               {variantLabel && (
                 <Text type="secondary" className="text-xs mt-1 block">
                   {variantLabel}
@@ -567,563 +607,507 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
               )}
             </div>
           </div>
-        );
-      },
-    },
-    {
-      title: 'Giá hoàn trả',
-      dataIndex: 'itemPrice',
-      key: 'itemPrice',
-      width: 150,
-      align: 'right',
-      render: (value: number) => <Text>{formatCurrency(value)}</Text>,
-    },
-    {
-      title: 'Loại lý do',
-      dataIndex: 'reasonType',
-      key: 'reasonType',
-      width: 180,
-      render: (value: string) => (
-        <Tag color={value === 'SHOP_FAULT' ? 'red' : 'default'}>
-          {reasonTypeLabel[value] || value}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Lý do chi tiết',
-      dataIndex: 'reason',
-      key: 'reason',
-      width: 220,
-      render: (value: string) => (
-        <Text className="text-xs">{value}</Text>
-      ),
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
-      width: 200,
-      render: (_: string, record: ReturnRequestResponse) => {
-        const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
-        const isCancelled = record.status === 'CANCELLED';
-        const isAutoRefunded = record.status === 'AUTO_REFUNDED';
-        // Case 4.4: GHN không pickup sau 48h
-        // Chỉ áp dụng khi đã từng có GHN order (status = SHIPPING) nhưng bị reset về APPROVED
-        // Dấu hiệu: status = APPROVED, có package info, không có ghnOrderCode, 
-        // và trackingStatus có thể là null (đã bị clear) hoặc 'ready_to_pick' (vẫn chờ lấy)
-        // Để phân biệt với trường hợp mới có package info: check nếu updatedAt cách xa hơn 5 phút
-        const hasPackageInfoForGhn = hasPackageInfo(record) && record.shippingFee != null;
-        const isGhnTimeoutCase = 
-          record.status === 'APPROVED' &&
-          hasPackageInfoForGhn &&
-          !record.ghnOrderCode &&
-          (record.trackingStatus === null || record.trackingStatus === 'ready_to_pick');
-        // Check updatedAt để đảm bảo đây là trường hợp đã từng có GHN order (ít nhất 5 phút trước)
-        const updatedAt = record.updatedAt ? new Date(record.updatedAt) : null;
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const needsRecreateGhn = isGhnTimeoutCase && updatedAt && updatedAt <= fiveMinutesAgo;
-        const isShippingDelivered = record.status === 'SHIPPING' && record.trackingStatus === 'delivered';
-        const label = isAutoApproved
-          ? 'Đã duyệt (tự động)'
-          : isCancelled
-            ? 'Đã huỷ (khách không gửi hàng)'
-            : isAutoRefunded
-              ? 'AUTO REFUND – Hệ thống hoàn tiền'
-              : statusLabelMap[record.status] || record.status;
-        return (
-          <Space direction="vertical" size={4}>
-            <Tag color={statusColorMap[record.status] || 'default'}>
-              {label}
-            </Tag>
-            {record.status === 'PENDING' && (
-              <Text type="secondary" className="text-xs">
-                Yêu cầu mới – Chờ xử lý
-              </Text>
-            )}
-            {record.status === 'SHIPPING' && record.trackingStatus === 'delivered' && (
-              <Text type="secondary" className="text-xs text-orange-600">
-                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
-              </Text>
-            )}
-            {isAutoApproved && (
-              <Text type="secondary" className="text-xs">
-                Yêu cầu đã được hệ thống tự duyệt do quá 48 giờ không phản hồi.
-              </Text>
-            )}
-            {isCancelled && (
-              <Text type="secondary" className="text-xs">
-                Khách không gửi hàng – yêu cầu đã bị huỷ tự động.
-              </Text>
-            )}
-            {isAutoRefunded && (
-              <Text type="secondary" className="text-xs">
-                Hệ thống đã tự hoàn tiền do shop không xử lý trong thời hạn.
-              </Text>
-            )}
-            {isShippingDelivered && (
-              <Text type="secondary" className="text-xs text-orange-600">
-                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: nếu hàng đúng mô tả → xác nhận hoàn tiền; nếu sai → khiếu nại. Quá 48 giờ hệ thống sẽ tự hoàn tiền sản phẩm.
-              </Text>
-            )}
-            {needsRecreateGhn && (
-              <Text type="secondary" className="text-xs">
-                GHN không lấy hàng, vui lòng tạo lại đơn GHN.
-              </Text>
-            )}
-          </Space>
-        );
-      },
-    },
-    {
-      title: 'Hình ảnh / Video',
-      key: 'media',
-      width: 260,
-      render: (_: any, record: ReturnRequestResponse) => {
-        const rawImages = Array.isArray(record.customerImageUrls)
-          ? record.customerImageUrls.filter(Boolean)
-          : [];
-        const filteredImages = rawImages.filter((url) => url !== 'string');
-        const rawVideo = record.customerVideoUrl || '';
-        const hasRealImages = filteredImages.length > 0;
-        const hasRealVideo = rawVideo && rawVideo !== 'string';
 
-        if (!hasRealImages && !hasRealVideo) {
-          return <Text type="secondary" className="text-xs">Không cung cấp</Text>;
-        }
-
-        return (
-          <div className="space-y-3">
-            {hasRealImages && (
-              <div className="space-y-2">
-                <Text className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                  <ZoomIn className="w-3 h-3" />
-                  Ảnh ({filteredImages.length})
-                </Text>
-                <div className="grid grid-cols-3 gap-2">
-                  {filteredImages.slice(0, 3).map((url, index) => (
-                    <div
-                      key={`${record.id}-${index}-${url}`}
-                      className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all shadow-sm hover:shadow-md cursor-pointer"
-                      onClick={() => setImagePreview({ visible: true, urls: filteredImages, current: index })}
-                    >
-                      <img
-                        src={url}
-                        alt={`Return image ${index + 1}`}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
-                        <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      {index === 2 && filteredImages.length > 3 && (
-                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                          <Text className="text-white font-semibold text-sm">+{filteredImages.length - 3}</Text>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+          {/* Center: Main Content */}
+          <div className="flex-1 min-w-0 space-y-3">
+            {/* Status & Price Row */}
+            <div className="space-y-1">
+              <Text type="secondary" className="text-xs font-medium">Trạng thái & Giá trị đơn hàng</Text>
+              <div className="flex flex-wrap items-center gap-3">
+                <Tag color={statusColorMap[record.status] || 'default'} className="text-sm">
+                  {label}
+                </Tag>
+                <div className="flex items-center gap-1">
+                  <DollarSign className="w-4 h-4 text-orange-500" />
+                  <Text strong className="text-lg text-orange-600">
+                    {formatCurrency(record.itemPrice)}
+                  </Text>
                 </div>
               </div>
-            )}
-            {hasRealVideo && (
-              <div className="space-y-2">
-                <Text className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                  <VideoIcon className="w-3 h-3" />
-                  Video
+            </div>
+
+            {/* Reason Type & Detail */}
+            <div className="space-y-1">
+              <Text type="secondary" className="text-xs font-medium">Lý do hoàn trả</Text>
+              <div className="flex items-center gap-2">
+                <Tag color={record.reasonType === 'SHOP_FAULT' ? 'red' : 'default'} className="text-xs">
+                  {reasonTypeLabel[record.reasonType] || record.reasonType}
+                </Tag>
+              </div>
+              <Text className="text-sm text-gray-700">{record.reason}</Text>
+            </div>
+
+            {/* Customer & Store Info */}
+            <div className="space-y-1">
+              <Text type="secondary" className="text-xs font-medium">Thông tin khách hàng & cửa hàng</Text>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                {record.customerName && (
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-500" />
+                    <div>
+                      <Text type="secondary" className="text-xs">Khách hàng</Text>
+                      <div className="font-medium">{record.customerName}</div>
+                      {record.customerLegalPoint !== undefined && (
+                        <Text type="secondary" className="text-xs">
+                          Điểm uy tín: {record.customerLegalPoint}
+                        </Text>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {record.storeName && (
+                  <div className="flex items-center gap-2">
+                    <Store className="w-4 h-4 text-gray-500" />
+                    <div>
+                      <Text type="secondary" className="text-xs">Cửa hàng</Text>
+                      <div className="font-medium">{record.storeName}</div>
+                      {record.storeLegalPoint !== undefined && (
+                        <Text type="secondary" className="text-xs">
+                          Điểm uy tín: {record.storeLegalPoint}
+                        </Text>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Media Section */}
+            <div className="space-y-2">
+              <Text type="secondary" className="text-xs font-medium">Hình ảnh/video chứng minh từ khách hàng</Text>
+              {(hasRealImages || hasRealVideo) ? (
+                <>
+                  {hasRealImages && (
+                    <div className="space-y-1">
+                      <Text className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                        <ZoomIn className="w-3 h-3" />
+                        Ảnh khách hàng gửi ({filteredImages.length})
+                      </Text>
+                      <Text type="secondary" className="text-xs">
+                        Click vào ảnh để xem chi tiết
+                      </Text>
+                      <div className="flex gap-2 flex-wrap">
+                        {filteredImages.slice(0, 3).map((url, idx) => (
+                          <div
+                            key={`${record.id}-img-${idx}`}
+                            className="w-12 h-12 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all cursor-pointer"
+                            onClick={() => setImagePreview({ visible: true, urls: filteredImages, current: idx })}
+                            title="Click để xem ảnh lớn"
+                          >
+                            <img
+                              src={url}
+                              alt={`Return image ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
+                        {filteredImages.length > 3 && (
+                          <div
+                            className="w-12 h-12 rounded-lg border-2 border-gray-200 bg-gray-100 flex items-center justify-center cursor-pointer hover:border-orange-400 transition-all"
+                            onClick={() => setImagePreview({ visible: true, urls: filteredImages, current: 2 })}
+                            title={`Xem thêm ${filteredImages.length - 3} ảnh`}
+                          >
+                            <Text className="text-xs font-semibold">+{filteredImages.length - 3}</Text>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {hasRealVideo && (
+                    <div className="space-y-1">
+                      <Text className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                        <VideoIcon className="w-3 h-3" />
+                        Video khách hàng gửi
+                      </Text>
+                      <Text type="secondary" className="text-xs">
+                        Click vào video để xem chi tiết
+                      </Text>
+                      <div
+                        className="w-24 h-16 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all cursor-pointer relative"
+                        onClick={() => setVideoPreview({ visible: true, url: rawVideo })}
+                        title="Click để xem video"
+                      >
+                        <video
+                          src={rawVideo}
+                          className="w-full h-full object-cover"
+                          onMouseEnter={(e) => e.currentTarget.play()}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.pause();
+                            e.currentTarget.currentTime = 0;
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all flex items-center justify-center">
+                          <VideoIcon className="w-4 h-4 text-white opacity-0 hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <Text type="secondary" className="text-xs text-gray-500 italic">
+                  Khách hàng không cung cấp hình ảnh chứng minh
                 </Text>
-                <div
-                  className="relative rounded-lg overflow-hidden border-2 border-gray-200 hover:border-orange-400 transition-all shadow-sm hover:shadow-md cursor-pointer group"
-                  onClick={() => setVideoPreview({ visible: true, url: rawVideo })}
-                >
-                  <video
-                    src={rawVideo}
-                    className="w-full h-32 object-cover"
-                    onMouseEnter={(e) => e.currentTarget.play()}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.pause();
-                      e.currentTarget.currentTime = 0;
-                    }}
-                  >
-                    Trình duyệt không hỗ trợ video
-                  </video>
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                    <VideoIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </div>
+
+            {/* Package Info */}
+            {hasPackageInfo(record) && (
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Box className="w-4 h-4 text-gray-500" />
+                  <Text strong className="text-sm">Thông tin gói hàng</Text>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <Text type="secondary">Khối lượng:</Text>
+                    <Text strong className="ml-1">{record.packageWeight} kg</Text>
+                  </div>
+                  <div>
+                    <Text type="secondary">Kích thước:</Text>
+                    <Text strong className="ml-1">
+                      {record.packageLength} x {record.packageWidth} x {record.packageHeight} cm
+                    </Text>
+                  </div>
+                  <div className="col-span-2">
+                    <Text type="secondary">Phí vận chuyển:</Text>
+                    <Text strong className="ml-1">{formatCurrency(record.shippingFee || 0)}</Text>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* GHN Tracking */}
+            {(hasGhnOrderCode || record.trackingStatus) && (
+              <div className="bg-blue-50 rounded-lg p-3 space-y-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Truck className="w-4 h-4 text-blue-500" />
+                  <Text strong className="text-sm">GHN / Tracking</Text>
+                </div>
+                {hasGhnOrderCode && (
+                  <div className="space-y-1">
+                    <div>
+                      <Text type="secondary" className="text-xs">Mã GHN:</Text>
+                      <Text strong className="ml-1">{record.ghnOrderCode}</Text>
+                    </div>
+                    {isWaitingForSync && (
+                      <Text type="secondary" className="text-xs text-orange-600 block">
+                        ⏳ Đang chờ đồng bộ từ GHN...
+                      </Text>
+                    )}
+                    <Button
+                      type="link"
+                      size="small"
+                      className="!p-0 !h-auto"
+                      onClick={() => {
+                        const url = `https://donhang.ghn.vn/?order_code=${encodeURIComponent(record.ghnOrderCode || '')}`;
+                        window.open(url, '_blank');
+                      }}
+                      disabled={isWaitingForSync}
+                    >
+                      Theo dõi đơn
+                    </Button>
+                  </div>
+                )}
+                {record.trackingStatus && (
+                  <div>
+                    <Text type="secondary" className="text-xs">Trạng thái:</Text>
+                    <Text strong className="ml-1">
+                      {trackingStatusLabelMap[record.trackingStatus || ''] || record.trackingStatus}
+                    </Text>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Status Messages */}
+            {record.status === 'PENDING' && (
+              <Text type="secondary" className="text-xs block">
+                Yêu cầu mới – Chờ xử lý
+              </Text>
+            )}
+            {isAutoApproved && (
+              <Text type="secondary" className="text-xs block">
+                Yêu cầu đã được hệ thống tự duyệt do quá 48 giờ không phản hồi.
+              </Text>
+            )}
+            {isCancelled && (
+              <Text type="secondary" className="text-xs block">
+                Khách không gửi hàng – yêu cầu đã bị huỷ tự động.
+              </Text>
+            )}
+            {isAutoRefunded && (
+              <Text type="secondary" className="text-xs block">
+                Hệ thống đã tự hoàn tiền do shop không xử lý trong thời hạn.
+              </Text>
+            )}
+            {isShippingDelivered && (
+              <Text type="secondary" className="text-xs text-orange-600 block">
+                Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: nếu hàng đúng mô tả → xác nhận hoàn tiền; nếu sai → khiếu nại. Quá 48 giờ hệ thống sẽ tự hoàn tiền sản phẩm.
+              </Text>
+            )}
+            {needsRecreateGhn && (
+              <Text type="secondary" className="text-xs text-orange-600 block">
+                GHN không lấy hàng, vui lòng tạo lại đơn GHN.
+              </Text>
+            )}
+
+            {/* Created Date */}
+            <div className="space-y-1">
+              <Text type="secondary" className="text-xs font-medium">Thời gian tạo yêu cầu</Text>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Calendar className="w-3 h-3" />
+                <Text type="secondary">{formatDate(record.createdAt)}</Text>
+              </div>
+            </div>
           </div>
-        );
-      },
-    },
-    {
-      title: 'Thông tin gói hàng',
-      key: 'packageInfo',
-      width: 260,
-      render: (_: any, record: ReturnRequestResponse) => {
-        const hasPackageInfo =
-          record.packageWeight != null &&
-          record.packageLength != null &&
-          record.packageWidth != null &&
-          record.packageHeight != null &&
-          record.shippingFee != null;
 
-        if (!hasPackageInfo) {
-          return <Text type="secondary" className="text-xs">Chưa có thông tin gói hàng</Text>;
-        }
-
-        return (
-          <Space direction="vertical" size={2} className="text-xs">
-            <Text>
-              Khối lượng: <Text strong>{record.packageWeight} kg</Text>
-            </Text>
-            <Text>
-              Kích thước:{' '}
-              <Text strong>
-                {record.packageLength} x {record.packageWidth} x {record.packageHeight} cm
-              </Text>
-            </Text>
-            <Text>
-              Phí vận chuyển:{' '}
-              <Text strong>{formatCurrency(record.shippingFee || 0)}</Text>
-            </Text>
-          </Space>
-        );
-      },
-    },
-    {
-      title: 'GHN / Tracking',
-      key: 'shippingInfo',
-      width: 220,
-      render: (_: any, record: ReturnRequestResponse) => {
-        const hasOrderCode = !!record.ghnOrderCode;
-        const hasTracking = !!record.trackingStatus;
-        const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
-
-        if (!hasOrderCode && !hasTracking) {
-          return <Text type="secondary" className="text-xs">Chưa tạo đơn hoàn</Text>;
-        }
-
-        return (
-          <Space direction="vertical" size={2} className="text-xs">
-            {hasOrderCode && (
-              <>
-                <Text>
-                  Mã GHN: <Text strong>{record.ghnOrderCode}</Text>
-                </Text>
-                {isWaitingForSync && (
-                  <Text type="secondary" className="text-xs text-orange-600">
-                    ⏳ Đang chờ đồng bộ từ GHN...
-                  </Text>
-                )}
-                <Button
-                  type="link"
-                  size="small"
-                  className="!p-0"
-                  onClick={() => {
-                    const url = `https://donhang.ghn.vn/?order_code=${encodeURIComponent(
-                      record.ghnOrderCode || ''
-                    )}`;
-                    window.open(url, '_blank');
-                  }}
-                  disabled={isWaitingForSync}
-                  title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
-                >
-                  Theo dõi đơn
-                </Button>
-              </>
-            )}
-            {hasTracking && (
-              <Text>
-                Trạng thái: <Text strong>{trackingStatusLabelMap[record.trackingStatus || ''] || record.trackingStatus}</Text>
-                {isWaitingForSync && (
-                  <Text type="secondary" className="text-xs block mt-1">
-                    (Đang chờ đồng bộ)
-                  </Text>
-                )}
-              </Text>
-            )}
-          </Space>
-        );
-      },
-    },
-    {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 180,
-      render: (value: string) => <Text>{formatDate(value)}</Text>,
-    },
-    {
-      title: 'Thao tác',
-      key: 'actions',
-      width: 250,
-      render: (_: any, record: ReturnRequestResponse) => {
-        const canRefundWithoutReturn =
-          record.status === 'PENDING' && !record.ghnOrderCode;
-        if (record.status === 'PENDING') {
-          return (
-            <Space direction="vertical" size={8} className="w-full">
-              {canRefundWithoutReturn && (
-                <Button
-                  type="primary"
-                  size="small"
-                  className="w-full"
-                  onClick={() => setShowRefundWithoutReturn({ visible: true, record })}
-                  loading={refundingId === record.id}
-                  disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                >
-                  Hoàn tiền không cần trả hàng
-                </Button>
-              )}
-              <Button
-                type="primary"
-                size="small"
-                loading={approvingId === record.id}
-                onClick={() => handleApprove(record)}
-                className="w-full"
-                disabled={rejectingId === record.id || disputingId === record.id}
-              >
-                Duyệt hoàn trả
-              </Button>
-              <Button
-                danger
-                size="small"
-                icon={<X className="w-3 h-3" />}
-                loading={rejectingId === record.id}
-                onClick={() => handleOpenRejectModal(record)}
-                className="w-full"
-                disabled={approvingId === record.id || disputingId === record.id}
-              >
-                Không cho hoàn trả
-              </Button>
-              <Button
-                type="default"
-                size="small"
-                icon={<AlertTriangle className="w-3 h-3" />}
-                onClick={() => handleOpenDisputeModal(record)}
-                disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                className="w-full"
-              >
-                Khiếu nại lên admin
-              </Button>
-            </Space>
-          );
-        }
-
-        const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
-        const isCancelled = record.status === 'CANCELLED';
-        const isAutoRefunded = record.status === 'AUTO_REFUNDED';
-        // Case 4.4: GHN không pickup sau 48h
-        // Chỉ áp dụng khi đã từng có GHN order (status = SHIPPING) nhưng bị reset về APPROVED
-        // Dấu hiệu: status = APPROVED, có package info, không có ghnOrderCode, 
-        // và trackingStatus có thể là null (đã bị clear) hoặc 'ready_to_pick' (vẫn chờ lấy)
-        // Để phân biệt với trường hợp mới có package info: check nếu updatedAt cách xa hơn 5 phút
-        const hasPackageInfoForGhn = hasPackageInfo(record) && record.shippingFee != null;
-        const isGhnTimeoutCase = 
-          record.status === 'APPROVED' &&
-          hasPackageInfoForGhn &&
-          !record.ghnOrderCode &&
-          (record.trackingStatus === null || record.trackingStatus === 'ready_to_pick');
-        // Check updatedAt để đảm bảo đây là trường hợp đã từng có GHN order (ít nhất 5 phút trước)
-        const updatedAt = record.updatedAt ? new Date(record.updatedAt) : null;
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const needsRecreateGhn = isGhnTimeoutCase && updatedAt && updatedAt <= fiveMinutesAgo;
-        const isShippingDelivered = record.status === 'SHIPPING' && record.trackingStatus === 'delivered';
-
-        if (isAutoRefunded) {
-          return (
-            <Text type="secondary" className="text-xs">
-              AUTO REFUND – Hệ thống đã hoàn tiền do shop không xử lý trong 48 giờ sau khi nhận. Không thể khiếu nại/nhận hàng nữa.
-            </Text>
-          );
-        }
-
-        if (isShippingDelivered) {
-          // Check if waiting for GHN sync: status == SHIPPING && trackingStatus == "CREATED_WAITING_SYNC"
-          const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
-          // Disable buttons if waiting for sync
-          const canTakeAction = !isWaitingForSync;
-
-          return (
-            <Space direction="vertical" size={6} className="w-full">
-              {isWaitingForSync && (
-                <Text type="secondary" className="text-xs text-orange-600">
-                  Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
-                </Text>
-              )}
-              {!isWaitingForSync && (
-                <Text type="secondary" className="text-xs text-orange-600">
-                  Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý: xác nhận hoàn tiền nếu đúng, hoặc khiếu nại nếu sai. Nếu không xử lý, hệ thống sẽ tự hoàn tiền sản phẩm.
-                </Text>
-              )}
-              <Space className="w-full" direction="vertical" size={6}>
-                <Space className="w-full">
+          {/* Right: Actions */}
+          <div className="flex-shrink-0 lg:w-48">
+            <div className="space-y-2">
+              {record.status === 'PENDING' && (
+                <>
+                  {canRefundWithoutReturn && (
+                    <Button
+                      type="primary"
+                      size="small"
+                      className="w-full"
+                      onClick={() => setShowRefundWithoutReturn({ visible: true, record })}
+                      loading={refundingId === record.id}
+                      disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                    >
+                      Hoàn tiền không cần trả hàng
+                    </Button>
+                  )}
                   <Button
                     type="primary"
                     size="small"
+                    loading={approvingId === record.id}
                     onClick={() => handleApprove(record)}
-                    disabled={!canTakeAction || rejectingId === record.id || approvingId === record.id || disputingId === record.id}
-                    title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
+                    className="w-full"
+                    disabled={rejectingId === record.id || disputingId === record.id}
                   >
-                    Xác nhận nhận đúng hàng & hoàn tiền
+                    Duyệt hoàn trả
                   </Button>
                   <Button
                     danger
                     size="small"
+                    icon={<X className="w-3 h-3" />}
+                    loading={rejectingId === record.id}
                     onClick={() => handleOpenRejectModal(record)}
-                    disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                    title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
+                    className="w-full"
+                    disabled={approvingId === record.id || disputingId === record.id}
                   >
-                    Khiếu nại hàng trả
-                  </Button>
-                </Space>
-                <Button
-                  type="default"
-                  size="small"
-                  icon={<AlertTriangle className="w-3 h-3" />}
-                  onClick={() => handleOpenDisputeModal(record)}
-                  disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                  title={isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : undefined}
-                  className="w-full"
-                >
-                  Khiếu nại lên admin
-                </Button>
-              </Space>
-              {!isWaitingForSync && (
-                <Text type="secondary" className="text-xs">
-                  Nếu không xử lý trong 48 giờ, hệ thống sẽ tự động hoàn tiền sản phẩm cho khách (không hoàn phí trả hàng).
-                </Text>
-              )}
-            </Space>
-          );
-        }
-
-        if (isCancelled) {
-          return (
-            <Text type="secondary" className="text-xs">
-              Khách không gửi hàng – yêu cầu đã bị huỷ tự động.
-            </Text>
-          );
-        }
-
-        if (hasPackageInfo(record)) {
-          // Check if waiting for GHN sync: status == SHIPPING && trackingStatus == "CREATED_WAITING_SYNC"
-          const isWaitingForSync = record.status === 'SHIPPING' && record.trackingStatus === 'CREATED_WAITING_SYNC';
-          // Disable if already has ghnOrderCode (should not create again)
-          const hasGhnOrderCode = !!record.ghnOrderCode;
-          // Disable create GHN button if waiting for sync or already has order code
-          const canCreateGhn = !isWaitingForSync && !hasGhnOrderCode;
-
-          return (
-            <Space direction="vertical" size={6} className="w-full">
-              {isAutoApproved && (
-                <Text type="secondary" className="text-xs">
-                  Yêu cầu đã được hệ thống auto-approve, không thể chấp nhận/từ chối.
-                </Text>
-              )}
-              {isWaitingForSync && (
-                <Text type="secondary" className="text-xs text-orange-600">
-                  Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
-                </Text>
-              )}
-              {hasGhnOrderCode && !isWaitingForSync && (
-                <Text type="secondary" className="text-xs text-green-600">
-                  Đã tạo đơn GHN: {record.ghnOrderCode}
-                </Text>
-              )}
-              {needsRecreateGhn && (
-                <Text type="secondary" className="text-xs text-orange-600">
-                  GHN không lấy hàng, vui lòng tạo lại đơn GHN.
-                </Text>
-              )}
-              <Button
-                type="default"
-                size="small"
-                onClick={() => handleOpenPickShiftModal(record)}
-                disabled={!canCreateGhn}
-                title={!canCreateGhn ? (isWaitingForSync ? 'Đang chờ đồng bộ từ GHN' : 'Đã có đơn GHN') : undefined}
-              >
-                {needsRecreateGhn ? 'Tạo lại đơn GHN trả hàng' : 'Xác nhận ca lấy hàng'}
-              </Button>
-              {/* Show cancel GHN button and track order link when has GHN order code */}
-              {hasGhnOrderCode && (
-                <>
-                  <Button
-                    type="link"
-                    size="small"
-                    className="!p-0 !h-auto"
-                    onClick={() => {
-                      const url = `https://donhang.ghn.vn/?order_code=${encodeURIComponent(
-                        record.ghnOrderCode || ''
-                      )}`;
-                      window.open(url, '_blank');
-                    }}
-                  >
-                    Theo dõi đơn
+                    Không cho hoàn trả
                   </Button>
                   <Button
-                    danger
+                    type="default"
                     size="small"
-                    onClick={() => {
-                      setCancelOrderCode(record.ghnOrderCode || '');
-                      setShowCancelModal(true);
-                    }}
+                    icon={<AlertTriangle className="w-3 h-3" />}
+                    onClick={() => handleOpenDisputeModal(record)}
+                    disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
                     className="w-full"
                   >
-                    Hủy đơn GHN
+                    Khiếu nại lên admin
                   </Button>
                 </>
               )}
-              {/* Show dispute button for APPROVED status with package info */}
-              {record.status === 'APPROVED' && (
-                <Button
-                  type="default"
-                  size="small"
-                  icon={<AlertTriangle className="w-3 h-3" />}
-                  onClick={() => handleOpenDisputeModal(record)}
-                  disabled={disputingId === record.id}
-                  className="w-full"
-                >
-                  Khiếu nại lên admin
-                </Button>
+
+              {isAutoRefunded && (
+                <Text type="secondary" className="text-xs block">
+                  AUTO REFUND – Hệ thống đã hoàn tiền do shop không xử lý trong 48 giờ sau khi nhận. Không thể khiếu nại/nhận hàng nữa.
+                </Text>
               )}
-            </Space>
-          );
-        }
 
-        if (record.status === 'APPROVED' && isAutoApproved) {
-          return (
-            <Text type="secondary" className="text-xs">
-              Yêu cầu auto-approve, không thể thay đổi. Chờ shop tạo đơn GHN sau khi có thông tin gói hàng.
-            </Text>
-          );
-        }
+              {isShippingDelivered && (
+                <>
+                  {isWaitingForSync && (
+                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                      Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
+                    </Text>
+                  )}
+                  {!isWaitingForSync && (
+                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                      Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý.
+                    </Text>
+                  )}
+                  <Space direction="vertical" size={6} className="w-full">
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => handleApprove(record)}
+                      disabled={!canTakeAction || rejectingId === record.id || approvingId === record.id || disputingId === record.id}
+                      className="w-full"
+                    >
+                      Xác nhận nhận đúng hàng & hoàn tiền
+                    </Button>
+                    <Button
+                      danger
+                      size="small"
+                      onClick={() => handleOpenRejectModal(record)}
+                      disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                      className="w-full"
+                    >
+                      Khiếu nại hàng trả
+                    </Button>
+                    <Button
+                      type="default"
+                      size="small"
+                      icon={<AlertTriangle className="w-3 h-3" />}
+                      onClick={() => handleOpenDisputeModal(record)}
+                      disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                      className="w-full"
+                    >
+                      Khiếu nại lên admin
+                    </Button>
+                  </Space>
+                </>
+              )}
 
-        // Show dispute button when status is DISPUTE (to escalate to admin)
-        if (record.status === 'DISPUTE') {
-          return (
-            <Space direction="vertical" size={6} className="w-full">
-              <Text type="secondary" className="text-xs">
-                Đang khiếu nại. Bạn có thể khiếu nại lên admin để được xử lý.
-              </Text>
-              <Button
-                type="default"
-                size="small"
-                icon={<AlertTriangle className="w-3 h-3" />}
-                onClick={() => handleOpenDisputeModal(record)}
-                disabled={disputingId === record.id}
-                className="w-full"
-              >
-                Khiếu nại lên admin
-              </Button>
-            </Space>
-          );
-        }
+              {isCancelled && (
+                <Text type="secondary" className="text-xs block">
+                  Khách không gửi hàng – yêu cầu đã bị huỷ tự động.
+                </Text>
+              )}
 
-        return <Text type="secondary">—</Text>;
-      },
-    },
-  ];
+              {hasPackageInfo(record) && (
+                <>
+                  {isAutoApproved && (
+                    <Text type="secondary" className="text-xs block mb-2">
+                      Yêu cầu đã được hệ thống auto-approve, không thể chấp nhận/từ chối.
+                    </Text>
+                  )}
+                  {isWaitingForSync && (
+                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                      Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
+                    </Text>
+                  )}
+                  {hasGhnOrderCode && !isWaitingForSync && (
+                    <Text type="secondary" className="text-xs text-green-600 block mb-2">
+                      Đã tạo đơn GHN: {record.ghnOrderCode}
+                    </Text>
+                  )}
+                  {needsRecreateGhn && (
+                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                      GHN không lấy hàng, vui lòng tạo lại đơn GHN.
+                    </Text>
+                  )}
+                  <Button
+                    type="default"
+                    size="small"
+                    onClick={() => handleOpenPickShiftModal(record)}
+                    disabled={!canCreateGhn}
+                    className="w-full mb-2"
+                  >
+                    {needsRecreateGhn ? 'Tạo lại đơn GHN trả hàng' : 'Xác nhận ca lấy hàng'}
+                  </Button>
+                  {hasGhnOrderCode && (
+                    <>
+                      <Button
+                        type="link"
+                        size="small"
+                        className="!p-0 !h-auto w-full"
+                        onClick={() => {
+                          const url = `https://donhang.ghn.vn/?order_code=${encodeURIComponent(record.ghnOrderCode || '')}`;
+                          window.open(url, '_blank');
+                        }}
+                      >
+                        Theo dõi đơn
+                      </Button>
+                      <Button
+                        danger
+                        size="small"
+                        onClick={() => {
+                          setCancelOrderCode(record.ghnOrderCode || '');
+                          setShowCancelModal(true);
+                        }}
+                        className="w-full"
+                      >
+                        Hủy đơn GHN
+                      </Button>
+                    </>
+                  )}
+                  {record.status === 'APPROVED' && (
+                    <Button
+                      type="default"
+                      size="small"
+                      icon={<AlertTriangle className="w-3 h-3" />}
+                      onClick={() => handleOpenDisputeModal(record)}
+                      disabled={disputingId === record.id}
+                      className="w-full mt-2"
+                    >
+                      Khiếu nại lên admin
+                    </Button>
+                  )}
+                </>
+              )}
+
+              {record.status === 'APPROVED' && isAutoApproved && !hasPackageInfo(record) && (
+                <Text type="secondary" className="text-xs block">
+                  Yêu cầu auto-approve, không thể thay đổi. Chờ shop tạo đơn GHN sau khi có thông tin gói hàng.
+                </Text>
+              )}
+
+              {record.status === 'DISPUTE' && (
+                <>
+                  <Text type="secondary" className="text-xs block mb-2">
+                    Đang khiếu nại. Bạn có thể khiếu nại lên admin để được xử lý.
+                  </Text>
+                  <Button
+                    type="default"
+                    size="small"
+                    icon={<AlertTriangle className="w-3 h-3" />}
+                    onClick={() => handleOpenDisputeModal(record)}
+                    disabled={disputingId === record.id}
+                    className="w-full"
+                  >
+                    Khiếu nại lên admin
+                  </Button>
+                </>
+              )}
+
+              {!['PENDING', 'SHIPPING', 'APPROVED', 'DISPUTE'].includes(record.status) && !isCancelled && !isAutoRefunded && !hasPackageInfo(record) && (
+                <Text type="secondary" className="text-xs">—</Text>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  // Bubble sort function to sort by updatedAt (most recent first)
+  const bubbleSortByDate = (arr: ReturnRequestResponse[]): ReturnRequestResponse[] => {
+    const sorted = [...arr]; // Create a copy to avoid mutating the original array
+    const n = sorted.length;
+    
+    for (let i = 0; i < n - 1; i++) {
+      for (let j = 0; j < n - i - 1; j++) {
+        // Get dates: prefer updatedAt, fallback to createdAt
+        const dateA = sorted[j].updatedAt || sorted[j].createdAt;
+        const dateB = sorted[j + 1].updatedAt || sorted[j + 1].createdAt;
+        
+        // Parse dates
+        const timeA = dateA ? new Date(dateA).getTime() : 0;
+        const timeB = dateB ? new Date(dateB).getTime() : 0;
+        
+        // Sort in descending order (most recent first)
+        if (timeA < timeB) {
+          // Swap elements
+          const temp = sorted[j];
+          sorted[j] = sorted[j + 1];
+          sorted[j + 1] = temp;
+        }
+      }
+    }
+    
+    return sorted;
+  };
+
+  // Sort data using bubble sort (most recent first)
+  const sortedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    return bubbleSortByDate(data);
+  }, [data]);
 
   return (
     <Card
@@ -1175,32 +1159,20 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
         </div>
       ) : (
         <>
-          <Table<ReturnRequestResponse>
-            rowKey="id"
-            columns={[
-              {
-                title: 'STT',
-                key: 'index',
-                width: 70,
-                align: 'center',
-                render: (_: any, __: ReturnRequestResponse, index: number) => (
-                  <Text>{(page - 1) * pageSize + index + 1}</Text>
-                ),
-              },
-              ...columns.map((col) =>
-                col.key === 'productName'
-                  ? {
-                      ...col,
-                      width: 230,
-                    }
-                  : col
-              ),
-            ]}
-            dataSource={data}
-            pagination={false}
-            scroll={{ x: 1300 }}
-          />
-          <div className="mt-4 flex justify-end">
+          <div className="space-y-4">
+            {sortedData.map((record, index) => (
+              <div key={record.id} className="relative">
+                {/* STT Badge */}
+                <div className="absolute -left-2 -top-2 z-10">
+                  <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
+                    {(page - 1) * pageSize + index + 1}
+                  </div>
+                </div>
+                {renderReturnCard(record)}
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 flex justify-end">
             <Pagination
               current={page}
               pageSize={pageSize}
