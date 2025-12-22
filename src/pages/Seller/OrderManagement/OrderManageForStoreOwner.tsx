@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Tooltip } from 'antd';
+import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Tooltip, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X } from 'lucide-react';
 import { StoreOrderFilter, GhnTransferModal } from '../../../components/StoreOwnerOrderManagementComponents';
@@ -100,6 +100,9 @@ const OrderManageForStoreOwner: React.FC = () => {
   const [processingCancelRequest, setProcessingCancelRequest] = useState<Record<string, boolean>>({});
   const [showRejectModal, setShowRejectModal] = useState<{ orderId: string; requestId: string } | null>(null);
   const [rejectNote, setRejectNote] = useState('');
+  const [showCancelOrderModal, setShowCancelOrderModal] = useState<{ orderId: string; orderCode: string } | null>(null);
+  const [cancelOrderReason, setCancelOrderReason] = useState('');
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
 
   // Auto-expand order when navigated from notification with customerOrderId
   useEffect(() => {
@@ -250,6 +253,40 @@ const OrderManageForStoreOwner: React.FC = () => {
     }
   };
 
+  const handleCancelOrder = async () => {
+    if (!showCancelOrderModal) return;
+
+    if (!cancelOrderReason || !cancelOrderReason.trim()) {
+      showCenterError('Vui lòng nhập lý do hủy đơn hàng', 'Lỗi');
+      return;
+    }
+
+    try {
+      setIsCancellingOrder(true);
+      
+      console.log('🔄 Cancelling order:', showCancelOrderModal.orderId);
+      
+      await StoreOrderService.cancelOrder(showCancelOrderModal.orderId, cancelOrderReason.trim());
+      
+      showCenterSuccess('Đã hủy đơn hàng thành công!', 'Thành công', 3000);
+      
+      // Reset modal
+      setShowCancelOrderModal(null);
+      setCancelOrderReason('');
+      
+      // Refresh order list
+      refresh();
+    } catch (error: any) {
+      console.error('❌ Error cancelling order:', error);
+      showCenterError(
+        error?.message || 'Không thể hủy đơn hàng. Vui lòng thử lại.',
+        'Lỗi'
+      );
+    } finally {
+      setIsCancellingOrder(false);
+    }
+  };
+
   const columns: ColumnsType<StoreOrder> = [
     {
       title: 'Mã đơn',
@@ -343,22 +380,41 @@ const OrderManageForStoreOwner: React.FC = () => {
         const isPending = record.status === 'PENDING';
         const isAwaitingShipment = record.status === 'AWAITING_SHIPMENT';
         const isPreparing = preparingOrderId === record.id;
+        const isCancelling = showCancelOrderModal?.orderId === record.id && isCancellingOrder;
         const hasGhnOrder = !!ghnOrderData[record.id];
         
         if (isPending) {
           return (
-            <Button
-              type="primary"
-              icon={<PackageCheck className="w-4 h-4" />}
-              onClick={() => handlePrepareOrder(record.id)}
-              disabled={isPreparing}
-              loading={isPreparing}
-              size="small"
-              style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
-              title="Xác nhận lên đơn hàng"
-            >
-              {isPreparing ? 'Đang xử lý...' : 'Xác nhận lên đơn hàng'}
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button
+                type="primary"
+                icon={<PackageCheck className="w-4 h-4" />}
+                onClick={() => handlePrepareOrder(record.id)}
+                disabled={isPreparing || isCancelling}
+                loading={isPreparing}
+                size="small"
+                style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                title="Xác nhận lên đơn hàng"
+                className="w-full"
+              >
+                {isPreparing ? 'Đang xử lý...' : 'Xác nhận lên đơn hàng'}
+              </Button>
+              <Button
+                danger
+                icon={<XCircle className="w-4 h-4" />}
+                onClick={() => {
+                  setShowCancelOrderModal({ orderId: record.id, orderCode: record.orderCode || '' });
+                  setCancelOrderReason('');
+                }}
+                disabled={isPreparing || isCancelling}
+                loading={isCancelling}
+                size="small"
+                className="w-full"
+                title="Hủy chuẩn bị đơn hàng"
+              >
+                Hủy chuẩn bị đơn
+              </Button>
+            </div>
           );
         }
         
@@ -975,6 +1031,83 @@ const OrderManageForStoreOwner: React.FC = () => {
               Xác nhận từ chối
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Cancel Order Modal (for PENDING orders) */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <XCircle className="w-5 h-5 text-red-500" />
+            <span>Hủy chuẩn bị đơn hàng</span>
+          </div>
+        }
+        open={showCancelOrderModal !== null}
+        onCancel={() => {
+          setShowCancelOrderModal(null);
+          setCancelOrderReason('');
+        }}
+        footer={null}
+        width={500}
+      >
+        <div className="space-y-4 py-4">
+          {showCancelOrderModal && (
+            <>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="text-sm text-gray-600">Mã đơn hàng:</div>
+                <div className="font-semibold text-gray-900">{showCancelOrderModal.orderCode || showCancelOrderModal.orderId}</div>
+              </div>
+              
+              <Alert
+                message="Cảnh báo"
+                description="Nếu hủy đơn hàng, cửa hàng của bạn sẽ bị trừ điểm uy tín!"
+                type="warning"
+                showIcon
+                icon={<AlertCircle className="w-4 h-4" />}
+                className="mb-2"
+              />
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Lý do hủy đơn hàng <span className="text-red-500">*</span>
+                </label>
+                <Input.TextArea
+                  value={cancelOrderReason}
+                  onChange={(e) => setCancelOrderReason(e.target.value)}
+                  placeholder="Nhập lý do hủy đơn hàng (ví dụ: Hết hàng, Khách hàng yêu cầu hủy...)"
+                  disabled={isCancellingOrder}
+                  rows={4}
+                  maxLength={500}
+                  showCount
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Lý do này sẽ được lưu lại và có thể được gửi đến khách hàng
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+                <Button
+                  onClick={() => {
+                    setShowCancelOrderModal(null);
+                    setCancelOrderReason('');
+                  }}
+                  disabled={isCancellingOrder}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  type="primary"
+                  danger
+                  icon={<XCircle className="w-4 h-4" />}
+                  onClick={handleCancelOrder}
+                  disabled={isCancellingOrder || !cancelOrderReason.trim()}
+                  loading={isCancellingOrder}
+                >
+                  Xác nhận hủy đơn
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>
