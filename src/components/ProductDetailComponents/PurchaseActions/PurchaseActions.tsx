@@ -324,7 +324,7 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
     }
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     // Check login first
     if (!isLoggedIn()) {
       // Save current URL to redirect back after login
@@ -332,11 +332,146 @@ const PurchaseActions: React.FC<PurchaseActionsProps> = ({
       navigate('/auth/login');
       return;
     }
-    
-    // Add to cart and navigate to checkout
-    handleAddToCart().then(() => {
-      navigate('/cart');
-    });
+
+    // Check if product has variants and user must select one
+    if (variants && variants.length > 0 && !selectedVariant) {
+      showCenterError('Vui lòng chọn phân loại sản phẩm trước khi mua ngay.', '⚠️ Chưa chọn phân loại');
+      return;
+    }
+
+    // Check if product/variant is out of stock
+    if (!isInStock || actualStock === 0) {
+      showCenterError('Sản phẩm hiện đang hết hàng. Vui lòng chọn sản phẩm khác.', '⚠️ Hết hàng');
+      return;
+    }
+
+    // Check if quantity exceeds available stock
+    if (qty > actualStock) {
+      showCenterError(
+        `Số lượng bạn chọn (${qty}) vượt quá số lượng tồn kho (${actualStock} sản phẩm). Vui lòng chọn số lượng nhỏ hơn.`,
+        '⚠️ Vượt quá tồn kho'
+      );
+      return;
+    }
+
+    try {
+      setIsAdding(true);
+      
+      console.log('🔍 Debug - Buy Now (adding to cart):', {
+        productId,
+        qty,
+        actualStock,
+        hasVariants: variants && variants.length > 0,
+        selectedVariant,
+        variantId: selectedVariant?.variantId
+      });
+
+      // Check if item already exists in cart
+      const currentCart = await CustomerCartService.getCart();
+      
+      // Find existing item in cart
+      const existingItem = currentCart.items.find(item => {
+        if (item.type !== 'PRODUCT') return false;
+        
+        // For variant: check if refId matches productId AND variantId matches
+        if (selectedVariant?.variantId) {
+          return item.refId === productId && item.variantId === selectedVariant.variantId;
+        }
+        
+        // For product without variant: check if refId matches productId AND no variantId
+        return item.refId === productId && !item.variantId;
+      });
+
+      if (existingItem) {
+        // Item already exists - update quantity (add to existing quantity)
+        const newQuantity = existingItem.quantity + qty;
+        
+        // Check if new quantity exceeds available stock
+        if (newQuantity > actualStock) {
+          showCenterError(
+            `Bạn đã vượt quá số lượng tồn kho (${actualStock} sản phẩm). Bạn chỉ có thể thêm tối đa ${actualStock - existingItem.quantity} sản phẩm nữa.`,
+            '⚠️ Vượt quá tồn kho'
+          );
+          setIsAdding(false);
+          return;
+        }
+        
+        console.log('🔄 Item already in cart, updating quantity:', {
+          cartItemId: existingItem.cartItemId,
+          oldQuantity: existingItem.quantity,
+          addQuantity: qty,
+          newQuantity
+        });
+        
+        await CustomerCartService.updateItemQuantity(existingItem.cartItemId, newQuantity);
+      } else {
+        // Item doesn't exist - add new item
+        console.log('➕ Adding new item to cart');
+        await CustomerCartService.addProductToCart(
+          productId, 
+          qty, 
+          selectedVariant?.variantId
+        );
+      }
+      
+      // Reload cart to detect campaign usage state after the operation
+      const updatedCart = await CustomerCartService.getCart();
+      const updatedItem = updatedCart.items.find(item => {
+        if (item.type !== 'PRODUCT') return false;
+        if (selectedVariant?.variantId) {
+          return item.refId === productId && item.variantId === selectedVariant.variantId;
+        }
+        return item.refId === productId && !item.variantId;
+      });
+
+      // Nếu số lượng vượt quota campaign, gọi API updateQuantityWithVouchers để backend tính lại giá
+      const exceedsCampaignLimit =
+        updatedItem?.inPlatformCampaign &&
+        updatedItem.campaignRemaining !== null &&
+        updatedItem.campaignRemaining !== undefined &&
+        updatedItem.quantity > (updatedItem.campaignRemaining ?? 0);
+
+      if (updatedItem?.cartItemId && exceedsCampaignLimit) {
+        try {
+          await CustomerCartService.updateQuantityWithVouchers({
+            cartItemId: updatedItem.cartItemId,
+            quantity: updatedItem.quantity,
+            storeVouchers: null,
+            platformVouchers: null,
+            serviceTypeIds: null,
+          });
+        } catch (err) {
+          console.error('Failed to normalize campaign quantity/pricing:', err);
+        }
+      }
+
+      // Trigger cart update event
+      window.dispatchEvent(new CustomEvent('cartUpdated', {
+        detail: {
+          productId,
+          productName,
+          productImage,
+          productPrice,
+          quantity: qty
+        }
+      }));
+      
+      // Navigate to cart page after successfully adding to cart
+      navigate('/cartv2');
+      
+    } catch (error: any) {
+      console.error('Error adding to cart (Buy Now):', error);
+      // Don't show customer ID error, just redirect to login
+      if (error.message?.includes('Customer ID')) {
+        // Save current URL to redirect back after login
+        localStorage.setItem('redirectAfterLogin', window.location.pathname);
+        navigate('/auth/login');
+      } else {
+        showCenterError(error.message || 'Không thể thêm vào giỏ hàng. Vui lòng thử lại.', '❌ Lỗi');
+      }
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   return (
