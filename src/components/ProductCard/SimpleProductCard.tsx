@@ -18,6 +18,26 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
     navigate(`/product/${product.productId}`);
   };
 
+  // Drag handlers for dropping product into chat
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      type: 'product',
+      productId: product.productId,
+      productName: product.name,
+    }));
+    e.dataTransfer.effectAllowed = 'copy';
+    // Add visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  };
+
   // Get primary image
   const primaryImage = product.images && product.images.length > 0 
     ? product.images[0] 
@@ -26,7 +46,11 @@ const SimpleProductCard: React.FC<SimpleProductCardProps> = ({ product }) => {
   return (
     <div 
       onClick={handleClick}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer group flex flex-col h-full"
+      title="Kéo thả vào khung chat để hỏi AI về sản phẩm này"
     >
       {/* Product Image */}
       <div className="aspect-square bg-gray-100 overflow-hidden relative flex-shrink-0">

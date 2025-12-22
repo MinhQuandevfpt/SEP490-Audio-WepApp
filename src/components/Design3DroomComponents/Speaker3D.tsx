@@ -88,7 +88,7 @@ const Speaker3D: React.FC<Speaker3DProps> = ({
     audio.setRolloffFactor(0);      // Tắt rolloff
     audio.setDistanceModel('linear'); // Model suy giảm (nhưng không dùng vì refDistance lớn)
     audio.setLoop(true);
-    
+
     // Set base volume ban đầu
     audio.setVolume(baseVolume);
     
@@ -115,36 +115,36 @@ const Speaker3D: React.FC<Speaker3DProps> = ({
       // PositionalAudio từ @react-three/drei tự động lấy listener từ camera context
       // Listener được setup bởi ListenerSync component trong Canvas3D
 
-      const resumeIfNeeded = async () => {
-        if (audio.context.state === 'suspended') {
-          await audio.context.resume().catch(() => {});
-        }
-      };
+    const resumeIfNeeded = async () => {
+      if (audio.context.state === 'suspended') {
+        await audio.context.resume().catch(() => {});
+      }
+    };
 
-      const playSafe = async () => {
-        await resumeIfNeeded();
-        try {
-          await audio.play();
+    const playSafe = async () => {
+      await resumeIfNeeded();
+      try {
+        await audio.play();
           // eslint-disable-next-line no-console
           console.log(`Speaker ${speaker.name} started playing, baseVolume=${baseVolume}, position=[${pos.join(', ')}]`);
-        } catch (err) {
-          // eslint-disable-next-line no-console
+      } catch (err) {
+        // eslint-disable-next-line no-console
           console.warn(`Speaker ${speaker.name} PositionalAudio play blocked:`, err);
-        }
-      };
-
-      if (speaker.isPlaying) {
-        await playSafe();
-      } else {
-        audio.stop?.();
       }
+    };
+
+    if (speaker.isPlaying) {
+        await playSafe();
+    } else {
+      audio.stop?.();
+    }
     };
 
     checkBufferAndPlay();
 
     return () => {
       if (audio) {
-        audio.stop?.();
+      audio.stop?.();
       }
     };
   }, [speaker.isPlaying, speaker.volume, pos, speaker.name, camera]);
@@ -214,7 +214,7 @@ const Speaker3D: React.FC<Speaker3DProps> = ({
         autoplay={false}
         loop
       />
-
+      
       {/* Lưới loa (grill) */}
       <Box args={[dims.width * 0.95, dims.height * 0.8, dims.depth * 0.1]} position={[0, 0, dims.depth / 2 + 0.01]}>
         <meshStandardMaterial 

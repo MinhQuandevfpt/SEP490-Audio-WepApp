@@ -60,7 +60,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ speakerModel, audioUrl, volum
       try {
         await audioService.initialize();
         if (speakerModel) {
-          audioService.selectSpeakerModel(speakerModel);
+        audioService.selectSpeakerModel(speakerModel);
         }
         audioService.setVolume(volume);
         audioService.setPan(pan);
