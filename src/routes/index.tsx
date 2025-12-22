@@ -169,11 +169,11 @@ function ProtectedSellerDashboardRoute({ element }: { element: ReactElement }) {
     return <Navigate to="/seller/login" replace />;
   }
   
-  // Cho phép ACTIVE, SUSPENDED_DEBT (vượt ngưỡng), và PAUSED vào dashboard
+  // Cho phép ACTIVE, SUSPENDED_DEBT (vượt ngưỡng), PAUSED, và SUSPENDED vào dashboard
   // INACTIVE, PENDING, REJECTED đều redirect về trang KYC status
-  if (storeStatus !== 'ACTIVE' && storeStatus !== 'SUSPENDED_DEBT' && storeStatus !== 'PAUSED') {
+  if (storeStatus !== 'ACTIVE' && storeStatus !== 'SUSPENDED_DEBT' && storeStatus !== 'PAUSED' && storeStatus !== 'SUSPENDED') {
     if (error) {
-      console.warn('⚠️ Redirecting to KYC status due to non-ACTIVE/SUSPENDED_DEBT/PAUSED status:', storeStatus, error);
+      console.warn('⚠️ Redirecting to KYC status due to non-ACTIVE/SUSPENDED_DEBT/PAUSED/SUSPENDED status:', storeStatus, error);
     }
     return <Navigate to="/seller/kyc-status" replace />;
   }

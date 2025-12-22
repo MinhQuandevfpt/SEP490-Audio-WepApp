@@ -123,7 +123,7 @@ export class StoreService {
         return {
           status: storeInfo.status,
           message: this.getStatusMessage(storeInfo.status),
-          canAccessDashboard: storeInfo.status === 'ACTIVE'
+          canAccessDashboard: storeInfo.status === 'ACTIVE' || storeInfo.status === 'SUSPENDED' || storeInfo.status === 'PAUSED' || (storeInfo.status as string) === 'SUSPENDED_DEBT'
         };
       } catch (storeError) {
         console.warn('⚠️ Could not get store info, trying KYC status:', storeError);
@@ -213,6 +213,10 @@ export class StoreService {
         return 'Yêu cầu KYC của bạn đã bị từ chối. Vui lòng cập nhật lại thông tin và gửi lại.';
       case 'ACTIVE':
         return 'Cửa hàng của bạn đã được kích hoạt. Chào mừng bạn đến với AudioShop!';
+      case 'SUSPENDED':
+        return 'Cửa hàng của bạn đang bị tạm khóa. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.';
+      case 'PAUSED':
+        return 'Cửa hàng của bạn đang tạm dừng hoạt động.';
       default:
         return 'Trạng thái không xác định';
     }

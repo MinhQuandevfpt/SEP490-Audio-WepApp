@@ -4,7 +4,11 @@ import { CustomerCategoryService } from '../../services/customer/CategoryService
 import type { CategoryTreeNode } from '../../types/api';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  hideHeader?: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ hideHeader = false }) => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState<CategoryTreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,11 +91,13 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <div className="w-64 bg-white border border-gray-200 rounded-lg shadow-sm max-h-screen overflow-y-auto">
+    <div className={`w-64 bg-white ${hideHeader ? '' : 'border border-gray-200 rounded-lg shadow-sm'} max-h-screen overflow-y-auto`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-        <h3 className="text-lg font-semibold text-gray-900">Danh mục sản phẩm</h3>
-      </div>
+      {!hideHeader && (
+        <div className="p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <h3 className="text-lg font-semibold text-gray-900">Danh mục sản phẩm</h3>
+        </div>
+      )}
 
       {/* Categories */}
       <div className="py-2">

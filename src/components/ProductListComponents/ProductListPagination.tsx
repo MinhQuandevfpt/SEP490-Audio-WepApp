@@ -15,52 +15,32 @@ interface ProductListPaginationProps {
 export const ProductListPagination: React.FC<ProductListPaginationProps> = ({
   pagination,
   onPageChange,
-  onPageSizeChange,
   loading = false,
 }) => {
-  const { page, totalPages, size } = pagination;
+  const { page, totalPages } = pagination;
 
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-      {/* Page size selector */}
-      {onPageSizeChange && (
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Hiển thị:</label>
-          <select
-            value={size}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            disabled={loading}
-            className="px-3 py-1 border rounded disabled:opacity-50"
-          >
-            <option value={12}>12</option>
-            <option value={24}>24</option>
-            <option value={48}>48</option>
-          </select>
-        </div>
-      )}
-
+    <div className="flex justify-center items-center gap-3 sm:gap-4">
       {/* Page navigation */}
-      <div className="flex justify-center items-center gap-2">
-        <button
-          onClick={() => onPageChange(page - 1)}
-          disabled={page <= 0 || loading}
-          className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-        >
-          Trước
-        </button>
-        
-        <span className="px-4 py-2">
-          Trang {page + 1} / {totalPages}
-        </span>
-        
-        <button
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= totalPages - 1 || loading}
-          className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-        >
-          Sau
-        </button>
-      </div>
+      <button
+        onClick={() => onPageChange(page - 1)}
+        disabled={page <= 0 || loading}
+        className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-gray-600 disabled:text-gray-300"
+      >
+        Trước
+      </button>
+      
+      <span className="px-4 py-2 text-sm text-gray-700 font-medium">
+        Trang {page + 1} / {totalPages || 1}
+      </span>
+      
+      <button
+        onClick={() => onPageChange(page + 1)}
+        disabled={page >= totalPages - 1 || loading || totalPages === 0}
+        className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-gray-600 disabled:text-gray-300"
+      >
+        Sau
+      </button>
     </div>
   );
 };

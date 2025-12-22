@@ -118,8 +118,9 @@ const Header: React.FC = () => {
       {/* Top bar */}
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-2 text-sm">
-            <div className="flex space-x-6">
+          <div className="flex justify-between items-center py-2 text-xs sm:text-sm">
+            {/* Left side - Hidden on mobile */}
+            <div className="hidden md:flex space-x-4 lg:space-x-6">
               <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
                 {t('header.sellWithUs')}
               </Link>
@@ -127,8 +128,9 @@ const Header: React.FC = () => {
                 {t('header.experienceRoom')}
               </Link>
             </div>
-            <div className="flex items-center space-x-4">
-              <Link to="/policies" className="text-gray-600 hover:text-gray-900">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Support - Hidden on mobile */}
+              <Link to="/policies" className="hidden sm:block text-gray-600 hover:text-gray-900">
                 {t('header.support')}
               </Link>
               
@@ -136,25 +138,27 @@ const Header: React.FC = () => {
               <LanguageSwitcher />
               
               {isAuthenticated ? (
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">
+                <div className="flex items-center space-x-2 sm:space-x-4">
+                  {/* User name - Hidden on mobile */}
+                  <span className="hidden sm:inline text-sm text-gray-600">
                     {t('header.hello')}, <span className="font-medium text-gray-800">{currentUser?.full_name}</span>
                   </span>
                   <button
                     onClick={handleLogout}
                     className="flex items-center text-gray-600 hover:text-red-600 transition-colors"
+                    title={t('header.logout')}
                   >
-                    <LogOut className="w-4 h-4 mr-1" />
-                    <span className="text-sm">{t('header.logout')}</span>
+                    <LogOut className="w-4 h-4 sm:mr-1" />
+                    <span className="hidden sm:inline text-sm">{t('header.logout')}</span>
                   </button>
                 </div>
               ) : (
                 <>
-                  <Link to="/auth/login" className="font-black text-black hover:text-gray-900">
+                  <Link to="/auth/login" className="font-black text-black hover:text-gray-900 text-xs sm:text-sm">
                     {t('header.login')}
                   </Link>
-                  <span className="text-gray-400">/</span>
-                  <Link to="/auth/register" className="font-black text-black hover:text-gray-900">
+                  <span className="text-gray-400 hidden sm:inline">/</span>
+                  <Link to="/auth/register" className="font-black text-black hover:text-gray-900 text-xs sm:text-sm">
                     {t('header.register')}
                   </Link>
                 </>
@@ -166,46 +170,69 @@ const Header: React.FC = () => {
 
       {/* Main header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between py-3 sm:py-4 gap-3 sm:gap-0">
           {/* Logo */}
-          <div className="flex items-center">
+          <div className="flex items-center w-full sm:w-auto justify-between sm:justify-start">
             <Link to="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold">
+              <span className="text-xl sm:text-2xl font-bold">
                 <span className="text-orange-500">Audio</span>
                 <span className="text-blue-600">Shop</span>
               </span>
             </Link>
+
+            {/* Right side actions - Mobile: Show on same row as logo */}
+            <div className="flex items-center space-x-3 sm:hidden">
+              {/* User Account - Icon only */}
+              <Link 
+                to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
+                className={`transition-colors ${
+                  isAccountPage 
+                    ? 'text-orange-500' 
+                    : 'text-gray-700 hover:text-orange-500'
+                }`}
+                title={t('header.account')}
+              >
+                <User className="w-5 h-5" />
+              </Link>
+
+              {/* Shopping Cart with Dropdown */}
+              <CartDropdown />
+
+              {/* Notifications Dropdown */}
+              <NotificationDropdown />
+            </div>
           </div>
 
           {/* Search bar */}
-          <div className="flex-1 max-w-2xl mx-8">
+          <div className="flex-1 w-full sm:max-w-2xl sm:mx-4 lg:mx-8 order-3 sm:order-2">
             <form onSubmit={handleSearch} className="relative">
               <input
                 type="text"
                 placeholder={t('header.searchPlaceholder')}
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-10 sm:pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm sm:text-base"
               />
               <button 
                 type="submit"
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600"
+                className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-md hover:bg-orange-600"
+                aria-label="Tìm kiếm"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
             </form>
 
-            {/* Navigation categories below search */}
-            <div className="mt-3">
-              <nav className="flex space-x-6">
+            {/* Navigation categories below search - Hidden on mobile */}
+            <div className="hidden md:block mt-3">
+              <nav className="flex space-x-4 lg:space-x-6 overflow-x-auto">
                 {categories.length > 0 ? (
                   categories.map((category, index) => (
                     <a 
                       key={category.categoryId}
                       href={`/products?category=${encodeURIComponent(category.name)}`} 
-                      className={`text-gray-700 hover:text-orange-500 font-medium text-sm ${
+                      className={`text-gray-700 hover:text-orange-500 font-medium text-sm whitespace-nowrap ${
                         index === 0 ? 'border-b-2 border-orange-500' : ''
                       }`}
                     >
@@ -220,8 +247,8 @@ const Header: React.FC = () => {
             </div>
           </div>
 
-          {/* Right side actions */}
-          <div className="flex items-center space-x-4">
+          {/* Right side actions - Desktop */}
+          <div className="hidden sm:flex items-center space-x-3 lg:space-x-4 order-2 sm:order-3">
             {/* User Account */}
             <Link 
               to={isAuthenticated ? `/account${getEncodedCustomerParam()}` : '/auth/login'} 
@@ -250,32 +277,65 @@ const Header: React.FC = () => {
       {/* Commitment/Trust badges */}
       <div className="bg-gray-50 border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center space-x-8 py-3">
-            <span className="text-blue-600 font-semibold">{t('header.commitment')}</span>
+          {/* Desktop: Horizontal layout */}
+          <div className="hidden md:flex items-center justify-center space-x-4 lg:space-x-8 py-3">
+            <span className="text-blue-600 font-semibold text-sm lg:text-base">{t('header.commitment')}</span>
 
             <div className="flex items-center space-x-2 text-gray-700">
-              <Shield className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">{t('header.authentic')}</span>
+              <Shield className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+              <span className="text-xs lg:text-sm font-medium">{t('header.authentic')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
-              <Truck className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">{t('header.fastShipping')}</span>
+              <Truck className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+              <span className="text-xs lg:text-sm font-medium">{t('header.fastShipping')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
-              <RotateCcw className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">{t('header.refund')}</span>
+              <RotateCcw className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+              <span className="text-xs lg:text-sm font-medium">{t('header.refund')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">{t('header.return')}</span>
+              <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+              <span className="text-xs lg:text-sm font-medium">{t('header.return')}</span>
             </div>
 
-           <div className="flex items-center space-x-2 text-gray-700">
-              <DollarSign className="w-5 h-5 text-blue-600" />
-              <span className="text-sm font-medium">{t('header.cheapPrice')}</span>
+            <div className="flex items-center space-x-2 text-gray-700">
+              <DollarSign className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+              <span className="text-xs lg:text-sm font-medium">{t('header.cheapPrice')}</span>
+            </div>
+          </div>
+
+          {/* Mobile: Scrollable horizontal layout */}
+          <div className="md:hidden py-2 overflow-x-auto">
+            <div className="flex items-center space-x-4 min-w-max px-2">
+              <span className="text-blue-600 font-semibold text-xs whitespace-nowrap">{t('header.commitment')}</span>
+
+              <div className="flex items-center space-x-1 text-gray-700">
+                <Shield className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium whitespace-nowrap">{t('header.authentic')}</span>
+              </div>
+
+              <div className="flex items-center space-x-1 text-gray-700">
+                <Truck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium whitespace-nowrap">{t('header.fastShipping')}</span>
+              </div>
+
+              <div className="flex items-center space-x-1 text-gray-700">
+                <RotateCcw className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium whitespace-nowrap">{t('header.refund')}</span>
+              </div>
+
+              <div className="flex items-center space-x-1 text-gray-700">
+                <Clock className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium whitespace-nowrap">{t('header.return')}</span>
+              </div>
+
+              <div className="flex items-center space-x-1 text-gray-700">
+                <DollarSign className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium whitespace-nowrap">{t('header.cheapPrice')}</span>
+              </div>
             </div>
           </div>
         </div>

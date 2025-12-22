@@ -293,6 +293,28 @@ export class StoreOrderService {
       throw new Error(error?.message || 'Không thể tải địa chỉ khách hàng');
     }
   }
+
+  /**
+   * Cancel order (for PENDING orders)
+   * PATCH /api/v1/stores/{storeId}/orders/{orderId}/cancel
+   */
+  static async cancelOrder(orderId: string, reason: string): Promise<StoreOrder> {
+    try {
+      const storeId = await this.getStoreId();
+      const endpoint = `/api/v1/stores/${storeId}/orders/${orderId}/cancel`;
+      
+      const response = await HttpInterceptor.patch<StoreOrder>(
+        endpoint,
+        { reason },
+        { userType: 'seller' }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('❌ Error cancelling order:', error);
+      throw new Error(error?.message || 'Không thể hủy đơn hàng');
+    }
+  }
 }
 
 export default StoreOrderService;

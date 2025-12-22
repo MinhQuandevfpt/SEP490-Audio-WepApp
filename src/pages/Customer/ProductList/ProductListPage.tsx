@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Filter, X } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import {
   ProductListFilter,
@@ -18,6 +19,7 @@ const ProductListPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false); // State để quản lý collapse/expand filter trên mobile
   
   const {
     products,
@@ -126,16 +128,16 @@ const ProductListPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Page Header - simple and consistent with other pages */}
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">
+        <div className="mb-4 sm:mb-6 flex items-center justify-between">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900">
             {filters.categoryName || 'Sản phẩm'}
           </h1>
         </div>
 
         {/* Search Bar */}
-        <div className="mb-8">
+        <div className="mb-6">
           <ProductListSearchBar
             onSearch={(keyword) => {
               setSearchKeyword(keyword);
@@ -146,10 +148,47 @@ const ProductListPage: React.FC = () => {
           />
         </div>
 
+        {/* Pagination - Desktop: top, Mobile: after filters */}
+        {!loading && products.length > 0 && (
+          <div className="mb-6 hidden lg:block">
+            <ProductListPagination
+              pagination={pagination}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              loading={loading}
+            />
+          </div>
+        )}
+
+        {/* Mobile Filter Toggle Button */}
+        <div className="lg:hidden mb-4">
+          <button
+            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Filter className="w-5 h-5 text-orange-500" />
+              <span className="font-medium text-gray-900">Bộ lọc</span>
+              {(filters.categoryId || filters.minPrice || filters.maxPrice || filters.minRating) && (
+                <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-600 text-xs font-medium rounded-full">
+                  Đã chọn
+                </span>
+              )}
+            </div>
+            {isFilterExpanded ? (
+              <X className="w-5 h-5 text-gray-500" />
+            ) : (
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </button>
+        </div>
+
         {/* Main Content Layout */}
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
-          {/* Left Sidebar - Filters */}
-          <aside className="lg:w-64 flex-shrink-0 order-2 lg:order-1">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
+          {/* Left Sidebar - Filters - Collapsible trên mobile, bên trái trên desktop */}
+          <aside className={`lg:w-64 flex-shrink-0 order-1 lg:order-1 ${isFilterExpanded ? 'block' : 'hidden lg:block'}`}>
             <div className="lg:sticky lg:top-6">
               <ProductListFilter
                 filters={filters}
@@ -158,16 +197,29 @@ const ProductListPage: React.FC = () => {
                 loading={loading}
                 sort={sort}
                 onSortChange={handleSortChange}
+                onClose={() => setIsFilterExpanded(false)} // Đóng filter trên mobile
               />
+              
+              {/* Pagination - Mobile: after filters */}
+              {!loading && products.length > 0 && (
+                <div className="mt-4 lg:hidden">
+                  <ProductListPagination
+                    pagination={pagination}
+                    onPageChange={handlePageChange}
+                    onPageSizeChange={handlePageSizeChange}
+                    loading={loading}
+                  />
+                </div>
+              )}
             </div>
           </aside>
 
-          {/* Right Content - Products */}
-          <main className="flex-1 min-w-0 order-1 lg:order-2">
+          {/* Right Content - Products - Hiển thị sau trên mobile, bên phải trên desktop */}
+          <main className="flex-1 min-w-0 order-2 lg:order-2">
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
               {/* Results Count */}
-              <div className="text-sm text-gray-600">
+              <div className="text-xs sm:text-sm text-gray-600">
                 {loading ? (
                   'Đang tải...'
                 ) : (
@@ -176,7 +228,7 @@ const ProductListPage: React.FC = () => {
               </div>
 
               {/* View Toggle */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
                 <ProductListViewToggle
                   viewMode={viewMode}
                   onViewModeChange={handleViewModeChange}
@@ -193,18 +245,6 @@ const ProductListPage: React.FC = () => {
               selectedProductIds={selectedProducts.map((item) => item.productId)}
               onToggleCompare={toggleProduct}
             />
-
-            {/* Pagination */}
-            {!loading && products.length > 0 && (
-              <div className="mt-8">
-                <ProductListPagination
-                  pagination={pagination}
-                  onPageChange={handlePageChange}
-                  onPageSizeChange={handlePageSizeChange}
-                  loading={loading}
-                />
-              </div>
-            )}
           </main>
         </div>
       </div>

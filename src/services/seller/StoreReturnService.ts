@@ -25,18 +25,49 @@ export class StoreReturnService {
 
     const endpoint = `/api/store/returns?${query.toString()}`;
 
-    const response = await HttpInterceptor.get<any>(endpoint, { userType: 'seller' });
-    const raw: any = response || {};
+    console.log('🔍 [StoreReturnService] Fetching returns list:', {
+      endpoint,
+      page,
+      size,
+    });
 
-    const content: ReturnRequestResponse[] = (raw.content || raw.items || []) as ReturnRequestResponse[];
+    try {
+      const response = await HttpInterceptor.get<any>(endpoint, { userType: 'seller' });
+      const raw: any = response || {};
 
-    return {
-      data: content,
-      total: raw.totalElements ?? content.length ?? 0,
-      totalPages: raw.totalPages ?? 0,
-      page: raw.page ?? raw.number ?? page,
-      size: raw.size ?? size,
-    };
+      console.log('✅ [StoreReturnService] API Response:', {
+        hasContent: !!raw.content,
+        contentLength: raw.content?.length || 0,
+        totalElements: raw.totalElements,
+        totalPages: raw.totalPages,
+        number: raw.number,
+        size: raw.size,
+      });
+
+      // Parse Spring Page format: { content: [], totalElements: number, totalPages: number, number: number, size: number }
+      const content: ReturnRequestResponse[] = (raw.content || raw.items || []) as ReturnRequestResponse[];
+
+      const result: StoreReturnListResult = {
+        data: content,
+        total: raw.totalElements ?? content.length ?? 0,
+        totalPages: raw.totalPages ?? 0,
+        page: raw.number ?? raw.page ?? page,
+        size: raw.size ?? size,
+      };
+
+      console.log('📦 [StoreReturnService] Parsed result:', {
+        dataCount: result.data.length,
+        total: result.total,
+        totalPages: result.totalPages,
+        page: result.page,
+        size: result.size,
+      });
+
+      return result;
+    } catch (error: any) {
+      console.error('❌ [StoreReturnService] Error fetching returns list:', error);
+      throw error;
+    }
   }
 
   static async approve(id: string): Promise<void> {

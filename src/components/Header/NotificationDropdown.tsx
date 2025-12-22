@@ -218,7 +218,7 @@ const NotificationDropdown: React.FC = () => {
 
       {/* Dropdown Menu */}
       {isOpen && isAuthenticated && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[600px] flex flex-col">
+        <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[600px] flex flex-col max-w-sm">
           {/* Header */}
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900">Thông báo</h3>
