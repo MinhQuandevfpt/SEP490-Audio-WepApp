@@ -2,13 +2,14 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Bot, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AIChatService from '../../services/ai/AIChatService';
-import AIProductSearchService, { type ProductSearchResponse } from '../../services/ai/AIProductSearchService';
+import AIProductSearchService, { type ProductSearchResponse, type ProductAdviseResponse } from '../../services/ai/AIProductSearchService';
 import ChatService, { type CustomerConversation } from '../../services/customer/ChatService';
 import { useChatContext } from '../../contexts/ChatContext';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerStoreService } from '../../services/customer/StoreService';
 import FirestoreChatService from '../../services/FirestoreChatService';
 import FileUploadService from '../../services/FileUploadService';
+import { ProductListService } from '../../services/customer/ProductListService';
 import { getCustomerId } from '../../utils/authHelper';
 
 interface Message {
@@ -19,7 +20,7 @@ interface Message {
   messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'MIXED';
   mediaUrl?: string | Array<{ url: string; type?: string }>;
   read?: boolean; // Message read status
-  type?: 'text' | 'product_search' | 'advice' | 'none'; // For AI agent responses
+  type?: 'text' | 'product_search' | 'advice' | 'none' | 'product_advise'; // For AI agent responses
   products?: Array<{
     effectivePrice: string;
     productId: string;
@@ -29,6 +30,12 @@ interface Message {
     summary: string;
   }>;
   productCount?: number;
+  // Product info for product_advise type
+  productInfo?: {
+    productId: string;
+    productName: string;
+    productImage: string | null;
+  };
 }
 
 type ChatMode = 'ai' | 'store' | 'list';
@@ -47,6 +54,7 @@ interface StoredAiMessage {
   mediaUrl?: Message['mediaUrl'];
   products?: Message['products'];
   productCount?: number;
+  productInfo?: Message['productInfo'];
 }
 
 interface StoredAiChatState {
@@ -83,6 +91,7 @@ const loadAiChatFromStorage = ():
       type: m.type,
       products: m.products,
       productCount: m.productCount,
+      productInfo: m.productInfo,
     }));
 
     return {
@@ -112,6 +121,7 @@ const saveAiChatToStorage = (messages: Message[], aiType: 'assistant' | 'agent')
         mediaUrl: m.mediaUrl,
         products: m.products,
         productCount: m.productCount,
+        productInfo: m.productInfo,
       })),
     };
     localStorage.setItem(getAiSessionKey(), JSON.stringify(payload));
@@ -146,11 +156,19 @@ const AIChatbot: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Array<{ file: File; preview: string; type: 'image' | 'video' }>>([]);
+  const [selectedProductForAdvise, setSelectedProductForAdvise] = useState<{
+    productId: string;
+    productName: string;
+    productImage: string | null;
+  } | null>(null); // Product selected for advise (shown in preview area)
   const [storeId, setStoreId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationWithStoreInfo[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedStore, setSelectedStore] = useState<ConversationWithStoreInfo | null>(null);
   const [zoomMedia, setZoomMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [currentProductIdForAdvise, setCurrentProductIdForAdvise] = useState<string | null>(null); // Track product ID that was advised to AI
+  const [isDraggingOver, setIsDraggingOver] = useState(false); // Track if dragging over chat window
+  const [showClearConfirm, setShowClearConfirm] = useState(false); // Show confirmation dialog for clearing chat
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -158,6 +176,7 @@ const AIChatbot: React.FC = () => {
   const mediaInputRef = useRef<HTMLInputElement>(null); // For selecting both image and video
   const selectedStoreIdRef = useRef<string | null>(null); // Track selected store ID
   const hasLoadedAiHistoryRef = useRef(false); // Ensure we only hydrate AI history once
+  const chatWindowRef = useRef<HTMLDivElement>(null); // Ref for chat window to handle drop events
 
   // Persist AI chat history in localStorage per (customerId, aiType)
   // Chỉ bắt đầu lưu sau khi đã hydrate/load lịch sử để tránh ghi đè dữ liệu cũ khi reload trang.
@@ -179,10 +198,18 @@ const AIChatbot: React.FC = () => {
       hasLoadedAiHistoryRef.current = true;
       setAiType(stored.aiType);
       setMessages(stored.messages);
+      // Note: productId is not persisted, will be reset when chat opens
+      setCurrentProductIdForAdvise(null);
+      setSelectedProductForAdvise(null);
+      chatContext.setProductIdForAdvise(null);
     } else {
       hasLoadedAiHistoryRef.current = true;
+      // Reset productId when opening fresh chat
+      setCurrentProductIdForAdvise(null);
+      setSelectedProductForAdvise(null);
+      chatContext.setProductIdForAdvise(null);
     }
-  }, [isOpen, chatMode]);
+  }, [isOpen, chatMode, chatContext]);
 
   // Check authentication
   useEffect(() => {
@@ -436,6 +463,184 @@ const AIChatbot: React.FC = () => {
     }
     // Get first 4 characters of customerId
     return customerId.substring(0, 4);
+  };
+
+  // Handle drop event when product is dropped into chat
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setIsDraggingOver(false);
+
+    // Only handle in AI Agent mode
+    if (chatMode !== 'ai' || aiType !== 'agent') {
+      // Show alert if trying to drop in wrong mode
+      if (chatMode === 'ai' && aiType === 'assistant') {
+        alert('Bạn chỉ có thể kéo thả sản phẩm vào chế độ Chat Agent. Vui lòng chuyển sang chế độ Agent.');
+      } else {
+        alert('Bạn chỉ có thể kéo thả sản phẩm vào chế độ Chat Agent.');
+      }
+      return;
+    }
+
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) {
+        // Try text/plain as fallback (for compatibility)
+        const textData = e.dataTransfer.getData('text/plain');
+        if (!textData) return;
+        
+        try {
+          const parsed = JSON.parse(textData);
+          if (parsed.productId) {
+            // Handle as product data
+            const productId = parsed.productId;
+            const productName = parsed.productName || 'sản phẩm này';
+
+            // Fetch product info to get image
+            let productImage: string | null = null;
+            try {
+              const productResponse = await ProductListService.getProductById(productId);
+              if (productResponse?.data) {
+                productImage = productResponse.data.images && productResponse.data.images.length > 0
+                  ? productResponse.data.images[0]
+                  : productResponse.data.thumbnailUrl || null;
+              }
+            } catch (error) {
+              console.warn('[AIChat] Failed to fetch product image:', error);
+            }
+
+            // Save product to preview area
+            setSelectedProductForAdvise({
+              productId,
+              productName,
+              productImage,
+            });
+
+            setCurrentProductIdForAdvise(productId);
+            chatContext.setProductIdForAdvise(productId);
+
+            setTimeout(() => {
+              inputRef.current?.focus();
+            }, 100);
+            return;
+          }
+        } catch {
+          // Not valid JSON, ignore
+          return;
+        }
+        return;
+      }
+
+      const dropData = JSON.parse(data);
+      if (dropData.type !== 'product' || !dropData.productId) {
+        return;
+      }
+
+      const productId = dropData.productId;
+      const productName = dropData.productName || 'sản phẩm này';
+
+      // Prevent adding the same product multiple times
+      if (selectedProductForAdvise?.productId === productId) {
+        // Product already selected, just focus input
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+        return;
+      }
+
+      // Fetch product info to get image
+      let productImage: string | null = null;
+      try {
+        const productResponse = await ProductListService.getProductById(productId);
+        if (productResponse?.data) {
+          // Get first image from images array or thumbnailUrl
+          productImage = productResponse.data.images && productResponse.data.images.length > 0
+            ? productResponse.data.images[0]
+            : productResponse.data.thumbnailUrl || null;
+        }
+      } catch (error) {
+        console.warn('[AIChat] Failed to fetch product image:', error);
+        // Continue without image
+      }
+
+      // Save product to preview area (will be advised when user sends message)
+      setSelectedProductForAdvise({
+        productId,
+        productName,
+        productImage,
+      });
+
+      // Set productId for tracking
+      setCurrentProductIdForAdvise(productId);
+      chatContext.setProductIdForAdvise(productId);
+
+      console.log('========================================');
+      console.log('📦 [AIChat] Product dropped into chat');
+      console.log('========================================');
+      console.log('Product Info:', {
+        productId,
+        productName,
+        productImage,
+      });
+      console.log('Note: API /api/ai/products/api/products/advise will be called when you send a message');
+      console.log('========================================\n');
+
+      // Auto-focus input after drop
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    } catch (error: any) {
+      console.error('Error handling product drop:', error);
+      setIsDraggingOver(false);
+      
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Xin lỗi, không thể thêm sản phẩm vào ngữ cảnh. Vui lòng thử lại.',
+        timestamp: new Date(),
+        type: 'text',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only allow drop in AI Agent mode
+    if (chatMode === 'ai' && aiType === 'agent') {
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDraggingOver(true);
+    } else {
+      e.dataTransfer.dropEffect = 'none';
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only reset if leaving the chat window (not just moving to child element)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Only show visual feedback in AI Agent mode
+    if (chatMode === 'ai' && aiType === 'agent') {
+      setIsDraggingOver(true);
+    }
   };
 
   // Auto-scroll to bottom
@@ -838,11 +1043,18 @@ const AIChatbot: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    // Check if there's text or files to send
+    // Check if there's text, files, or product to send
     const hasText = inputMessage.trim().length > 0;
     const hasFiles = selectedFiles.length > 0;
+    const hasProduct = selectedProductForAdvise !== null;
 
-    if (!hasText && !hasFiles) return;
+    // For AI Agent mode, require either text or product
+    if (chatMode === 'ai' && aiType === 'agent') {
+      if (!hasText && !hasProduct) return;
+    } else {
+      // For other modes, require text or files
+      if (!hasText && !hasFiles) return;
+    }
 
     const messageToSend = inputMessage.trim();
     const filesToSend = [...selectedFiles];
@@ -861,6 +1073,13 @@ const AIChatbot: React.FC = () => {
 
         setIsLoading(true);
         
+        // Save product info before clearing selectedProductForAdvise
+        const productInfoForMessage = selectedProductForAdvise ? {
+          productId: selectedProductForAdvise.productId,
+          productName: selectedProductForAdvise.productName,
+          productImage: selectedProductForAdvise.productImage,
+        } : undefined;
+        
         // Add user message immediately for AI chat
         const userMessage: Message = {
           id: Date.now().toString(),
@@ -868,18 +1087,128 @@ const AIChatbot: React.FC = () => {
           content: messageToSend,
           timestamp: new Date(),
           type: 'text',
+          productInfo: productInfoForMessage, // Include product info if attached
         };
         setMessages((prev) => [...prev, userMessage]);
         
         // Check AI type: assistant or agent
         if (aiType === 'agent') {
-          // Agent: Product Search API
+          const userId = getAgentUserId();
+          
+          // STEP 1: If there's a selected product, advise AI about it FIRST
+          // This must be called BEFORE searchProducts to set the product context
+          if (selectedProductForAdvise && selectedProductForAdvise.productId !== currentProductIdForAdvise) {
+            console.log('========================================');
+            console.log('🎯 [AIChat] STEP 1: Calling adviseProduct API');
+            console.log('========================================');
+            console.log('📋 Context Before Advise:');
+            console.log('  - User ID:', userId);
+            console.log('  - Product ID:', selectedProductForAdvise.productId);
+            console.log('  - Product Name:', selectedProductForAdvise.productName);
+            console.log('  - Product Image:', selectedProductForAdvise.productImage);
+            console.log('  - Current Product ID (advised):', currentProductIdForAdvise);
+            console.log('  - Will call adviseProduct API: YES');
+            console.log('----------------------------------------');
+            
+            try {
+              const adviseResponse: ProductAdviseResponse = await AIProductSearchService.adviseProduct({
+                userId,
+                productId: selectedProductForAdvise.productId,
+              });
+
+              console.log('✅ [AIChat] STEP 1 COMPLETED: Product advised successfully');
+              console.log('📋 Advise Response Summary:');
+              console.log('  - Message:', adviseResponse.message);
+              console.log('  - Product ID:', adviseResponse.product?.productId);
+              console.log('  - Product Name:', adviseResponse.product?.name);
+              console.log('  - Brand Name:', adviseResponse.product?.brandName);
+              console.log('  - Categories Count:', adviseResponse.product?.categories?.length || 0);
+              console.log('  - Attributes Count:', adviseResponse.product?.attributes?.length || 0);
+              console.log('========================================\n');
+
+              // Update currentProductIdForAdvise to track that this product has been advised
+              setCurrentProductIdForAdvise(selectedProductForAdvise.productId);
+              chatContext.setProductIdForAdvise(selectedProductForAdvise.productId);
+
+              // Add system message showing product was added to context
+              const systemMessageContent = adviseResponse.message 
+                ? `✅ ${adviseResponse.message}`
+                : `✅ Đã thêm sản phẩm "${selectedProductForAdvise.productName}" vào ngữ cảnh.`;
+              
+              const systemMessage: Message = {
+                id: (Date.now() - 1).toString(),
+                role: 'assistant',
+                content: systemMessageContent,
+                timestamp: new Date(),
+                type: 'text',
+              };
+
+              setMessages((prev) => [...prev, systemMessage]);
+            } catch (error: any) {
+              console.error('========================================');
+              console.error('❌ [AIChat] STEP 1 FAILED: Error advising product');
+              console.error('========================================');
+              console.error('Error Details:');
+              console.error('  - Status:', error?.status || error?.response?.status || 'Unknown');
+              console.error('  - Error Object:', error);
+              console.error('  - Error Data:', error?.data || error?.response?.data || 'No error data');
+              console.error('  - Error Message:', error?.message || 'Unknown error');
+              console.error('⚠️  Continuing with searchProducts anyway...');
+              console.error('========================================\n');
+              // Continue with search even if advise fails
+            }
+          } else {
+            console.log('========================================');
+            console.log('ℹ️  [AIChat] STEP 1 SKIPPED: adviseProduct not called');
+            console.log('========================================');
+            console.log('📋 Skip Reason:');
+            console.log('  - Has Selected Product:', !!selectedProductForAdvise);
+            console.log('  - Selected Product ID:', selectedProductForAdvise?.productId || 'N/A');
+            console.log('  - Current Product ID (advised):', currentProductIdForAdvise || 'N/A');
+            console.log('  - Is Same Product:', selectedProductForAdvise?.productId === currentProductIdForAdvise);
+            console.log('  - Decision: Product already advised or no product selected');
+            console.log('========================================\n');
+          }
+
+          // Clear selected product from preview after sending (but keep currentProductIdForAdvise for context)
+          setSelectedProductForAdvise(null);
+
+          // STEP 2: Agent: Product Search API
+          // Note: API will automatically use productId from previous adviseProduct call (via userId)
+          console.log('========================================');
+          console.log('💬 [AIChat] STEP 2: Calling searchProducts API');
+          console.log('========================================');
+          console.log('📋 Context Before Search:');
+          console.log('  - User ID:', userId);
+          console.log('  - Question:', messageToSend);
+          console.log('  - Current Product ID (advised):', currentProductIdForAdvise || 'N/A');
+          console.log('  - Has Product Context:', !!currentProductIdForAdvise);
+          console.log('  - Note: If product was advised in STEP 1, AI will use it as context');
+          console.log('----------------------------------------');
+          
           try {
-            const userId = getAgentUserId();
             const response: ProductSearchResponse = await AIProductSearchService.searchProducts({
               userId,
               question: messageToSend,
             });
+            
+            console.log('✅ [AIChat] STEP 2 COMPLETED: Search completed');
+            console.log('📋 Search Response Summary:');
+            console.log('  - Mode:', response.mode);
+            console.log('  - Question:', response.question);
+            if (response.mode === 'product_search' && response.result) {
+              console.log('  - Products Found:', response.result.count);
+              console.log('  - Product IDs:', response.result.productIds);
+              console.log('  - Message:', response.result.message);
+            } else if (response.mode === 'advice' && response.reply) {
+              console.log('  - Advice Mode: YES');
+              console.log('  - Reply Length:', response.reply?.length || 0, 'characters');
+              console.log('  - Reply Preview:', response.reply?.substring(0, 100) + '...');
+            } else if (response.mode === 'none' && response.reply) {
+              console.log('  - None Mode: YES (out of scope)');
+              console.log('  - Reply:', response.reply);
+            }
+            console.log('========================================\n');
 
             // Handle different response modes
             let assistantMessage: Message;
@@ -1324,29 +1653,48 @@ const AIChatbot: React.FC = () => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleRemoveProduct = () => {
+    setSelectedProductForAdvise(null);
+    setCurrentProductIdForAdvise(null);
+    chatContext.setProductIdForAdvise(null);
+  };
+
 
   const handleClearChat = () => {
-    if (window.confirm('Bạn có chắc muốn xóa toàn bộ cuộc trò chuyện?')) {
-      if (chatMode === 'ai') {
-        const welcomeMessage = aiType === 'agent' 
-          ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-          : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
-        setMessages([{
-          id: '0',
-          role: 'assistant',
-          content: welcomeMessage,
-          timestamp: new Date(),
-          type: 'text',
-        }]);
-      } else {
-        setMessages([{
-          id: '0',
-          role: 'assistant',
-          content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
-          timestamp: new Date(),
-        }]);
-      }
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearChat = () => {
+    setShowClearConfirm(false);
+    
+    if (chatMode === 'ai') {
+      // Reset productId and selected product when clearing chat
+      setCurrentProductIdForAdvise(null);
+      setSelectedProductForAdvise(null);
+      chatContext.setProductIdForAdvise(null);
+      
+      const welcomeMessage = aiType === 'agent' 
+        ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
+        : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+      setMessages([{
+        id: '0',
+        role: 'assistant',
+        content: welcomeMessage,
+        timestamp: new Date(),
+        type: 'text',
+      }]);
+    } else {
+      setMessages([{
+        id: '0',
+        role: 'assistant',
+        content: 'Xin chào! Cửa hàng có thể giúp gì cho bạn?',
+        timestamp: new Date(),
+      }]);
     }
+  };
+
+  const cancelClearChat = () => {
+    setShowClearConfirm(false);
   };
 
   const handleProductClick = (productId: string) => {
@@ -1355,6 +1703,13 @@ const AIChatbot: React.FC = () => {
 
   const handleAiTypeChange = (type: 'assistant' | 'agent') => {
     setAiType(type);
+
+    // Reset productId and selected product when switching AI type
+    if (type === 'assistant') {
+      setCurrentProductIdForAdvise(null);
+      setSelectedProductForAdvise(null);
+      chatContext.setProductIdForAdvise(null);
+    }
 
     const assistantWelcome =
       'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
@@ -1474,7 +1829,18 @@ const AIChatbot: React.FC = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-[900px] h-[700px] bg-white rounded-2xl shadow-2xl flex z-50 border border-gray-200 overflow-hidden">
+        <div 
+          ref={chatWindowRef}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          className={`fixed bottom-6 right-6 w-[900px] h-[700px] bg-white rounded-2xl shadow-2xl flex z-50 border-2 overflow-hidden transition-all ${
+            isDraggingOver && chatMode === 'ai' && aiType === 'agent'
+              ? 'border-orange-500 border-dashed bg-orange-50'
+              : 'border-gray-200'
+          }`}
+        >
           {/* Left Sidebar - Conversations List (only show in list mode) */}
           {chatMode === 'list' && (
             <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
@@ -1631,7 +1997,13 @@ const AIChatbot: React.FC = () => {
                           {chatMode === 'ai' ? (aiType === 'agent' ? 'Chat Agent' : 'Trợ lý AI') : 'Tin nhắn của bạn'}
                         </h3>
                         <p className="text-xs text-white/80">
-                          {chatMode === 'ai' ? (aiType === 'agent' ? 'Tư vấn sản phẩm âm thanh' : 'Tech Hub Assistant') : 'Chọn cửa hàng để chat'}
+                          {chatMode === 'ai' 
+                            ? (aiType === 'agent' 
+                              ? (currentProductIdForAdvise 
+                                ? 'Đang tư vấn về sản phẩm' 
+                                : 'Tư vấn sản phẩm âm thanh')
+                              : 'Tech Hub Assistant') 
+                            : 'Chọn cửa hàng để chat'}
                         </p>
                       </div>
                       {/* AI Type Selector - Only show in AI mode */}
@@ -2013,45 +2385,79 @@ const AIChatbot: React.FC = () => {
                   </div>
                 ) : (
                   // Text message only - with background bubble
-                <div
-                  className={`max-w-[75%] min-w-0 rounded-2xl px-4 py-2 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
-                      : message.type === 'none'
-                      ? 'bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-tl-none'
-                      : message.type === 'advice'
-                      ? 'bg-blue-50 text-blue-800 border border-blue-200 rounded-tl-none'
-                      : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
-                  }`}
-                  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                    {message.content}
-                  </p>
-                  <div className="flex items-center gap-1 mt-1">
-                  <span
-                      className={`text-xs ${
-                      message.role === 'user' 
-                        ? 'text-blue-100' 
-                        : message.type === 'none'
-                        ? 'text-yellow-600'
-                        : message.type === 'advice'
-                        ? 'text-blue-600'
-                        : 'text-gray-400'
-                    }`}
-                  >
-                    {message.timestamp.toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                    {message.role === 'user' && (
-                      <span className="text-xs text-blue-100">
-                        {message.read ? '✓✓' : '✓'}
-                      </span>
+                  <div className="max-w-[75%] min-w-0 space-y-2">
+                    {/* Show product info if attached (for user messages) */}
+                    {message.role === 'user' && message.productInfo && (
+                      <div className="bg-white rounded-lg border border-blue-200 p-2 flex items-center gap-2 shadow-sm">
+                        {/* Product Image */}
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                          {message.productInfo.productImage ? (
+                            <img
+                              src={message.productInfo.productImage}
+                              alt={message.productInfo.productName}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = '/images/placeholder-product.png';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                              <span className="text-lg text-gray-400">🎧</span>
+                            </div>
+                          )}
+                        </div>
+                        {/* Product Name */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-700 line-clamp-1">
+                            {message.productInfo.productName}
+                          </p>
+                          <p className="text-xs text-gray-500">Đã đính kèm sản phẩm</p>
+                        </div>
+                      </div>
                     )}
-                </div>
-              </div>
+                    
+                    {/* Message Bubble */}
+                    <div
+                      className={`rounded-2xl px-4 py-2 ${
+                        message.role === 'user'
+                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-none'
+                          : message.type === 'none'
+                          ? 'bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-tl-none'
+                          : message.type === 'advice'
+                          ? 'bg-blue-50 text-blue-800 border border-blue-200 rounded-tl-none'
+                          : 'bg-white text-gray-800 rounded-tl-none shadow-md border border-gray-100'
+                      }`}
+                      style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                    >
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                        {message.content}
+                      </p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span
+                          className={`text-xs ${
+                            message.role === 'user' 
+                              ? 'text-blue-100' 
+                              : message.type === 'none'
+                              ? 'text-yellow-600'
+                              : message.type === 'advice'
+                              ? 'text-blue-600'
+                              : 'text-gray-400'
+                          }`}
+                        >
+                          {message.timestamp.toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        {message.role === 'user' && (
+                          <span className="text-xs text-blue-100">
+                            {message.read ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
                   );
@@ -2073,7 +2479,52 @@ const AIChatbot: React.FC = () => {
           {/* Input Area */}
             {(chatMode === 'ai' || (chatMode === 'list' && selectedStore)) && (
               <div className="border-t border-gray-200 bg-white">
-            {/* Preview area */}
+            {/* Preview area - Product for AI Agent */}
+            {chatMode === 'ai' && aiType === 'agent' && selectedProductForAdvise && (
+              <div className="p-3 border-b border-gray-200 bg-orange-50">
+                <div className="flex items-center gap-3">
+                  {/* Product Image */}
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                    {selectedProductForAdvise.productImage ? (
+                      <img
+                        src={selectedProductForAdvise.productImage}
+                        alt={selectedProductForAdvise.productName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = '/images/placeholder-product.png';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                        <span className="text-2xl text-gray-400">🎧</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Product Info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-sm text-gray-900 line-clamp-2 mb-1">
+                      {selectedProductForAdvise.productName}
+                    </h4>
+                    <p className="text-xs text-orange-600 font-medium">
+                      Đã đính kèm - sẽ hỏi về sản phẩm này
+                    </p>
+                  </div>
+                  
+                  {/* Remove button */}
+                  <button
+                    onClick={handleRemoveProduct}
+                    className="flex-shrink-0 p-1.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                    title="Xóa sản phẩm"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Preview area - Files for Store Chat */}
             {selectedFiles.length > 0 && (
               <div className="p-3 border-b border-gray-200 bg-blue-50">
                 <div className="flex flex-wrap gap-2">
@@ -2191,7 +2642,12 @@ const AIChatbot: React.FC = () => {
               />
               <button
                 onClick={handleSendMessage}
-                disabled={(!inputMessage.trim() && selectedFiles.length === 0) || (chatMode === 'ai' && isLoading) || isUploading}
+                disabled={
+                  (chatMode === 'ai' && aiType === 'agent' 
+                    ? (!inputMessage.trim() && !selectedProductForAdvise)
+                    : (!inputMessage.trim() && selectedFiles.length === 0)
+                  ) || (chatMode === 'ai' && isLoading) || isUploading
+                }
                 className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-2.5 rounded-full hover:shadow-lg hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 aria-label="Send message"
               >
@@ -2234,6 +2690,48 @@ const AIChatbot: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
             />
           )}
+        </div>
+      )}
+
+      {/* Clear Chat Confirmation Dialog */}
+      {showClearConfirm && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50 p-4"
+          onClick={cancelClearChat}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 transform transition-all duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center mb-4">
+              <div className="bg-orange-100 rounded-full p-3">
+                <Trash2 className="w-8 h-8 text-orange-600" />
+              </div>
+            </div>
+            
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+              Xác nhận xóa cuộc trò chuyện
+            </h3>
+            
+            <p className="text-sm text-gray-600 text-center mb-6">
+              Bạn có chắc muốn xóa toàn bộ cuộc trò chuyện? Hành động này không thể hoàn tác.
+            </p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={cancelClearChat}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={confirmClearChat}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg font-medium hover:from-orange-600 hover:to-red-600 transition-colors shadow-md"
+              >
+                Xóa
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

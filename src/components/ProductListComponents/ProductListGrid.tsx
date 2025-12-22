@@ -49,13 +49,37 @@ export const ProductListGrid: React.FC<ProductListGridProps> = ({
           navigate(`/product/${productId}`);
         };
 
+        // Drag handlers for dropping product into chat
+        const handleDragStart = (e: React.DragEvent) => {
+          e.dataTransfer.setData('application/json', JSON.stringify({
+            type: 'product',
+            productId: productId,
+            productName: product.name,
+          }));
+          e.dataTransfer.effectAllowed = 'copy';
+          // Add visual feedback
+          if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '0.5';
+          }
+        };
+
+        const handleDragEnd = (e: React.DragEvent) => {
+          if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '1';
+          }
+        };
+
         return (
           <div
             key={key}
             onClick={handleCardClick}
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             className={`bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow cursor-pointer flex flex-col h-full ${
               isSelected ? 'ring-2 ring-orange-400' : ''
             }`}
+            title="Kéo thả vào khung chat để hỏi AI về sản phẩm này"
           >
             <div className="w-full h-48 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
               {firstImage ? (

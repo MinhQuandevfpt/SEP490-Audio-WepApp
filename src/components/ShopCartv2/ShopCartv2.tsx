@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react';
 import useCart from '../../hooks/useCart';
 import { ProductListService, type Product } from '../../services/customer/ProductListService';
 import ProductVoucherService from '../../services/customer/ProductVoucherService';
+import { showWarning } from '../../utils/notification';
 
 /**
  * ShopCartV2
@@ -42,6 +43,7 @@ const ShopCartV2: React.FC = () => {
     startTime: string;
     endTime: string;
     scopeType?: string; // 'ALL_SHOP_VOUCHER' | 'PRODUCT_VOUCHER'
+    campaignType?: string; // 'MEGA_SALE' | 'FAST_SALE' (for platform vouchers)
   };
   const [storeVouchers, setStoreVouchers] = useState<Map<string, ShopVoucher[]>>(
     () => new Map()
@@ -419,6 +421,31 @@ const ShopCartV2: React.FC = () => {
     return Array.from(groups.values());
   }, [items, productCache]);
 
+  // Helper function: Tính subtotal của store (giá gốc) để kiểm tra minOrderValue
+  const getStoreBaseSubtotal = useMemo(() => {
+    const map = new Map<string, number>();
+    storeGroups.forEach((group) => {
+      const storeItems = selectedItems.filter((item) => {
+        if (item.type !== 'PRODUCT') return false;
+        const product = productCache.get(item.refId);
+        return product?.storeId === group.storeId;
+      });
+      const subtotal = storeItems.reduce(
+        (sum, item) => sum + (item.baseUnitPrice ?? item.unitPrice) * item.quantity,
+        0
+      );
+      map.set(group.storeId, subtotal);
+    });
+    return map;
+  }, [storeGroups, selectedItems, productCache]);
+
+  // Helper function: Kiểm tra voucher có đủ điều kiện minOrderValue không
+  const isVoucherEligible = (voucher: ShopVoucher, storeId: string): boolean => {
+    if (!voucher.minOrderValue) return true; // Không có minOrderValue thì luôn eligible
+    const storeBaseSubtotal = getStoreBaseSubtotal.get(storeId) ?? 0;
+    return storeBaseSubtotal >= voucher.minOrderValue;
+  };
+
   // Tổng giá gốc trước khi áp dụng giảm nền tảng (chỉ tính trên item được chọn)
   const baseSubtotal = useMemo(
     () =>
@@ -453,7 +480,10 @@ const ShopCartV2: React.FC = () => {
       const voucher = vouchers.find(
         (v) => v.shopVoucherId === voucherInfo.shopVoucherId
       );
-      if (!voucher) return;
+      if (!voucher) {
+        console.warn(`[ShopCartV2] Voucher not found: ${voucherInfo.shopVoucherId} for store ${storeId}`);
+        return;
+      }
 
       // Tính subtotal của store này (chỉ tính items được chọn)
       const storeItems = selectedItems.filter((item) => {
@@ -462,26 +492,51 @@ const ShopCartV2: React.FC = () => {
         return product?.storeId === storeId;
       });
 
+      if (storeItems.length === 0) {
+        console.warn(`[ShopCartV2] No items found for store ${storeId}`);
+        return;
+      }
+
+      // Tính subtotal dựa trên giá SAU khi áp dụng platform campaign (unitPrice)
+      // Đây là giá mà customer thực sự phải trả trước khi áp dụng shop voucher
       const storeSubtotal = storeItems.reduce(
         (sum, item) => sum + item.unitPrice * item.quantity,
         0
       );
 
-      // Kiểm tra minOrderValue
-      if (voucher.minOrderValue && storeSubtotal < voucher.minOrderValue) {
+      // Tính subtotal gốc (baseUnitPrice) để kiểm tra minOrderValue
+      // Nếu voucher yêu cầu minOrderValue, kiểm tra trên giá gốc
+      const storeBaseSubtotal = storeItems.reduce(
+        (sum, item) => sum + (item.baseUnitPrice ?? item.unitPrice) * item.quantity,
+        0
+      );
+
+      // Kiểm tra minOrderValue (dùng giá gốc để kiểm tra)
+      if (voucher.minOrderValue && storeBaseSubtotal < voucher.minOrderValue) {
+        console.log(
+          `[ShopCartV2] Store ${storeId} subtotal ${storeBaseSubtotal} < minOrderValue ${voucher.minOrderValue}, skipping voucher`
+        );
         return;
       }
 
-      // Tính discount
+      // Tính discount trên giá SAU platform campaign (unitPrice)
       if (voucher.discountPercent) {
         const discount = (storeSubtotal * voucher.discountPercent) / 100;
-        total += voucher.maxDiscountValue
+        const finalDiscount = voucher.maxDiscountValue
           ? Math.min(discount, voucher.maxDiscountValue)
           : discount;
+        total += finalDiscount;
+        console.log(
+          `[ShopCartV2] Applied shop voucher ${voucher.code}: ${voucher.discountPercent}% on ${storeSubtotal} = ${finalDiscount}`
+        );
       } else if (voucher.discountValue) {
         total += voucher.discountValue;
+        console.log(
+          `[ShopCartV2] Applied shop voucher ${voucher.code}: fixed ${voucher.discountValue}`
+        );
       }
     });
+    console.log(`[ShopCartV2] Total shop voucher discount: ${total}`);
     return total;
   }, [selectedShopVouchers, storeVouchers, selectedItems, productCache]);
 
@@ -537,20 +592,37 @@ const ShopCartV2: React.FC = () => {
   const handleSelectShopVoucher = (
     storeId: string,
     shopVoucherId: string,
-    code: string
+    code: string,
+    voucher: ShopVoucher
   ) => {
+    // Kiểm tra minOrderValue trước khi chọn
+    if (!isVoucherEligible(voucher, storeId)) {
+      const storeBaseSubtotal = getStoreBaseSubtotal.get(storeId) ?? 0;
+      const missingAmount = voucher.minOrderValue! - storeBaseSubtotal;
+      showWarning(
+        `Voucher "${voucher.title}" yêu cầu đơn hàng tối thiểu ${formatCurrency(voucher.minOrderValue!)}. Bạn cần thêm ${formatCurrency(missingAmount)} nữa để sử dụng voucher này.`,
+        'Không thể áp dụng voucher',
+        5000
+      );
+      return;
+    }
+
+    console.log('[ShopCartV2] Selecting shop voucher:', { storeId, shopVoucherId, code });
     setSelectedShopVouchers((prev) => {
       const next = new Map(prev);
       next.set(storeId, { shopVoucherId, code });
+      console.log('[ShopCartV2] Updated selectedShopVouchers:', Array.from(next.entries()));
       return next;
     });
   };
 
   // Handler để xóa shop voucher
   const handleRemoveShopVoucher = (storeId: string) => {
+    console.log('[ShopCartV2] Removing shop voucher for store:', storeId);
     setSelectedShopVouchers((prev) => {
       const next = new Map(prev);
       next.delete(storeId);
+      console.log('[ShopCartV2] Updated selectedShopVouchers:', Array.from(next.entries()));
       return next;
     });
   };
@@ -775,8 +847,13 @@ const ShopCartV2: React.FC = () => {
                             handleSelectShopVoucher(
                               group.storeId,
                               voucher.shopVoucherId,
-                              voucher.code
+                              voucher.code,
+                              voucher
                             );
+                            // Nếu không đủ điều kiện, reset về giá trị rỗng
+                            if (!isVoucherEligible(voucher, group.storeId)) {
+                              e.target.value = '';
+                            }
                           }
                         } else {
                           // Xóa voucher đã chọn
@@ -793,12 +870,23 @@ const ShopCartV2: React.FC = () => {
                             : voucher.discountValue
                             ? `-${formatCurrency(voucher.discountValue)}`
                             : '';
+                        const isEligible = isVoucherEligible(voucher, group.storeId);
+                        const eligibilityText = !isEligible && voucher.minOrderValue
+                          ? ` (Cần ${formatCurrency(voucher.minOrderValue)})`
+                          : '';
+                        
                         return (
                           <option
                             key={voucher.shopVoucherId}
                             value={voucher.shopVoucherId}
+                            disabled={!isEligible}
+                            style={{
+                              color: isEligible ? 'inherit' : '#9ca3af',
+                              cursor: isEligible ? 'pointer' : 'not-allowed',
+                            }}
                           >
                             {voucher.title} {discountText && `(${discountText})`}
+                            {eligibilityText}
                           </option>
                         );
                       })}

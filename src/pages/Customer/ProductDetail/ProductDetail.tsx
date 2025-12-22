@@ -312,12 +312,38 @@ const ProductDetail: React.FC = () => {
   const totalStock = product.stockQuantity ?? 0;
   const isInStock = totalStock > 0;
 
+  // Drag handlers for dropping product into chat
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      type: 'product',
+      productId: product.productId,
+      productName: product.name,
+    }));
+    e.dataTransfer.effectAllowed = 'copy';
+    // Add visual feedback
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  };
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
      
-          <div className="lg:col-span-5">
+          <div 
+            className="lg:col-span-5"
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            title="Kéo thả vào khung chat để hỏi AI về sản phẩm này"
+          >
             <ImageGallery 
               images={images}
               videoUrl={product.videoUrl}
@@ -326,7 +352,13 @@ const ProductDetail: React.FC = () => {
           </div>
 
           
-          <div className="lg:col-span-7 space-y-4">
+          <div 
+            className="lg:col-span-7 space-y-4"
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            title="Kéo thả vào khung chat để hỏi AI về sản phẩm này"
+          >
             <TitlePrice 
               name={product.name}
               brand={product.brandName}
