@@ -61,11 +61,24 @@ export class AIProductSearchService {
   }
 
   /**
+   * Lấy access token CUSTOMER từ localStorage để debug (cURL)
+   */
+  private static getCustomerTokenForDebug(): string | null {
+    const keys = ['CUSTOMER_token', 'customer_token'];
+    for (const key of keys) {
+      const token = localStorage.getItem(key);
+      if (token) return token;
+    }
+    return null;
+  }
+
+  /**
    * Search products using AI agent
    * POST /api/ai/products/search
    */
   static async searchProducts(request: ProductSearchRequest): Promise<ProductSearchResponse> {
     const endpoint = `${this.BASE_URL}/products/search`;
+    const token = this.getCustomerTokenForDebug();
     
     console.log('========================================');
     console.log('🔍 [API] POST /api/ai/products/search');
@@ -79,10 +92,26 @@ export class AIProductSearchService {
       'userType': 'customer',
     });
     console.log('----------------------------------------');
+    console.log('📎 cURL (debug, có kèm token nếu lấy được):');
+    console.log(
+      [
+        "curl -X 'POST' \\",
+        `  '${endpoint}' \\`,
+        "  -H 'accept: */*' \\",
+        "  -H 'Content-Type: application/json' \\",
+        token
+          ? `  -H 'Authorization: Bearer ${token}' \\`
+          : "  -H 'Authorization: Bearer <CUSTOMER_TOKEN>' \\",
+        `  -d '${JSON.stringify(request, null, 2)}'`,
+        '',
+      ].join('\n'),
+    );
+    console.log('----------------------------------------');
     
     try {
       const response = await HttpInterceptor.post<ProductSearchResponse>(endpoint, request, {
         userType: 'customer',
+        credentials: 'include', // ⚠️ QUAN TRỌNG: Gửi cookies với request (BE yêu cầu)
       });
       
       console.log('📥 RESPONSE:');
@@ -103,20 +132,17 @@ export class AIProductSearchService {
 
   /**
    * Advise AI agent about a product (save product context for future questions)
-   * POST /api/ai/products/api/products/advise?userId={userId}&productId={productId}
-   * Note: URL path contains duplicate /api/products/api/products/advise (as per actual API)
+   * POST /api/ai/products/advise?userId={userId}&productId={productId}
    */
   static async adviseProduct(request: ProductAdviseRequest): Promise<ProductAdviseResponse> {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
-    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-    // URL structure: /api/ai/products/api/products/advise (note the duplicate /api/products)
-    const endpoint = `${apiBase}/ai/products/api/products/advise?userId=${encodeURIComponent(request.userId)}&productId=${encodeURIComponent(request.productId)}`;
+    const endpoint = `${this.BASE_URL}/products/advise?userId=${encodeURIComponent(request.userId)}&productId=${encodeURIComponent(request.productId)}`;
+    const token = this.getCustomerTokenForDebug();
     
     console.log('========================================');
-    console.log('📌 [API] POST /api/ai/products/api/products/advise');
+    console.log('📌 [API] POST /api/ai/products/advise');
     console.log('========================================');
     console.log('📤 REQUEST:');
-    console.log('  Full URL:', endpoint);
+    console.log('  URL:', endpoint);
     console.log('  Method: POST');
     console.log('  Query Params:', JSON.stringify({
       userId: request.userId,
@@ -129,11 +155,26 @@ export class AIProductSearchService {
       'accept': '*/*',
     }, null, 2));
     console.log('----------------------------------------');
+    console.log('📎 cURL (debug, có kèm token nếu lấy được):');
+    console.log(
+      [
+        "curl -X 'POST' \\",
+        `  '${endpoint}' \\`,
+        "  -H 'accept: */*' \\",
+        token
+          ? `  -H 'Authorization: Bearer ${token}' \\`
+          : "  -H 'Authorization: Bearer <CUSTOMER_TOKEN>' \\",
+        "  -d ''",
+        '',
+      ].join('\n'),
+    );
+    console.log('----------------------------------------');
     console.log('⏳ Calling API...');
     
     try {
       const response = await HttpInterceptor.post<ProductAdviseResponse>(endpoint, {}, {
         userType: 'customer',
+        credentials: 'include', // ⚠️ QUAN TRỌNG: Gửi cookies với request (BE yêu cầu)
       });
       
       console.log('📥 RESPONSE:');

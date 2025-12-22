@@ -947,6 +947,7 @@ const AdminProductManagement: React.FC = () => {
           >
             Duyệt ({selectedRowKeys.length})
           </Button>
+          
           <Button
             danger
             icon={<CloseOutlined />}
@@ -956,6 +957,7 @@ const AdminProductManagement: React.FC = () => {
           >
             Không duyệt ({selectedRowKeys.length})
           </Button>
+
         </div>
         
         <Table
@@ -974,11 +976,13 @@ const AdminProductManagement: React.FC = () => {
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
             getCheckboxProps: (record) => {
-              // Chỉ cho phép chọn sản phẩm ở trạng thái DRAFT để duyệt
-              // Disable checkbox nếu sản phẩm đã được duyệt hoặc từ chối
-              const isDraft = record.status === 'DRAFT';
+              // Chỉ cho phép chọn sản phẩm ở các trạng thái CHƯA duyệt chính thức
+              // Ví dụ: DRAFT, PENDING, PENDING_APPROVAL
+              // Các trạng thái khác (ACTIVE, INACTIVE, SUSPENDED, v.v.) sẽ bị disable
+              const selectableStatuses = ['DRAFT', 'PENDING_APPROVAL'];
+              const isSelectable = selectableStatuses.includes(record.status);
               return {
-                disabled: !isDraft,
+                disabled: !isSelectable,
               };
             },
           }}

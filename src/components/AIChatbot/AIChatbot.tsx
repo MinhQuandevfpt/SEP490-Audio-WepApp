@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Bot, X, Loader2, Trash2, Store, Sparkles, MessageCircle, MessageSquare, Image, Video, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import AIChatService from '../../services/ai/AIChatService';
 import AIProductSearchService, { type ProductSearchResponse, type ProductAdviseResponse } from '../../services/ai/AIProductSearchService';
 import ChatService, { type CustomerConversation } from '../../services/customer/ChatService';
 import { useChatContext } from '../../contexts/ChatContext';
@@ -58,7 +57,8 @@ interface StoredAiMessage {
 }
 
 interface StoredAiChatState {
-  aiType: 'assistant' | 'agent';
+  // Giữ lại cho backward compatibility, nhưng FE giờ luôn dùng Agent
+  aiType?: 'assistant' | 'agent';
   messages: StoredAiMessage[];
 }
 
@@ -73,7 +73,7 @@ const getAiSessionKey = (): string => {
 };
 
 const loadAiChatFromStorage = ():
-  | { aiType: 'assistant' | 'agent'; messages: Message[] }
+  | Message[]
   | null => {
   try {
     const raw = localStorage.getItem(getAiSessionKey());
@@ -94,20 +94,17 @@ const loadAiChatFromStorage = ():
       productInfo: m.productInfo,
     }));
 
-    return {
-      aiType: parsed.aiType === 'agent' ? 'agent' : 'assistant',
-      messages,
-    };
+    return messages;
   } catch (error) {
     console.error('[AIChat] Failed to load chat history from storage:', error);
     return null;
   }
 };
 
-const saveAiChatToStorage = (messages: Message[], aiType: 'assistant' | 'agent') => {
+const saveAiChatToStorage = (messages: Message[]) => {
   try {
     const payload: StoredAiChatState = {
-      aiType,
+      aiType: 'agent',
       messages: messages.map((m) => ({
         id: m.id,
         role: m.role,
@@ -142,12 +139,12 @@ const AIChatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showModeSelector, setShowModeSelector] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
-  const [aiType, setAiType] = useState<'assistant' | 'agent'>('assistant'); // New state for AI type selection
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
       role: 'assistant',
-      content: 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?',
+      content:
+        'Xin chào! Tôi là trợ lý A.I, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?',
       timestamp: new Date(),
       type: 'text',
     },
@@ -178,26 +175,25 @@ const AIChatbot: React.FC = () => {
   const hasLoadedAiHistoryRef = useRef(false); // Ensure we only hydrate AI history once
   const chatWindowRef = useRef<HTMLDivElement>(null); // Ref for chat window to handle drop events
 
-  // Persist AI chat history in localStorage per (customerId, aiType)
+  // Persist AI chat history in localStorage per customerId
   // Chỉ bắt đầu lưu sau khi đã hydrate/load lịch sử để tránh ghi đè dữ liệu cũ khi reload trang.
   useEffect(() => {
     if (chatMode !== 'ai') return;
     if (!isOpen) return;
     if (!hasLoadedAiHistoryRef.current) return;
     if (!messages || messages.length === 0) return;
-    saveAiChatToStorage(messages, aiType);
-  }, [messages, aiType, chatMode, isOpen]);
+    saveAiChatToStorage(messages);
+  }, [messages, chatMode, isOpen]);
 
   // Hydrate AI chat history when opening AI chat window
   useEffect(() => {
     if (!isOpen || chatMode !== 'ai') return;
     if (hasLoadedAiHistoryRef.current) return;
 
-    const stored = loadAiChatFromStorage();
-    if (stored && stored.messages.length > 0) {
+    const storedMessages = loadAiChatFromStorage();
+    if (storedMessages && storedMessages.length > 0) {
       hasLoadedAiHistoryRef.current = true;
-      setAiType(stored.aiType);
-      setMessages(stored.messages);
+      setMessages(storedMessages);
       // Note: productId is not persisted, will be reset when chat opens
       setCurrentProductIdForAdvise(null);
       setSelectedProductForAdvise(null);
@@ -446,23 +442,17 @@ const AIChatbot: React.FC = () => {
     }, [isOpen, chatMode, isAuthenticated, conversations.map(c => c.storeId).join(','), formatLastMessage]);
 
   // Get or generate userId for AI chat
-  const getUserId = () => {
-    let userId = localStorage.getItem('aiChatUserId');
-    if (!userId) {
-      userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('aiChatUserId', userId);
-    }
-    return userId;
-  };
+  // (Chat AI Assistant đã bị loại bỏ, chỉ còn Agent nên không cần userId riêng)
 
-  // Get userId for Agent (first 4 characters of customerId)
+  // Get userId for Agent (dùng full customerId để đồng bộ với BE)
+  // ⚠️ QUAN TRỌNG: userId phải là string và consistent giữa 2 API
   const getAgentUserId = (): string => {
     const customerId = getCustomerId();
     if (!customerId) {
       throw new Error('Customer ID not found. Please login.');
     }
-    // Get first 4 characters of customerId
-    return customerId.substring(0, 4);
+    // Đảm bảo luôn trả về string (không phải number hoặc undefined)
+    return String(customerId);
   };
 
   // Handle drop event when product is dropped into chat
@@ -473,13 +463,9 @@ const AIChatbot: React.FC = () => {
     setIsDraggingOver(false);
 
     // Only handle in AI Agent mode
-    if (chatMode !== 'ai' || aiType !== 'agent') {
-      // Show alert if trying to drop in wrong mode
-      if (chatMode === 'ai' && aiType === 'assistant') {
-        alert('Bạn chỉ có thể kéo thả sản phẩm vào chế độ Chat Agent. Vui lòng chuyển sang chế độ Agent.');
-      } else {
-        alert('Bạn chỉ có thể kéo thả sản phẩm vào chế độ Chat Agent.');
-      }
+    if (chatMode !== 'ai') {
+      // Chỉ cho phép kéo thả vào chế độ Chat Agent
+      alert('Bạn chỉ có thể kéo thả sản phẩm vào chế độ trợ lý A.I.');
       return;
     }
 
@@ -540,9 +526,11 @@ const AIChatbot: React.FC = () => {
       const productId = dropData.productId;
       const productName = dropData.productName || 'sản phẩm này';
 
-      // Prevent adding the same product multiple times
-      if (selectedProductForAdvise?.productId === productId) {
-        // Product already selected, just focus input
+      // ⚠️ QUAN TRỌNG: Prevent calling /advise API multiple times for the same product
+      // Nếu product đã được advise rồi (cùng productId và cùng userId), không gọi lại API
+      if (selectedProductForAdvise?.productId === productId && currentProductIdForAdvise === productId) {
+        console.log('⚠️ [AIChat] Product đã được advise trước đó, bỏ qua API call');
+        // Product already advised, just focus input
         setTimeout(() => {
           inputRef.current?.focus();
         }, 100);
@@ -575,15 +563,92 @@ const AIChatbot: React.FC = () => {
       setCurrentProductIdForAdvise(productId);
       chatContext.setProductIdForAdvise(productId);
 
+      // ⚠️ QUAN TRỌNG: API 1 - Gọi adviseProduct NGAY KHI DROP để lưu ngữ cảnh sản phẩm cho AI
+      // API này CHỈ gọi 1 lần cho mỗi product, KHÔNG gọi lại khi gửi câu hỏi
+      try {
+        const userId = getAgentUserId();
+        
+        console.log('========================================');
+        console.log('🎯 [AIChat] STEP 1: Gọi API /api/ai/products/advise (chỉ gọi 1 lần khi drop)');
+        console.log('========================================');
+        console.log('📋 Context trước khi gọi adviseProduct:');
+        console.log('  - User ID:', userId);
+        console.log('  - Product ID:', productId);
+        console.log('  - Product Name:', productName);
+        console.log('  - Product Image:', productImage);
+        console.log('  - Ghi chú: API này lưu context, KHÔNG trả lời câu hỏi');
+        console.log('----------------------------------------');
+
+        const adviseResponse: ProductAdviseResponse = await AIProductSearchService.adviseProduct({
+          userId: String(userId), // ⚠️ Đảm bảo là string
+          productId: String(productId), // ⚠️ Đảm bảo là string
+        });
+
+        console.log('✅ [AIChat] adviseProduct thành công ngay khi drop');
+        console.log('📋 Advise Response Summary:');
+        console.log('  - Message:', adviseResponse.message);
+        console.log('  - Product ID:', adviseResponse.product?.productId);
+        console.log('  - Product Name:', adviseResponse.product?.name);
+        console.log('  - Brand Name:', adviseResponse.product?.brandName);
+        console.log('  - Categories Count:', adviseResponse.product?.categories?.length || 0);
+        console.log('  - Attributes Count:', adviseResponse.product?.attributes?.length || 0);
+        console.log('========================================\n');
+
+        // Cập nhật lại productId đã advise (phòng khi backend có logic khác)
+        setCurrentProductIdForAdvise(adviseResponse.product?.productId || productId);
+        chatContext.setProductIdForAdvise(adviseResponse.product?.productId || productId);
+
+        // Thêm system message thông báo đã lưu sản phẩm vào bộ nhớ AI
+        const systemMessageContent = adviseResponse.message 
+          ? `✅ ${adviseResponse.message}`
+          : `✅ Đã thêm sản phẩm "${productName}" vào ngữ cảnh để AI tư vấn.`;
+
+        const systemMessage: Message = {
+          id: `${Date.now()}-advise`,
+          role: 'assistant',
+          content: systemMessageContent,
+          timestamp: new Date(),
+          type: 'product_advise',
+          productInfo: {
+            productId: adviseResponse.product?.productId || productId,
+            productName: adviseResponse.product?.name || productName,
+            productImage,
+          },
+        };
+
+        setMessages((prev) => [...prev, systemMessage]);
+      } catch (error: any) {
+        console.error('========================================');
+        console.error('❌ [AIChat] Lỗi khi gọi adviseProduct ngay khi drop');
+        console.error('========================================');
+        console.error('Error Details:');
+        console.error('  - Status:', error?.status || error?.response?.status || 'Unknown');
+        console.error('  - Error Object:', error);
+        console.error('  - Error Data:', error?.data || error?.response?.data || 'No error data');
+        console.error('  - Error Message:', error?.message || 'Unknown error');
+        console.error('========================================\n');
+
+        // Thông báo nhẹ cho user nhưng vẫn cho phép họ tiếp tục hỏi (AI sẽ không có context sản phẩm)
+        const warnMessage: Message = {
+          id: `${Date.now()}-advise-error`,
+          role: 'assistant',
+          content: '⚠️ Không thể lưu sản phẩm vào bộ nhớ AI. Bạn vẫn có thể tiếp tục đặt câu hỏi, nhưng AI có thể không hiểu đúng sản phẩm.',
+          timestamp: new Date(),
+          type: 'none',
+        };
+        setMessages((prev) => [...prev, warnMessage]);
+      }
+
       console.log('========================================');
-      console.log('📦 [AIChat] Product dropped into chat');
+      console.log('📦 [AIChat] Product dropped into chat - COMPLETED');
       console.log('========================================');
       console.log('Product Info:', {
         productId,
         productName,
         productImage,
       });
-      console.log('Note: API /api/ai/products/api/products/advise will be called when you send a message');
+      console.log('✅ API /api/ai/products/advise đã được gọi để lưu ngữ cảnh sản phẩm cho AI');
+      console.log('✅ Bây giờ bạn có thể gửi câu hỏi, AI sẽ dùng context này để trả lời');
       console.log('========================================\n');
 
       // Auto-focus input after drop
@@ -609,8 +674,8 @@ const AIChatbot: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Only allow drop in AI Agent mode
-    if (chatMode === 'ai' && aiType === 'agent') {
+    // Only allow drop in AI Agent mode (AI luôn là Agent)
+    if (chatMode === 'ai') {
       e.dataTransfer.dropEffect = 'copy';
       setIsDraggingOver(true);
     } else {
@@ -637,8 +702,8 @@ const AIChatbot: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Only show visual feedback in AI Agent mode
-    if (chatMode === 'ai' && aiType === 'agent') {
+    // Only show visual feedback in AI Agent mode (AI luôn là Agent)
+    if (chatMode === 'ai') {
       setIsDraggingOver(true);
     }
   };
@@ -981,16 +1046,13 @@ const AIChatbot: React.FC = () => {
     chatContext.openChat(mode === 'store' ? mode : 'ai', storeId || undefined);
     
     if (mode === 'ai') {
-      const stored = loadAiChatFromStorage();
-      if (stored && stored.messages.length > 0) {
+      const storedMessages = loadAiChatFromStorage();
+      if (storedMessages && storedMessages.length > 0) {
         hasLoadedAiHistoryRef.current = true;
-        setAiType(stored.aiType);
-        setMessages(stored.messages);
+        setMessages(storedMessages);
       } else {
-        const welcomeMessage =
-          aiType === 'agent'
-            ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-            : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+          const welcomeMessage =
+            'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?';
         hasLoadedAiHistoryRef.current = true;
         setMessages([
           {
@@ -1049,7 +1111,7 @@ const AIChatbot: React.FC = () => {
     const hasProduct = selectedProductForAdvise !== null;
 
     // For AI Agent mode, require either text or product
-    if (chatMode === 'ai' && aiType === 'agent') {
+    if (chatMode === 'ai') {
       if (!hasText && !hasProduct) return;
     } else {
       // For other modes, require text or files
@@ -1080,232 +1142,145 @@ const AIChatbot: React.FC = () => {
           productImage: selectedProductForAdvise.productImage,
         } : undefined;
         
-        // Add user message immediately for AI chat
+        // Add user message immediately cho Agent chat (kèm thông tin sản phẩm nếu có)
         const userMessage: Message = {
           id: Date.now().toString(),
           role: 'user',
           content: messageToSend,
           timestamp: new Date(),
           type: 'text',
-          productInfo: productInfoForMessage, // Include product info if attached
+          productInfo: productInfoForMessage,
         };
         setMessages((prev) => [...prev, userMessage]);
+
+        const userId = getAgentUserId();
+
+        // Xóa preview sản phẩm sau khi gửi (ngữ cảnh đã được lưu từ lúc drop)
+        setSelectedProductForAdvise(null);
+
+        console.log('========================================');
+        console.log('💬 [AIChat] STEP 2: Gọi API /api/ai/products/search (gọi mỗi lần gửi câu hỏi)');
+        console.log('========================================');
+        console.log('📋 Context Before Search:');
+        console.log('  - User ID:', userId);
+        console.log('  - Question:', messageToSend);
+        console.log('  - Current Product ID (advised):', currentProductIdForAdvise || 'N/A');
+        console.log('  - Has Product Context:', !!currentProductIdForAdvise);
+        console.log('  - Ghi chú: Product context đã được set ở STEP 1 (adviseProduct khi drop)');
+        console.log('  - Ghi chú: API này dùng context từ STEP 1 để trả lời câu hỏi');
+        console.log('----------------------------------------');
         
-        // Check AI type: assistant or agent
-        if (aiType === 'agent') {
-          const userId = getAgentUserId();
+        try {
+          // ⚠️ QUAN TRỌNG: API 2 - Gọi searchProducts để hỏi AI
+          // API này gọi nhiều lần mỗi khi user gửi câu hỏi
+          // userId phải GIỐNG HỆT với userId đã dùng trong API 1
+          const response: ProductSearchResponse = await AIProductSearchService.searchProducts({
+            userId: String(userId), // ⚠️ Đảm bảo là string và giống với API 1
+            question: messageToSend,
+          });
           
-          // STEP 1: If there's a selected product, advise AI about it FIRST
-          // This must be called BEFORE searchProducts to set the product context
-          if (selectedProductForAdvise && selectedProductForAdvise.productId !== currentProductIdForAdvise) {
-            console.log('========================================');
-            console.log('🎯 [AIChat] STEP 1: Calling adviseProduct API');
-            console.log('========================================');
-            console.log('📋 Context Before Advise:');
-            console.log('  - User ID:', userId);
-            console.log('  - Product ID:', selectedProductForAdvise.productId);
-            console.log('  - Product Name:', selectedProductForAdvise.productName);
-            console.log('  - Product Image:', selectedProductForAdvise.productImage);
-            console.log('  - Current Product ID (advised):', currentProductIdForAdvise);
-            console.log('  - Will call adviseProduct API: YES');
-            console.log('----------------------------------------');
-            
-            try {
-              const adviseResponse: ProductAdviseResponse = await AIProductSearchService.adviseProduct({
-                userId,
-                productId: selectedProductForAdvise.productId,
-              });
-
-              console.log('✅ [AIChat] STEP 1 COMPLETED: Product advised successfully');
-              console.log('📋 Advise Response Summary:');
-              console.log('  - Message:', adviseResponse.message);
-              console.log('  - Product ID:', adviseResponse.product?.productId);
-              console.log('  - Product Name:', adviseResponse.product?.name);
-              console.log('  - Brand Name:', adviseResponse.product?.brandName);
-              console.log('  - Categories Count:', adviseResponse.product?.categories?.length || 0);
-              console.log('  - Attributes Count:', adviseResponse.product?.attributes?.length || 0);
-              console.log('========================================\n');
-
-              // Update currentProductIdForAdvise to track that this product has been advised
-              setCurrentProductIdForAdvise(selectedProductForAdvise.productId);
-              chatContext.setProductIdForAdvise(selectedProductForAdvise.productId);
-
-              // Add system message showing product was added to context
-              const systemMessageContent = adviseResponse.message 
-                ? `✅ ${adviseResponse.message}`
-                : `✅ Đã thêm sản phẩm "${selectedProductForAdvise.productName}" vào ngữ cảnh.`;
-              
-              const systemMessage: Message = {
-                id: (Date.now() - 1).toString(),
-                role: 'assistant',
-                content: systemMessageContent,
-                timestamp: new Date(),
-                type: 'text',
-              };
-
-              setMessages((prev) => [...prev, systemMessage]);
-            } catch (error: any) {
-              console.error('========================================');
-              console.error('❌ [AIChat] STEP 1 FAILED: Error advising product');
-              console.error('========================================');
-              console.error('Error Details:');
-              console.error('  - Status:', error?.status || error?.response?.status || 'Unknown');
-              console.error('  - Error Object:', error);
-              console.error('  - Error Data:', error?.data || error?.response?.data || 'No error data');
-              console.error('  - Error Message:', error?.message || 'Unknown error');
-              console.error('⚠️  Continuing with searchProducts anyway...');
-              console.error('========================================\n');
-              // Continue with search even if advise fails
-            }
-          } else {
-            console.log('========================================');
-            console.log('ℹ️  [AIChat] STEP 1 SKIPPED: adviseProduct not called');
-            console.log('========================================');
-            console.log('📋 Skip Reason:');
-            console.log('  - Has Selected Product:', !!selectedProductForAdvise);
-            console.log('  - Selected Product ID:', selectedProductForAdvise?.productId || 'N/A');
-            console.log('  - Current Product ID (advised):', currentProductIdForAdvise || 'N/A');
-            console.log('  - Is Same Product:', selectedProductForAdvise?.productId === currentProductIdForAdvise);
-            console.log('  - Decision: Product already advised or no product selected');
-            console.log('========================================\n');
+          console.log('✅ [AIChat] searchProducts COMPLETED');
+          console.log('📋 Search Response Summary:');
+          console.log('  - Mode:', response.mode);
+          console.log('  - Question:', response.question);
+          if (response.mode === 'product_search' && response.result) {
+            console.log('  - Products Found:', response.result.count);
+            console.log('  - Product IDs:', response.result.productIds);
+            console.log('  - Message:', response.result.message);
+          } else if (response.mode === 'advice' && response.reply) {
+            console.log('  - Advice Mode: YES');
+            console.log('  - Reply Length:', response.reply?.length || 0, 'characters');
+            console.log('  - Reply Preview:', response.reply?.substring(0, 100) + '...');
+            console.log('  - ⚠️ QUAN TRỌNG: Render field "reply", KHÔNG phải "message"');
+          } else if (response.mode === 'none' && response.reply) {
+            console.log('  - None Mode: YES (out of scope)');
+            console.log('  - Reply:', response.reply);
           }
+          console.log('========================================\n');
 
-          // Clear selected product from preview after sending (but keep currentProductIdForAdvise for context)
-          setSelectedProductForAdvise(null);
+          // Handle các mode trả về
+          let assistantMessage: Message;
 
-          // STEP 2: Agent: Product Search API
-          // Note: API will automatically use productId from previous adviseProduct call (via userId)
-          console.log('========================================');
-          console.log('💬 [AIChat] STEP 2: Calling searchProducts API');
-          console.log('========================================');
-          console.log('📋 Context Before Search:');
-          console.log('  - User ID:', userId);
-          console.log('  - Question:', messageToSend);
-          console.log('  - Current Product ID (advised):', currentProductIdForAdvise || 'N/A');
-          console.log('  - Has Product Context:', !!currentProductIdForAdvise);
-          console.log('  - Note: If product was advised in STEP 1, AI will use it as context');
-          console.log('----------------------------------------');
-          
-          try {
-            const response: ProductSearchResponse = await AIProductSearchService.searchProducts({
-              userId,
-              question: messageToSend,
-            });
-            
-            console.log('✅ [AIChat] STEP 2 COMPLETED: Search completed');
-            console.log('📋 Search Response Summary:');
-            console.log('  - Mode:', response.mode);
-            console.log('  - Question:', response.question);
-            if (response.mode === 'product_search' && response.result) {
-              console.log('  - Products Found:', response.result.count);
-              console.log('  - Product IDs:', response.result.productIds);
-              console.log('  - Message:', response.result.message);
-            } else if (response.mode === 'advice' && response.reply) {
-              console.log('  - Advice Mode: YES');
-              console.log('  - Reply Length:', response.reply?.length || 0, 'characters');
-              console.log('  - Reply Preview:', response.reply?.substring(0, 100) + '...');
-            } else if (response.mode === 'none' && response.reply) {
-              console.log('  - None Mode: YES (out of scope)');
-              console.log('  - Reply:', response.reply);
-            }
-            console.log('========================================\n');
-
-            // Handle different response modes
-            let assistantMessage: Message;
-
-            if (response.mode === 'product_search' && response.result) {
-              // Product search mode
-              assistantMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: response.result.message || `Tìm thấy ${response.result.count} sản phẩm phù hợp:`,
-                timestamp: new Date(),
-                type: 'product_search',
-                products: response.result.items,
-                productCount: response.result.count,
-              };
-            } else if (response.mode === 'advice' && response.reply) {
-              // Advice mode
-              assistantMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: response.reply,
-                timestamp: new Date(),
-                type: 'advice',
-              };
-            } else if (response.mode === 'none' && response.reply) {
-              // None mode (out of scope)
-              assistantMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: response.reply,
-                timestamp: new Date(),
-                type: 'none',
-              };
-            } else {
-              // Fallback
-              assistantMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: 'Xin lỗi, tôi không thể xử lý câu hỏi này. Vui lòng thử lại với câu hỏi khác.',
-                timestamp: new Date(),
-                type: 'text',
-              };
-            }
-
-            setMessages((prev) => [...prev, assistantMessage]);
-          } catch (agentError: any) {
-            console.error('Error calling Agent API:', agentError);
-            
-            // Check for quota exceeded error (429 or RESOURCE_EXHAUSTED)
-            const isQuotaExceeded = 
-              agentError?.status === 429 ||
-              agentError?.data?.status === 'RESOURCE_EXHAUSTED' ||
-              (agentError?.message && (
-                agentError.message.toLowerCase().includes('quota') ||
-                agentError.message.toLowerCase().includes('exceeded') ||
-                agentError.message.toLowerCase().includes('resource_exhausted') ||
-                agentError.message.toLowerCase().includes('rate limit')
-              )) ||
-              (agentError?.data?.error?.status === 'RESOURCE_EXHAUSTED') ||
-              (agentError?.data?.error?.code === 429);
-            
-            let errorContent: string;
-            if (isQuotaExceeded) {
-              errorContent = 'Hết dung lượng hỏi AI rồi nha bạn! Hãy quay lại sau 1 thời gian nữa nha. Xin lỗi vì sự bất tiện này :(';
-            } else {
-              errorContent = agentError?.message || 'Xin lỗi, đã có lỗi xảy ra khi tìm kiếm sản phẩm. Vui lòng thử lại sau.';
-            }
-            
-            const errorMessage: Message = {
+          if (response.mode === 'product_search' && response.result) {
+            // Product search mode
+            assistantMessage = {
               id: (Date.now() + 1).toString(),
               role: 'assistant',
-              content: errorContent,
+              content: response.result.message || `Tìm thấy ${response.result.count} sản phẩm phù hợp:`,
+              timestamp: new Date(),
+              type: 'product_search',
+              products: response.result.items,
+              productCount: response.result.count,
+            };
+          } else if (response.mode === 'advice' && response.reply) {
+            // Advice mode
+            assistantMessage = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: response.reply,
+              timestamp: new Date(),
+              type: 'advice',
+            };
+          } else if (response.mode === 'none' && response.reply) {
+            // None mode (out of scope)
+            assistantMessage = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: response.reply,
+              timestamp: new Date(),
+              type: 'none',
+            };
+          } else {
+            // Fallback
+            assistantMessage = {
+              id: (Date.now() + 1).toString(),
+              role: 'assistant',
+              content: 'Xin lỗi, tôi không thể xử lý câu hỏi này. Vui lòng thử lại với câu hỏi khác.',
               timestamp: new Date(),
               type: 'text',
             };
-            setMessages((prev) => [...prev, errorMessage]);
           }
-        } else {
-          // Assistant: Regular AI Chat
-          const aiRequestPayload = {
-            userId: getUserId(),
-            message: messageToSend,
-            userName: 'Guest',
-          };
-          console.info('[AIChat] request /api/ai/chat', aiRequestPayload);
-          const response = await AIChatService.sendMessage(aiRequestPayload);
-          console.info('[AIChat] response /api/ai/chat', response);
 
-          const assistantMessage: Message = {
+          setMessages((prev) => [...prev, assistantMessage]);
+        } catch (agentError: any) {
+          console.error('========================================');
+          console.error('❌ [AIChat] Lỗi khi gọi searchProducts');
+          console.error('========================================');
+          console.error('Error Details:');
+          console.error('  - Status:', agentError?.status || agentError?.response?.status || 'Unknown');
+          console.error('  - Error Object:', agentError);
+          console.error('  - Error Data:', agentError?.data || agentError?.response?.data || 'No error data');
+          console.error('  - Error Message:', agentError?.message || 'Unknown error');
+          console.error('========================================\n');
+          
+          // Check for quota exceeded error (429 or RESOURCE_EXHAUSTED)
+          const isQuotaExceeded = 
+            agentError?.status === 429 ||
+            agentError?.data?.status === 'RESOURCE_EXHAUSTED' ||
+            (agentError?.message && (
+              agentError.message.toLowerCase().includes('quota') ||
+              agentError.message.toLowerCase().includes('exceeded') ||
+              agentError.message.toLowerCase().includes('resource_exhausted') ||
+              agentError.message.toLowerCase().includes('rate limit')
+            )) ||
+            (agentError?.data?.error?.status === 'RESOURCE_EXHAUSTED') ||
+            (agentError?.data?.error?.code === 429);
+          
+          let errorContent: string;
+          if (isQuotaExceeded) {
+            errorContent = 'Hết dung lượng hỏi AI rồi nha bạn! Hãy quay lại sau 1 thời gian nữa nha. Xin lỗi vì sự bất tiện này :(';
+          } else {
+            errorContent = agentError?.message || 'Xin lỗi, đã có lỗi xảy ra khi tìm kiếm sản phẩm. Vui lòng thử lại sau.';
+          }
+          
+          const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: response.answer,
+            content: errorContent,
             timestamp: new Date(),
             type: 'text',
           };
-
-          setMessages((prev) => [...prev, assistantMessage]);
+          setMessages((prev) => [...prev, errorMessage]);
         }
 
         setIsLoading(false);
@@ -1673,9 +1648,8 @@ const AIChatbot: React.FC = () => {
       setSelectedProductForAdvise(null);
       chatContext.setProductIdForAdvise(null);
       
-      const welcomeMessage = aiType === 'agent' 
-        ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-        : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+      const welcomeMessage =
+        'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?';
       setMessages([{
         id: '0',
         role: 'assistant',
@@ -1701,41 +1675,6 @@ const AIChatbot: React.FC = () => {
     navigate(`/product/${productId}`);
   };
 
-  const handleAiTypeChange = (type: 'assistant' | 'agent') => {
-    setAiType(type);
-
-    // Reset productId and selected product when switching AI type
-    if (type === 'assistant') {
-      setCurrentProductIdForAdvise(null);
-      setSelectedProductForAdvise(null);
-      chatContext.setProductIdForAdvise(null);
-    }
-
-    const assistantWelcome =
-      'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
-    const agentWelcome =
-      'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?';
-
-    // Nếu hiện tại chỉ có đúng 1 tin nhắn welcome ban đầu thì thay nội dung theo AI type mới,
-    // còn nếu đã có lịch sử chat thì giữ nguyên lịch sử, chỉ đổi "não" trả lời cho các tin nhắn tiếp theo.
-    setMessages((prev) => {
-      if (
-        prev.length === 1 &&
-        prev[0].role === 'assistant' &&
-        prev[0].type === 'text'
-      ) {
-        return [
-          {
-            ...prev[0],
-            content: type === 'agent' ? agentWelcome : assistantWelcome,
-            timestamp: new Date(),
-          },
-        ];
-      }
-      return prev;
-    });
-  };
-
   const handleOpenChat = () => {
     // Check authentication first
     if (!CustomerAuthService.isAuthenticated()) {
@@ -1752,16 +1691,13 @@ const AIChatbot: React.FC = () => {
       setChatMode('ai');
 
       // Thử khôi phục lịch sử chat AI từ localStorage
-      const stored = loadAiChatFromStorage();
-      if (stored && stored.messages.length > 0) {
+      const storedMessages = loadAiChatFromStorage();
+      if (storedMessages && storedMessages.length > 0) {
         hasLoadedAiHistoryRef.current = true;
-        setAiType(stored.aiType);
-        setMessages(stored.messages);
+        setMessages(storedMessages);
       } else {
         const welcomeMessage =
-          aiType === 'agent'
-            ? 'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?'
-            : 'Xin chào! Tôi là trợ lý AI của Tech Hub. Tôi có thể giúp gì cho bạn?';
+          'Xin chào! Tôi là Chat Agent, chuyên tư vấn về sản phẩm âm thanh. Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn setup phòng nghe, và phối ghép thiết bị. Bạn cần tư vấn gì?';
         hasLoadedAiHistoryRef.current = true;
         setMessages([
           {
@@ -1774,7 +1710,7 @@ const AIChatbot: React.FC = () => {
         ]);
       }
 
-      // Mở chat AI thông qua ChatContext để các component khác (ví dụ ChatAgent) nắm trạng thái
+      // Mở chat AI (Agent) thông qua ChatContext
       chatContext.openChat('ai');
       setIsOpen(true);
     } else {
@@ -1783,7 +1719,7 @@ const AIChatbot: React.FC = () => {
       // Set chatMode to 'list' để hiển thị danh sách conversations
       setChatMode('list');
       setIsOpen(true);
-      // loadConversations will be triggered by the effect when conditions are met
+      // loadConversations sẽ được gọi ở effect
     }
   };
 
@@ -1836,7 +1772,7 @@ const AIChatbot: React.FC = () => {
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           className={`fixed bottom-6 right-6 w-[900px] h-[700px] bg-white rounded-2xl shadow-2xl flex z-50 border-2 overflow-hidden transition-all ${
-            isDraggingOver && chatMode === 'ai' && aiType === 'agent'
+            isDraggingOver && chatMode === 'ai'
               ? 'border-orange-500 border-dashed bg-orange-50'
               : 'border-gray-200'
           }`}
@@ -1994,43 +1930,16 @@ const AIChatbot: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-bold text-lg">
-                          {chatMode === 'ai' ? (aiType === 'agent' ? 'Chat Agent' : 'Trợ lý AI') : 'Tin nhắn của bạn'}
+                          {chatMode === 'ai' ? 'Trợ lý AI' : 'Tin nhắn của bạn'}
                         </h3>
                         <p className="text-xs text-white/80">
                           {chatMode === 'ai' 
-                            ? (aiType === 'agent' 
-                              ? (currentProductIdForAdvise 
+                            ? (currentProductIdForAdvise 
                                 ? 'Đang tư vấn về sản phẩm' 
                                 : 'Tư vấn sản phẩm âm thanh')
-                              : 'Tech Hub Assistant') 
                             : 'Chọn cửa hàng để chat'}
                         </p>
                       </div>
-                      {/* AI Type Selector - Only show in AI mode */}
-                      {chatMode === 'ai' && (
-                        <div className="flex items-center gap-2 bg-white/20 rounded-lg p-1 backdrop-blur-sm">
-                          <button
-                            onClick={() => handleAiTypeChange('assistant')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                              aiType === 'assistant'
-                                ? 'bg-white text-orange-500 shadow-md'
-                                : 'text-white/80 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            Trợ lý
-                          </button>
-                          <button
-                            onClick={() => handleAiTypeChange('agent')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                              aiType === 'agent'
-                                ? 'bg-white text-orange-500 shadow-md'
-                                : 'text-white/80 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            Agent
-                          </button>
-                        </div>
-                      )}
                     </>
                   )}
             </div>
@@ -2480,7 +2389,7 @@ const AIChatbot: React.FC = () => {
             {(chatMode === 'ai' || (chatMode === 'list' && selectedStore)) && (
               <div className="border-t border-gray-200 bg-white">
             {/* Preview area - Product for AI Agent */}
-            {chatMode === 'ai' && aiType === 'agent' && selectedProductForAdvise && (
+            {chatMode === 'ai' && selectedProductForAdvise && (
               <div className="p-3 border-b border-gray-200 bg-orange-50">
                 <div className="flex items-center gap-3">
                   {/* Product Image */}
@@ -2643,7 +2552,7 @@ const AIChatbot: React.FC = () => {
               <button
                 onClick={handleSendMessage}
                 disabled={
-                  (chatMode === 'ai' && aiType === 'agent' 
+                  (chatMode === 'ai'
                     ? (!inputMessage.trim() && !selectedProductForAdvise)
                     : (!inputMessage.trim() && selectedFiles.length === 0)
                   ) || (chatMode === 'ai' && isLoading) || isUploading
