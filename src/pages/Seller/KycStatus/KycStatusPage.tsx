@@ -37,7 +37,7 @@ const KycStatusPage: React.FC = () => {
       console.log('📊 Current Status:', currentStatus);
       
 
-      if (currentStatus === 'ACTIVE' || (currentStatus as string) === 'SUSPENDED_DEBT') {
+      if (currentStatus === 'ACTIVE' || (currentStatus as string) === 'SUSPENDED_DEBT' || currentStatus === 'SUSPENDED' || currentStatus === 'PAUSED') {
         navigate('/seller/dashboard', { replace: true });
         return; 
       }

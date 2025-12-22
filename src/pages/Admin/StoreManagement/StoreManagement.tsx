@@ -199,10 +199,10 @@ const StoreManagement: React.FC = () => {
 
   const canDeactivate = useMemo(() => {
     if (selectedRowKeys.length === 0) return false;
-    // Can deactivate if at least one store is not INACTIVE
+    // Can deactivate if at least one store is not SUSPENDED
     return selectedRowKeys.some(key => {
       const store = stores.find(s => s.storeId === key);
-      return store && store.status !== 'INACTIVE';
+      return store && store.status !== 'SUSPENDED';
     });
   }, [selectedRowKeys, stores]);
 
@@ -238,7 +238,7 @@ const StoreManagement: React.FC = () => {
       return;
     }
     if (!canDeactivate) {
-      showError('Tất cả cửa hàng đã chọn đều đang ở trạng thái INACTIVE');
+      showError('Tất cả cửa hàng đã chọn đều đang ở trạng thái SUSPENDED');
       return;
     }
     setConfirmAction('deactivate');
@@ -252,7 +252,7 @@ const StoreManagement: React.FC = () => {
     setIsUpdating(true);
     setConfirmModalVisible(false);
 
-    const targetStatus = confirmAction === 'activate' ? 'ACTIVE' : 'INACTIVE';
+    const targetStatus = confirmAction === 'activate' ? 'ACTIVE' : 'SUSPENDED';
     const results: Array<{ storeId: string; storeName: string; success: boolean; message: string }> = [];
 
     // Update stores sequentially to avoid overwhelming the server
@@ -354,6 +354,11 @@ const StoreManagement: React.FC = () => {
       REJECTED: {
         color: 'error',
         text: 'Từ chối',
+        icon: <CloseCircleOutlined />
+      },
+      SUSPENDED: {
+        color: 'error',
+        text: 'Vô hiệu hoá',
         icon: <CloseCircleOutlined />
       },
       SUSPENDED_DEBT: {
@@ -625,22 +630,6 @@ const StoreManagement: React.FC = () => {
             </Text>{' '}
             cửa hàng đã chọn?
           </Text>
-          {confirmAction === 'activate' && (
-            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f6ffed', borderRadius: '4px' }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                <CheckCircleOutlined style={{ color: '#52c41a', marginRight: '8px' }} />
-                Tất cả sản phẩm của cửa hàng sẽ chuyển về trạng thái ACTIVE.
-              </Text>
-            </div>
-          )}
-          {confirmAction === 'deactivate' && (
-            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fff1f0', borderRadius: '4px' }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                <CloseCircleOutlined style={{ color: '#ff4d4f', marginRight: '8px' }} />
-                Cửa hàng sẽ chuyển sang trạng thái INACTIVE (ngừng hoạt động).
-              </Text>
-            </div>
-          )}
         </div>
       </Modal>
 

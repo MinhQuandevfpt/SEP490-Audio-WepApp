@@ -11,7 +11,7 @@ const ProductSuggestions: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [totalElements, setTotalElements] = useState(0);
-  
+
   const itemsPerPage = 17; // Hiển thị 17 sản phẩm mỗi lần
 
   // Fetch products from API
@@ -24,7 +24,7 @@ const ProductSuggestions: React.FC = () => {
     let originalPrice: number = 0;
     let finalPrice: number = 0;
     let discountPercent = 0;
-    
+
     // Xử lý giá: Ưu tiên từ variants nếu có, sau đó mới dùng price từ root
     if (item.variants && item.variants.length > 0) {
       // Nếu có variants, lấy giá từ variants
@@ -33,10 +33,10 @@ const ProductSuggestions: React.FC = () => {
         .map(v => v.price);
       if (variantPrices.length > 0) {
         const minVariantPrice = Math.min(...variantPrices);
-        
+
         // Dùng giá thấp nhất từ variants để hiển thị
         originalPrice = minVariantPrice;
-        
+
         // Xử lý finalPrice từ API:
         // 1. Nếu API đã tính finalPrice ở root level và khác originalPrice, dùng nó (đã có discount)
         // 2. Nếu không, tạm thời set = originalPrice để tính từ campaign sau
@@ -64,28 +64,28 @@ const ProductSuggestions: React.FC = () => {
         finalPrice = originalPrice;
       }
     }
-    
+
     // Nếu discountPrice và finalPrice đều null/0 hoặc finalPrice = originalPrice (chưa có discount),
     // và sản phẩm có campaign, tính giá sau giảm từ campaign
     const hasCampaign = item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0;
-    const needsCampaignCalculation = 
+    const needsCampaignCalculation =
       (item.discountPrice === null || item.discountPrice === undefined) &&
       (item.finalPrice === null || item.finalPrice === undefined || finalPrice === originalPrice) &&
       originalPrice > 0 &&
       hasCampaign;
-    
+
     if (needsCampaignCalculation && hasCampaign && item.vouchers?.platformVouchers) {
       // Lấy campaign đầu tiên
       const campaign = item.vouchers.platformVouchers[0];
-      
+
       // Lấy voucher active từ campaign
       if (campaign.vouchers && campaign.vouchers.length > 0) {
         const voucher = campaign.vouchers[0];
         const now = new Date();
-        
+
         // Kiểm tra voucher có active không
         let isActive = false;
-        
+
         // Kiểm tra thời gian voucher (có thể có slot time cho Flash Sale)
         if (voucher.slotOpenTime && voucher.slotCloseTime) {
           // Flash Sale: check slot time và slot status
@@ -107,7 +107,7 @@ const ProductSuggestions: React.FC = () => {
           // Nếu không có thời gian, chỉ check status
           isActive = voucher.status === 'ACTIVE';
         }
-        
+
         console.log(`🎁 [CAMPAIGN] Product: ${item.name}`, {
           hasCampaign: true,
           voucherType: voucher.type,
@@ -118,7 +118,7 @@ const ProductSuggestions: React.FC = () => {
           originalPrice,
           currentFinalPrice: finalPrice,
         });
-        
+
         if (isActive) {
           // Tính giá sau giảm dựa trên type của voucher
           if (voucher.type === 'PERCENT' && voucher.discountPercent) {
@@ -130,7 +130,7 @@ const ProductSuggestions: React.FC = () => {
               : discountAmount;
             finalPrice = Math.max(0, originalPrice - finalDiscount);
             discountPercent = voucher.discountPercent;
-            
+
             console.log(`✅ [CAMPAIGN] Calculated PERCENT discount:`, {
               originalPrice,
               discountPercent: voucher.discountPercent,
@@ -146,7 +146,7 @@ const ProductSuggestions: React.FC = () => {
             if (originalPrice > 0) {
               discountPercent = Math.round(((voucher.discountValue / originalPrice) * 100));
             }
-            
+
             console.log(`✅ [CAMPAIGN] Calculated FIXED discount:`, {
               originalPrice,
               discountValue: voucher.discountValue,
@@ -172,17 +172,17 @@ const ProductSuggestions: React.FC = () => {
         needsCalculation: needsCampaignCalculation,
       });
     }
-    
+
     // Fallback: Nếu finalPrice vẫn là 0 (chưa được set), dùng originalPrice
     if (finalPrice === 0 && originalPrice > 0) {
       finalPrice = originalPrice;
     }
-    
+
     // Tính discount percent từ finalPrice và originalPrice (nếu chưa tính)
     if (discountPercent === 0 && originalPrice > 0 && finalPrice > 0 && finalPrice < originalPrice) {
       discountPercent = Math.round(((originalPrice - finalPrice) / originalPrice) * 100);
     }
-    
+
     // Lấy category name từ categories array (lấy category đầu tiên hoặc join nếu nhiều)
     const categoryName = item.categories && item.categories.length > 0
       ? item.categories.map(c => c.categoryName).join(', ')
@@ -244,7 +244,7 @@ const ProductSuggestions: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Chỉ lấy sản phẩm ACTIVE cho customer UI
       // Không dùng keyword (dành cho search box)
       const response = await ProductViewService.getProductViews({
@@ -264,7 +264,7 @@ const ProductSuggestions: React.FC = () => {
 
         // Map API response to Product type
         const newProducts: Product[] = items.map(mapToProduct);
-        
+
         // Extract pagination info
         const total = pageInfo?.totalElements ?? 0;
         const currentPageNum = pageInfo?.pageNumber ?? page;
@@ -279,7 +279,7 @@ const ProductSuggestions: React.FC = () => {
           isLast,
           page
         });
-        
+
         setProducts(prev => reset ? newProducts : [...prev, ...newProducts]);
         setTotalElements(total);
         setHasMore(!isLast);
@@ -308,7 +308,7 @@ const ProductSuggestions: React.FC = () => {
   const remainingProducts = totalElements - products.length;
 
   if (error) {
-    return null; // Không hiển thị error, return null để tránh làm gián đoạn UX
+    return null;
   }
 
   return (
@@ -317,11 +317,9 @@ const ProductSuggestions: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <Lightbulb className="w-7 h-7 text-yellow-500" />
-          <h2 className="text-2xl font-bold text-gray-900">Gợi ý sản phẩm hôm nay</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Sản phẩm </h2>
         </div>
       </div>
-
-      {/* Loading State - Chỉ hiển thị skeleton khi chưa có products */}
       {loading && products.length === 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {[...Array(10)].map((_, index) => (

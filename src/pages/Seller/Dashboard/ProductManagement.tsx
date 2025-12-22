@@ -181,10 +181,20 @@ const ProductManagement: React.FC = () => {
           refetch();
         } catch (error) {
           console.error('Error toggling product status:', error);
-          showCenterError(
-            error instanceof Error ? error.message : 'Không thể thay đổi trạng thái sản phẩm',
-            'Lỗi'
-          );
+          
+          let errorMessage = 'Không thể thay đổi trạng thái sản phẩm';
+          if (error instanceof Error) {
+            errorMessage = error.message;
+            
+            // Check if error message contains SUSPENDED status information
+            if (errorMessage.includes('SUSPENDED') || 
+                errorMessage.includes('API này CHỈ cho phép') ||
+                errorMessage.includes('Trạng thái hiện tại của sản phẩm: SUSPENDED')) {
+              errorMessage = 'Sản phẩm đang bị cấm, không thể thao tác.';
+            }
+          }
+          
+          showCenterError(errorMessage, 'Lỗi');
         }
       },
     });

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Facebook, Instagram, Youtube, MapPin, Phone, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { MapPin, Phone, Mail } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 const Footer: React.FC = () => {
@@ -19,17 +20,6 @@ const Footer: React.FC = () => {
             <p className="text-gray-600 text-sm leading-relaxed">
               {t('footer.description')}
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="bg-orange-100 p-2 rounded-full text-orange-500 hover:bg-orange-200">
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a href="#" className="bg-orange-100 p-2 rounded-full text-orange-500 hover:bg-orange-200">
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a href="#" className="bg-orange-100 p-2 rounded-full text-orange-500 hover:bg-orange-200">
-                <Youtube className="w-5 h-5" />
-              </a>
-            </div>
           </div>
 
           {/* Hỗ Trợ Khách Hàng */}
@@ -37,29 +27,19 @@ const Footer: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-800">{t('footer.customerSupport')}</h3>
             <ul className="space-y-3">
               <li>
-                <a href="/support" className="text-gray-600 hover:text-orange-500 text-sm">
-                  {t('footer.helpCenter')}
-                </a>
-              </li>
-              <li>
-                <a href="/guide" className="text-gray-600 hover:text-orange-500 text-sm">
+                <Link to="/policies" className="text-gray-600 hover:text-orange-500 text-sm">
                   {t('footer.shoppingGuide')}
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/return-policy" className="text-gray-600 hover:text-orange-500 text-sm">
+                <Link to="/policies" className="text-gray-600 hover:text-orange-500 text-sm">
                   {t('footer.returnPolicy')}
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/warranty" className="text-gray-600 hover:text-orange-500 text-sm">
-                  {t('footer.warrantyPolicy')}
-                </a>
-              </li>
-              <li>
-                <a href="/payment" className="text-gray-600 hover:text-orange-500 text-sm">
+                <Link to="/policies" className="text-gray-600 hover:text-orange-500 text-sm">
                   {t('footer.payment')}
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -69,29 +49,19 @@ const Footer: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-800">{t('footer.aboutUs')}</h3>
             <ul className="space-y-3">
               <li>
-                <a href="/about" className="text-gray-600 hover:text-orange-500 text-sm">
+                <Link to="/policies" className="text-gray-600 hover:text-orange-500 text-sm">
                   {t('footer.introduction')}
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/careers" className="text-gray-600 hover:text-orange-500 text-sm">
-                  {t('footer.careers')}
-                </a>
-              </li>
-              <li>
-                <a href="/terms" className="text-gray-600 hover:text-orange-500 text-sm">
+                <Link to="/policies" className="text-gray-600 hover:text-orange-500 text-sm">
                   {t('footer.terms')}
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/privacy" className="text-gray-600 hover:text-orange-500 text-sm">
+                <Link to="/policies" className="text-gray-600 hover:text-orange-500 text-sm">
                   {t('footer.privacyPolicy')}
-                </a>
-              </li>
-              <li>
-                <a href="/authentic" className="text-gray-600 hover:text-orange-500 text-sm">
-                  {t('footer.authentic')}
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

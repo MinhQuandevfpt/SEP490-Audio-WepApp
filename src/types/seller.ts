@@ -83,7 +83,7 @@ export interface KycResponse {
 }
 
 // Store Status Types
-export type StoreStatus = 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE' | 'PAUSED';
+export type StoreStatus = 'INACTIVE' | 'PENDING' | 'REJECTED' | 'ACTIVE' | 'PAUSED' | 'SUSPENDED';
 
 export interface StoreInfo {
   id: string;

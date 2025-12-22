@@ -327,8 +327,18 @@ export class ProductService {
 
       console.log('✅ Product status toggled:', response);
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error toggling product status:', error);
+      
+      // Check if error message contains SUSPENDED status information
+      if (error?.message && (
+        error.message.includes('SUSPENDED') || 
+        error.message.includes('API này CHỈ cho phép') ||
+        error.message.includes('Trạng thái hiện tại của sản phẩm: SUSPENDED')
+      )) {
+        throw new Error('Sản phẩm đang bị cấm, không thể thao tác.');
+      }
+      
       throw error;
     }
   }

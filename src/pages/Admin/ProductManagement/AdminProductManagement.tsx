@@ -413,7 +413,7 @@ const AdminProductManagement: React.FC = () => {
       case 'SUSPENDED':
         return (
           <Tag color="error" icon={<ExclamationCircleOutlined />}>
-            Tạm khóa
+            Vô hiệu hoá
           </Tag>
         );
       case 'SUSPENDED_DEBT':
@@ -857,7 +857,7 @@ const AdminProductManagement: React.FC = () => {
                 <Option value="DRAFT" label="Nháp">Nháp</Option>
                 <Option value="DISCONTINUED" label="Ngưng sản xuất">Ngưng sản xuất</Option>
                 <Option value="UNLISTED" label="Ẩn danh sách">Ẩn danh sách</Option>
-                <Option value="SUSPENDED" label="Tạm khóa">Tạm khóa</Option>
+                <Option value="SUSPENDED" label="Vô hiệu hoá">Vô hiệu hoá</Option>
                 <Option value="SUSPENDED_DEBT" label="Tạm khóa do nợ">Tạm khóa do nợ</Option>
                 <Option value="DELETED" label="Đã xóa">Đã xóa</Option>
                 <Option value="BANNED" label="Cấm">Cấm</Option>

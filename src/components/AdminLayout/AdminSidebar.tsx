@@ -5,7 +5,6 @@ import {
   Users, 
   Store, 
   ShoppingCart, 
-  Settings,
   ChevronRight,
   LogOut,
   Zap,
@@ -90,11 +89,6 @@ const AdminSidebar: React.FC = () => {
       permission: 'manage_orders',
       icon: <ShoppingCart className="w-6 h-6" />,
       children: [
-        { name: 'Tất cả đơn hàng', href: '/admin/orders/all', icon: null },
-        { name: 'Chờ xử lý', href: '/admin/orders/pending', icon: null },
-        { name: 'Đang giao', href: '/admin/orders/shipping', icon: null },
-        { name: 'Hoàn thành', href: '/admin/orders/completed', icon: null },
-        { name: 'Đã hủy', href: '/admin/orders/cancelled', icon: null },
         { name: 'Khiếu nại hoàn trả', href: '/admin/returns/disputes', icon: null }
       ]
     },
@@ -143,18 +137,6 @@ const AdminSidebar: React.FC = () => {
         { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null }
       ]
     },
-    {
-      name: 'Cài đặt hệ thống',
-      href: '/admin/settings',
-      permission: 'manage_system',
-      icon: <Settings className="w-6 h-6" />,
-      children: [
-        { name: 'Cấu hình chung', href: '/admin/settings/general', icon: null },
-        { name: 'Thanh toán', href: '/admin/settings/payment', icon: null },
-        { name: 'Giao hàng', href: '/admin/settings/shipping', icon: null },
-        { name: 'Email Templates', href: '/admin/settings/email', icon: null }
-      ]
-    }
   ];
 
   // Filter navigation items based on user permissions
