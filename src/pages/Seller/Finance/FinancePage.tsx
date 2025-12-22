@@ -27,7 +27,6 @@ import {
   ArrowDownRight,
   DollarSign,
   Shield,
-  AlertCircle,
   Calendar,
   FileText,
   ShoppingBag,
@@ -94,9 +93,6 @@ const FinancePage: React.FC = () => {
   const [withdrawFromDepositLoading, setWithdrawFromDepositLoading] = useState(false);
   const [withdrawFromDepositForm] = Form.useForm();
 
-  // Pay debt modal state
-  const [isPayDebtModalOpen, setIsPayDebtModalOpen] = useState(false);
-  const [payDebtLoading, setPayDebtLoading] = useState(false);
 
   // Sync dateRange with filters when filters change externally
   useEffect(() => {
@@ -121,11 +117,11 @@ const FinancePage: React.FC = () => {
       // Reload wallet overview
       refresh();
       // Clean URL
-      window.history.replaceState({}, '', '/seller/finance');
+      window.history.replaceState({}, '', '/seller/dashboard/finance');
     } else if (topupStatus === 'cancel') {
       message.warning('Bạn đã hủy giao dịch nạp tiền');
       // Clean URL
-      window.history.replaceState({}, '', '/seller/finance');
+      window.history.replaceState({}, '', '/seller/dashboard/finance');
     }
   }, [refresh]);
 
@@ -325,8 +321,8 @@ const FinancePage: React.FC = () => {
         return;
       }
 
-      const returnUrl = `${window.location.origin}/seller/finance?topup=success`;
-      const cancelUrl = `${window.location.origin}/seller/finance?topup=cancel`;
+      const returnUrl = `${window.location.origin}/seller/dashboard/finance?topup=success`;
+      const cancelUrl = `${window.location.origin}/seller/dashboard/finance?topup=cancel`;
       
       const response = await FinanceService.createTopup(
         storeId,
@@ -458,32 +454,6 @@ const FinancePage: React.FC = () => {
     withdrawFromDepositForm.resetFields();
   };
 
-  // Handle pay debt
-  const handlePayDebtClick = () => {
-    setIsPayDebtModalOpen(true);
-  };
-
-  const handlePayDebtSubmit = async () => {
-    try {
-      setPayDebtLoading(true);
-      
-      const response = await FinanceService.payDebt();
-
-      message.success(
-        `Thanh toán nợ thành công! Đã thanh toán ${formatCurrency(response.paidAmount)}. Số dư sau giao dịch: ${formatCurrency(response.balanceAfter)}`
-      );
-      setIsPayDebtModalOpen(false);
-      refresh();
-    } catch (error: any) {
-      message.error(error.message || 'Không thể thanh toán nợ');
-    } finally {
-      setPayDebtLoading(false);
-    }
-  };
-
-  const handlePayDebtCancel = () => {
-    setIsPayDebtModalOpen(false);
-  };
 
   return (
     <div className="space-y-6">
@@ -604,39 +574,6 @@ const FinancePage: React.FC = () => {
                     Hoàn về ví khả dụng
                   </Button>
                     </div>
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <Card className="h-full border-l-4 border-l-red-500 hover:shadow-md transition-shadow">
-                <Statistic
-                  title={
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-red-600" />
-                      <span className="text-gray-700 font-medium">Số nợ ước tính</span>
-                    </div>
-                  }
-                  value={walletOverview.debtBalance || 0}
-                  formatter={(value) => formatCurrency(Number(value))}
-                  valueStyle={{ 
-                    color: '#ff4d4f', 
-                    fontSize: '24px', 
-                    fontWeight: 'bold' 
-                  }}
-                />
-                <div className="mt-2 text-xs text-gray-500 mb-3">
-                  Số nợ ước tính của cửa hàng
-                </div>
-                <div className="flex flex-col gap-2 mt-3">
-                  <Button
-                    size="small"
-                    icon={<Banknote className="w-3 h-3" />}
-                    onClick={handlePayDebtClick}
-                    disabled={!walletOverview.debtBalance || walletOverview.debtBalance <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
-                    className="text-xs"
-                  >
-                    Thanh toán nợ
-                  </Button>
-                </div>
               </Card>
             </Col>
           </Row>
@@ -1324,89 +1261,6 @@ const FinancePage: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* Pay Debt Modal */}
-      <Modal
-        title="Thanh toán nợ cửa hàng"
-        open={isPayDebtModalOpen}
-        onCancel={handlePayDebtCancel}
-        footer={null}
-        width={600}
-      >
-        <div className="space-y-4">
-          {walletOverview && (
-            <div className="space-y-3">
-              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                <div className="flex items-center justify-between mb-2">
-                  <Text className="text-sm font-medium text-gray-700">Số tiền đang nợ:</Text>
-                  <Text strong className="text-xl text-red-600">
-                    {formatCurrency(walletOverview.debtBalance)}
-                  </Text>
-                </div>
-              </div>
-              
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-2">
-                  <Text className="text-sm font-medium text-gray-700">Số dư ví khả dụng:</Text>
-                  <Text strong className="text-xl text-blue-600">
-                    {formatCurrency(walletOverview.defaultBalance)}
-                  </Text>
-                </div>
-              </div>
-
-              {walletOverview.defaultBalance < walletOverview.debtBalance && (
-                <Alert
-                  message="Số dư không đủ"
-                  description={`Số dư hiện tại (${formatCurrency(walletOverview.defaultBalance)}) không đủ để thanh toán toàn bộ số nợ (${formatCurrency(walletOverview.debtBalance)}). Vui lòng nạp thêm tiền vào ví.`}
-                  type="error"
-                  showIcon
-                  className="mb-4"
-                />
-              )}
-
-              {walletOverview.defaultBalance >= walletOverview.debtBalance && (
-                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <Text className="text-sm font-medium text-gray-700">Số dư sau thanh toán:</Text>
-                    <Text strong className="text-xl text-green-600">
-                      {formatCurrency(walletOverview.defaultBalance - walletOverview.debtBalance)}
-                    </Text>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <Alert
-            message="Thông tin thanh toán nợ"
-            description={
-              <div className="space-y-2 text-sm">
-                <p>• Chỉ thanh toán các khoản nợ đã chốt (đơn hàng đã giao hoặc đã trả hàng)</p>
-                <p>• Bao gồm: Chênh lệch phí ship, Phí quay đầu/không nhận hàng, Phí hoàn trả</p>
-                <p>• Sau khi thanh toán, hệ thống sẽ tự động kiểm tra và mở khóa cửa hàng nếu đủ điều kiện</p>
-                <p className="font-semibold text-orange-600 mt-2">Số tiền sẽ được trừ từ ví khả dụng (defaultBalance)</p>
-              </div>
-            }
-            type="info"
-            showIcon
-            className="mb-4"
-          />
-
-          <div className="flex gap-2 justify-end">
-            <Button onClick={handlePayDebtCancel}>
-              Hủy
-            </Button>
-            <Button 
-              type="primary" 
-              onClick={handlePayDebtSubmit} 
-              loading={payDebtLoading}
-              disabled={!walletOverview || !walletOverview.debtBalance || walletOverview.debtBalance <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
-              className="bg-orange-600 hover:bg-orange-700 border-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Xác nhận thanh toán nợ
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

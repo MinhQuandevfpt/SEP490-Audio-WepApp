@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, Banknote } from 'lucide-react';
+import { Button, Modal, Alert, message } from 'antd';
+import { Typography } from 'antd';
 import { StoreService } from '../../services/seller/StoreService';
-import type { RiskWarningResponse, DebtComponentItem, DebtComponentPage } from '../../types/seller';
+import { FinanceService } from '../../services/seller/FinanceService';
+import type { RiskWarningResponse, DebtComponentItem, DebtComponentPage, WalletOverview } from '../../types/seller';
+
+const { Text } = Typography;
 
 const RiskWarningDashboard: React.FC = () => {
   const [riskData, setRiskData] = useState<RiskWarningResponse | null>(null);
@@ -9,6 +14,11 @@ const RiskWarningDashboard: React.FC = () => {
   const [debtLoading, setDebtLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pay debt modal state
+  const [isPayDebtModalOpen, setIsPayDebtModalOpen] = useState(false);
+  const [payDebtLoading, setPayDebtLoading] = useState(false);
+  const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -27,12 +37,14 @@ const RiskWarningDashboard: React.FC = () => {
     // Load lần đầu khi mở trang
     loadRiskData();
     loadDebtComponents();
+    loadWalletOverview();
 
     // Mỗi 2 phút tự động reload lại dữ liệu cảnh báo + breakdown
     const intervalId = window.setInterval(() => {
       console.log('⏰ Auto refresh RiskWarningDashboard (every 3 minutes)');
       loadRiskData();
       loadDebtComponents();
+      loadWalletOverview();
     }, 2 * 60 * 1000);
 
     return () => {
@@ -108,6 +120,47 @@ const RiskWarningDashboard: React.FC = () => {
     } finally {
       setDebtLoading(false);
     }
+  };
+
+  const loadWalletOverview = async () => {
+    try {
+      const data = await FinanceService.getWalletOverview();
+      if (data) {
+        setWalletOverview(data);
+      }
+    } catch (err: any) {
+      console.error('Error loading wallet overview:', err);
+    }
+  };
+
+  // Handle pay debt
+  const handlePayDebtClick = () => {
+    setIsPayDebtModalOpen(true);
+  };
+
+  const handlePayDebtSubmit = async () => {
+    try {
+      setPayDebtLoading(true);
+      
+      const response = await FinanceService.payDebt();
+
+      message.success(
+        `Thanh toán nợ thành công! Đã thanh toán ${formatCurrency(response.paidAmount)}. Số dư sau giao dịch: ${formatCurrency(response.balanceAfter)}`
+      );
+      setIsPayDebtModalOpen(false);
+      // Reload data
+      loadRiskData();
+      loadDebtComponents();
+      loadWalletOverview();
+    } catch (error: any) {
+      message.error(error.message || 'Không thể thanh toán nợ');
+    } finally {
+      setPayDebtLoading(false);
+    }
+  };
+
+  const handlePayDebtCancel = () => {
+    setIsPayDebtModalOpen(false);
   };
 
   const handleFilterChange = (key: string, value: string) => {
@@ -388,21 +441,38 @@ const RiskWarningDashboard: React.FC = () => {
                       : 'bg-green-50 border-green-200'
                   }`}
                 >
-                  <span className="text-xs text-gray-600 block mb-1">
-                    Nợ cần thanh toán ngay
-                  </span>
-                  <div
-                    className={`text-2xl font-bold mb-1 ${
-                      riskData.payableNowDebt > 0 ? 'text-red-600' : 'text-green-600'
-                    }`}
-                  >
-                    {formatCurrency(riskData.payableNowDebt)}
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <span className="text-xs text-gray-600 block mb-1">
+                        Nợ cần thanh toán ngay
+                      </span>
+                      <div
+                        className={`text-2xl font-bold mb-1 ${
+                          riskData.payableNowDebt > 0 ? 'text-red-600' : 'text-green-600'
+                        }`}
+                      >
+                        {formatCurrency(riskData.payableNowDebt)}
+                      </div>
+                      <small className="text-xs text-gray-500">
+                        {riskData.payableNowDebt > 0
+                          ? 'Số tiền đến hạn / quá hạn cần thanh toán ngay để đưa cửa hàng về trạng thái an toàn hơn.'
+                          : 'Hiện tại không có khoản nợ nào đến hạn phải thanh toán ngay.'}
+                      </small>
+                    </div>
+                    {riskData.payableNowDebt > 0 && walletOverview && (
+                      <div className="ml-4">
+                        <Button
+                          type="primary"
+                          icon={<Banknote className="w-4 h-4" />}
+                          onClick={handlePayDebtClick}
+                          disabled={!walletOverview.debtBalance || walletOverview.debtBalance <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
+                          className="bg-orange-600 hover:bg-orange-700 border-orange-600"
+                        >
+                          Thanh toán nợ
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <small className="text-xs text-gray-500">
-                    {riskData.payableNowDebt > 0
-                      ? 'Số tiền đến hạn / quá hạn cần thanh toán ngay để đưa cửa hàng về trạng thái an toàn hơn.'
-                      : 'Hiện tại không có khoản nợ nào đến hạn phải thanh toán ngay.'}
-                  </small>
                 </div>
               </div>
             </div>
@@ -659,6 +729,90 @@ const RiskWarningDashboard: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Pay Debt Modal */}
+        <Modal
+          title="Thanh toán nợ cửa hàng"
+          open={isPayDebtModalOpen}
+          onCancel={handlePayDebtCancel}
+          footer={null}
+          width={600}
+        >
+          <div className="space-y-4">
+            {walletOverview && (
+              <div className="space-y-3">
+                <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <Text className="text-sm font-medium text-gray-700">Số tiền đang nợ:</Text>
+                    <Text strong className="text-xl text-red-600">
+                      {formatCurrency(walletOverview.debtBalance)}
+                    </Text>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <Text className="text-sm font-medium text-gray-700">Số dư ví khả dụng:</Text>
+                    <Text strong className="text-xl text-blue-600">
+                      {formatCurrency(walletOverview.defaultBalance)}
+                    </Text>
+                  </div>
+                </div>
+
+                {walletOverview.defaultBalance < walletOverview.debtBalance && (
+                  <Alert
+                    message="Số dư không đủ"
+                    description={`Số dư hiện tại (${formatCurrency(walletOverview.defaultBalance)}) không đủ để thanh toán toàn bộ số nợ (${formatCurrency(walletOverview.debtBalance)}). Vui lòng nạp thêm tiền vào ví.`}
+                    type="error"
+                    showIcon
+                    className="mb-4"
+                  />
+                )}
+
+                {walletOverview.defaultBalance >= walletOverview.debtBalance && (
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <Text className="text-sm font-medium text-gray-700">Số dư sau thanh toán:</Text>
+                      <Text strong className="text-xl text-green-600">
+                        {formatCurrency(walletOverview.defaultBalance - walletOverview.debtBalance)}
+                      </Text>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Alert
+              message="Thông tin thanh toán nợ"
+              description={
+                <div className="space-y-2 text-sm">
+                  <p>• Chỉ thanh toán các khoản nợ đã chốt (đơn hàng đã giao hoặc đã trả hàng)</p>
+                  <p>• Bao gồm: Chênh lệch phí ship, Phí quay đầu/không nhận hàng, Phí hoàn trả</p>
+                  <p>• Sau khi thanh toán, hệ thống sẽ tự động kiểm tra và mở khóa cửa hàng nếu đủ điều kiện</p>
+                  <p className="font-semibold text-orange-600 mt-2">Số tiền sẽ được trừ từ ví khả dụng (defaultBalance)</p>
+                </div>
+              }
+              type="info"
+              showIcon
+              className="mb-4"
+            />
+
+            <div className="flex gap-2 justify-end">
+              <Button onClick={handlePayDebtCancel}>
+                Hủy
+              </Button>
+              <Button 
+                type="primary" 
+                onClick={handlePayDebtSubmit} 
+                loading={payDebtLoading}
+                disabled={!walletOverview || !walletOverview.debtBalance || walletOverview.debtBalance <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
+                className="bg-orange-600 hover:bg-orange-700 border-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Xác nhận thanh toán nợ
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   );
