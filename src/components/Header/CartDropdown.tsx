@@ -20,17 +20,19 @@ const CartDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [enrichedItems, setEnrichedItems] = useState<EnrichedCartItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   // Load cart data and enrich with platform voucher prices
   const loadCart = async () => {
     try {
+      setLoading(true);
       const cartData = await CustomerCartService.getCart();
       setCart(cartData);
       
       // Backend đã xử lý campaign nhưng vẫn đảm bảo nếu vượt quota thì dùng giá gốc
-      const itemsToEnrich = cartData.items.slice(0, 5);
+      const itemsToEnrich = cartData.items?.slice(0, 5) || [];
       const enriched = itemsToEnrich.map((item) => {
         const originalPrice = item.baseUnitPrice ?? item.unitPrice;
 
@@ -64,6 +66,11 @@ const CartDropdown: React.FC = () => {
       setEnrichedItems(enriched);
     } catch (error) {
       console.error('Error loading cart:', error);
+      // Reset to empty state on error
+      setCart(null);
+      setEnrichedItems([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -110,44 +117,60 @@ const CartDropdown: React.FC = () => {
   const formatPrice = (price: number) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
 
   // Use enriched items for display, fallback to first 5 raw items if enrichment not done
-  const displayItems = enrichedItems.length > 0 ? enrichedItems : cart?.items?.slice(0, 5).map(item => {
-    const originalPrice = item.baseUnitPrice ?? item.unitPrice;
-    const exceededCampaign =
-      item.inPlatformCampaign &&
-      item.campaignRemaining !== null &&
-      item.campaignRemaining !== undefined &&
-      item.quantity > item.campaignRemaining;
-    const discountedPrice = exceededCampaign
-      ? originalPrice
-      : (item.inPlatformCampaign &&
-          !item.campaignUsageExceeded &&
-          item.platformCampaignPrice !== undefined
-          ? item.platformCampaignPrice
-          : item.unitPrice);
-    
-    return {
-      cartItemId: item.cartItemId,
-      refId: item.refId,
-      name: item.name,
-      image: item.image,
-      variantUrl: item.variantUrl,
-      unitPrice: originalPrice, // Giá gốc để so sánh
-      discountedPrice, // Giá sau khi áp dụng campaign (hoặc gốc nếu vượt quota)
-      quantity: item.quantity,
-      variantOptionValue: item.variantOptionValue
-    };
-  }) || [];
+  const displayItems: EnrichedCartItem[] = enrichedItems.length > 0 
+    ? enrichedItems 
+    : (cart?.items?.slice(0, 5).map(item => {
+        const originalPrice = item.baseUnitPrice ?? item.unitPrice;
+        const exceededCampaign =
+          item.inPlatformCampaign &&
+          item.campaignRemaining !== null &&
+          item.campaignRemaining !== undefined &&
+          item.quantity > item.campaignRemaining;
+        const discountedPrice = exceededCampaign
+          ? originalPrice
+          : (item.inPlatformCampaign &&
+              !item.campaignUsageExceeded &&
+              item.platformCampaignPrice !== undefined
+              ? item.platformCampaignPrice
+              : item.unitPrice);
+        
+        return {
+          cartItemId: item.cartItemId,
+          refId: item.refId,
+          name: item.name,
+          image: item.image,
+          variantUrl: item.variantUrl,
+          unitPrice: originalPrice, // Giá gốc để so sánh
+          discountedPrice, // Giá sau khi áp dụng campaign (hoặc gốc nếu vượt quota)
+          quantity: item.quantity,
+          variantOptionValue: item.variantOptionValue
+        };
+      }) || []);
   
-  const remainingCount = Math.max(0, cartItemCount - 5);  return (
+  const remainingCount = Math.max(0, cartItemCount - 5);
+
+  return (
     <div className="relative" ref={dropdownRef}>
       {/* Cart Icon */}
       <button
         onMouseEnter={handleMouseEnter}
-        onClick={() => {
-          setIsOpen(false);
-          navigate('/cartv2'); // Điều hướng sang giỏ hàng UI v2
+        onClick={(e) => {
+          e.stopPropagation();
+          // On mobile, navigate directly to cart page
+          // On desktop, toggle dropdown
+          if (window.innerWidth < 640) { // sm breakpoint
+            setIsOpen(false);
+            navigate('/cartv2');
+          } else {
+            // Desktop: toggle dropdown
+            setIsOpen(!isOpen);
+            if (!isOpen && !cart) {
+              loadCart();
+            }
+          }
         }}
         className="relative group"
+        aria-label="Giỏ hàng"
       >
         <div className="flex items-center text-blue-600 hover:text-blue-700">
           <ShoppingCart className="w-5 h-5" />
@@ -159,10 +182,10 @@ const CartDropdown: React.FC = () => {
         )}
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu - Only show on desktop */}
       {isOpen && (
         <div 
-          className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
+          className="hidden sm:block absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50"
           onMouseLeave={() => setIsOpen(false)}
         >
           {/* Header */}
@@ -180,7 +203,12 @@ const CartDropdown: React.FC = () => {
 
           {/* Cart Items - No scroll, fit 5 items */}
           <div className="overflow-hidden">
-            {cartItemCount === 0 ? (
+            {loading ? (
+              <div className="p-8 text-center text-gray-500">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-2"></div>
+                <p className="text-sm">Đang tải giỏ hàng...</p>
+              </div>
+            ) : cartItemCount === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                 <p>Giỏ hàng trống</p>
@@ -233,15 +261,25 @@ const CartDropdown: React.FC = () => {
 
           {/* Footer */}
           {cartItemCount > 0 && (
-            <div className="p-3 border-t border-gray-200 bg-gray-50">
-              {/* Thông báo số sản phẩm còn lại + Button */}
+            <div className="p-3 border-t border-gray-200 bg-gray-50 space-y-2">
+              {/* Thông báo số sản phẩm còn lại */}
               {remainingCount > 0 && (
-                <div className="flex items-center justify-between">
+                <div className="text-center">
                   <span className="text-xs text-gray-600">
                     {remainingCount} sản phẩm thêm vào giỏ
                   </span>
                 </div>
               )}
+              {/* Button to navigate to cart page */}
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate('/cartv2');
+                }}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+              >
+                Xem giỏ hàng
+              </button>
             </div>
           )}
         </div>
