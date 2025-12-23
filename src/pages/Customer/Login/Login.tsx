@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Phone, Loader2 } from 'lucide-react';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
-import { showCenterError } from '../../../utils/notification';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { GoogleLoginButton } from '../../../components/common';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import type { ApiError } from '../../../types/api';
@@ -35,6 +35,24 @@ const Login: React.FC = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+
+  const handleResendVerifyEmail = async () => {
+    if (!formData.email) {
+      showCenterError(t('login.errors.emailRequired'), t('login.errors.missingInfo'));
+      return;
+    }
+    try {
+      const res = await CustomerAuthService.resendVerifyEmail(formData.email, 'CUSTOMER');
+      if (res?.status === 200) {
+        showCenterSuccess(res.message || 'Đã gửi lại email xác nhận', 'Thành công');
+      } else {
+        showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+      }
+    } catch (error: any) {
+      const msg = error?.message || 'Không thể gửi lại email xác nhận';
+      showCenterError(msg, 'Lỗi');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,6 +235,17 @@ const Login: React.FC = () => {
           >
             {t('login.forgotPassword')}
           </Link>
+        </div>
+
+        {/* Resend verify email */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleResendVerifyEmail}
+            className="text-xs text-orange-500 hover:text-orange-600 font-medium underline"
+          >
+            Gửi lại mail xác nhận
+          </button>
         </div>
 
         {/* Login Button */}

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
-import { showCenterError } from '../../../utils/notification';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import type { SellerLoginRequest } from '../../../types/seller';
 
 const SellerLogin: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -22,6 +24,13 @@ const SellerLogin: React.FC = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
   };
+
+  // Prefill email if passed from register page
+  useEffect(() => {
+    if (location.state?.email) {
+      setFormData(prev => ({ ...prev, email: location.state.email }));
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +79,23 @@ const SellerLogin: React.FC = () => {
       showCenterError(errorMessage, 'Lỗi đăng nhập');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendVerifyEmail = async () => {
+    if (!formData.email) {
+      showCenterError('Vui lòng nhập email để gửi lại xác nhận.', 'Thiếu email');
+      return;
+    }
+    try {
+      const res = await CustomerAuthService.resendVerifyEmail(formData.email, 'STOREOWNER');
+      if (res?.status === 200) {
+        showCenterSuccess(res.message || 'Đã gửi lại email xác nhận', 'Thành công');
+      } else {
+        showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+      }
+    } catch (error: any) {
+      showCenterError(error?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
     }
   };
 
@@ -165,6 +191,17 @@ const SellerLogin: React.FC = () => {
           >
             Quên mật khẩu?
           </Link>
+        </div>
+
+        {/* Resend verify email */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleResendVerifyEmail}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium underline"
+          >
+            Gửi lại email xác nhận
+          </button>
         </div>
 
         {/* Login Button */}
