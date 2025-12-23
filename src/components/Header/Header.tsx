@@ -124,9 +124,30 @@ const Header: React.FC = () => {
               <Link to="/seller/login" className="text-blue-600 hover:text-gray-900">
                 {t('header.sellWithUs')}
               </Link>
-              <Link to="/3d-room" className="text-blue-600 hover:text-gray-900">
-                {t('header.experienceRoom')}
-              </Link>
+              {/* Special highlight for 3D room experience link */}
+              <>
+                <style>
+                  {`
+                    @keyframes blinkBlueRed {
+                      0%, 100% { color: #2563eb; } /* blue-600 */
+                      50% { color: #ef4444; }      /* red-500 */
+                    }
+                    .link-blink-blue-red {
+                      animation: blinkBlueRed 1.2s infinite;
+                    }
+                  `}
+                </style>
+                <Link
+                  to="/3d-room"
+                  className="relative inline-flex items-center link-blink-blue-red font-semibold"
+                >
+                  {t('header.experienceRoom')}
+                  {/* HOT badge shifted to the top-right, not covering text */}
+                  <span className="absolute -top-3 right-0 translate-x-full px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-500 text-white rounded-full animate-pulse shadow-md">
+                    NEW
+                  </span>
+                </Link>
+              </>
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Support - Hidden on mobile */}

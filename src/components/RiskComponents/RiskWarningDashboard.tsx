@@ -384,17 +384,32 @@ const RiskWarningDashboard: React.FC = () => {
 
             {/* Store Meta */}
             <div className="flex justify-end items-center text-sm text-gray-600 mb-5">
-              <div className={`px-3 py-1 rounded-full border font-medium ${
-                riskData.storeStatus === 'ACTIVE'
-                  ? 'bg-green-50 text-green-700 border-green-200'
-                  : riskData.storeStatus === 'SUSPENDED_DEBT'
-                  ? 'bg-red-50 text-red-700 border-red-200'
-                  : 'bg-gray-50 text-gray-700 border-gray-200'
-              }`}>
-                Trạng thái: {riskData.storeStatus === 'ACTIVE' ? 'Đang hoạt động' : 
-                              riskData.storeStatus === 'SUSPENDED_DEBT' ? 'Bị khóa do nợ' : 
-                              'Bị khóa vĩnh viễn'}
-              </div>
+              {(() => {
+                const statusMap: Record<string, { text: string; className: string }> = {
+                  ACTIVE: { text: 'Đang hoạt động', className: 'bg-green-50 text-green-700 border-green-200' },
+                  ABANDONED: { text: 'Đã bỏ', className: 'bg-gray-50 text-gray-700 border-gray-200' },
+                  CLOSED: { text: 'Đã đóng', className: 'bg-gray-50 text-gray-700 border-gray-200' },
+                  CREATED: { text: 'Mới tạo', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+                  INACTIVE: { text: 'Ngưng hoạt động', className: 'bg-gray-50 text-gray-700 border-gray-200' },
+                  PAUSED: { text: 'Tạm dừng hoạt động', className: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+                  PENDING: { text: 'Đang chờ duyệt', className: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+                  REJECTED: { text: 'Bị từ chối', className: 'bg-red-50 text-red-700 border-red-200' },
+                  SUSPENDED: { text: 'Khoá cửa hàng', className: 'bg-red-50 text-red-700 border-red-200' },
+                  SUSPENDED_DEBT: { text: 'Khóa cửa hàng do nợ', className: 'bg-red-50 text-red-700 border-red-200' },
+                  SUSPENDED_POLICY: { text: 'Khóa cửa hàng do vi phạm chính sách', className: 'bg-red-50 text-red-700 border-red-200' },
+                };
+
+                const info = statusMap[riskData.storeStatus] ?? {
+                  text: riskData.storeStatus || 'Không xác định',
+                  className: 'bg-gray-50 text-gray-700 border-gray-200',
+                };
+
+                return (
+                  <div className={`px-3 py-1 rounded-full border font-medium ${info.className}`}>
+                    Trạng thái: {info.text}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Summary Grid */}

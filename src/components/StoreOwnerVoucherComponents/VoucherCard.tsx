@@ -175,7 +175,11 @@ const VoucherCard: React.FC<Props> = ({ voucher }) => {
       </div>
 
       <div className="mt-3 flex items-center justify-between">
-        <div className="text-xs text-gray-500">Áp dụng cho {(voucher.products?.length ?? 0)} sản phẩm</div>
+        <div className="text-xs text-gray-500">
+          {voucher.scopeType === 'ALL_SHOP_VOUCHER'
+            ? 'Áp dụng cho toàn cửa hàng'
+            : `Áp dụng cho ${(voucher.products?.length ?? 0)} sản phẩm`}
+        </div>
         <button type="button" onClick={toggleExpand} className="text-sm text-blue-600 hover:underline">
           {expanded ? 'Ẩn chi tiết ▲' : 'Xem chi tiết ▼'}
         </button>

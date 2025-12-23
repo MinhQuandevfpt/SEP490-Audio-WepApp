@@ -14,8 +14,11 @@ const ShopWideVoucherListPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await VoucherService.getFilteredShopVouchers('ACTIVE', 'ALL_SHOP_VOUCHER');
-      setVouchers(res.data || []);
+      const res = await VoucherService.getShopVouchers();
+      const all = res.data || [];
+      // Chỉ hiển thị voucher áp dụng toàn shop (ALL_SHOP_VOUCHER)
+      const shopWideVouchers = all.filter(v => v.scopeType === 'ALL_SHOP_VOUCHER');
+      setVouchers(shopWideVouchers);
     } catch (e: any) {
       console.error('Error loading shop-wide vouchers:', e);
       setError(e?.message || 'Không thể tải danh sách voucher toàn shop.');
