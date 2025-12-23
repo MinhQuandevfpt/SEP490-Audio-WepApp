@@ -89,7 +89,7 @@ const StoreDetail: React.FC = () => {
       },
       INACTIVE: {
         color: 'default',
-        text: 'Ngừng hoạt động',
+        text: 'Chưa hoạt động',
         icon: <CloseCircleOutlined />
       },
       PENDING: {

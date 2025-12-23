@@ -506,7 +506,7 @@ const AdminProductManagement: React.FC = () => {
           {variants.length > 0 && (
             <Col xs={24}>
               <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                <Text strong>Danh sách biến thể (variant):</Text>
+                <Text strong>Danh sách biến thể:</Text>
                 <Row gutter={[12, 12]}>
                   {variants.map((v) => (
                     <Col xs={24} md={12} lg={8} key={v.variantId}>
