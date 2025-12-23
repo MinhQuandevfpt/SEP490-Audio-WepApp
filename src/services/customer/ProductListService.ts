@@ -952,4 +952,72 @@ export class ProductListService {
       throw error;
     }
   }
+
+  /**
+   * Find similar products by technical specifications
+   * POST /api/products/similar/spec
+   */
+  static async findSimilarProductsBySpecs(request: {
+    categoryId?: string | null;
+    topN: number;
+    thongSoKyThuat: {
+      daiTanSo: {
+        tanSoThap: string;
+        tanSoCao: string;
+      };
+      congSuat?: string;
+      troKhang?: string;
+      doNhay?: string;
+      doMeoTieng?: string;
+      tanSoCrossover?: string | null;
+    };
+  }): Promise<{
+    status: number;
+    message: string;
+    data: {
+      productIds: string[];
+    };
+  }> {
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+      const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+      const url = `${apiBase}/products/similar/spec`;
+
+      const token = localStorage.getItem('CUSTOMER_token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': '*/*',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      console.log('🔍 Finding similar products by specs:', url);
+      console.log('📤 Request body:', JSON.stringify(request, null, 2));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw {
+          status: response.status,
+          statusText: response.statusText,
+          message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          data: errorData,
+        };
+      }
+
+      const data = await response.json();
+      console.log('✅ Similar products found:', data);
+      return data;
+    } catch (error: any) {
+      console.error('❌ Error finding similar products:', error);
+      throw error;
+    }
+  }
 }

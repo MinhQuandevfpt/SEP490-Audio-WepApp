@@ -355,8 +355,8 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Chiến dịch khuyến mãi', path: '/seller/dashboard/campaigns' },
-        { label: 'Voucher', path: '/seller/dashboard/marketing/vouchers' },
-        { label: 'Voucher toàn shop', path: '/seller/dashboard/shop-wide-voucher' }
+        { label: 'Voucher sản phẩm', path: '/seller/dashboard/marketing/vouchers' },
+        { label: 'Voucher toàn cửa hàng', path: '/seller/dashboard/shop-wide-voucher' }
       ]
     },
     {
@@ -399,8 +399,7 @@ const SellerDashboardLayout: React.FC = () => {
       badge: null,
       subItems: [
         { label: 'Ví cửa hàng', path: '/seller/dashboard/finance' },
-        { label: 'Chi trả cho cửa hàng', path: '/seller/dashboard/store-payout-v2' },
-        { label: 'Doanh thu', path: '/seller/dashboard/revenue' }
+        { label: 'Chi trả cho cửa hàng', path: '/seller/dashboard/store-payout-v2' }
       ]
     },
     {

@@ -128,6 +128,13 @@ class AdminHttpClient {
       method: 'DELETE',
     });
   }
+
+  async patch<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
 }
 
 // Create HTTP client instance
@@ -286,6 +293,27 @@ export class AdminUserService {
    */
   static isRetryableError(error: ApiError): boolean {
     return StatusCodeUtils.isRetryable(error.status || 0);
+  }
+
+  /**
+   * Toggle customer buyable status (allow/block customer from buying)
+   * PATCH /api/admin/customers/{customerId}/buyable
+   */
+  static async toggleCustomerBuyable(customerId: string, buyable: boolean): Promise<any> {
+    try {
+      console.log('🚀 Toggling customer buyable status:', { customerId, buyable });
+      
+      const response = await adminHttpClient.patch<any>(
+        `/api/admin/customers/${customerId}/buyable`,
+        { buyable }
+      );
+      
+      console.log('✅ Customer buyable status updated successfully');
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to toggle customer buyable status:', error);
+      throw error;
+    }
   }
 }
 

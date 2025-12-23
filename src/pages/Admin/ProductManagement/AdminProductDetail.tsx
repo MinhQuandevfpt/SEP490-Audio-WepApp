@@ -17,6 +17,13 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ShopOutlined,
+  ClockCircleOutlined,
+  WarningOutlined,
+  FileTextOutlined,
+  StopOutlined,
+  AppstoreOutlined,
+  ExclamationCircleOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { AdminProductService, type ProductResponse, type ProductVariant } from '../../../services/admin/AdminProductService';
@@ -59,15 +66,98 @@ const AdminProductDetail: React.FC = () => {
   };
 
   const getStatusTag = (status: string) => {
-    return status === 'ACTIVE' ? (
-      <Tag color="success" icon={<CheckCircleOutlined />} style={{ fontSize: '14px' }}>
-        Đang bán
-      </Tag>
-    ) : (
-      <Tag color="default" icon={<CloseCircleOutlined />} style={{ fontSize: '14px' }}>
-        Ngừng bán
-      </Tag>
-    );
+    switch (status) {
+      case 'ACTIVE':
+        return (
+          <Tag color="success" icon={<CheckCircleOutlined />} style={{ fontSize: '14px' }}>
+            Đang bán
+          </Tag>
+        );
+      case 'INACTIVE':
+        return (
+          <Tag color="default" icon={<CloseCircleOutlined />} style={{ fontSize: '14px' }}>
+            Ngừng bán
+          </Tag>
+        );
+      case 'INACTIVE_PAUSE':
+        return (
+          <Tag color="warning" icon={<ClockCircleOutlined />} style={{ fontSize: '14px' }}>
+            Tạm dừng
+          </Tag>
+        );
+      case 'OUT_OF_STOCK':
+        return (
+          <Tag color="warning" icon={<WarningOutlined />} style={{ fontSize: '14px' }}>
+            Hết hàng
+          </Tag>
+        );
+      case 'PENDING':
+        return (
+          <Tag color="processing" icon={<ClockCircleOutlined />} style={{ fontSize: '14px' }}>
+            Chờ duyệt
+          </Tag>
+        );
+      case 'PENDING_APPROVAL':
+        return (
+          <Tag color="processing" icon={<ClockCircleOutlined />} style={{ fontSize: '14px' }}>
+            Chờ phê duyệt
+          </Tag>
+        );
+      case 'REJECTED':
+        return (
+          <Tag color="error" icon={<CloseCircleOutlined />} style={{ fontSize: '14px' }}>
+            Bị từ chối
+          </Tag>
+        );
+      case 'REJECT':
+        return (
+          <Tag color="error" icon={<CloseCircleOutlined />} style={{ fontSize: '14px' }}>
+            Bị từ chối
+          </Tag>
+        );
+      case 'DRAFT':
+        return (
+          <Tag color="default" icon={<FileTextOutlined />} style={{ fontSize: '14px' }}>
+            Nháp
+          </Tag>
+        );
+      case 'DISCONTINUED':
+        return (
+          <Tag color="default" icon={<StopOutlined />} style={{ fontSize: '14px' }}>
+            Ngưng sản xuất
+          </Tag>
+        );
+      case 'UNLISTED':
+        return (
+          <Tag color="default" icon={<AppstoreOutlined />} style={{ fontSize: '14px' }}>
+            Ẩn danh sách
+          </Tag>
+        );
+      case 'SUSPENDED':
+        return (
+          <Tag color="error" icon={<ExclamationCircleOutlined />} style={{ fontSize: '14px' }}>
+            Vô hiệu hoá
+          </Tag>
+        );
+      case 'SUSPENDED_DEBT':
+        return (
+          <Tag color="error" icon={<ExclamationCircleOutlined />} style={{ fontSize: '14px' }}>
+            Tạm khóa do nợ
+          </Tag>
+        );
+      case 'DELETED':
+        return (
+          <Tag color="error" icon={<DeleteOutlined />} style={{ fontSize: '14px' }}>
+            Đã xóa
+          </Tag>
+        );
+      default:
+        return (
+          <Tag color="default" icon={<CloseCircleOutlined />} style={{ fontSize: '14px' }}>
+            {status}
+          </Tag>
+        );
+    }
   };
 
   // Variant columns

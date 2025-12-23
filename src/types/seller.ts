@@ -580,6 +580,26 @@ export interface StoreOrderItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  // Optional detailed pricing/discount fields from API
+  unitPriceBeforeDiscount?: number;
+  linePriceBeforeDiscount?: number;
+  platformVoucherDiscount?: number | null;
+  shopItemDiscount?: number;
+  shopOrderVoucherDiscount?: number;
+  totalItemDiscount?: number;
+  finalUnitPrice?: number;
+  finalLineTotal?: number;
+  amountCharged?: number;
+  eligibleForPayout?: boolean;
+  isPayout?: boolean;
+  isReturned?: boolean;
+  shippingFeeEstimated?: number;
+  shippingFeeActual?: number;
+  shippingExtraForStore?: number;
+  platformFeeAmount?: number;
+  netPayoutItem?: number;
+  payoutProcessed?: boolean;
+  platformFeePercentage?: number;
 }
 
 // Store Order (from API response)
@@ -610,6 +630,14 @@ export interface StoreOrder {
   shipPostalCode: string;
   shipNote: string | null;
   items: StoreOrderItem[];
+  // Optional voucher & payment details
+  shopVouchers?: {
+    voucherId: string | null;
+    code: string;
+    name: string | null;
+    discount: number;
+  }[];
+  paymentMethod?: string;
 }
 
 // Store Orders List Response

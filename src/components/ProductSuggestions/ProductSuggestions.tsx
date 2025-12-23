@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lightbulb } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { type Product } from '../../services/customer/ProductListService';
 import { ProductViewService, type ProductViewItem } from '../../services/customer/ProductViewService';
 import SimpleProductCard from '../ProductCard/SimpleProductCard';
@@ -12,7 +13,7 @@ const ProductSuggestions: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalElements, setTotalElements] = useState(0);
 
-  const itemsPerPage = 17; // Hiển thị 17 sản phẩm mỗi lần
+  const itemsPerPage = 20; // Hiển thị 20 sản phẩm mỗi lần
 
   // Fetch products from API
   useEffect(() => {
@@ -339,23 +340,28 @@ const ProductSuggestions: React.FC = () => {
             ))}
           </div>
 
-          {/* Load More Button */}
-          {hasMore && (
+          {/* View All Button - Hiển thị khi đã có 20 sản phẩm */}
+          {products.length >= 20 && (
             <div className="text-center mt-8">
-              <button
-                onClick={handleLoadMore}
-                disabled={loading}
-                className="bg-orange-500 text-white px-8 py-3 rounded-lg hover:bg-orange-600 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+              <Link
+                to="/products/all"
+                className="inline-block bg-orange-500 text-white px-8 py-3 rounded-lg hover:bg-orange-600 transition-colors font-medium shadow-md hover:shadow-lg"
               >
-                {loading ? 'Đang tải...' : `Xem thêm sản phẩm (${remainingProducts} sản phẩm)`}
-              </button>
+                Xem tất cả
+              </Link>
             </div>
           )}
 
-          {/* No More Products */}
-          {!hasMore && products.length > 0 && (
-            <div className="text-center mt-8 text-gray-500">
-              Đã hiển thị tất cả {totalElements} sản phẩm
+          {/* Load More Button */}
+          {hasMore && (
+            <div className="text-center mt-4">
+              <button
+                onClick={handleLoadMore}
+                disabled={loading}
+                className="bg-gray-200 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Đang tải...' : `Xem thêm sản phẩm (${remainingProducts} sản phẩm)`}
+              </button>
             </div>
           )}
 

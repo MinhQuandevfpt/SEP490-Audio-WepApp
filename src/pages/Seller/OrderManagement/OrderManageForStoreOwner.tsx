@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Tooltip, Alert } from 'antd';
+import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X } from 'lucide-react';
 import { StoreOrderFilter, GhnTransferModal } from '../../../components/StoreOwnerOrderManagementComponents';
@@ -359,18 +359,25 @@ const OrderManageForStoreOwner: React.FC = () => {
       key: 'shipAddress',
       render: (_, r) => {
         const addr = [r.shipStreet, r.shipWard, r.shipDistrict, r.shipProvince].filter(Boolean).join(', ');
-        const receiverName = r.shipReceiverName || '';
+        const mask3 = (val?: string | null) => {
+          if (!val || !val.trim()) return '';
+          const t = val.trim();
+          if (t.length <= 6) {
+            return `${t.slice(0, Math.min(3, t.length))}...${t.slice(-1)}`;
+          }
+          return `${t.slice(0, 3)}...${t.slice(-3)}`;
+        };
         return (
           <div className="max-w-xs">
-            <Tooltip title={receiverName} placement="top">
-              <div className="font-medium text-gray-800 cursor-help">{maskAddress(receiverName)}</div>
-            </Tooltip>
-            <Tooltip title={addr} placement="top">
-              <div className="text-xs text-gray-500 cursor-help">{maskAddress(addr)}</div>
-            </Tooltip>
+            <div className="font-medium text-gray-800">
+              {mask3(r.shipReceiverName) || '---'}
+            </div>
+            <div className="text-xs text-gray-500">
+              {mask3(addr) || '---'}
+            </div>
           </div>
         );
-      }
+      },
     },
     {
       title: 'Hành động',
@@ -557,14 +564,39 @@ const OrderManageForStoreOwner: React.FC = () => {
                       </Descriptions>
                     </div>
 
-                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                      <Descriptions title="Thanh toán" size="small" column={1} bordered>
-                        <Descriptions.Item label="Giá gốc (chưa giảm giá)">{formatCurrency(record.totalAmount)}</Descriptions.Item>
-                        <Descriptions.Item label="Giảm giá">{formatCurrency(record.discountTotal)}</Descriptions.Item>
-                        <Descriptions.Item label="Phí vận chuyển">{formatCurrency(record.shippingFee)}</Descriptions.Item>
-                        <Descriptions.Item label="Tổng cộng">{formatCurrency(record.grandTotal)}</Descriptions.Item>
-                      </Descriptions>
-                    </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <Descriptions title="Thanh toán" size="small" column={1} bordered>
+                      <Descriptions.Item label="Giá gốc (chưa giảm giá)">
+                        {formatCurrency(record.totalAmount)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Tổng giảm giá">
+                        {formatCurrency(record.discountTotal)}
+                      </Descriptions.Item>
+                      {Array.isArray((record as any).shopVouchers) && (record as any).shopVouchers.length > 0 && (
+                        <Descriptions.Item label="Voucher shop áp dụng">
+                          {(record as any).shopVouchers.map((v: any, idx: number) => (
+                            <div key={`${v.code}-${idx}`} className="flex justify-between text-xs">
+                              <span className="font-medium">{v.code}</span>
+                              <span className="text-red-600">
+                                -{formatCurrency(v.discount)}
+                              </span>
+                            </div>
+                          ))}
+                        </Descriptions.Item>
+                      )}
+                      <Descriptions.Item label="Phí vận chuyển">
+                        {formatCurrency(record.shippingFee)}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Tổng cộng">
+                        {formatCurrency(record.grandTotal)}
+                      </Descriptions.Item>
+                      {(record as any).paymentMethod && (
+                        <Descriptions.Item label="Phương thức thanh toán">
+                          {(record as any).paymentMethod}
+                        </Descriptions.Item>
+                      )}
+                    </Descriptions>
+                  </div>
                   </div>
 
                   <Divider className="my-4" />
@@ -573,17 +605,34 @@ const OrderManageForStoreOwner: React.FC = () => {
                     <div className="text-sm font-semibold mb-2">Sản phẩm ({record.items?.length || 0})</div>
                     <List
                       dataSource={record.items || []}
-                      renderItem={(item: any) => (
-                        <List.Item>
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex-1">
-                              <div className="font-medium text-gray-800">{item.name}</div>
-                              <div className="text-xs text-gray-500">SL: {item.quantity} × {formatCurrency(item.unitPrice)}</div>
+                      renderItem={(item: any) => {
+                        const originalUnit = item.unitPriceBeforeDiscount ?? item.unitPrice;
+                        const originalLine = item.linePriceBeforeDiscount ?? originalUnit * item.quantity;
+                        const finalUnit = item.finalUnitPrice ?? item.unitPrice;
+                        const finalLine = item.finalLineTotal ?? finalUnit * item.quantity;
+
+                        return (
+                          <List.Item>
+                            <div className="flex items-start justify-between w-full">
+                              <div className="flex-1 pr-4">
+                                <div className="font-medium text-gray-800">{item.name}</div>
+                                <div className="text-xs text-gray-500">
+                                  Giá gốc: {formatCurrency(originalUnit)} × {item.quantity} = {formatCurrency(originalLine)}
+                                </div>
+                                <div className="mt-1 text-xs text-gray-600">
+                                  Giá sau giảm: {formatCurrency(finalUnit)} × {item.quantity} ={' '}
+                                  <span className="font-semibold text-green-600">
+                                    {formatCurrency(finalLine)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right text-sm font-semibold">
+                                {formatCurrency(finalLine)}
+                              </div>
                             </div>
-                            <div className="text-right font-semibold">{formatCurrency(item.lineTotal)}</div>
-                          </div>
-                        </List.Item>
-                      )}
+                          </List.Item>
+                        );
+                      }}
                     />
                   </div>
 

@@ -849,11 +849,10 @@ const AdminProductManagement: React.FC = () => {
               >
                 <Option value="ACTIVE" label="Đang bán">Đang bán</Option>
                 <Option value="INACTIVE" label="Ngừng bán">Ngừng bán</Option>
+                <Option value="INACTIVE_PAUSE" label="Tạm dừng">Tạm dừng</Option>
                 <Option value="OUT_OF_STOCK" label="Hết hàng">Hết hàng</Option>
-                <Option value="PENDING" label="Chờ duyệt">Chờ duyệt</Option>
                 <Option value="PENDING_APPROVAL" label="Chờ phê duyệt">Chờ phê duyệt</Option>
-                <Option value="REJECTED" label="Bị từ chối">Bị từ chối</Option>
-                <Option value="REJECT" label="Bị từ chối (mới)">Bị từ chối (mới)</Option>
+                <Option value="REJECT" label="Bị từ chối.">Bị từ chối</Option>
                 <Option value="DRAFT" label="Nháp">Nháp</Option>
                 <Option value="DISCONTINUED" label="Ngưng sản xuất">Ngưng sản xuất</Option>
                 <Option value="UNLISTED" label="Ẩn danh sách">Ẩn danh sách</Option>

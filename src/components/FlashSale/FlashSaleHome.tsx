@@ -129,13 +129,6 @@ const FlashSaleHome: React.FC = () => {
               <div>
                 <h2 className="text-white text-2xl font-bold m-0 flex items-center gap-2">
                   Flash Sale
-                  {flashSale.campaign.badgeIconUrl && (
-                    <img 
-                      src={flashSale.campaign.badgeIconUrl} 
-                      alt="badge" 
-                      className="w-8 h-8 object-contain"
-                    />
-                  )}
                 </h2>
               </div>
             </div>

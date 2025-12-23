@@ -367,6 +367,14 @@ export class CustomerCartService {
    * Format cart error message
    */
   static formatCartError(error: any): string {
+    // Check for buyable error first
+    const errorMessage = error?.message || error?.data?.message || '';
+    const lowerMessage = errorMessage.toLowerCase();
+    
+    if (lowerMessage.includes('not allowed to buy') || lowerMessage.includes('buyable=false') || lowerMessage.includes('buyable is false')) {
+      return 'Tài khoản của bạn đang bị hạn chế mua hàng. Vui lòng liên hệ bộ phận hỗ trợ để biết thêm thông tin chi tiết.';
+    }
+    
     if (error?.status === 400) {
       return 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.';
     }
@@ -376,7 +384,7 @@ export class CustomerCartService {
     if (error?.status === 401) {
       return 'Vui lòng đăng nhập để thêm vào giỏ hàng.';
     }
-    return error?.message || 'Đã xảy ra lỗi khi thao tác với giỏ hàng.';
+    return errorMessage || 'Đã xảy ra lỗi khi thao tác với giỏ hàng.';
   }
 
   /**

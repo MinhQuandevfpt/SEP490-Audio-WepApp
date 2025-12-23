@@ -14,7 +14,10 @@ const VoucherPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const res = await VoucherService.getShopVouchers();
-      setVouchers(res.data || []);
+      const all = res.data || [];
+      // Chỉ lấy voucher áp dụng cho sản phẩm (PRODUCT_VOUCHER)
+      const productVouchers = all.filter(v => v.scopeType === 'PRODUCT_VOUCHER');
+      setVouchers(productVouchers);
     } catch (e: any) {
       setError(e?.message || 'Không thể tải danh sách voucher.');
     } finally {
@@ -30,8 +33,10 @@ const VoucherPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Voucher cửa hàng</h2>
-          <p className="text-sm text-gray-600">Danh sách voucher hiện có của cửa hàng bạn</p>
+          <h2 className="text-2xl font-bold text-gray-900">Voucher sản phẩm</h2>
+          <p className="text-sm text-gray-600">
+            Danh sách voucher đang áp dụng cho sản phẩm của cửa hàng bạn
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button

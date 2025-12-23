@@ -33,6 +33,7 @@ import ReturnHistoryPage from '../pages/Customer/ReturnHistory/ReturnHistoryPage
 import PayOSSuccess from '../pages/Customer/PaymentSuccess/PayOSSuccess';
 import PayOSFail from '../pages/Customer/PaymentFail/PayOSFail';
 import { ProductListPage } from '../pages/Customer/ProductList';
+import AllProductsPage from '../pages/Customer/AllProducts/AllProductsPage';
 import { SearchResultPage } from '../pages/Customer/SearchResult';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import FlashSaleDetail from '../pages/Customer/FlashSaleDetail/FlashSaleDetail';
@@ -304,6 +305,10 @@ export const router = createBrowserRouter([
   {
     path: '/products',
     element: <ProductListPage />
+  },
+  {
+    path: '/products/all',
+    element: <AllProductsPage />
   },
   {
     path: '/search',

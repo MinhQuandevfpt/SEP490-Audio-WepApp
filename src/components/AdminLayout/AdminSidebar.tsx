@@ -28,8 +28,6 @@ interface NavigationItem {
 const AdminSidebar: React.FC = () => {
   const navigate = useNavigate();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
-  
-  // Get current user from either AdminAuthService or FlatStaffAuthService
   const adminUser = AdminAuthService.getCurrentUser();
   const flatStaffUser = FlatStaffAuthService.getCurrentUser();
   const currentUser = adminUser || flatStaffUser;
@@ -43,11 +41,11 @@ const AdminSidebar: React.FC = () => {
   };
 
   const handleLogout = () => {
-    // Logout from both services (only one will have data, but safe to call both)
+    
     AdminAuthService.logout();
     FlatStaffAuthService.logout();
     
-    // Determine redirect path based on which service was used
+
     if (flatStaffUser) {
       navigate('/admin/flatstaff/login');
     } else {
@@ -55,7 +53,7 @@ const AdminSidebar: React.FC = () => {
     }
   };
 
-  // Navigation items with permissions
+  
   const navigationItems: NavigationItem[] = [
     {
       name: 'Dashboard',
@@ -139,12 +137,12 @@ const AdminSidebar: React.FC = () => {
     },
   ];
 
-  // Filter navigation items based on user permissions
+ 
   const filteredNavigationItems = navigationItems.filter(item => {
-    // Items without permission requirement are visible to all
+   
     if (!item.permission) return true;
     
-    // Check permission based on user role
+    
     const userRole = currentUser?.role || '';
     return hasPermission(userRole, item.permission);
   });
