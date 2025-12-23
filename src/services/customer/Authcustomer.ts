@@ -544,6 +544,66 @@ export class CustomerAuthService {
       throw error;
     }
   }
+
+  /**
+   * Forgot password (send reset email)
+   */
+  static async forgotPassword(email: string): Promise<any> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const url = `${apiBase}/account/forgot-password`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: res.status,
+        message: body?.message || res.statusText || '',
+        data: body?.data ?? null,
+      };
+    } catch (error) {
+      console.error('❌ Forgot password failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset password with token
+   */
+  static async resetPassword(token: string, newPassword: string): Promise<any> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const url = `${apiBase}/account/reset-password`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+        },
+        body: JSON.stringify({ token, newPassword }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: res.status,
+        message: body?.message || res.statusText || '',
+        data: body?.data ?? null,
+      };
+    } catch (error) {
+      console.error('❌ Reset password failed:', error);
+      throw error;
+    }
+  }
 }
 
 // Export default

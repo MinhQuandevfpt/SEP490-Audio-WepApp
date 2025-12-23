@@ -38,6 +38,7 @@ import { SearchResultPage } from '../pages/Customer/SearchResult';
 import ProductListDemo from '../pages/Customer/ProductList/ProductListDemo';
 import FlashSaleDetail from '../pages/Customer/FlashSaleDetail/FlashSaleDetail';
 import VerifyRegisterAccount from '../pages/Customer/VerifyRegisterAccount/VerifyRegisterAccount';
+import ResetPassword from '../pages/Customer/ResetPassword/ResetPassword';
 import AdminLogin from '../pages/Admin/Login';
 import FlatStaffLogin from '../pages/Admin/Login/FlatStaffLogin';
 import AdminDashboard from '../pages/Admin/Dashboard';
@@ -306,6 +307,14 @@ export const router = createBrowserRouter([
   {
     path: '/verify-register-account/verify-account',
     element: <VerifyRegisterAccount />
+  },
+  {
+    path: '/verrify-register-account/reset-password',
+    element: <ResetPassword />
+  },
+  {
+    path: '/verify-register-account/reset-password',
+    element: <ResetPassword />
   },
   {
     path: '/payment/success',

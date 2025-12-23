@@ -104,6 +104,8 @@ const Register: React.FC = () => {
           t('register.success.title'),
           2000
         );
+        // Thêm thông báo nhắc kiểm tra email xác nhận
+        showCenterSuccess('Hãy kiểm tra email xác nhận đăng ký tài khoản', 'Thông báo', 2500);
         
         // Wait 2 seconds then redirect to login
         setTimeout(() => {

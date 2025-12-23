@@ -21,6 +21,9 @@ const Login: React.FC = () => {
     password: '',
     rememberMe: false
   });
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Check for message from registration - just pre-fill email if provided
   useEffect(() => {
@@ -217,35 +220,39 @@ const Login: React.FC = () => {
           </div>
         </div>
 
-        {/* Remember Me & Forgot Password */}
-        <div className="flex items-center justify-between">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              name="rememberMe"
-              checked={formData.rememberMe}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
-            />
-            <span className="ml-2 text-sm text-gray-600">{t('login.rememberMe')}</span>
-          </label>
-          <Link
-            to="/auth/forgot-password"
-            className="text-sm text-orange-500 hover:text-orange-600 font-medium"
-          >
-            {t('login.forgotPassword')}
-          </Link>
-        </div>
-
-        {/* Resend verify email */}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleResendVerifyEmail}
-            className="text-xs text-orange-500 hover:text-orange-600 font-medium underline"
-          >
-            Gửi lại mail xác nhận
-          </button>
+        {/* Remember Me, Forgot password trigger, Resend verify email */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="rememberMe"
+                checked={formData.rememberMe}
+                onChange={handleInputChange}
+                className="h-4 w-4 text-orange-500 focus:ring-orange-500 border-gray-300 rounded"
+              />
+              <span className="ml-2 text-sm text-gray-600">{t('login.rememberMe')}</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setForgotEmail(formData.email || '');
+                setShowForgotModal(true);
+              }}
+              className="text-sm text-orange-500 hover:text-orange-600 font-medium"
+            >
+              {t('login.forgotPassword')}
+            </button>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleResendVerifyEmail}
+              className="text-xs text-orange-500 hover:text-orange-600 font-medium underline"
+            >
+              Gửi lại mail xác nhận
+            </button>
+          </div>
         </div>
 
         {/* Login Button */}
@@ -298,6 +305,70 @@ const Login: React.FC = () => {
           </Link>
         </p>
       </div>
+
+      {/* Forgot password modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Quên mật khẩu</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Nhập email của bạn để nhận link đặt lại mật khẩu.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Nhập email"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={isSendingReset}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!forgotEmail.trim()) {
+                      showCenterError('Vui lòng nhập email.', 'Thiếu thông tin');
+                      return;
+                    }
+                    try {
+                      setIsSendingReset(true);
+                      const res = await CustomerAuthService.forgotPassword(forgotEmail.trim());
+                      if (res?.status === 200) {
+                        showCenterSuccess(res.message || 'Kiểm tra email của bạn', 'Thành công');
+                        setShowForgotModal(false);
+                      } else {
+                        showCenterError(res?.message || 'Không thể gửi email reset', 'Lỗi');
+                      }
+                    } catch (error: any) {
+                      showCenterError(error?.message || 'Không thể gửi email reset', 'Lỗi');
+                    } finally {
+                      setIsSendingReset(false);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-60"
+                  disabled={isSendingReset}
+                >
+                  {isSendingReset ? 'Đang gửi...' : 'Gửi email reset'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
