@@ -35,7 +35,7 @@ const ProductManagement: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(15);
+  const [pageSize] = useState(20); // Match Swagger API default size
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
 
