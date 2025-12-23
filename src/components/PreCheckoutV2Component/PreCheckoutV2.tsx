@@ -915,6 +915,11 @@ const PreCheckoutV2: React.FC = () => {
       return 'Một số sản phẩm không còn tồn tại. Vui lòng quay lại giỏ hàng và kiểm tra lại.';
     }
     
+    // Lỗi customer bị cấm mua hàng
+    if (lowerMessage.includes('not allowed to buy') || lowerMessage.includes('buyable=false') || lowerMessage.includes('buyable is false')) {
+      return 'Tài khoản của bạn đang bị hạn chế mua hàng. Vui lòng liên hệ bộ phận hỗ trợ để biết thêm thông tin chi tiết.';
+    }
+    
     // Lỗi voucher không hợp lệ
     if (lowerMessage.includes('voucher') && (lowerMessage.includes('invalid') || lowerMessage.includes('không hợp lệ'))) {
       return 'Voucher không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại voucher.';
@@ -1105,7 +1110,7 @@ const PreCheckoutV2: React.FC = () => {
           '❌ [PreCheckoutV2] PayOS checkout failed:',
           resp.message
         );
-        const errorMessage = resp.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại.';
+        const errorMessage = parseErrorMessage({ message: resp.message });
         showCenterError(errorMessage, 'Lỗi thanh toán', 5000);
       } catch (err: any) {
         console.error('❌ [PreCheckoutV2] PayOS checkout error:', err);
@@ -1506,7 +1511,7 @@ const PreCheckoutV2: React.FC = () => {
                   Đang xử lý...
                 </span>
               ) : (
-                'Tiếp tục đến thanh toán'
+                'Đặt hàng'
               )}
             </button>
             <button

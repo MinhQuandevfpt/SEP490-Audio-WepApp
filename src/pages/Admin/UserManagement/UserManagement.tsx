@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Tag, Button, Input, Space, Select, Tooltip } from 'antd';
-import { EyeOutlined, SearchOutlined, UserOutlined, LockOutlined, UnlockOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Input, Space, Select, Tooltip, Modal } from 'antd';
+import { EyeOutlined, SearchOutlined, UserOutlined, LockOutlined, UnlockOutlined, ShoppingCartOutlined, StopOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useUsers, useCustomerStats } from '../../../hooks/useUsers';
-import { showCenterError } from '../../../utils/notification';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import type { CustomerStatus, CustomerProfileResponse } from '../../../types/api';
+import { AdminUserService } from '../../../services/admin/AdminUserService';
 
 const UserManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,9 @@ const UserManagement: React.FC = () => {
     showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} người dùng`,
   });
 
+  const [togglingBuyable, setTogglingBuyable] = useState<string | null>(null);
+  const [localCustomers, setLocalCustomers] = useState<CustomerProfileResponse[]>([]);
+
   // API hooks
   const {
     customers,
@@ -29,11 +33,17 @@ const UserManagement: React.FC = () => {
     setSearchKeyword: setSearch,
     setStatusFilter: setStatus,
     setSort,
+    refreshCustomers,
   } = useUsers({
     page: 0,
     size: 15,
     sort: 'createdAt,desc'
   });
+
+  // Sync local customers with API customers
+  useEffect(() => {
+    setLocalCustomers(customers);
+  }, [customers]);
 
   const {
     stats,
@@ -96,6 +106,44 @@ const UserManagement: React.FC = () => {
     setPageSize(newPagination.pageSize || 15);
   }, [setPage, setPageSize]);
 
+  const handleToggleBuyable = useCallback(async (customerId: string, customerName: string, currentBuyable: boolean = true) => {
+    const newBuyable = !currentBuyable;
+    const action = newBuyable ? 'cho phép' : 'cấm';
+    
+    Modal.confirm({
+      title: `${action === 'cấm' ? 'Cấm' : 'Cho phép'} mua hàng`,
+      content: `Bạn có chắc chắn muốn ${action} khách hàng "${customerName}" ${action === 'cấm' ? 'không' : ''} được mua hàng?`,
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      okType: action === 'cấm' ? 'danger' : 'primary',
+      onOk: async () => {
+        try {
+          setTogglingBuyable(customerId);
+          const response = await AdminUserService.toggleCustomerBuyable(customerId, newBuyable);
+          
+          // Update local state immediately
+          setLocalCustomers(prev => prev.map(customer => {
+            if (customer.id === customerId) {
+              return { ...customer, buyable: response?.buyable ?? newBuyable } as CustomerProfileResponse;
+            }
+            return customer;
+          }));
+          
+          showCenterSuccess(`Đã ${action} mua hàng cho khách hàng "${customerName}"`, 'Thành công');
+          
+          // Refresh customer list to get latest data
+          await refreshCustomers();
+        } catch (error: any) {
+          console.error('Error toggling buyable:', error);
+          const errorMessage = AdminUserService.formatApiError(error);
+          showCenterError(errorMessage || `Không thể ${action} mua hàng cho khách hàng`, 'Lỗi');
+        } finally {
+          setTogglingBuyable(null);
+        }
+      }
+    });
+  }, [refreshCustomers]);
+
   const getStatusTag = useCallback((status: CustomerStatus) => {
     const statusConfig: Record<CustomerStatus, { color: string; text: string }> = {
       'ACTIVE': { color: 'success', text: 'Hoạt động' },
@@ -148,25 +196,47 @@ const UserManagement: React.FC = () => {
     {
       title: 'Hành động',
       key: 'actions',
-      width: 120,
+      width: 200,
       fixed: 'right',
-      render: (_: any, record: CustomerProfileResponse) => (
-        <Space size="small">
-          <Tooltip title="Xem chi tiết">
-            <Button
-              type="primary"
-              ghost
-              size="small"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewDetail(record.id)}
-            >
-              Chi tiết
-            </Button>
-          </Tooltip>
-        </Space>
-      ),
+      render: (_: any, record: CustomerProfileResponse) => {
+        // Get buyable status from localCustomers if available, otherwise from record, default to true
+        const localCustomer = localCustomers.find(c => c.id === record.id);
+        const isBuyable = localCustomer 
+          ? ((localCustomer as any).buyable !== undefined ? (localCustomer as any).buyable : true)
+          : ((record as any).buyable !== undefined ? (record as any).buyable : true);
+        const isToggling = togglingBuyable === record.id;
+        
+        return (
+          <Space size="small">
+            <Tooltip title={isBuyable ? "Cấm mua hàng" : "Cho phép mua hàng"}>
+              <Button
+                type={isBuyable ? "default" : "primary"}
+                danger={isBuyable}
+                size="small"
+                icon={isBuyable ? <StopOutlined /> : <ShoppingCartOutlined />}
+                onClick={() => handleToggleBuyable(record.id, record.fullName, isBuyable)}
+                loading={isToggling}
+                disabled={isToggling}
+              >
+                {isBuyable ? 'Cấm mua' : 'Cho mua'}
+              </Button>
+            </Tooltip>
+            <Tooltip title="Xem chi tiết">
+              <Button
+                type="primary"
+                ghost
+                size="small"
+                icon={<EyeOutlined />}
+                onClick={() => handleViewDetail(record.id)}
+              >
+                Chi tiết
+              </Button>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
-  ], [getStatusTag, handleViewDetail]);
+  ], [getStatusTag, handleViewDetail, handleToggleBuyable, togglingBuyable]);
 
   // Show error message if API fails
   useEffect(() => {
@@ -293,7 +363,7 @@ const UserManagement: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <Table
           columns={columns}
-          dataSource={customers}
+          dataSource={localCustomers.length > 0 ? localCustomers : customers}
           loading={customersLoading}
           rowKey="id"
           pagination={pagination}
