@@ -37,7 +37,7 @@ const AdminDashboardKPI: React.FC<AdminDashboardKPIProps> = ({ overview, loading
       icon: Package,
       gradient: 'from-blue-500 to-blue-600',
       bgIcon: 'bg-white bg-opacity-20',
-      description: 'Tổng số item đã giao thành công'
+      description: 'Tổng số đơn hàng đã giao thành công'
     },
     {
       id: 'total-revenue',

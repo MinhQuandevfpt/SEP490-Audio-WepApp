@@ -130,9 +130,7 @@ const AdminSidebar: React.FC = () => {
       icon: <Wallet className="w-6 h-6" />,
       children: [
         { name: 'Ví hệ thống', href: '/admin/finance/platform-wallet', icon: null },
-        { name: 'Đối soát thanh toán', href: '/admin/finance/settlement-statistics', icon: null },
-        { name: 'Yêu cầu rút tiền KH', href: '/admin/finance/customer-withdraw-requests', icon: null },
-        { name: 'Thanh toán cửa hàng', href: '/admin/reports/payout', icon: null }
+        { name: 'Yêu cầu rút tiền KH', href: '/admin/finance/customer-withdraw-requests', icon: null }
       ]
     },
   ];

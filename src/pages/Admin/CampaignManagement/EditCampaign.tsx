@@ -479,10 +479,7 @@ const EditCampaign: React.FC = () => {
               <option value="EXPIRED">Hết hạn</option>
               <option value="PENDING">Chờ xử lý</option>
             </select>
-            <p className="text-xs text-amber-600 mt-2 flex items-start gap-2 bg-amber-50 p-3 rounded-lg">
-              <span className="text-amber-500 font-bold">⚠️</span>
-              <span>Khi đổi sang DISABLED: tất cả slot & sản phẩm bị tắt. Khi bật lại ACTIVE: được phục hồi.</span>
-            </p>
+            
           </div>
         </div>
 

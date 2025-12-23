@@ -75,7 +75,9 @@ const CampaignProductDetails: React.FC = () => {
     badgeIconUrl?: string;
     status?: string;
   } | null>(null);
+  const [fullCampaignData, setFullCampaignData] = useState<CampaignForSeller | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [loadingCampaignForModal, setLoadingCampaignForModal] = useState(false);
   const [withdrawingProductId, setWithdrawingProductId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -267,6 +269,62 @@ const CampaignProductDetails: React.FC = () => {
     // Chiến dịch chưa bắt đầu và vẫn trong thời gian đăng ký
     return isBeforeStart && isInRegistrationPeriod;
   }, [campaignInfo]);
+
+  // Handle open join modal - fetch full campaign data with flashSlots
+  const handleOpenJoinModal = async () => {
+    if (!campaignId) return;
+    
+    setLoadingCampaignForModal(true);
+    try {
+      let fullCampaign: CampaignForSeller | null = null;
+      
+      // Try method 1: Get from getAllCampaigns (same as CampaignList does)
+      try {
+        const allCampaigns = await SellerCampaignService.getAllCampaigns();
+        fullCampaign = allCampaigns.find(c => c.id === campaignId) || null;
+        console.log('✅ Campaign found from getAllCampaigns:', fullCampaign);
+      } catch (error) {
+        console.warn('⚠️ Could not fetch from getAllCampaigns:', error);
+      }
+      
+      // Try method 2: Get from getJoinedCampaigns if not found
+      if (!fullCampaign && storeId) {
+        try {
+          const joinedCampaigns = await SellerCampaignService.getJoinedCampaigns(storeId);
+          fullCampaign = joinedCampaigns.find(c => c.id === campaignId) || null;
+          console.log('✅ Campaign found from getJoinedCampaigns:', fullCampaign);
+        } catch (error) {
+          console.warn('⚠️ Could not fetch from getJoinedCampaigns:', error);
+        }
+      }
+      
+      // Try method 3: Get by ID (last resort)
+      if (!fullCampaign) {
+        try {
+          fullCampaign = await SellerCampaignService.getCampaignById(campaignId);
+          console.log('✅ Campaign found from getCampaignById:', fullCampaign);
+        } catch (error) {
+          console.warn('⚠️ Could not fetch from getCampaignById:', error);
+        }
+      }
+      
+      if (fullCampaign) {
+        setFullCampaignData(fullCampaign);
+        setIsJoinModalOpen(true);
+      } else {
+        throw new Error('Không tìm thấy thông tin chiến dịch');
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching campaign details:', error);
+      showTikiNotification(
+        error.message || 'Không thể tải thông tin chiến dịch',
+        'Lỗi',
+        'error'
+      );
+    } finally {
+      setLoadingCampaignForModal(false);
+    }
+  };
 
   // Handle withdraw product from campaign
   const handleWithdraw = async (campaignProductId: string, productName: string) => {
@@ -939,10 +997,11 @@ const CampaignProductDetails: React.FC = () => {
                   <Button
                     type="primary"
                     icon={<PlusOutlined />}
-                    onClick={() => setIsJoinModalOpen(true)}
+                    onClick={handleOpenJoinModal}
                     disabled={
                       !!(campaignInfo && new Date(campaignInfo.startTime).getTime() <= Date.now())
                     }
+                    loading={loadingCampaignForModal}
                   >
                     Thêm sản phẩm
                   </Button>
@@ -1006,28 +1065,15 @@ const CampaignProductDetails: React.FC = () => {
       {/* Modal đăng ký sản phẩm tham gia chiến dịch */}
       <JoinCampaignModal
         visible={isJoinModalOpen}
-        campaign={
-          campaignInfo
-            ? ({
-                id: campaignId!,
-                name: campaignInfo.name,
-                code: '',
-                type: campaignInfo.type as CampaignForSeller['type'],
-                startTime: campaignInfo.startTime,
-                endTime: campaignInfo.endTime,
-                status: 'ONOPEN',
-                badgeLabel: '',
-                badgeColor: '#f97316',
-                badgeIconUrl: campaignInfo.badgeIconUrl,
-                allowRegistration: true,
-                flashSlots: [] // có thể map từ campaignProducts nếu backend trả về, hiện để rỗng
-              } as CampaignForSeller)
-            : null
-        }
-        onClose={() => setIsJoinModalOpen(false)}
+        campaign={fullCampaignData}
+        onClose={() => {
+          setIsJoinModalOpen(false);
+          setFullCampaignData(null);
+        }}
         onSuccess={() => {
           fetchData();
           setIsJoinModalOpen(false);
+          setFullCampaignData(null);
         }}
       />
     </div>

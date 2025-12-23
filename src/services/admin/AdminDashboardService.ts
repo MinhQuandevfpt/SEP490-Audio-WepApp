@@ -8,7 +8,11 @@ import type {
   PlatformRevenueOverviewResponse,
   GrowthChartResponse,
   PlatformRevenueOverview,
-  GrowthChartPoint
+  GrowthChartPoint,
+  UserStoreOverviewResponse,
+  UserStoreOverview,
+  UserStoreGrowthChartResponse,
+  UserStoreGrowthChartPoint
 } from '../../types/admin-dashboard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
@@ -52,20 +56,91 @@ export class AdminDashboardService {
   }
 
   /**
-   * Load toàn bộ dashboard data
+   * API #4: Lấy tổng quan customer/store + growth theo tháng
+   * GET /api/platform/stats/user-store/overview
+   * @param year - Optional: Năm (nếu không truyền => tháng hiện tại)
+   * @param month - Optional: Tháng (nếu không truyền => tháng hiện tại)
    */
-  static async loadFullDashboard(): Promise<{
+  static async getUserStoreOverview(
+    year?: number,
+    month?: number
+  ): Promise<UserStoreOverview> {
+    const queryParams = new URLSearchParams();
+    if (year !== undefined) {
+      queryParams.append('year', year.toString());
+    }
+    if (month !== undefined) {
+      queryParams.append('month', month.toString());
+    }
+
+    const url = `${API_URL}/platform/stats/user-store/overview${
+      queryParams.toString() ? `?${queryParams.toString()}` : ''
+    }`;
+
+    const response = await HttpInterceptor.get<UserStoreOverviewResponse>(
+      url,
+      { userType: 'admin' }
+    );
+    return response.data;
+  }
+
+  /**
+   * API #5: Lấy biểu đồ tăng trưởng customer/store theo năm (12 tháng)
+   * GET /api/platform/stats/user-store/growth/chart/year
+   * @param year - Optional: Năm (nếu không truyền => năm hiện tại)
+   */
+  static async getUserStoreGrowthChart(
+    year?: number
+  ): Promise<UserStoreGrowthChartPoint[]> {
+    const queryParams = new URLSearchParams();
+    if (year !== undefined) {
+      queryParams.append('year', year.toString());
+    }
+
+    const url = `${API_URL}/platform/stats/user-store/growth/chart/year${
+      queryParams.toString() ? `?${queryParams.toString()}` : ''
+    }`;
+
+    const response = await HttpInterceptor.get<UserStoreGrowthChartResponse>(
+      url,
+      { userType: 'admin' }
+    );
+    return response.data;
+  }
+
+  /**
+   * Load toàn bộ dashboard data
+   * @param userStoreYear - Optional: Năm filter cho user-store overview
+   * @param userStoreMonth - Optional: Tháng filter cho user-store overview
+   * @param chartYear - Optional: Năm filter cho growth chart
+   */
+  static async loadFullDashboard(
+    userStoreYear?: number,
+    userStoreMonth?: number,
+    chartYear?: number
+  ): Promise<{
     overview: PlatformRevenueOverview;
     monthlyGrowth: GrowthChartPoint[];
     yearlyGrowth: GrowthChartPoint[];
+    userStoreOverview?: UserStoreOverview;
+    userStoreGrowthChart?: UserStoreGrowthChartPoint[];
   }> {
-    const [overview, monthlyGrowth, yearlyGrowth] = await Promise.all([
+    const [overview, monthlyGrowth, yearlyGrowth, userStoreOverview, userStoreGrowthChart] = 
+      await Promise.all([
       this.getRevenueOverview(),
       this.getMonthlyGrowthChart(),
-      this.getYearlyGrowthChart()
+      this.getYearlyGrowthChart(),
+      this.getUserStoreOverview(userStoreYear, userStoreMonth).catch(() => undefined),
+      this.getUserStoreGrowthChart(chartYear).catch(() => undefined)
     ]);
 
-    return { overview, monthlyGrowth, yearlyGrowth };
+    return { 
+      overview, 
+      monthlyGrowth, 
+      yearlyGrowth,
+      userStoreOverview,
+      userStoreGrowthChart
+    };
   }
 }
 
