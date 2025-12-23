@@ -126,7 +126,7 @@ const SellerLogin: React.FC = () => {
         {/* Email Input */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Email đăng ký kinh doanh *
+            Email*
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -138,7 +138,7 @@ const SellerLogin: React.FC = () => {
               value={formData.email}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="Nhập email kinh doanh của bạn"
+              placeholder="Nhập email của bạn"
               required
             />
           </div>
