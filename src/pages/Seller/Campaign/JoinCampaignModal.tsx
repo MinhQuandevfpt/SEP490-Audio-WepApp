@@ -67,6 +67,7 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({});
 
   const isFlashSale = campaign?.type === 'FAST_SALE';
 
@@ -282,17 +283,29 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       return;
     }
 
-    // Validate Flash Sale products must have slotId
-    if (isFlashSale) {
-      const invalidProducts = selectedProducts.filter(p => !p.slotId);
-      if (invalidProducts.length > 0) {
-        showTikiNotification(
-          'Tất cả sản phẩm Flash Sale phải chọn khung giờ',
-          'Lỗi',
-          'error'
-        );
-        return;
+    // Validate all selected products
+    const errors: Record<string, Record<string, string>> = {};
+    let hasErrors = false;
+
+    selectedProducts.forEach(product => {
+      const productKey = product.key || product.productId;
+      const productErrors = validateProduct(product);
+      if (Object.keys(productErrors).length > 0) {
+        errors[productKey] = productErrors;
+        hasErrors = true;
       }
+    });
+
+    // Set validation errors
+    setValidationErrors(errors);
+
+    if (hasErrors) {
+      showTikiNotification(
+        'Vui lòng kiểm tra và nhập đầy đủ thông tin cho tất cả sản phẩm đã chọn',
+        'Lỗi',
+        'error'
+      );
+      return;
     }
 
     setIsSubmitting(true);
@@ -334,7 +347,78 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
   const handleClose = () => {
     setSelectedRowKeys([]);
     setExpandedRowKeys([]);
+    setValidationErrors({});
     onClose();
+  };
+
+  // Calculate total stock quantity for a product
+  // If product has variants, sum all variant stocks
+  // Otherwise, use product's stockQuantity
+  const getTotalStockQuantity = (product: ProductWithConfig): number => {
+    if (product.variantData && product.variantData.length > 0) {
+      // Sum all variant stocks
+      return product.variantData.reduce((sum, variant) => {
+        return sum + (variant.stockQuantity || 0);
+      }, 0);
+    }
+    // Use product's stockQuantity
+    return product.stockQuantity || 0;
+  };
+
+  // Validate a single product and return errors
+  const validateProduct = (product: ProductWithConfig): Record<string, string> => {
+    const errors: Record<string, string> = {};
+
+    // Validate Flash Sale slotId
+    if (isFlashSale && !product.slotId) {
+      errors.slotId = 'Vui lòng chọn khung giờ';
+    }
+
+    // Validate: Loại giảm bắt buộc
+    if (!product.type) {
+      errors.type = 'Vui lòng chọn loại giảm';
+    }
+
+    // Validate: Giá trị giảm
+    if (product.type === 'PERCENT') {
+      if (!product.discountPercent || product.discountPercent <= 0) {
+        errors.discountPercent = 'Vui lòng nhập % giảm';
+      }
+    } else if (product.type === 'FIXED') {
+      if (!product.discountValue || product.discountValue <= 0) {
+        errors.discountValue = 'Vui lòng nhập số tiền giảm';
+      }
+    }
+
+    // Get total stock quantity
+    const totalStock = getTotalStockQuantity(product);
+
+    // Validate: Số lượng phát hành
+    if (!product.totalVoucherIssued || product.totalVoucherIssued <= 0) {
+      errors.totalVoucherIssued = 'Vui lòng nhập số lượng phát hành';
+    } else if (product.totalVoucherIssued > totalStock) {
+      errors.totalVoucherIssued = `Số lượng phát hành không được vượt quá số lượng kho (${totalStock})`;
+    }
+
+    // Validate: Giới hạn sử dụng
+    if (!product.totalUsageLimit || product.totalUsageLimit <= 0) {
+      errors.totalUsageLimit = 'Vui lòng nhập giới hạn sử dụng';
+    } else if (product.totalVoucherIssued && product.totalUsageLimit > product.totalVoucherIssued) {
+      errors.totalUsageLimit = `Giới hạn sử dụng không được vượt quá số lượng phát hành (${product.totalVoucherIssued})`;
+    }
+
+    // Validate: Số lượng sử dụng/người
+    if (!product.usagePerUser || product.usagePerUser <= 0) {
+      errors.usagePerUser = 'Vui lòng nhập số lượng sử dụng/người';
+    } else {
+      if (product.totalUsageLimit && product.usagePerUser > product.totalUsageLimit) {
+        errors.usagePerUser = `Số lượng sử dụng/người không được vượt quá giới hạn sử dụng (${product.totalUsageLimit})`;
+      } else if (product.totalVoucherIssued && product.usagePerUser > product.totalVoucherIssued) {
+        errors.usagePerUser = `Số lượng sử dụng/người không được vượt quá số lượng phát hành (${product.totalVoucherIssued})`;
+      }
+    }
+
+    return errors;
   };
 
   // Parent table columns - only basic product info
@@ -370,118 +454,220 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
             title: '⚡ Khung giờ',
             key: 'slot',
             width: 220,
-            render: (_: any, record: ProductWithConfig) => (
-              <Select
-                value={record.slotId}
-                onChange={(value: any) => handleProductUpdate(record.key || record.productId, 'slotId', value)}
-                className="w-full"
-                size="small"
-                placeholder="Chọn khung giờ"
-                disabled={!selectedRowKeys.includes(record.key || record.productId)}
-                style={{ minWidth: '200px' }}
-              >
-                {campaign?.flashSlots?.map(slot => {
-                  const openTime = new Date(slot.openTime).toLocaleTimeString('vi-VN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                  });
-                  const closeTime = new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                  });
-                  return (
-                    <Option key={slot.slotId} value={slot.slotId} title={`${openTime} - ${closeTime}`}>
-                      {openTime} - {closeTime}
-                    </Option>
-                  );
-                })}
-              </Select>
-            ),
+            render: (_: any, record: ProductWithConfig) => {
+              const productKey = record.key || record.productId;
+              const errors = validationErrors[productKey] || {};
+              return (
+                <div>
+                  <Select
+                    value={record.slotId}
+                    onChange={(value: any) => {
+                      handleProductUpdate(productKey, 'slotId', value);
+                      // Clear error when value changes
+                      if (errors.slotId) {
+                        setValidationErrors(prev => {
+                          const newErrors = { ...prev };
+                          if (newErrors[productKey]) {
+                            const { slotId, ...rest } = newErrors[productKey];
+                            newErrors[productKey] = rest;
+                            if (Object.keys(newErrors[productKey]).length === 0) {
+                              delete newErrors[productKey];
+                            }
+                          }
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    className="w-full"
+                    size="small"
+                    placeholder="Chọn khung giờ"
+                    disabled={!selectedRowKeys.includes(productKey)}
+                    style={{ minWidth: '200px' }}
+                    status={errors.slotId ? 'error' : ''}
+                  >
+                    {campaign?.flashSlots?.map(slot => {
+                      const openTime = new Date(slot.openTime).toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                      });
+                      const closeTime = new Date(slot.closeTime).toLocaleTimeString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                      });
+                      return (
+                        <Option key={slot.slotId} value={slot.slotId} title={`${openTime} - ${closeTime}`}>
+                          {openTime} - {closeTime}
+                        </Option>
+                      );
+                    })}
+                  </Select>
+                  {errors.slotId && (
+                    <div className="text-red-500 text-xs mt-1">{errors.slotId}</div>
+                  )}
+                </div>
+              );
+            },
           },
         ]
       : []),
     {
       title: 'Loại giảm',
       key: 'type',
-      width: 120,
-      render: (_: any, record: ProductWithConfig) => (
-        <Select
-          value={record.type}
-          onChange={(value: any) => handleProductUpdate(record.key || record.productId, 'type', value)}
-          className="w-full"
-          size="small"
-          disabled={!selectedRowKeys.includes(record.key || record.productId)}
-        >
-          <Option value="PERCENT">% Giảm</Option>
-          <Option value="FIXED">Số tiền</Option>
-        </Select>
-      ),
+      width: 150,
+      render: (_: any, record: ProductWithConfig) => {
+        const productKey = record.key || record.productId;
+        const errors = validationErrors[productKey] || {};
+        return (
+          <div>
+            <Select
+              value={record.type}
+              onChange={(value: any) => {
+                handleProductUpdate(productKey, 'type', value);
+                // Clear error when value changes
+                if (errors.type) {
+                  setValidationErrors(prev => {
+                    const newErrors = { ...prev };
+                    if (newErrors[productKey]) {
+                      const { type, ...rest } = newErrors[productKey];
+                      newErrors[productKey] = rest;
+                      if (Object.keys(newErrors[productKey]).length === 0) {
+                        delete newErrors[productKey];
+                      }
+                    }
+                    return newErrors;
+                  });
+                }
+              }}
+              className="w-full"
+              size="small"
+              placeholder="Chọn loại giảm"
+              disabled={!selectedRowKeys.includes(productKey)}
+              status={errors.type ? 'error' : ''}
+            >
+              <Option value="PERCENT">Giảm %</Option>
+              <Option value="FIXED">Giảm số tiền</Option>
+            </Select>
+            {errors.type && (
+              <div className="text-red-500 text-xs mt-1">{errors.type}</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Giá trị giảm',
       key: 'discount',
-      width: 140,
-      render: (_: any, record: ProductWithConfig) => (
-        <div className="space-y-1">
-          {record.type === 'PERCENT' && (
-            <>
-              <InputNumber
-                value={record.discountPercent}
-                  onChange={(value: any) => {
-                    // Chỉ cho phép nhập từ 1 - 99, không cho vượt quá trong quá trình gõ
-                    if (value === null || value === undefined) {
-                      handleProductUpdate(record.key || record.productId, 'discountPercent', undefined);
-                      return;
-                    }
-                    if (typeof value === 'number') {
-                      if (value < 1 || value > 99) {
-                        // Bỏ qua giá trị không hợp lệ, giữ nguyên giá trị cũ
-                        return;
+      width: 180,
+      render: (_: any, record: ProductWithConfig) => {
+        const productKey = record.key || record.productId;
+        const errors = validationErrors[productKey] || {};
+        
+        // Chỉ hiển thị input khi đã chọn loại giảm
+        if (!record.type) {
+          return <span className="text-gray-400 text-sm">Chọn loại giảm</span>;
+        }
+
+        return (
+          <div className="space-y-1">
+            {record.type === 'PERCENT' && (
+              <>
+                <div>
+                  <InputNumber
+                    value={record.discountPercent}
+                    onChange={(value: any) => {
+                      // Chỉ cho phép nhập từ 1 - 99, không cho vượt quá trong quá trình gõ
+                      if (value === null || value === undefined) {
+                        handleProductUpdate(productKey, 'discountPercent', undefined);
+                      } else if (typeof value === 'number') {
+                        if (value >= 1 && value <= 99) {
+                          handleProductUpdate(productKey, 'discountPercent', value);
+                          // Clear error when value changes
+                          if (errors.discountPercent) {
+                            setValidationErrors(prev => {
+                              const newErrors = { ...prev };
+                              if (newErrors[productKey]) {
+                                const { discountPercent, ...rest } = newErrors[productKey];
+                                newErrors[productKey] = rest;
+                                if (Object.keys(newErrors[productKey]).length === 0) {
+                                  delete newErrors[productKey];
+                                }
+                              }
+                              return newErrors;
+                            });
+                          }
+                        }
                       }
-                      handleProductUpdate(record.key || record.productId, 'discountPercent', value);
-                    }
-                  }}
-                min={1}
-                max={99}
-                addonAfter="%"
-                className="w-full"
-                size="small"
-                disabled={!selectedRowKeys.includes(record.key || record.productId)}
-              />
-              <InputNumber
-                value={record.maxDiscountValue}
-                onChange={(value: any) =>
-                  handleProductUpdate(record.key || record.productId, 'maxDiscountValue', value)
-                }
-                placeholder="Giảm tối đa"
-                addonAfter="đ"
-                className="w-full"
-                size="small"
-                disabled={!selectedRowKeys.includes(record.key || record.productId)}
-              />
-            </>
-          )}
-          {record.type === 'FIXED' && (
-            <InputNumber
-              value={record.discountValue}
-              onChange={(value: any) =>
-                handleProductUpdate(record.key || record.productId, 'discountValue', value)
-              }
-              min={1000}
-              max={undefined} // Remove max limit to allow any value for products with variants
-              addonAfter="đ"
-              className="w-full"
-              size="small"
-              disabled={!selectedRowKeys.includes(record.key || record.productId)}
-              placeholder="Nhập số tiền"
-            />
-          )}
-        </div>
-      ),
+                    }}
+                    min={1}
+                    max={99}
+                    addonAfter="%"
+                    className="w-full"
+                    size="small"
+                    disabled={!selectedRowKeys.includes(productKey)}
+                    placeholder="Nhập % giảm"
+                    status={errors.discountPercent ? 'error' : ''}
+                  />
+                  {errors.discountPercent && (
+                    <div className="text-red-500 text-xs mt-1">{errors.discountPercent}</div>
+                  )}
+                </div>
+                <InputNumber
+                  value={record.maxDiscountValue}
+                  onChange={(value: any) =>
+                    handleProductUpdate(productKey, 'maxDiscountValue', value)
+                  }
+                  placeholder="Giảm tối đa"
+                  addonAfter="đ"
+                  className="w-full"
+                  size="small"
+                  disabled={!selectedRowKeys.includes(productKey)}
+                />
+              </>
+            )}
+            {record.type === 'FIXED' && (
+              <>
+                <div>
+                  <InputNumber
+                    value={record.discountValue}
+                    onChange={(value: any) => {
+                      handleProductUpdate(productKey, 'discountValue', value);
+                      // Clear error when value changes
+                      if (errors.discountValue) {
+                        setValidationErrors(prev => {
+                          const newErrors = { ...prev };
+                          if (newErrors[productKey]) {
+                            const { discountValue, ...rest } = newErrors[productKey];
+                            newErrors[productKey] = rest;
+                            if (Object.keys(newErrors[productKey]).length === 0) {
+                              delete newErrors[productKey];
+                            }
+                          }
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    min={1000}
+                    max={undefined} // Remove max limit to allow any value for products with variants
+                    addonAfter="đ"
+                    className="w-full"
+                    size="small"
+                    disabled={!selectedRowKeys.includes(productKey)}
+                    placeholder="Nhập số tiền"
+                    status={errors.discountValue ? 'error' : ''}
+                  />
+                  {errors.discountValue && (
+                    <div className="text-red-500 text-xs mt-1">{errors.discountValue}</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Giá sau giảm',
@@ -520,53 +706,121 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     {
       title: 'Số lượng phát hành',
       key: 'voucher',
-      width: 120,
-      render: (_: any, record: ProductWithConfig) => (
-        <InputNumber
-          value={record.totalVoucherIssued}
-          onChange={(value: any) =>
-            handleProductUpdate(record.key || record.productId, 'totalVoucherIssued', value)
-          }
-          min={1}
-          className="w-full"
-          size="small"
-          disabled={!selectedRowKeys.includes(record.key || record.productId)}
-        />
-      ),
+      width: 180,
+      render: (_: any, record: ProductWithConfig) => {
+        const productKey = record.key || record.productId;
+        const errors = validationErrors[productKey] || {};
+        return (
+          <div>
+            <InputNumber
+              value={record.totalVoucherIssued}
+              onChange={(value: any) => {
+                handleProductUpdate(productKey, 'totalVoucherIssued', value);
+                // Clear errors for this field and dependent fields when value changes
+                setValidationErrors(prev => {
+                  const newErrors = { ...prev };
+                  if (newErrors[productKey]) {
+                    const { totalVoucherIssued, totalUsageLimit, usagePerUser, ...rest } = newErrors[productKey];
+                    newErrors[productKey] = rest;
+                    if (Object.keys(newErrors[productKey]).length === 0) {
+                      delete newErrors[productKey];
+                    }
+                  }
+                  return newErrors;
+                });
+              }}
+              min={1}
+              className="w-full"
+              size="small"
+              disabled={!selectedRowKeys.includes(productKey)}
+              status={errors.totalVoucherIssued ? 'error' : ''}
+            />
+            {errors.totalVoucherIssued && (
+              <div className="text-red-500 text-xs mt-1">{errors.totalVoucherIssued}</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Giới hạn sử dụng',
       key: 'usageTotal',
-      width: 110,
-      render: (_: any, record: ProductWithConfig) => (
-        <InputNumber
-          value={record.totalUsageLimit}
-          onChange={(value: any) =>
-            handleProductUpdate(record.key || record.productId, 'totalUsageLimit', value)
-          }
-          min={1}
-          className="w-full"
-          size="small"
-          disabled={!selectedRowKeys.includes(record.key || record.productId)}
-        />
-      ),
+      width: 180,
+      render: (_: any, record: ProductWithConfig) => {
+        const productKey = record.key || record.productId;
+        const errors = validationErrors[productKey] || {};
+        return (
+          <div>
+            <InputNumber
+              value={record.totalUsageLimit}
+              onChange={(value: any) => {
+                handleProductUpdate(productKey, 'totalUsageLimit', value);
+                // Clear errors for this field and dependent fields when value changes
+                setValidationErrors(prev => {
+                  const newErrors = { ...prev };
+                  if (newErrors[productKey]) {
+                    const { totalUsageLimit, usagePerUser, ...rest } = newErrors[productKey];
+                    newErrors[productKey] = rest;
+                    if (Object.keys(newErrors[productKey]).length === 0) {
+                      delete newErrors[productKey];
+                    }
+                  }
+                  return newErrors;
+                });
+              }}
+              min={1}
+              className="w-full"
+              size="small"
+              disabled={!selectedRowKeys.includes(productKey)}
+              status={errors.totalUsageLimit ? 'error' : ''}
+            />
+            {errors.totalUsageLimit && (
+              <div className="text-red-500 text-xs mt-1">{errors.totalUsageLimit}</div>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: 'Số lượng sử dụng/người',
       key: 'usagePerUser',
-      width: 150,
-      render: (_: any, record: ProductWithConfig) => (
-        <InputNumber
-          value={record.usagePerUser}
-          onChange={(value: any) =>
-            handleProductUpdate(record.key || record.productId, 'usagePerUser', value)
-          }
-          min={1}
-          className="w-full"
-          size="small"
-          disabled={!selectedRowKeys.includes(record.key || record.productId)}
-        />
-      ),
+      width: 180,
+      render: (_: any, record: ProductWithConfig) => {
+        const productKey = record.key || record.productId;
+        const errors = validationErrors[productKey] || {};
+        return (
+          <div>
+            <InputNumber
+              value={record.usagePerUser}
+              onChange={(value: any) => {
+                handleProductUpdate(productKey, 'usagePerUser', value);
+                // Clear error when value changes
+                if (errors.usagePerUser) {
+                  setValidationErrors(prev => {
+                    const newErrors = { ...prev };
+                    if (newErrors[productKey]) {
+                      const { usagePerUser, ...rest } = newErrors[productKey];
+                      newErrors[productKey] = rest;
+                      if (Object.keys(newErrors[productKey]).length === 0) {
+                        delete newErrors[productKey];
+                      }
+                    }
+                    return newErrors;
+                  });
+                }
+              }}
+              min={1}
+              className="w-full"
+              size="small"
+              disabled={!selectedRowKeys.includes(productKey)}
+              status={errors.usagePerUser ? 'error' : ''}
+            />
+            {errors.usagePerUser && (
+              <div className="text-red-500 text-xs mt-1">{errors.usagePerUser}</div>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -730,6 +984,17 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
           .ant-btn-primary:hover {
             background-color: #ff8c5a !important;
             border-color: #ff8c5a !important;
+          }
+          
+          /* Table header titles should not wrap */
+          .ant-table-thead > tr > th {
+            white-space: nowrap !important;
+          }
+          
+          /* Prevent error messages from pushing inputs up - ensure consistent row height */
+          .ant-table-tbody > tr > td {
+            vertical-align: top !important;
+            padding-bottom: 20px !important;
           }
         `}
       </style>

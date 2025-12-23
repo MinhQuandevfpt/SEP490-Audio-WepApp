@@ -1020,13 +1020,7 @@ const CampaignProductApproval: React.FC = () => {
       >
         <div>
           <p>Bạn có chắc chắn muốn duyệt <strong>{selectedProducts.length}</strong> sản phẩm đã chọn?</p>
-          <Alert
-            message="Lưu ý"
-            description="Sản phẩm sẽ chuyển sang trạng thái 'Đã duyệt' và chỉ ACTIVE khi chiến dịch hoặc slot bắt đầu."
-            type="info"
-            showIcon
-            className="mt-3"
-          />
+         
         </div>
       </Modal>
 
