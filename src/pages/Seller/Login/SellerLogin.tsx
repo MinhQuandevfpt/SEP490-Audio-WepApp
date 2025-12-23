@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
-import { showCenterError } from '../../../utils/notification';
+import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
+import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import type { SellerLoginRequest } from '../../../types/seller';
 
 const SellerLogin: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -14,6 +16,9 @@ const SellerLogin: React.FC = () => {
     password: '',
     rememberMe: false
   });
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -22,6 +27,13 @@ const SellerLogin: React.FC = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
   };
+
+  // Prefill email if passed from register page
+  useEffect(() => {
+    if (location.state?.email) {
+      setFormData(prev => ({ ...prev, email: location.state.email }));
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +85,23 @@ const SellerLogin: React.FC = () => {
     }
   };
 
+  const handleResendVerifyEmail = async () => {
+    if (!formData.email) {
+      showCenterError('Vui lòng nhập email để gửi lại xác nhận.', 'Thiếu email');
+      return;
+    }
+    try {
+      const res = await CustomerAuthService.resendVerifyEmail(formData.email, 'STOREOWNER');
+      if (res?.status === 200) {
+        showCenterSuccess(res.message || 'Đã gửi lại email xác nhận', 'Thành công');
+      } else {
+        showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+      }
+    } catch (error: any) {
+      showCenterError(error?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
       {/* Header */}
@@ -97,7 +126,7 @@ const SellerLogin: React.FC = () => {
         {/* Email Input */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Email đăng ký kinh doanh *
+            Email*
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -109,7 +138,7 @@ const SellerLogin: React.FC = () => {
               value={formData.email}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              placeholder="Nhập email kinh doanh của bạn"
+              placeholder="Nhập email của bạn"
               required
             />
           </div>
@@ -148,23 +177,40 @@ const SellerLogin: React.FC = () => {
         </div>
 
         {/* Remember Me & Forgot Password */}
-        <div className="flex items-center justify-between">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              name="rememberMe"
-              checked={formData.rememberMe}
-              onChange={handleInputChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <span className="ml-2 text-sm text-gray-600">Ghi nhớ đăng nhập</span>
-          </label>
-          <Link
-            to="/seller/forgot-password"
-            className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                name="rememberMe"
+                checked={formData.rememberMe}
+                onChange={handleInputChange}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="ml-2 text-sm text-gray-600">Ghi nhớ đăng nhập</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setForgotEmail(formData.email || '');
+                setShowForgotModal(true);
+              }}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
+              Quên mật khẩu?
+            </button>
+          </div>
+        </div>
+
+        {/* Resend verify email */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleResendVerifyEmail}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium underline"
           >
-            Quên mật khẩu?
-          </Link>
+            Gửi lại email xác nhận
+          </button>
         </div>
 
         {/* Login Button */}
@@ -206,7 +252,69 @@ const SellerLogin: React.FC = () => {
         </div>
       </form>
 
-     
+      {/* Forgot password modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Quên mật khẩu</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Nhập email đăng ký để nhận link đặt lại mật khẩu.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Nhập email"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={isSendingReset}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!forgotEmail.trim()) {
+                      showCenterError('Vui lòng nhập email.', 'Thiếu thông tin');
+                      return;
+                    }
+                    try {
+                      setIsSendingReset(true);
+                      const res = await CustomerAuthService.forgotPassword(forgotEmail.trim());
+                      if (res?.status === 200) {
+                        showCenterSuccess(res.message || 'Kiểm tra email của bạn', 'Thành công');
+                        setShowForgotModal(false);
+                      } else {
+                        showCenterError(res?.message || 'Không thể gửi email reset', 'Lỗi');
+                      }
+                    } catch (error: any) {
+                      showCenterError(error?.message || 'Không thể gửi email reset', 'Lỗi');
+                    } finally {
+                      setIsSendingReset(false);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-60"
+                  disabled={isSendingReset}
+                >
+                  {isSendingReset ? 'Đang gửi...' : 'Gửi email reset'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

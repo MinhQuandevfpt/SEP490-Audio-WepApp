@@ -473,6 +473,137 @@ export class CustomerAuthService {
   static isRetryableError(error: ApiError): boolean {
     return StatusCodeUtils.isRetryable(error.status || 0);
   }
+
+  /**
+   * Verify register account token
+   */
+  static async verifyRegisterAccount(token: string): Promise<any> {
+    // Dùng fetch trực tiếp để lấy được cả message của BE khi status 4xx.
+    // Chú ý: VITE_API_BASE_URL có thể đã chứa /api, nên cần chuẩn hóa để tránh double /api.
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const url = `${apiBase}/account/verify-email?token=${encodeURIComponent(token)}`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': '*/*'
+        }
+      });
+
+      const body = await res.json().catch(() => ({}));
+      const result = {
+        status: res.status,
+        message: body?.message || res.statusText || '',
+        data: body?.data ?? null
+      };
+
+      if (!res.ok) {
+        // Trả về kết quả để FE tự hiển thị, không throw để tránh mất message
+        return result;
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Verify register account failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resend verify email
+   */
+  static async resendVerifyEmail(email: string, role: 'CUSTOMER' | 'SELLER' | 'STOREOWNER' = 'CUSTOMER'): Promise<any> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const url = `${apiBase}/account/resend-verify-email`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+        },
+        body: JSON.stringify({ email, role }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      const result = {
+        status: res.status,
+        message: body?.message || res.statusText || '',
+        data: body?.data ?? null,
+      };
+
+      if (!res.ok) {
+        return result;
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Resend verify email failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Forgot password (send reset email)
+   */
+  static async forgotPassword(email: string): Promise<any> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const url = `${apiBase}/account/forgot-password`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: res.status,
+        message: body?.message || res.statusText || '',
+        data: body?.data ?? null,
+      };
+    } catch (error) {
+      console.error('❌ Forgot password failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset password with token
+   */
+  static async resetPassword(token: string, newPassword: string): Promise<any> {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
+    const apiBase = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const url = `${apiBase}/account/reset-password`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': '*/*',
+        },
+        body: JSON.stringify({ token, newPassword }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: res.status,
+        message: body?.message || res.statusText || '',
+        data: body?.data ?? null,
+      };
+    } catch (error) {
+      console.error('❌ Reset password failed:', error);
+      throw error;
+    }
+  }
 }
 
 // Export default

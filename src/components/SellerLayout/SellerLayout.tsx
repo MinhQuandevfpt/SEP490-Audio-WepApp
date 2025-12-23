@@ -130,18 +130,18 @@ const SellerLayout: React.FC = () => {
       <div className="bg-gray-900 text-white py-6">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex justify-center items-center space-x-6 text-sm">
-            <a href="/seller/help" className="hover:text-blue-400 transition-colors">
+            <Link to="/policies" className="hover:text-blue-400 transition-colors">
               Trung tâm hỗ trợ
-            </a>
-            <a href="/seller/guide" className="hover:text-blue-400 transition-colors">
+            </Link>
+            <Link to="/policies" className="hover:text-blue-400 transition-colors">
               Hướng dẫn bán hàng
-            </a>
-            <a href="/seller/fees" className="hover:text-blue-400 transition-colors">
-              Chính sách phí
-            </a>
-            <a href="/seller/terms" className="hover:text-blue-400 transition-colors">
-              Điều khoản
-            </a>
+            </Link>
+            <Link to="/policies" className="hover:text-blue-400 transition-colors">
+              Chính sách bảo mật
+            </Link>
+            <Link to="/policies" className="hover:text-blue-400 transition-colors">
+              Điều khoản sử dụng
+            </Link>
           </div>
           <div className="mt-4 text-xs text-gray-400">
             © 2025 AudioShop Seller Center. Bản quyền thuộc về AudioShop.

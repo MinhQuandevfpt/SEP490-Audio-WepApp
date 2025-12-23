@@ -89,7 +89,7 @@ const SellerRegister: React.FC = () => {
       
       if (response.status === 201) {
         showTikiNotification(
-          'Đăng ký thành công! Bạn sẽ được chuyển đến trang đăng nhập.', 
+          'Đăng ký thành công! Vui lòng kiểm tra email và xác nhận tài khoản trong email đã gửi đến bạn trước khi đăng nhập.', 
           'Thành công', 
           'success',
           3000
@@ -97,7 +97,7 @@ const SellerRegister: React.FC = () => {
         
         // Redirect to login page after successful registration
         setTimeout(() => {
-          navigate('/seller/login');
+          navigate('/seller/login', { state: { email: formData.email } });
         }, 1500);
       } else {
         throw new Error(response.message || 'Đăng ký thất bại');
