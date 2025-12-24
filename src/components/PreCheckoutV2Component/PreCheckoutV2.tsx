@@ -378,6 +378,7 @@ const PreCheckoutV2: React.FC = () => {
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [shippingFee, setShippingFee] = useState(0);
   const [storeShippingFees, setStoreShippingFees] = useState<Record<string, StoreShippingFee>>({});
+  const [storeLogoErrors, setStoreLogoErrors] = useState<Set<string>>(new Set());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
 
   // Cache thông tin sản phẩm để lấy storeId / storeName
@@ -497,11 +498,30 @@ const PreCheckoutV2: React.FC = () => {
       if (!groups.has(storeId)) {
         groups.set(storeId, { storeId, storeName, storeLogoUrl, items: [] });
       }
-      groups.get(storeId)!.items.push(item);
+      const group = groups.get(storeId)!;
+      group.items.push(item);
+      
+      // Cập nhật logo nếu group chưa có logo nhưng item hiện tại có logo
+      if (!group.storeLogoUrl && storeLogoUrl) {
+        group.storeLogoUrl = storeLogoUrl;
+      }
+      
+      // Cập nhật tên cửa hàng nếu có thông tin tốt hơn
+      if (storeName !== 'Cửa hàng' && group.storeName === 'Cửa hàng') {
+        group.storeName = storeName;
+      }
     });
 
     return Array.from(groups.values());
   }, [items, productCache]);
+
+  // Clear logo errors khi storeGroups thay đổi (khi có stores mới hoặc items thay đổi)
+  // Điều này đảm bảo nếu store có logo URL mới, nó sẽ được thử lại thay vì bị block bởi error state cũ
+  useEffect(() => {
+    // Clear tất cả errors khi storeGroups thay đổi
+    // Vì logo URL có thể đã thay đổi hoặc có items mới với logo mới
+    setStoreLogoErrors(new Set());
+  }, [storeGroups]);
 
   const [previewData, setPreviewData] = useState<CheckoutPreviewData | null>(null);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
@@ -1292,36 +1312,31 @@ const PreCheckoutV2: React.FC = () => {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3">
                       {/* Logo cửa hàng */}
-                      {group.storeLogoUrl ? (
+                      {group.storeLogoUrl && !storeLogoErrors.has(group.storeId) ? (
                         <img
                           src={group.storeLogoUrl}
                           alt={group.storeName}
                           className="h-10 w-10 rounded-full border-2 border-orange-200 object-cover"
-                          onError={(e) => {
-                            // Fallback về chữ cái đầu nếu logo lỗi
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const fallback = target.nextElementSibling as HTMLElement;
-                            if (fallback) fallback.style.display = 'flex';
+                          onError={() => {
+                            // Đánh dấu logo này bị lỗi để hiển thị fallback
+                            setStoreLogoErrors((prev) => new Set(prev).add(group.storeId));
                           }}
                         />
-                      ) : null}
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600 ${
-                          group.storeLogoUrl ? 'hidden' : ''
-                        }`}
-                        style={group.storeLogoUrl ? { display: 'none' } : {}}
-                      >
-                        <span className="text-sm font-semibold">
-                          {group.storeName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                      ) : (
+                        <div
+                          className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600"
+                        >
+                          <span className="text-sm font-semibold">
+                            {group.storeName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900">
                           {group.storeName}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {group.items.length} {group.items.length === 1 ? 'sản phẩm' : 'sản phẩm'}
+                          {group.items.length} sản phẩm
                         </div>
                       </div>
                     </div>
