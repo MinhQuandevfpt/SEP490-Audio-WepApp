@@ -28,7 +28,7 @@ const FlashSaleHome: React.FC = () => {
           currentSlotIdRef.current = data.slot.id;
         }
       } catch (error) {
-        console.error('Error loading flash sale:', error);
+        // Error loading flash sale
       }
     };
 
@@ -45,20 +45,18 @@ const FlashSaleHome: React.FC = () => {
         if (currentData) {
           // Nếu slot thay đổi hoặc chưa có slot nào, update ngay
           if (currentSlotIdRef.current !== currentData.slot.id) {
-            console.log('🔄 New slot detected, updating Flash Sale');
             setFlashSale(currentData);
             currentSlotIdRef.current = currentData.slot.id;
           }
         } else {
           // Không có slot active, clear flash sale
           if (currentSlotIdRef.current) {
-            console.log('⏹️ No active slot, clearing Flash Sale');
             setFlashSale(null);
             currentSlotIdRef.current = null;
           }
         }
       } catch (error) {
-        console.error('Error checking for new slot:', error);
+        // Error checking for new slot
       }
     };
 

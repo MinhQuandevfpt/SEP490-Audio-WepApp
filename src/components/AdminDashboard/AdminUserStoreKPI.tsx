@@ -1,8 +1,3 @@
-/**
- * Admin User-Store KPI Component
- * Hiển thị các chỉ số KPI về Customer và Store với growth metrics
- */
-
 import React from 'react';
 import { Users, Store, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import type { UserStoreOverview } from '../../types/admin-dashboard';

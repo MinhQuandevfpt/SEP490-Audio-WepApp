@@ -23,67 +23,135 @@ const StorePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Map ProductViewItem to Product (similar to ProductSuggestions)
+  // Map ProductViewItem to Product (same logic as ProductSuggestions)
   const mapToProduct = (item: ProductViewItem): Product => {
-    // Calculate discount ONLY from platform vouchers (Flash Sale, Mega Sale, etc.)
-    // Ignore shop vouchers for display
+    // API đã tính sẵn finalPrice, nhưng chúng ta cần xử lý variants và vouchers
+    let originalPrice: number = 0;
+    let finalPrice: number = 0;
     let discountPercent = 0;
-    let discountedPrice = item.price ?? 0;
-    let originalPrice = item.price ?? 0;
-    
-    // Check if product has variants and calculate min price
+
+    // Xử lý giá: Ưu tiên từ variants nếu có, sau đó mới dùng price từ root
     if (item.variants && item.variants.length > 0) {
-      // Get minimum price from variants
-      const variantPrices = item.variants.map(v => v.price);
-      const minVariantPrice = Math.min(...variantPrices);
-      originalPrice = minVariantPrice;
-      discountedPrice = minVariantPrice;
+      // Nếu có variants, lấy giá từ variants
+      const variantPrices = item.variants
+        .filter(v => v.price > 0)
+        .map(v => v.price);
+      if (variantPrices.length > 0) {
+        const minVariantPrice = Math.min(...variantPrices);
+
+        // Dùng giá thấp nhất từ variants để hiển thị
+        originalPrice = minVariantPrice;
+
+        // Xử lý finalPrice từ API:
+        // 1. Nếu API đã tính finalPrice ở root level và khác originalPrice, dùng nó (đã có discount)
+        // 2. Nếu không, tạm thời set = originalPrice để tính từ campaign sau
+        if (item.finalPrice !== null && item.finalPrice !== undefined && item.finalPrice !== minVariantPrice) {
+          // Backend đã tính sẵn finalPrice và có discount (khác giá gốc)
+          finalPrice = item.finalPrice;
+        } else {
+          // Chưa có finalPrice hoặc finalPrice = giá gốc, tạm thời set = originalPrice
+          // Sẽ tính lại từ campaign nếu có
+          finalPrice = minVariantPrice;
+        }
+      } else {
+        // Variants không có giá hợp lệ, fallback về price từ root
+        originalPrice = item.price ?? 0;
+        finalPrice = item.finalPrice ?? item.price ?? 0;
+      }
+    } else {
+      // Không có variants, dùng giá từ root level
+      originalPrice = item.price ?? 0;
+      // Nếu finalPrice đã được tính và khác originalPrice, dùng nó (đã có discount)
+      // Nếu không, set = originalPrice để tính từ campaign sau
+      if (item.finalPrice !== null && item.finalPrice !== undefined && item.finalPrice !== originalPrice) {
+        finalPrice = item.finalPrice;
+      } else {
+        finalPrice = originalPrice;
+      }
     }
-    
-    // Check platform vouchers ONLY (Flash Sale, etc.)
-    if (item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0) {
+
+    // Nếu discountPrice và finalPrice đều null/0 hoặc finalPrice = originalPrice (chưa có discount),
+    // và sản phẩm có campaign, tính giá sau giảm từ campaign
+    const hasCampaign = item.vouchers?.platformVouchers && item.vouchers.platformVouchers.length > 0;
+    const needsCampaignCalculation =
+      (item.discountPrice === null || item.discountPrice === undefined) &&
+      (item.finalPrice === null || item.finalPrice === undefined || finalPrice === originalPrice) &&
+      originalPrice > 0 &&
+      hasCampaign;
+
+    if (needsCampaignCalculation && hasCampaign && item.vouchers?.platformVouchers) {
+      // Lấy campaign đầu tiên
       const campaign = item.vouchers.platformVouchers[0];
+
+      // Lấy voucher active từ campaign
       if (campaign.vouchers && campaign.vouchers.length > 0) {
         const voucher = campaign.vouchers[0];
-        
-        // Check if voucher is active (within time range)
         const now = new Date();
+
+        // Kiểm tra voucher có active không
         let isActive = false;
-        
+
+        // Kiểm tra thời gian voucher (có thể có slot time cho Flash Sale)
         if (voucher.slotOpenTime && voucher.slotCloseTime) {
-          // Flash Sale: check slot time and slot status
-          isActive = 
-            now >= new Date(voucher.slotOpenTime) && 
-            now <= new Date(voucher.slotCloseTime) &&
+          // Flash Sale: check slot time và slot status
+          const slotOpen = new Date(voucher.slotOpenTime);
+          const slotClose = new Date(voucher.slotCloseTime);
+          isActive =
+            now >= slotOpen &&
+            now <= slotClose &&
             voucher.slotStatus === 'ACTIVE';
-        } else {
+        } else if (voucher.startTime && voucher.endTime) {
           // Regular campaign: check voucher time
-          isActive = 
-            now >= new Date(voucher.startTime) && 
-            now <= new Date(voucher.endTime) && 
+          const startTime = new Date(voucher.startTime);
+          const endTime = new Date(voucher.endTime);
+          isActive =
+            now >= startTime &&
+            now <= endTime &&
             voucher.status === 'ACTIVE';
+        } else {
+          // Nếu không có thời gian, chỉ check status
+          isActive = voucher.status === 'ACTIVE';
         }
-        
-        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
-          discountPercent = voucher.discountPercent;
-          discountedPrice = originalPrice * (1 - discountPercent / 100);
-        } else if (isActive && voucher.type === 'FIXED' && voucher.discountValue) {
-          discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
-          if (originalPrice > 0) {
-            discountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+
+        if (isActive) {
+          // Tính giá sau giảm dựa trên type của voucher
+          if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+            // PERCENT: price - (price * discountPercent / 100)
+            const discountAmount = (originalPrice * voucher.discountPercent) / 100;
+            // Áp dụng maxDiscountValue nếu có
+            const finalDiscount = voucher.maxDiscountValue
+              ? Math.min(discountAmount, voucher.maxDiscountValue)
+              : discountAmount;
+            finalPrice = Math.max(0, originalPrice - finalDiscount);
+            discountPercent = voucher.discountPercent;
+          } else if (voucher.type === 'FIXED' && voucher.discountValue) {
+            // FIXED: price - discountValue
+            finalPrice = Math.max(0, originalPrice - voucher.discountValue);
+            // Tính discountPercent từ discountValue
+            if (originalPrice > 0) {
+              discountPercent = Math.round(((voucher.discountValue / originalPrice) * 100));
+            }
           }
         }
       }
     }
-    
-    // DO NOT check shop voucher - only show original price for shop vouchers
 
-    const hasDiscount = discountPercent > 0;
+    // Fallback: Nếu finalPrice vẫn là 0 (chưa được set), dùng originalPrice
+    if (finalPrice === 0 && originalPrice > 0) {
+      finalPrice = originalPrice;
+    }
 
-    // Lấy category name từ categories array
+    // Tính discount percent từ finalPrice và originalPrice (nếu chưa tính)
+    if (discountPercent === 0 && originalPrice > 0 && finalPrice > 0 && finalPrice < originalPrice) {
+      discountPercent = Math.round(((originalPrice - finalPrice) / originalPrice) * 100);
+    }
+
+    // Lấy category name từ categories array (lấy category đầu tiên hoặc join nếu nhiều)
     const categoryName = item.categories && item.categories.length > 0
       ? item.categories.map(c => c.categoryName).join(', ')
       : '';
+
+    const hasDiscount = discountPercent > 0;
 
     return {
       productId: item.productId,
@@ -106,12 +174,12 @@ const StorePage: React.FC = () => {
       videoUrl: null,
       sku: '',
       price: originalPrice,
-      discountPrice: hasDiscount ? discountedPrice : null,
+      discountPrice: hasDiscount ? finalPrice : null,
       promotionPercent: hasDiscount ? discountPercent : null,
-      priceAfterPromotion: hasDiscount ? discountedPrice : originalPrice,
+      priceAfterPromotion: finalPrice,
       priceBeforeVoucher: originalPrice,
       voucherAmount: null,
-      finalPrice: hasDiscount ? discountedPrice : originalPrice,
+      finalPrice: finalPrice,
       platformFeePercent: null,
       currency: 'VND',
       stockQuantity: 0,
@@ -123,7 +191,7 @@ const StorePage: React.FC = () => {
       shippingFee: null,
       supportedShippingMethodIds: [],
       bulkDiscounts: [],
-      status: item.store?.status || 'ACTIVE',
+      status: item.status || 'ACTIVE',
       isFeatured: false,
       ratingAverage: item.ratingAverage ?? null,
       reviewCount: item.reviewCount ?? null,

@@ -391,6 +391,13 @@ export interface ReturnRequestResponse {
   customerLegalPoint?: number;
   storeLegalPoint?: number;
   orderCode?: string | null;
+  // Fields for who escalated the dispute
+  escalatedById?: string;
+  escalatedByName?: string;
+  escalatedByRole?: 'SHOP' | 'CUSTOMER' | string;
+  // Admin decision flags
+  finalDecision?: boolean;
+  adminForcedContinue?: boolean;
   createdAt: string;
   updatedAt: string;
 }

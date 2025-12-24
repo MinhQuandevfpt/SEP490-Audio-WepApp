@@ -482,11 +482,7 @@ const CampaignProductDetails: React.FC = () => {
                   </span>
                 </div>
               )}
-              <div className="text-xs text-gray-500 mt-1">
-                <span className="font-medium">{record.brandName}</span>
-                {' • '}
-                <span>{record.category}</span>
-              </div>
+             
             </div>
           </div>
         );

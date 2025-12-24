@@ -87,7 +87,8 @@ const AdminSidebar: React.FC = () => {
       permission: 'manage_orders',
       icon: <ShoppingCart className="w-6 h-6" />,
       children: [
-        { name: 'Khiếu nại hoàn trả', href: '/admin/returns/disputes', icon: null }
+        { name: 'Khiếu nại hoàn trả', href: '/admin/returns/disputes', icon: null },
+        { name: 'Cập nhật trạng thái GHN', href: '/admin/ghn-orders', icon: null }
       ]
     },
     {

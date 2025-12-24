@@ -8,7 +8,7 @@ import type { StaffInfo } from '../../types/seller';
 interface Props {
   orderId: string;
   onClose: () => void;
-  onSuccess?: () => void; // Callback khi assign thành công
+  onSuccess?: () => void; 
 }
 
 const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) => {
@@ -16,16 +16,16 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
   const [isLoadingStaff, setIsLoadingStaff] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Form data
+  
   const [staffId, setStaffId] = useState<string>('');
   const [note, setNote] = useState<string>('');
 
-  // Load staff list
+  
   useEffect(() => {
     const loadStaff = async () => {
       try {
         setIsLoadingStaff(true);
-        const response = await StaffService.getStaffList(0, 100); // Get all staff
+        const response = await StaffService.getStaffList(0, 100); 
         if (response.data?.content) {
           setStaffList(response.data.content);
         }
@@ -49,10 +49,10 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
 
     try {
       setIsSubmitting(true);
-      // Set cả deliveryStaffId và preparedByStaffId cùng giá trị (ẩn phía sau)
+     
       await StoreOrderService.assignDeliveryStaff(orderId, {
         deliveryStaffId: staffId,
-        preparedByStaffId: staffId, // Tự động set cùng ID
+        preparedByStaffId: staffId, 
         note: note || null,
       });
 
@@ -83,9 +83,8 @@ const AssignDeliveryModal: React.FC<Props> = ({ orderId, onClose, onSuccess }) =
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Staff Selection (Required) */}
+         
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
               <User className="w-4 h-4 text-orange-500" />
