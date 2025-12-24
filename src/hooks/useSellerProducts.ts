@@ -87,13 +87,30 @@ export const useSellerProducts = (
     // Check if response.data has content property (pagination structure)
     if (data.data.content && Array.isArray(data.data.content)) {
       products = data.data.content;
-      totalCount = data.data.totalElements || data.data.content.length;
+      // Use totalElements if available, otherwise use content length
+      // Note: If API returns array directly, totalElements might be the array length
+      totalCount = data.data.totalElements ?? data.data.content.length;
+      
+      console.log('📦 Parsed products from pagination structure:', {
+        productsCount: products.length,
+        totalElements: data.data.totalElements,
+        totalCount,
+        hasTotalElements: !!data.data.totalElements
+      });
     } 
-    // Fallback: check if response.data is directly an array (legacy structure)
+    // Fallback: check if response.data is directly an array (should be converted by ProductService)
     else if (Array.isArray(data.data)) {
       products = data.data;
       totalCount = data.data.length;
+      console.log('📦 Parsed products from array structure:', {
+        productsCount: products.length,
+        totalCount
+      });
+    } else {
+      console.warn('⚠️ Unexpected data structure in useSellerProducts:', data.data);
     }
+  } else {
+    console.warn('⚠️ No data field in response:', data);
   }
 
   return {

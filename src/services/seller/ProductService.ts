@@ -45,6 +45,16 @@ export class ProductService {
 
       const url = `${API_URL}/products?${queryParams.toString()}`;
       console.log('🔍 Fetching products from:', url);
+      console.log('📋 Query params:', {
+        categoryName: params.categoryName,
+        storeId: params.storeId,
+        keyword: params.keyword,
+        status: params.status,
+        minPrice: params.minPrice,
+        maxPrice: params.maxPrice,
+        page: params.page || 0,
+        size: params.size || 20,
+      });
 
       const response = await HttpInterceptor.fetch<Response>(url, {
         method: 'GET',
@@ -58,43 +68,65 @@ export class ProductService {
       console.log('📥 Products request sent via HttpInterceptor');
 
       const data = response as unknown as any; // fetch<T> already returns parsed JSON
-      console.log('✅ Products received:', {
-        status: data.status,
-        message: data.message,
-        count: data.data?.content?.length || data.data?.length || 0,
-        totalElements: data.data?.totalElements || 0
-      });
       
       // Validate response structure
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
       
-      // Validate data structure - should have content array or be array itself
+      // Log response structure for debugging
+      console.log('✅ Products API Response:', {
+        status: data.status,
+        message: data.message,
+        hasData: !!data.data,
+        isDataArray: Array.isArray(data.data),
+        hasContent: !!data.data?.content,
+        dataLength: Array.isArray(data.data) ? data.data.length : (data.data?.content?.length || 0),
+        totalElements: data.data?.totalElements,
+        rawStructure: {
+          hasData: !!data.data,
+          isArray: Array.isArray(data.data),
+          hasContent: !!data.data?.content,
+          hasTotalElements: !!data.data?.totalElements,
+          dataType: Array.isArray(data.data) ? 'array' : (data.data?.content ? 'pagination' : 'unknown')
+        }
+      });
+      
+      // Handle response structure - API returns array directly in data field
       if (data.data) {
         if (data.data.content && Array.isArray(data.data.content)) {
-          // Pagination structure - already correct
-          console.log('📄 Using pagination structure');
+          // Pagination structure (Spring Boot Page format) - already correct
+          console.log('📄 Using pagination structure (Spring Boot Page)');
+          // Keep as is, already has totalElements
         } else if (Array.isArray(data.data)) {
-          // New API structure - data is array directly, convert to pagination structure
+          // API returns array directly - convert to pagination structure for consistency
           console.log('📄 Converting array structure to pagination format');
+          const productsArray = data.data;
+          const currentPage = params.page || 0;
+          const pageSize = params.size || 20;
+          
           data.data = {
-            content: data.data,
-            totalElements: data.data.length,
-            totalPages: 1,
-            first: true,
-            last: true,
-            size: data.data.length,
-            number: 0,
-            numberOfElements: data.data.length,
-            empty: data.data.length === 0,
+            content: productsArray,
+            totalElements: productsArray.length, // Total items in current response
+            totalPages: Math.ceil(productsArray.length / pageSize),
+            first: currentPage === 0,
+            last: productsArray.length < pageSize,
+            size: pageSize,
+            number: currentPage,
+            numberOfElements: productsArray.length,
+            empty: productsArray.length === 0,
             pageable: {
-              pageNumber: 0,
-              pageSize: data.data.length,
+              pageNumber: currentPage,
+              pageSize: pageSize,
               sort: { empty: true, sorted: false, unsorted: true },
-              offset: 0,
-              paged: false,
-              unpaged: true
+              offset: currentPage * pageSize,
+              paged: true,
+              unpaged: false
+            },
+            sort: {
+              empty: true,
+              sorted: false,
+              unsorted: true
             }
           };
         } else {
@@ -105,21 +137,60 @@ export class ProductService {
             totalPages: 0,
             first: true,
             last: true,
-            size: 0,
-            number: 0,
+            size: params.size || 20,
+            number: params.page || 0,
             numberOfElements: 0,
             empty: true,
             pageable: {
-              pageNumber: 0,
-              pageSize: 0,
+              pageNumber: params.page || 0,
+              pageSize: params.size || 20,
               sort: { empty: true, sorted: false, unsorted: true },
-              offset: 0,
-              paged: false,
-              unpaged: true
+              offset: (params.page || 0) * (params.size || 20),
+              paged: true,
+              unpaged: false
+            },
+            sort: {
+              empty: true,
+              sorted: false,
+              unsorted: true
             }
           };
         }
+      } else {
+        // No data field - create empty structure
+        console.warn('⚠️ API response has no data field');
+        data.data = {
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          first: true,
+          last: true,
+          size: params.size || 20,
+          number: params.page || 0,
+          numberOfElements: 0,
+          empty: true,
+          pageable: {
+            pageNumber: params.page || 0,
+            pageSize: params.size || 20,
+            sort: { empty: true, sorted: false, unsorted: true },
+            offset: (params.page || 0) * (params.size || 20),
+            paged: true,
+            unpaged: false
+          },
+          sort: {
+            empty: true,
+            sorted: false,
+            unsorted: true
+          }
+        };
       }
+      
+      console.log('📊 Final parsed response:', {
+        totalElements: data.data.totalElements,
+        contentLength: data.data.content?.length || 0,
+        totalPages: data.data.totalPages,
+        currentPage: data.data.number
+      });
       
       return data;
     } catch (error) {

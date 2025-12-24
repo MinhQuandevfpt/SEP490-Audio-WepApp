@@ -144,7 +144,7 @@ const SellerLayout: React.FC = () => {
             </Link>
           </div>
           <div className="mt-4 text-xs text-gray-400">
-            © 2025 AudioShop Seller Center. Bản quyền thuộc về AudioShop.
+            © 2025 AudioShop Seller Center. Bản quyền thuộc về AudioShop
           </div>
         </div>
       </div>
