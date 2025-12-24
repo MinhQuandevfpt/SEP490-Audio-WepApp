@@ -400,6 +400,7 @@ const ProductManagement: React.FC = () => {
           'PENDING_APPROVAL': 'orange',
           'SUSPENDED': 'red',
           'SUSPENDED_DEBT': 'red',
+          'BANNED': 'red',
         };
         
         const approvalReason = (record.originalProduct as any)?.approvalReason;
@@ -523,7 +524,7 @@ const ProductManagement: React.FC = () => {
     { value: 'SUSPENDED', label: 'Tạm khóa' },
     { value: 'SUSPENDED_DEBT', label: 'Tạm khóa do nợ' },
     { value: 'DELETED', label: 'Đã xóa' },
-    { value: 'BANNED', label: 'Cấm' },
+    { value: 'BANNED', label: 'Vi phạm' },
   ];
 
   return (
