@@ -68,7 +68,7 @@ const FlashSaleDetail: React.FC = () => {
           setSelectedSlot(initialSlot);
         }
       } catch (error: any) {
-        console.error('Error loading campaign:', error);
+        // Error loading campaign
       } finally {
         setIsLoading(false);
       }
@@ -95,19 +95,10 @@ const FlashSaleDetail: React.FC = () => {
           product.status === 'APPROVE' || product.status === 'ACTIVE'
         );
         
-        console.log('🔍 Flash Sale Detail Products Filter:', {
-          total: productList.length,
-          approved: approvedProducts.length,
-          statuses: productList.map(p => ({ id: p.productId, name: p.productName, status: p.status }))
-        });
         // Enrich products with images (similar to FlashSaleHome)
-        console.log('📦 Products before enriching:', approvedProducts.length);
         const enrichedProducts = await FlashSaleService.enrichProductsWithImages(approvedProducts);
-        console.log('✅ Products after enriching:', enrichedProducts.length);
-        console.log('🖼️ Sample product imageUrl:', enrichedProducts[0]?.imageUrl);
         setProducts(enrichedProducts);
       } catch (error: any) {
-        console.error('Error loading products:', error);
         setProducts([]);
       } finally {
         setIsLoadingProducts(false);

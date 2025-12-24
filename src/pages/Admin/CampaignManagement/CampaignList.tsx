@@ -504,14 +504,17 @@ const CampaignManagement: React.FC = () => {
             />
           </Tooltip>
 
-          <Tooltip title="Chỉnh sửa">
-            <Button
-              type="default"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => navigate(`/admin/campaigns/${record.id}/edit`)}
-            />
-          </Tooltip>
+          {/* Chỉ hiển thị nút Chỉnh sửa khi status là DRAFT */}
+          {record.status === 'DRAFT' && (
+            <Tooltip title="Chỉnh sửa">
+              <Button
+                type="default"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => navigate(`/admin/campaigns/${record.id}/edit`)}
+              />
+            </Tooltip>
+          )}
         </div>
       ),
     },

@@ -75,7 +75,7 @@ const UserManagement: React.FC = () => {
         icon: <UserOutlined className="text-2xl" />
       },
       {
-        title: 'Tài khoản bị khóa',
+        title: 'Tài khoản bị cấm',
         value: stats.suspendedCustomers,
         color: 'red',
         icon: <LockOutlined className="text-2xl" />

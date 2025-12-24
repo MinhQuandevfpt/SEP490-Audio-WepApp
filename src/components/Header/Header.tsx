@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Shield, Truck, RotateCcw, Clock, DollarSign, LogOut } from 'lucide-react';
+import { User, Shield, Truck, Gift, Clock, DollarSign, LogOut } from 'lucide-react';
 import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { CustomerCategoryService } from '../../services/customer/CategoryService';
 import CartDropdown from './CartDropdown';
@@ -313,8 +313,8 @@ const Header: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
-              <RotateCcw className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
-              <span className="text-xs lg:text-sm font-medium">{t('header.refund')}</span>
+              <Gift className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+              <span className="text-xs lg:text-sm font-medium">{t('header.attractiveOffer')}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-gray-700">
@@ -344,8 +344,8 @@ const Header: React.FC = () => {
               </div>
 
               <div className="flex items-center space-x-1 text-gray-700">
-                <RotateCcw className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                <span className="text-xs font-medium whitespace-nowrap">{t('header.refund')}</span>
+                <Gift className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span className="text-xs font-medium whitespace-nowrap">{t('header.attractiveOffer')}</span>
               </div>
 
               <div className="flex items-center space-x-1 text-gray-700">

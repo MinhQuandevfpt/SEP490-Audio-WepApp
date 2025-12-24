@@ -49,6 +49,20 @@ export interface StoreSearchResponse {
   };
 }
 
+export interface StoreDefaultAddressResponse {
+  status: number;
+  message: string;
+  data: {
+    addressId: string;
+    defaultAddress: boolean;
+    provinceCode: string;
+    districtCode: string;
+    wardCode: string;
+    address: string;
+    addressLocation: any | null;
+  };
+}
+
 export class CustomerStoreService {
   /**
    * Get store detail by store ID (public endpoint for customers)
@@ -134,6 +148,38 @@ export class CustomerStoreService {
       return response;
     } catch (error) {
       console.error('❌ Error searching stores:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get default store address by product ID
+   * This API returns the default address of the store that owns the product.
+   * Used when store changes address but product hasn't been updated yet.
+   * 
+   * @param productId Product ID to get store default address
+   * @returns Store default address with provinceCode, districtCode, wardCode
+   */
+  static async getStoreDefaultAddressByProduct(productId: string): Promise<StoreDefaultAddressResponse['data']> {
+    try {
+      console.log('🔍 Getting store default address for product:', productId);
+
+      const response = await HttpInterceptor.get<StoreDefaultAddressResponse>(
+        `${API_URL}/stores/address/default-by-product/${productId}`,
+        {
+          userType: 'customer',
+        }
+      );
+
+      console.log('✅ Store default address received:', response.data);
+      
+      if (!response.data) {
+        throw new Error('Store default address not found');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error getting store default address:', error);
       throw error;
     }
   }

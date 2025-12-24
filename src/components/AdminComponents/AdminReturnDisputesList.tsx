@@ -260,6 +260,46 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
               )}
             </div>
 
+            {/* Thông tin người gửi khiếu nại */}
+            {(record.escalatedById || record.escalatedByName || record.escalatedByRole) && (
+              <div className="mb-3">
+                <div className="bg-purple-50 rounded-lg p-3 border border-purple-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="w-4 h-4 text-purple-600" />
+                    <Text className="text-xs font-semibold text-purple-900">Người gửi khiếu nại</Text>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {record.escalatedByName && (
+                      <div>
+                        <Text type="secondary" className="text-xs">Tên</Text>
+                        <div className="font-medium text-sm text-gray-900">
+                          {record.escalatedByName}
+                        </div>
+                      </div>
+                    )}
+                    {record.escalatedByRole && (
+                      <div>
+                        <Text type="secondary" className="text-xs">Vai trò</Text>
+                        <div>
+                          <Tag color={record.escalatedByRole === 'SHOP' ? 'green' : 'blue'}>
+                            {record.escalatedByRole === 'SHOP' ? 'Cửa hàng' : 'Khách hàng'}
+                          </Tag>
+                        </div>
+                      </div>
+                    )}
+                    {record.escalatedById && (
+                      <div>
+                        <Text type="secondary" className="text-xs">ID</Text>
+                        <div className="font-mono text-xs text-gray-600 truncate" title={record.escalatedById}>
+                          {record.escalatedById}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Thông tin cơ bản */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-3">
               <div className="flex items-center gap-2">
@@ -354,25 +394,36 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
             </div>
 
             {/* Thông tin sản phẩm và vận chuyển */}
-            {(record.orderItemId || record.ghnOrderCode || record.trackingStatus || record.shippingFee !== null) && (
+            {(record.orderCode || record.orderItemId || record.ghnOrderCode || record.trackingStatus || record.shippingFee !== null) && (
               <>
                 <Divider className="!my-3" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
-                  {record.orderItemId && (
-                    <div className="flex items-center gap-2">
-                      <Package className="w-4 h-4 text-gray-500" />
-                      <div>
+                  {record.orderCode && (
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Package className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <Text type="secondary" className="text-xs">Mã đơn hàng</Text>
-                        <div className="font-mono text-xs text-gray-700 truncate" title={record.orderItemId}>
+                        <div className="font-mono text-xs font-semibold text-blue-700 truncate" title={record.orderCode}>
+                          {record.orderCode}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {record.orderItemId && (
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Package className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <Text type="secondary" className="text-xs">ID Item đơn hàng</Text>
+                        <div className="font-mono text-xs text-gray-700 break-all" title={record.orderItemId}>
                           {record.orderItemId}
                         </div>
                       </div>
                     </div>
                   )}
                   {record.ghnOrderCode && (
-                    <div className="flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-gray-500" />
-                      <div>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Truck className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <Text type="secondary" className="text-xs">Mã vận đơn GHN</Text>
                         <div className="font-mono text-xs text-gray-700 truncate" title={record.ghnOrderCode}>
                           {record.ghnOrderCode}
@@ -381,20 +432,20 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
                     </div>
                   )}
                   {record.trackingStatus && (
-                    <div className="flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-gray-500" />
-                      <div>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Truck className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <Text type="secondary" className="text-xs">Trạng thái vận chuyển</Text>
-                        <div className="font-medium text-sm text-gray-700">
+                        <div className="font-medium text-sm text-gray-700 truncate">
                           {record.trackingStatus}
                         </div>
                       </div>
                     </div>
                   )}
                   {record.shippingFee !== null && record.shippingFee !== undefined && (
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-gray-500" />
-                      <div>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <DollarSign className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <Text type="secondary" className="text-xs">Phí vận chuyển</Text>
                         <div className="font-semibold text-sm text-gray-700">
                           {formatCurrency(record.shippingFee)}
@@ -713,7 +764,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
 
           <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <label className="block text-sm font-semibold text-gray-900 mb-3">
-              Quyết định hoàn tiền <span className="text-red-500">*</span>
+              Quyết định của ADMIN <span className="text-red-500">*</span>
             </label>
             <Radio.Group
               value={refundCustomer}
@@ -724,25 +775,19 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
               <Space direction="vertical" size="middle" className="w-full">
                 <Radio value={true} className="w-full">
                   <div className="ml-2">
-                    <span className="font-medium text-green-700">Có - Hoàn tiền cho khách hàng</span>
-                    <p className="text-xs text-gray-500 mt-0.5">Khách hàng sẽ nhận được hoàn tiền theo quy định của hệ thống.</p>
+                    <span className="font-medium text-green-700">Có</span>
+                  
                   </div>
                 </Radio>
                 <Radio value={false} className="w-full">
                   <div className="ml-2">
-                    <span className="font-medium text-red-700">Không - Không hoàn tiền</span>
-                    <p className="text-xs text-gray-500 mt-0.5">Khách hàng sẽ không được hoàn tiền, yêu cầu hoàn trả sẽ bị từ chối.</p>
+                    <span className="font-medium text-red-700">Không</span>
+                  
                   </div>
                 </Radio>
               </Space>
             </Radio.Group>
-            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-800">
-                <strong>Gợi ý:</strong> {faultType === 'CUSTOMER' 
-                  ? 'Nếu khách hàng có lỗi, thường không hoàn tiền.'
-                  : 'Nếu cửa hàng có lỗi, thường sẽ hoàn tiền cho khách hàng.'}
-              </p>
-            </div>
+            
           </div>
 
           <div>

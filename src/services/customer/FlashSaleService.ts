@@ -10,21 +10,18 @@ import type {
   CurrentFlashSaleSlot
 } from '../../types/flashsale';
 
-/**
- * Flash Sale Service
- * Quản lý các API liên quan đến Flash Sale (FAST_SALE campaigns)
- */
+
 export class FlashSaleService {
   /**
    * 1. Lấy danh sách tất cả Flash Sale campaigns
    * GET /api/campaigns/fast-sale
    * 
-   * @param filters - Lọc theo status, start, end
+   * @param filters 
    */
   static async getAllFlashSales(filters?: {
     status?: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'APPROVE';
-    start?: string; // ISO 8601
-    end?: string; // ISO 8601
+    start?: string; 
+    end?: string; 
   }): Promise<FlashSaleCampaign[]> {
     try {
       const params = new URLSearchParams();
@@ -41,7 +38,6 @@ export class FlashSaleService {
 
       return response.data || [];
     } catch (error: any) {
-      console.error('Error fetching flash sales:', error);
       throw new Error(error.message || 'Không thể tải danh sách Flash Sale');
     }
   }
@@ -50,9 +46,9 @@ export class FlashSaleService {
    * 2. Lấy sản phẩm của một slot cụ thể
    * GET /api/campaigns/{campaignId}/slots/{slotId}/products
    * 
-   * @param campaignId - ID của campaign
-   * @param slotId - ID của slot
-   * @param timeFilter - UPCOMING | ONGOING | EXPIRED
+   * @param campaignId 
+   * @param slotId 
+   * @param timeFilter 
    */
   static async getSlotProducts(
     campaignId: string,
@@ -74,15 +70,10 @@ export class FlashSaleService {
 
       return response.data?.items || [];
     } catch (error: any) {
-      console.error('Error fetching slot products:', error);
       throw new Error(error.message || 'Không thể tải sản phẩm của khung giờ');
     }
   }
 
-  /**
-   * 3. Tìm slot hiện tại đang ACTIVE (openTime <= now <= closeTime)
-   * Logic: Duyệt qua các campaign ACTIVE, tìm slot đầu tiên đang ACTIVE
-   */
   static findCurrentActiveSlot(campaigns: FlashSaleCampaign[]): {
     campaign: FlashSaleCampaign;
     slot: FlashSaleSlot;
@@ -90,14 +81,14 @@ export class FlashSaleService {
     const now = new Date();
 
     for (const campaign of campaigns) {
-      // Chỉ xét campaign đang ACTIVE
+      
       if (campaign.status !== 'ACTIVE') continue;
 
       for (const slot of campaign.slots) {
         const openTime = new Date(slot.openTime);
         const closeTime = new Date(slot.closeTime);
 
-        // Check: openTime <= now <= closeTime
+       
         if (openTime <= now && now <= closeTime && slot.status === 'ACTIVE') {
           return { campaign, slot };
         }
@@ -107,91 +98,94 @@ export class FlashSaleService {
     return null;
   }
 
-  /**
-   * 4. Lấy slot hiện tại cùng với sản phẩm (15 sản phẩm đầu)
-   * Kết hợp API 1 và API 2
-   */
+ 
   static async getCurrentFlashSale(): Promise<CurrentFlashSaleSlot | null> {
     try {
-      // Bước 1: Lấy tất cả Flash Sale đang ACTIVE
+      
       const campaigns = await this.getAllFlashSales({ status: 'ACTIVE' });
 
       if (!campaigns || campaigns.length === 0) {
         return null;
       }
-
-      // Bước 2: Tìm slot hiện tại
       const currentSlot = this.findCurrentActiveSlot(campaigns);
 
       if (!currentSlot) {
         return null;
       }
-
-      // Bước 3: Lấy sản phẩm của slot (limit 15 sản phẩm cho home)
       let products = await this.getSlotProducts(
         currentSlot.campaign.id,
         currentSlot.slot.id,
         'ONGOING'
       );
 
-      // Bước 3.5: Chỉ lấy sản phẩm đã được admin duyệt
-      // Status có thể là 'APPROVE' (đã duyệt) hoặc 'ACTIVE' (đã duyệt và đang chạy)
+     
+      if (products.length === 0) {
+        const allProducts = await this.getSlotProducts(
+          currentSlot.campaign.id,
+          currentSlot.slot.id
+        );
+        
+        if (allProducts.length > 0) {
+          // Lọc sản phẩm đang trong thời gian slot
+          const slotOpen = new Date(currentSlot.slot.openTime);
+          const slotClose = new Date(currentSlot.slot.closeTime);
+          
+          products = allProducts.filter(product => {
+            const productStart = new Date(product.startTime);
+            const productEnd = new Date(product.endTime);
+            // Sản phẩm phải overlap với slot time
+            const overlaps = productStart <= slotClose && productEnd >= slotOpen;
+            return overlaps;
+          });
+        }
+      }
+
+      
       products = products.filter(product => 
         product.status === 'APPROVE' || product.status === 'ACTIVE'
       );
-      
-      console.log('🔍 Flash Sale Products Filter:', {
-        total: products.length,
-        statuses: products.map(p => ({ id: p.productId, status: p.status }))
-      });
 
-      // Bước 4: Enrich products với hình ảnh từ product detail
+     
       products = await this.enrichProductsWithImages(products);
 
       return {
         campaign: currentSlot.campaign,
         slot: currentSlot.slot,
-        products: products.slice(0, 15) // Lấy 15 sản phẩm đầu
+        products: products.slice(0, 15)
       };
     } catch (error: any) {
-      console.error('Error getting current flash sale:', error);
       return null;
     }
   }
 
-  /**
-   * Helper: Lấy thêm thông tin hình ảnh và tính giá cho products với variants
-   */
+ 
   static async enrichProductsWithImages(
     products: FlashSaleProduct[]
   ): Promise<FlashSaleProduct[]> {
     try {
-      console.log(`🖼️ Enriching ${products.length} products with images and prices...`);
-      
       const enrichedProducts = await Promise.all(
         products.map(async (product) => {
           try {
-            // Fetch product detail để lấy hình ảnh và variants
+           
             const response = await ProductListService.getProductById(product.productId);
             
-            // Get product data
+           
             const productData = response.data;
 
-            // Get first image from array
+        
             const firstImage = productData.images && productData.images.length > 0 
               ? productData.images[0] 
               : null;
 
-            // Check if product has variants
+            
             const variants = productData.variants || [];
             const hasVariants = variants.length > 0;
 
             let originalPrice = product.originalPrice;
             let discountedPrice = product.discountedPrice;
 
-            // If product has variants, calculate prices from min variant price
             if (hasVariants) {
-              // Get prices from variants (handle both variantPrice and price fields)
+            
               const variantPrices = variants
                 .map(v => v.variantPrice || 0)
                 .filter(p => p > 0);
@@ -199,10 +193,10 @@ export class FlashSaleService {
               if (variantPrices.length > 0) {
                 const minVariantPrice = Math.min(...variantPrices);
                 
-                // originalPrice = min variant price
+               
                 originalPrice = minVariantPrice;
                 
-                // Calculate discounted price based on voucher type
+                
                 if (product.type === 'PERCENT' && product.discountPercent) {
                   const discount = (minVariantPrice * product.discountPercent) / 100;
                   const maxDiscount = product.maxDiscountValue || discount;
@@ -210,19 +204,17 @@ export class FlashSaleService {
                 } else if (product.type === 'FIXED' && product.discountValue) {
                   discountedPrice = Math.max(0, minVariantPrice - product.discountValue);
                 } else {
-                  // No discount, just use original price
+                
                   discountedPrice = minVariantPrice;
                 }
-
-                console.log(`✅ Variant product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}, image=${firstImage || 'none'}`);
               }
             } else {
-              // No variants - calculate from product's finalPrice or price
+              
               if (!originalPrice || originalPrice === 0) {
                 originalPrice = productData.finalPrice || productData.price || 0;
               }
               
-              // Calculate discounted price if not available from BE
+            
               if (!discountedPrice || discountedPrice === 0) {
                 if (product.type === 'PERCENT' && product.discountPercent) {
                   const discount = (originalPrice * product.discountPercent) / 100;
@@ -234,8 +226,6 @@ export class FlashSaleService {
                   discountedPrice = originalPrice;
                 }
               }
-              
-              console.log(`✅ Single product ${product.productName}: original=${originalPrice}, discounted=${discountedPrice}, image=${firstImage || 'none'}`);
             }
 
             return {
@@ -245,7 +235,6 @@ export class FlashSaleService {
               discountedPrice
             };
           } catch (error) {
-            console.error(`❌ Error fetching details for product ${product.productId}:`, error);
             return {
               ...product,
               imageUrl: product.imageUrl || ''
@@ -254,18 +243,16 @@ export class FlashSaleService {
         })
       );
 
-      console.log(`✅ Successfully enriched ${enrichedProducts.length} products`);
       return enrichedProducts;
     } catch (error) {
-      console.error('❌ Error enriching products:', error);
       return products;
     }
   }
 
   /**
-   * 5. Tính thời gian còn lại đến khi slot kết thúc
-   * @param closeTime - ISO 8601 string
-   * @returns { hours, minutes, seconds } hoặc null nếu đã hết hạn
+   
+   * @param closeTime 
+   * @returns { hours, minutes, seconds } 
    */
   static calculateTimeRemaining(closeTime: string): {
     hours: number;
@@ -289,9 +276,7 @@ export class FlashSaleService {
     return { hours, minutes, seconds, totalSeconds };
   }
 
-  /**
-   * 6. Format thời gian còn lại thành string HH:MM:SS
-   */
+
   static formatTimeRemaining(closeTime: string): string {
     const remaining = this.calculateTimeRemaining(closeTime);
 
@@ -306,13 +291,10 @@ export class FlashSaleService {
     return `${h}:${m}:${s}`;
   }
 
-  /**
-   * 7. Lấy tất cả slots của một campaign (cho trang detail)
-   * Trả về slots đã được sắp xếp theo thời gian
-   */
+
   static async getCampaignSlots(campaignId: string): Promise<FlashSaleSlot[]> {
     try {
-      // Lấy campaign từ danh sách
+      
       const campaigns = await this.getAllFlashSales();
       const campaign = campaigns.find(c => c.id === campaignId);
 
@@ -320,19 +302,16 @@ export class FlashSaleService {
         throw new Error('Không tìm thấy chiến dịch Flash Sale');
       }
 
-      // Sắp xếp slots theo openTime
+    
       return campaign.slots.sort((a, b) => {
         return new Date(a.openTime).getTime() - new Date(b.openTime).getTime();
       });
     } catch (error: any) {
-      console.error('Error fetching campaign slots:', error);
       throw new Error(error.message || 'Không thể tải khung giờ Flash Sale');
     }
   }
 
-  /**
-   * 8. Format giờ hiển thị (VD: "09:00")
-   */
+
   static formatSlotTime(timeString: string): string {
     const date = new Date(timeString);
     const hours = String(date.getHours()).padStart(2, '0');
@@ -340,9 +319,7 @@ export class FlashSaleService {
     return `${hours}:${minutes}`;
   }
 
-  /**
-   * 9. Kiểm tra slot có đang diễn ra không
-   */
+ 
   static isSlotActive(slot: FlashSaleSlot): boolean {
     const now = new Date();
     const openTime = new Date(slot.openTime);
@@ -351,9 +328,7 @@ export class FlashSaleService {
     return openTime <= now && now <= closeTime && slot.status === 'ACTIVE';
   }
 
-  /**
-   * 10. Kiểm tra slot có sắp diễn ra không (chưa bắt đầu)
-   */
+ 
   static isSlotUpcoming(slot: FlashSaleSlot): boolean {
     const now = new Date();
     const openTime = new Date(slot.openTime);
@@ -361,9 +336,7 @@ export class FlashSaleService {
     return now < openTime && slot.status !== 'EXPIRED' && slot.status !== 'CLOSED';
   }
 
-  /**
-   * 11. Lấy label trạng thái slot
-   */
+ 
   static getSlotStatusLabel(slot: FlashSaleSlot): string {
     if (this.isSlotActive(slot)) return 'Đang diễn ra';
     if (this.isSlotUpcoming(slot)) return 'Sắp diễn ra';
@@ -371,9 +344,7 @@ export class FlashSaleService {
     return 'Không xác định';
   }
 
-  /**
-   * 12. Kiểm tra slot có phải ngày mai không
-   */
+
   static isSlotTomorrow(slot: FlashSaleSlot): boolean {
     const now = new Date();
     const openTime = new Date(slot.openTime);
@@ -387,9 +358,7 @@ export class FlashSaleService {
     return openTime >= tomorrow && openTime < dayAfterTomorrow;
   }
 
-  /**
-   * 13. Tìm slot tiếp theo sắp bắt đầu (để polling check khi nào bắt đầu)
-   */
+
   static findNextUpcomingSlot(campaigns: FlashSaleCampaign[]): {
     campaign: FlashSaleCampaign;
     slot: FlashSaleSlot;
@@ -409,11 +378,11 @@ export class FlashSaleService {
       for (const slot of campaign.slots) {
         const openTime = new Date(slot.openTime);
         
-        // Chỉ xét slot sắp diễn ra (chưa bắt đầu và chưa hết hạn)
+       
         if (openTime > now && slot.status !== 'EXPIRED' && slot.status !== 'CLOSED') {
           const timeDiff = openTime.getTime() - now.getTime();
           
-          // Tìm slot gần nhất
+         
           if (timeDiff < minTimeDiff) {
             minTimeDiff = timeDiff;
             nextSlot = { campaign, slot, openTime };

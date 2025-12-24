@@ -16,7 +16,7 @@ import type {
 } from '../../types/cart';
 import type { CartItem as UiCartItem } from '../../data/shoppingcart';
 import type { PaymentMethod } from '../../data/checkout';
-import { useAutoShippingFee } from '../../hooks/useAutoShippingFee';
+import { useAutoShippingFee, type StoreShippingFee } from '../../hooks/useAutoShippingFee';
 import { CustomerCartService } from '../../services/customer/CartService';
 import ProductVoucherService from '../../services/customer/ProductVoucherService';
 import { showCenterError } from '../../utils/notification';
@@ -377,6 +377,8 @@ const PreCheckoutV2: React.FC = () => {
   );
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [shippingFee, setShippingFee] = useState(0);
+  const [storeShippingFees, setStoreShippingFees] = useState<Record<string, StoreShippingFee>>({});
+  const [storeLogoErrors, setStoreLogoErrors] = useState<Set<string>>(new Set());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
 
   // Cache thông tin sản phẩm để lấy storeId / storeName
@@ -433,6 +435,9 @@ const PreCheckoutV2: React.FC = () => {
     onShippingFeeChange: (fee: number) => {
       setShippingFee(fee);
     },
+    onStoreShippingFeesChange: (fees: Record<string, StoreShippingFee>) => {
+      setStoreShippingFees(fees);
+    },
     onProductCacheUpdate: (nextCache) => {
       setProductCache(nextCache);
     },
@@ -469,12 +474,13 @@ const PreCheckoutV2: React.FC = () => {
   const storeGroups = useMemo(() => {
     const groups = new Map<
       string,
-      { storeId: string; storeName: string; items: typeof items }
+      { storeId: string; storeName: string; storeLogoUrl?: string; items: typeof items }
     >();
 
     items.forEach((item) => {
       let storeId = `unknown-${item.refId}`;
       let storeName = 'Cửa hàng';
+      let storeLogoUrl: string | undefined;
 
       if (item.type === 'PRODUCT') {
         const product = productCache.get(item.refId);
@@ -484,16 +490,38 @@ const PreCheckoutV2: React.FC = () => {
         if (product?.store?.name || product?.storeName) {
           storeName = product.store?.name || product.storeName || storeName;
         }
+        // Lấy logoUrl từ store object (có thể có trong API response)
+        // Nếu không có trong ProductStore, có thể lấy từ (product as any).store?.logoUrl
+        storeLogoUrl = (product?.store as any)?.logoUrl || (product as any)?.storeLogoUrl || undefined;
       }
 
       if (!groups.has(storeId)) {
-        groups.set(storeId, { storeId, storeName, items: [] });
+        groups.set(storeId, { storeId, storeName, storeLogoUrl, items: [] });
       }
-      groups.get(storeId)!.items.push(item);
+      const group = groups.get(storeId)!;
+      group.items.push(item);
+      
+      // Cập nhật logo nếu group chưa có logo nhưng item hiện tại có logo
+      if (!group.storeLogoUrl && storeLogoUrl) {
+        group.storeLogoUrl = storeLogoUrl;
+      }
+      
+      // Cập nhật tên cửa hàng nếu có thông tin tốt hơn
+      if (storeName !== 'Cửa hàng' && group.storeName === 'Cửa hàng') {
+        group.storeName = storeName;
+      }
     });
 
     return Array.from(groups.values());
   }, [items, productCache]);
+
+  // Clear logo errors khi storeGroups thay đổi (khi có stores mới hoặc items thay đổi)
+  // Điều này đảm bảo nếu store có logo URL mới, nó sẽ được thử lại thay vì bị block bởi error state cũ
+  useEffect(() => {
+    // Clear tất cả errors khi storeGroups thay đổi
+    // Vì logo URL có thể đã thay đổi hoặc có items mới với logo mới
+    setStoreLogoErrors(new Set());
+  }, [storeGroups]);
 
   const [previewData, setPreviewData] = useState<CheckoutPreviewData | null>(null);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
@@ -1280,15 +1308,33 @@ const PreCheckoutV2: React.FC = () => {
                 key={group.storeId}
                 className="rounded-xl border border-gray-200 p-3 md:p-4"
               >
-                <div className="mb-2 space-y-2">
+                <div className="mb-3 border-b border-gray-200 pb-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-50 text-orange-600">
-                        <span className="text-sm font-semibold">
-                          {group.storeName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
+                    <div className="flex items-center gap-3">
+                      {/* Logo cửa hàng */}
+                      {group.storeLogoUrl && !storeLogoErrors.has(group.storeId) ? (
+                        <img
+                          src={group.storeLogoUrl}
+                          alt={group.storeName}
+                          className="h-10 w-10 rounded-full border-2 border-orange-200 object-cover"
+                          onError={() => {
+                            // Đánh dấu logo này bị lỗi để hiển thị fallback
+                            setStoreLogoErrors((prev) => new Set(prev).add(group.storeId));
+                          }}
+                        />
+                      ) : (
+                        <div
+                          className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600"
+                        >
+                          <span className="text-sm font-semibold">
+                            {group.storeName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">
+                          {group.storeName}
+                        </div>
                         <div className="text-xs text-gray-500">
                           {group.items.length} sản phẩm
                         </div>
@@ -1474,11 +1520,35 @@ const PreCheckoutV2: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Phí vận chuyển</span>
-              <span className="font-medium text-gray-900">
-                {formatCurrency(shippingTotal)}
-              </span>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Phí vận chuyển</span>
+                <span className="font-medium text-gray-900">
+                  {formatCurrency(shippingTotal)}
+                </span>
+              </div>
+              
+              {/* Breakdown phí vận chuyển theo từng cửa hàng */}
+              {Object.keys(storeShippingFees).length > 0 && (
+                <div className="ml-4 space-y-1 border-l-2 border-gray-200 pl-3">
+                  {Object.values(storeShippingFees).map((storeFee) => (
+                    <div
+                      key={storeFee.storeId}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span className="text-gray-500">
+                        {storeFee.storeName}
+                        {storeFee.error && (
+                          <span className="ml-1 text-red-500">({storeFee.error})</span>
+                        )}
+                      </span>
+                      <span className="font-medium text-gray-700">
+                        {storeFee.error ? '—' : formatCurrency(storeFee.fee)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

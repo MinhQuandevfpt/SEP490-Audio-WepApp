@@ -864,7 +864,8 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
           {/* Right: Actions */}
           <div className="flex-shrink-0 lg:w-48">
             <div className="space-y-2">
-              {record.status === 'PENDING' && (
+              {/* Hide all buttons if finalDecision is true */}
+              {!record.finalDecision && record.status === 'PENDING' && (
                 <>
                   {canRefundWithoutReturn && (
                     <Button
@@ -888,27 +889,32 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                   >
                     Duyệt hoàn trả
                   </Button>
-                  <Button
-                    danger
-                    size="small"
-                    icon={<X className="w-3 h-3" />}
-                    loading={rejectingId === record.id}
-                    onClick={() => handleOpenRejectModal(record)}
-                    className="w-full"
-                    disabled={approvingId === record.id || disputingId === record.id}
-                  >
-                    Không cho hoàn trả
-                  </Button>
-                  <Button
-                    type="default"
-                    size="small"
-                    icon={<AlertTriangle className="w-3 h-3" />}
-                    onClick={() => handleOpenDisputeModal(record)}
-                    disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                    className="w-full"
-                  >
-                    Khiếu nại lên admin
-                  </Button>
+                  {/* Hide reject and dispute buttons if adminForcedContinue is true */}
+                  {!record.adminForcedContinue && (
+                    <>
+                      <Button
+                        danger
+                        size="small"
+                        icon={<X className="w-3 h-3" />}
+                        loading={rejectingId === record.id}
+                        onClick={() => handleOpenRejectModal(record)}
+                        className="w-full"
+                        disabled={approvingId === record.id || disputingId === record.id}
+                      >
+                        Không cho hoàn trả
+                      </Button>
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<AlertTriangle className="w-3 h-3" />}
+                        onClick={() => handleOpenDisputeModal(record)}
+                        disabled={approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                        className="w-full"
+                      >
+                        Khiếu nại lên admin
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
 
@@ -918,7 +924,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 </Text>
               )}
 
-              {isShippingDelivered && (
+              {!record.finalDecision && isShippingDelivered && (
                 <>
                   {isWaitingForSync && (
                     <Text type="secondary" className="text-xs text-orange-600 block mb-2">
@@ -940,25 +946,29 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                     >
                       Xác nhận nhận đúng hàng & hoàn tiền
                     </Button>
-                    <Button
-                      danger
-                      size="small"
-                      onClick={() => handleOpenRejectModal(record)}
-                      disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                      className="w-full"
-                    >
-                      Khiếu nại hàng trả
-                    </Button>
-                    <Button
-                      type="default"
-                      size="small"
-                      icon={<AlertTriangle className="w-3 h-3" />}
-                      onClick={() => handleOpenDisputeModal(record)}
-                      disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
-                      className="w-full"
-                    >
-                      Khiếu nại lên admin
-                    </Button>
+                    {!record.adminForcedContinue && (
+                      <>
+                        <Button
+                          danger
+                          size="small"
+                          onClick={() => handleOpenRejectModal(record)}
+                          disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                          className="w-full"
+                        >
+                          Khiếu nại hàng trả
+                        </Button>
+                        <Button
+                          type="default"
+                          size="small"
+                          icon={<AlertTriangle className="w-3 h-3" />}
+                          onClick={() => handleOpenDisputeModal(record)}
+                          disabled={!canTakeAction || approvingId === record.id || rejectingId === record.id || disputingId === record.id}
+                          className="w-full"
+                        >
+                          Khiếu nại lên admin
+                        </Button>
+                      </>
+                    )}
                   </Space>
                 </>
               )}
@@ -969,7 +979,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 </Text>
               )}
 
-              {hasPackageInfo(record) && (
+              {!record.finalDecision && hasPackageInfo(record) && (
                 <>
                   {isAutoApproved && (
                     <Text type="secondary" className="text-xs block mb-2">
@@ -1026,7 +1036,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                       </Button>
                     </>
                   )}
-                  {record.status === 'APPROVED' && (
+                  {record.status === 'APPROVED' && !record.adminForcedContinue && (
                     <Button
                       type="default"
                       size="small"
@@ -1047,22 +1057,10 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 </Text>
               )}
 
-              {record.status === 'DISPUTE' && (
-                <>
-                  <Text type="secondary" className="text-xs block mb-2">
-                    Đang khiếu nại. Bạn có thể khiếu nại lên admin để được xử lý.
-                  </Text>
-                  <Button
-                    type="default"
-                    size="small"
-                    icon={<AlertTriangle className="w-3 h-3" />}
-                    onClick={() => handleOpenDisputeModal(record)}
-                    disabled={disputingId === record.id}
-                    className="w-full"
-                  >
-                    Khiếu nại lên admin
-                  </Button>
-                </>
+              {!record.finalDecision && record.status === 'DISPUTE' && (
+                <Text type="secondary" className="text-xs block">
+                  Đang khiếu nại. Khiếu nại đã được gửi lên admin và đang chờ xử lý.
+                </Text>
               )}
 
               {!['PENDING', 'SHIPPING', 'APPROVED', 'DISPUTE'].includes(record.status) && !isCancelled && !isAutoRefunded && !hasPackageInfo(record) && (

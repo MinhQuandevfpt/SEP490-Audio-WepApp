@@ -584,7 +584,7 @@ const OrderManageForStoreOwner: React.FC = () => {
                           ))}
                         </Descriptions.Item>
                       )}
-                      <Descriptions.Item label="Phí vận chuyển">
+                      <Descriptions.Item label="Phí vận chuyển khách trả">
                         {formatCurrency(record.shippingFee)}
                       </Descriptions.Item>
                       <Descriptions.Item label="Tổng cộng">

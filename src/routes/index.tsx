@@ -95,6 +95,7 @@ import SetupStorePage from '../pages/Seller/SetupStore';
 import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
 import { StorePayoutV2 } from '../pages/Seller/StorePayoutVersion2';
 import AdminReturnDisputesPage from '../pages/Admin/ReturnDisputes/AdminReturnDisputesPage';
+import GhnOrderStatusPage from '../pages/Admin/GhnOrderStatus/GhnOrderStatusPage';
 
 function ProtectedRoute({ element }: { element: ReactElement }) {
   const isAuthenticated = CustomerAuthService.isAuthenticated();
@@ -755,6 +756,10 @@ export const router = createBrowserRouter([
       {
         path: 'returns/disputes',
         element: <PermissionProtectedRoute permission="manage_orders" element={<AdminReturnDisputesPage />} />
+      },
+      {
+        path: 'ghn-orders',
+        element: <PermissionProtectedRoute permission="manage_orders" element={<GhnOrderStatusPage />} />
       },
       {
         path: 'finance',

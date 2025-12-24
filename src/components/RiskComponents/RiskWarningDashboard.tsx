@@ -480,7 +480,7 @@ const RiskWarningDashboard: React.FC = () => {
                           type="primary"
                           icon={<Banknote className="w-4 h-4" />}
                           onClick={handlePayDebtClick}
-                          disabled={!walletOverview.debtBalance || walletOverview.debtBalance <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
+                          disabled={!riskData.payableNowDebt || riskData.payableNowDebt <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
                           className="bg-orange-600 hover:bg-orange-700 border-orange-600"
                         >
                           Thanh toán nợ
@@ -754,13 +754,13 @@ const RiskWarningDashboard: React.FC = () => {
           width={600}
         >
           <div className="space-y-4">
-            {walletOverview && (
+            {walletOverview && riskData && (
               <div className="space-y-3">
                 <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                   <div className="flex items-center justify-between mb-2">
-                    <Text className="text-sm font-medium text-gray-700">Số tiền đang nợ:</Text>
+                    <Text className="text-sm font-medium text-gray-700">Nợ cần thanh toán ngay:</Text>
                     <Text strong className="text-xl text-red-600">
-                      {formatCurrency(walletOverview.debtBalance)}
+                      {formatCurrency(riskData.payableNowDebt)}
                     </Text>
                   </div>
                 </div>
@@ -774,22 +774,22 @@ const RiskWarningDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {walletOverview.defaultBalance < walletOverview.debtBalance && (
+                {walletOverview.defaultBalance < riskData.payableNowDebt && (
                   <Alert
                     message="Số dư không đủ"
-                    description={`Số dư hiện tại (${formatCurrency(walletOverview.defaultBalance)}) không đủ để thanh toán toàn bộ số nợ (${formatCurrency(walletOverview.debtBalance)}). Vui lòng nạp thêm tiền vào ví.`}
+                    description={`Số dư hiện tại (${formatCurrency(walletOverview.defaultBalance)}) không đủ để thanh toán số nợ cần thanh toán ngay (${formatCurrency(riskData.payableNowDebt)}). Vui lòng nạp thêm tiền vào ví.`}
                     type="error"
                     showIcon
                     className="mb-4"
                   />
                 )}
 
-                {walletOverview.defaultBalance >= walletOverview.debtBalance && (
+                {walletOverview.defaultBalance >= riskData.payableNowDebt && (
                   <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <div className="flex items-center justify-between mb-2">
                       <Text className="text-sm font-medium text-gray-700">Số dư sau thanh toán:</Text>
                       <Text strong className="text-xl text-green-600">
-                        {formatCurrency(walletOverview.defaultBalance - walletOverview.debtBalance)}
+                        {formatCurrency(walletOverview.defaultBalance - riskData.payableNowDebt)}
                       </Text>
                     </div>
                   </div>
@@ -804,7 +804,7 @@ const RiskWarningDashboard: React.FC = () => {
                   <p>• Chỉ thanh toán các khoản nợ đã chốt (đơn hàng đã giao hoặc đã trả hàng)</p>
                   <p>• Bao gồm: Chênh lệch phí ship, Phí quay đầu/không nhận hàng, Phí hoàn trả</p>
                   <p>• Sau khi thanh toán, hệ thống sẽ tự động kiểm tra và mở khóa cửa hàng nếu đủ điều kiện</p>
-                  <p className="font-semibold text-orange-600 mt-2">Số tiền sẽ được trừ từ ví khả dụng (defaultBalance)</p>
+                  <p className="font-semibold text-orange-600 mt-2">Số tiền sẽ được trừ từ ví khả dụng</p>
                 </div>
               }
               type="info"
@@ -820,7 +820,7 @@ const RiskWarningDashboard: React.FC = () => {
                 type="primary" 
                 onClick={handlePayDebtSubmit} 
                 loading={payDebtLoading}
-                disabled={!walletOverview || !walletOverview.debtBalance || walletOverview.debtBalance <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
+                disabled={!walletOverview || !riskData || !riskData.payableNowDebt || riskData.payableNowDebt <= 0 || !walletOverview.defaultBalance || walletOverview.defaultBalance <= 0}
                 className="bg-orange-600 hover:bg-orange-700 border-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Xác nhận thanh toán nợ

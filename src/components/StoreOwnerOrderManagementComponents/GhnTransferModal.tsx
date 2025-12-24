@@ -67,10 +67,10 @@ interface Props {
   onSubmit?: (data: GhnTransferFormData) => void;
 }
 
-// Package packing rules - GHN limits
-const MAX_BOX_WEIGHT = 30000;      // 30kg / 1 kiện (gram) - GHN limit
-const MAX_BOX_VOLUME = 50000;      // 50,000 cm³
-const MAX_BOX_EDGE = 150;          // 150cm cạnh dài nhất - GHN limit (mỗi chiều và cạnh dài nhất)
+
+const MAX_BOX_WEIGHT = 30000;      
+const MAX_BOX_VOLUME = 50000;     
+const MAX_BOX_EDGE = 150;          
 
 const PROVINCE_PREFIXES = ['tinh', 'thanh pho', 'tp'];
 const DISTRICT_PREFIXES = ['quan', 'huyen', 'thi xa', 'thi tran', 'tx', 'tp'];
@@ -171,18 +171,7 @@ const parseAddressSegments = (address: string) => {
   return { province, district, ward };
 };
 
-/**
- * Parse dimension string like "50 x 50 x 50 mm" or "50x50x50mm" to length, width, height in cm
- * Supports formats:
- * - "50 x 50 x 50 mm"
- * - "50x50x50mm"
- * - "50 x 50 x 50 cm"
- * - "50x50x50cm"
- * Returns { length: number, width: number, height: number } in cm, or null if parsing fails
- */
-/**
- * Product type for packing calculation
- */
+
 type Product = {
   length: number; // cm
   width: number;  // cm
@@ -190,9 +179,7 @@ type Product = {
   weight: number; // gram
 };
 
-/**
- * Packing validation result
- */
+
 type PackingResult = {
   canPack: boolean;
   reason: string;
@@ -206,13 +193,7 @@ type PackingResult = {
   };
 };
 
-/**
- * Check if products can be packed together in one box
- * GHN Rules:
- * - Tổng trọng lượng ≤ 30kg (30,000 gram)
- * - Mỗi chiều (dài, rộng, cao) của từng sản phẩm ≤ 150cm
- * - Cạnh dài nhất của kiện ≤ 150cm
- */
+
 const canPackTogether = (products: Product[]): PackingResult => {
   if (products.length === 0) {
     return {
@@ -221,7 +202,7 @@ const canPackTogether = (products: Product[]): PackingResult => {
     };
   }
 
-  // Case 1: Check each product's dimensions (GHN: mỗi chiều ≤ 150cm)
+  
   for (let i = 0; i < products.length; i++) {
     const p = products[i];
     if (p.length > MAX_BOX_EDGE) {
@@ -244,11 +225,11 @@ const canPackTogether = (products: Product[]): PackingResult => {
     }
   }
 
-  // Calculate totals
+ 
   const totalWeight = products.reduce((sum, p) => sum + p.weight, 0);
   const totalVolume = products.reduce((sum, p) => sum + (p.length * p.width * p.height), 0);
 
-  // Case 2: Check total weight (GHN: ≤ 30kg)
+
   if (totalWeight > MAX_BOX_WEIGHT) {
     return {
       canPack: false,
@@ -256,22 +237,18 @@ const canPackTogether = (products: Product[]): PackingResult => {
     };
   }
 
-  // Case 3: Check total volume
+  
   if (totalVolume > MAX_BOX_VOLUME) {
     return {
       canPack: false,
       reason: `Thể tích gộp (${totalVolume.toLocaleString('vi-VN')} cm³) vượt giới hạn đóng kiện (${MAX_BOX_VOLUME.toLocaleString('vi-VN')} cm³).`,
     };
   }
-
-  // Case 4: Calculate combined dimensions (xếp các hộp nối chiều dài)
   const combinedLength = products.reduce((sum, p) => sum + p.length, 0);
   const combinedWidth = Math.max(...products.map(p => p.width));
   const combinedHeight = Math.max(...products.map(p => p.height));
 
   const maxEdge = Math.max(combinedLength, combinedWidth, combinedHeight);
-
-  // GHN: Cạnh dài nhất của kiện ≤ 150cm
   if (maxEdge > MAX_BOX_EDGE) {
     return {
       canPack: false,
@@ -307,12 +284,7 @@ const parseDimensions = (dimensionString: string | null | undefined): { length: 
   if (!dimensionString || typeof dimensionString !== 'string') {
     return null;
   }
-
-  // Normalize: remove spaces, convert to lowercase
   const normalized = dimensionString.trim().toLowerCase().replace(/\s+/g, '');
-  
-  // Try to match patterns like "50x50x50mm" or "50x50x50cm"
-  // Pattern: number x number x number (mm|cm|m)
   const patterns = [
     /(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(mm|cm|m)/i,
     /(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(mm|cm|m)/i,
@@ -330,24 +302,24 @@ const parseDimensions = (dimensionString: string | null | undefined): { length: 
         continue;
       }
 
-      // Convert to cm
+     
       let length = value1;
       let width = value2;
       let height = value3;
 
       if (unit === 'mm') {
-        length = value1 / 10; // mm to cm
+        length = value1 / 10; 
         width = value2 / 10;
         height = value3 / 10;
       } else if (unit === 'm') {
-        length = value1 * 100; // m to cm
+        length = value1 * 100;
         width = value2 * 100;
         height = value3 * 100;
       }
-      // If unit is 'cm', already in cm
+     
 
       return {
-        length: Math.round(length * 100) / 100, // Round to 2 decimal places
+        length: Math.round(length * 100) / 100, 
         width: Math.round(width * 100) / 100,
         height: Math.round(height * 100) / 100,
       };
@@ -359,7 +331,7 @@ const parseDimensions = (dimensionString: string | null | undefined): { length: 
 
 const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, onSubmit }) => {
   const [formData, setFormData] = useState<GhnTransferFormData>({
-    payment_type_id: 1, // Mặc định: Shop trả phí ship
+    payment_type_id: 1, 
     note: '',
     required_note: '',
     from_name: '',
@@ -396,10 +368,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
   const [pickShifts, setPickShifts] = useState<PickShift[]>([]);
   const [isLoadingPickShifts, setIsLoadingPickShifts] = useState(false);
   const [isLoadingStoreInfo, setIsLoadingStoreInfo] = useState(false);
-  // Track which items have level2/level3 category fields visible
+  
   const [itemCategoryLevels, setItemCategoryLevels] = useState<Record<number, { level2: boolean; level3: boolean }>>({});
   
-  // Store original dimensions and weight from product for validation
+
   const [itemOriginalValues, setItemOriginalValues] = useState<Record<number, {
     length: number;
     width: number;
@@ -407,7 +379,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     weight: number;
   }>>({});
   
-  // Store validation errors for each item
+
   const [itemValidationErrors, setItemValidationErrors] = useState<Record<number, {
     length?: string;
     width?: string;
@@ -415,17 +387,17 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     weight?: string;
   }>>({});
   
-  // Store phone validation errors
+  
   const [phoneValidationErrors, setPhoneValidationErrors] = useState<{
     from_phone?: string;
     to_phone?: string;
     return_phone?: string;
   }>({});
   
-  // Store packing validation result
+  
   const [packingValidation, setPackingValidation] = useState<PackingResult | null>(null);
   
-  // Address selection states (from address)
+  
   const [selectedProvinceId, setSelectedProvinceId] = useState<number | null>(null);
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
   const [selectedWardCode, setSelectedWardCode] = useState<string>('');
@@ -436,12 +408,12 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     ward?: string;
   }>({});
   
-  // GHN Hooks for cascading dropdowns (from address only)
+
   const { provinces, loading: provincesLoading } = useProvinces();
   const { districts, loading: districtsLoading, clearDistricts } = useDistricts(selectedProvinceId);
   const { wards, loading: wardsLoading, clearWards } = useWards(selectedDistrictId);
   
-  // Get selected objects
+
   const selectedProvince = useMemo(
     () => provinces.find(p => p.ProvinceID === selectedProvinceId) || null,
     [provinces, selectedProvinceId]
@@ -455,7 +427,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     [wards, selectedWardCode]
   );
 
-  // Load store info and pick shifts when modal opens
+ 
   useEffect(() => {
     if (!orderId) {
       console.warn('OrderId is missing, cannot load order details');
@@ -463,7 +435,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     }
 
     const loadData = async () => {
-      // Load pick shifts
+ 
       try {
         setIsLoadingPickShifts(true);
         console.log('═══════════════════════════════════════════════════════════════');
@@ -504,7 +476,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         setIsLoadingPickShifts(false);
       }
 
-      // Load order details to get customer information (separate try-catch to not affect store info loading)
+     
       try {
         setIsLoadingStoreInfo(true);
         
@@ -518,7 +490,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         console.log('  - Headers: { Authorization: "Bearer ...", Accept: "*/*" }');
         console.log('═══════════════════════════════════════════════════════════════');
         
-        // Load order details to get customer info
+       
         const order = await StoreOrderService.getOrderById(orderId);
         
         console.log('═══════════════════════════════════════════════════════════════');
@@ -545,19 +517,19 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         if (order) {
           console.log('📦 Order loaded:', order);
           
-          // Extract customer information from order
+         
           const customerId = order.customerId;
-          // Use shipReceiverName and shipPhoneNumber instead of customerName and customerPhone
+         
           const shipReceiverName = order.shipReceiverName;
           const shipPhoneNumber = order.shipPhoneNumber;
           
-          // Initialize to address fields with shipping receiver name and phone
+         
           let toAddressData: Partial<GhnTransferFormData> = {
             to_name: shipReceiverName || '',
             to_phone: shipPhoneNumber || '',
           };
           
-          // Load customer addresses if customerId exists
+         
           if (customerId) {
             try {
               console.log('═══════════════════════════════════════════════════════════════');
@@ -586,24 +558,24 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
               
               console.log('✅ Customer addresses loaded:', customerAddresses);
               
-              // Find default address or use first address
+             
               const defaultAddress = customerAddresses.find(addr => addr.default) || customerAddresses[0];
               
               if (defaultAddress) {
                 console.log('📍 Using address:', defaultAddress);
                 
-                // Build address string from address components
+              
                 const addressParts = [
                   defaultAddress.addressLine,
                   defaultAddress.street,
                   defaultAddress.ward,
                   defaultAddress.district,
                   defaultAddress.province
-                ].filter(Boolean); // Remove empty parts
+                ].filter(Boolean); 
                 
                 const fullAddress = addressParts.join(', ');
                 
-                // Add address fields to toAddressData
+               
                 toAddressData = {
                   ...toAddressData,
                   to_address: fullAddress,
@@ -628,12 +600,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
               console.error('Error Status:', error?.status);
               console.error('Error Data:', error?.data);
               console.error('═══════════════════════════════════════════════════════════════');
-              // Don't throw - continue with customer name and phone only
+             
             }
           }
           
-          // Map order items to GHN items format
-          // For each item, fetch product detail to get SKU
+        
           try {
             const totalAmount = storeOrderTotal ?? order.grandTotal ?? 0;
             const totalQuantity = order.items.reduce(
@@ -647,12 +618,12 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             console.log('📦 Loading product details for items...');
             const ghnItemsPromises = order.items.map(async (item) => {
               let productCode = item.refId || item.id || '';
-              let productWeight = 0; // gram
-              let productLength = 0; // cm
-              let productWidth = 0; // cm
-              let productHeight = 0; // cm
+              let productWeight = 0; 
+              let productLength = 0; 
+              let productWidth = 0; 
+              let productHeight = 0; 
               
-              // Fetch product detail to get SKU, dimensions, and weight
+           
               if (item.refId) {
                 try {
                   console.log('═══════════════════════════════════════════════════════════════');
@@ -669,17 +640,17 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   console.log(`🔍 Fetching product detail for refId: ${item.refId}`);
                   const product = await ProductService.getProductById(item.refId);
                   
-                  // Product response may be wrapped in data property
+                  
                   const productData = (product as any).data || product;
                   productCode = productData.sku || productCode;
                   
-                  // Extract dimensions and weight from product
-                  // Weight is usually in kg, convert to gram for GHN
+                  
+                  
                   if (productData?.weight) {
-                    productWeight = Math.round(productData.weight * 1000); // Convert kg to gram
+                    productWeight = Math.round(productData.weight * 1000); 
                   }
                   
-                  // Parse dimensions from string (e.g., "50 x 50 x 50 mm")
+              
                   if (productData?.dimensions) {
                     const parsedDimensions = parseDimensions(productData.dimensions);
                     if (parsedDimensions) {
@@ -689,7 +660,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                     }
                   }
                   
-                  // Fallback: try individual fields if dimensions string is not available
+                 
                   if (!productLength && !productWidth && !productHeight) {
                     if (productData?.length) {
                       productLength = productData.length;
@@ -724,7 +695,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   console.log(JSON.stringify(product, null, 2));
                   console.log('═══════════════════════════════════════════════════════════════');
                   
-                  // Log chi tiết về dimension và weight
+                
                   console.log('═══════════════════════════════════════════════════════════════');
                   console.log('📏 [PRODUCT DIMENSIONS & WEIGHT DETAIL]');
                   console.log('═══════════════════════════════════════════════════════════════');
@@ -768,7 +739,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                   console.error('Error Data:', error?.data);
                   console.error('═══════════════════════════════════════════════════════════════');
                   console.warn(`⚠️ Failed to load product detail for ${item.refId}:`, error);
-                  // Continue with refId as fallback
+                 
                 }
               }
               
@@ -777,19 +748,19 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                 code: productCode,
                 quantity: item.quantity || 1,
                 price: pricePerItem,
-                length: productLength, // Auto-fill from product data
-                width: productWidth,   // Auto-fill from product data
-                height: productHeight, // Auto-fill from product data
-                weight: productWeight, // Auto-fill from product data (in gram)
+                length: productLength, 
+                width: productWidth,   
+                height: productHeight, 
+                weight: productWeight, 
                 category: {
-                  level1: 'PRODUCT', // Mặc định: PRODUCT
+                  level1: 'PRODUCT', 
                   level2: '',
                   level3: '',
                 },
               };
             });
 
-            // Wait for all product details to load
+            
             const ghnItems = await Promise.all(ghnItemsPromises);
             
             console.log('═══════════════════════════════════════════════════════════════');
@@ -817,10 +788,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             
             console.log('📦 Mapped GHN items:', ghnItems);
 
-            // Calculate total product value for COD amount
+        
             const totalProductValue = ghnItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
 
-            // Store original values for validation
+           
             const originalValues: Record<number, { length: number; width: number; height: number; weight: number }> = {};
             ghnItems.forEach((item, index) => {
               if (item.length || item.width || item.height || item.weight) {
@@ -834,12 +805,12 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             });
             setItemOriginalValues(originalValues);
 
-            // Set all to address fields and items at once, auto-set COD amount
+            
             setFormData(prev => ({
               ...prev,
               ...toAddressData,
               items: ghnItems,
-              cod_amount: totalProductValue, // Tự động set COD = tổng giá trị sản phẩm
+              cod_amount: totalProductValue, 
             }));
           } catch (error: any) {
             console.error('═══════════════════════════════════════════════════════════════');
@@ -852,7 +823,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             console.error('═══════════════════════════════════════════════════════════════');
             console.error('❌ Error loading product details:', error);
             
-            // Fallback: use items without SKU, dimensions, and weight
+            
             console.log('═══════════════════════════════════════════════════════════════');
             console.log('⚠️ [GHN TRANSFER MODAL] FALLBACK MODE - Using Items Without Product Details');
             console.log('═══════════════════════════════════════════════════════════════');
@@ -873,7 +844,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
               height: 0,
               weight: 0,
               category: {
-                level1: 'PRODUCT', // Mặc định: PRODUCT
+                level1: 'PRODUCT', 
                 level2: '',
                 level3: '',
               },
@@ -887,14 +858,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
               console.log('    - ⚠️ Manual input required');
             });
             
-            // Calculate total product value for COD amount
+            
             const totalProductValue = ghnItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
 
             setFormData(prev => ({
               ...prev,
               ...toAddressData,
               items: ghnItems,
-              cod_amount: totalProductValue, // Tự động set COD = tổng giá trị sản phẩm
+              cod_amount: totalProductValue, 
             }));
           }
         } else {
@@ -911,14 +882,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         console.error('Error Stack:', error?.stack);
         console.error('═══════════════════════════════════════════════════════════════');
         console.error('❌ Error loading order details:', error);
-        // Don't throw - continue to load store info even if order loading fails
+       
         showCenterError(
           `Không thể tải thông tin đơn hàng: ${error?.message || 'Lỗi không xác định'}. Vui lòng nhập thủ công thông tin người nhận.`,
           'Cảnh báo'
         );
       }
 
-      // Load store info and address (for "from" address) - separate try-catch
+      
       try {
         setIsLoadingStoreInfo(true);
         
@@ -931,9 +902,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         console.log('  - Headers: { Authorization: "Bearer ...", Accept: "*/*" }');
         console.log('═══════════════════════════════════════════════════════════════');
         
-        // Get store info from API /api/stores/{storeId}
-        // API returns: { status: 200, message: "...", data: { storeName: "...", phoneNumber: "..." } }
-        // StoreService.getStoreInfo() internally calls getStoreId() and fetches from /api/stores/{storeId}
         const response = await StoreService.getStoreInfo();
         
         console.log('═══════════════════════════════════════════════════════════════');
@@ -949,9 +917,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         console.log(JSON.stringify(response, null, 2));
         console.log('═══════════════════════════════════════════════════════════════');
         
-        // Handle response format: response might be the data object directly or wrapped
-        // API response structure: { status: 200, message: "...", data: { storeName, phoneNumber, ... } }
-        // StoreService.getStoreInfo() returns data.data || data, so we need to check for storeName
+       
         const storeName = (response as any).storeName || (response as any).name || '';
         const phoneNumber = (response as any).phoneNumber || '';
         
@@ -964,7 +930,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         console.log('  - Headers: { Authorization: "Bearer ...", Accept: "*/*" }');
         console.log('═══════════════════════════════════════════════════════════════');
         
-        // Get store addresses and find default address
+        
         const addresses = await StoreAddressService.getStoreAddresses();
         
         console.log('═══════════════════════════════════════════════════════════════');
@@ -980,35 +946,31 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         const defaultAddress = addresses?.find(addr => addr.defaultAddress) || addresses?.[0];
         
         if (defaultAddress) {
-          // Parse full address string to extract detailed address (số nhà, tên đường)
+         
           let detailedAddress = defaultAddress.address || '';
           
-          // Convert districtCode and wardCode for return address
-          // districtCode is stored as string in StoreAddress, but GHN API needs number (DistrictID)
+          
           const returnDistrictId = defaultAddress.districtCode ? Number(defaultAddress.districtCode) : 0;
           const returnWardCode = defaultAddress.wardCode || '';
           
-          // Auto-fill form with store information (from address)
-          // Note: We don't set selectedProvinceId/districtId/wardCode here
-          // Instead, let the parse logic auto-select them from the address string
+          
           setFormData(prev => ({
             ...prev,
             from_name: storeName,
             from_phone: phoneNumber,
             from_address: detailedAddress,
-            // Auto-fill return address (địa chỉ trả hàng) with store address
             return_phone: phoneNumber,
             return_address: detailedAddress,
             return_district_id: returnDistrictId,
             return_ward_code: returnWardCode,
           }));
         } else {
-          // If no address, at least fill store name and phone
+          
           setFormData(prev => ({
             ...prev,
             from_name: storeName,
             from_phone: phoneNumber,
-            // Still fill return phone even if no address
+           
             return_phone: phoneNumber,
           }));
         }
@@ -1068,7 +1030,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
   ): string | null => {
     const original = itemOriginalValues[index];
     
-    // If no original value, allow any input (manual entry)
+ 
     if (!original || original[field] === 0) {
       return null;
     }
@@ -1076,7 +1038,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     const originalValue = original[field];
     const numValue = Number(newValue);
 
-    // Must be >= original value
+    
     if (numValue < originalValue) {
       if (field === 'weight') {
         return `Trọng lượng phải >= ${originalValue} gram (giá trị gốc từ sản phẩm)`;
@@ -1086,9 +1048,9 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       }
     }
 
-    // Check maximum increase limits
+    
     if (field === 'weight') {
-      // Global maximum: 30kg (30,000 gram) - GHN limit
+   
       const MAX_WEIGHT = 30000;
       if (numValue > MAX_WEIGHT) {
         return `Trọng lượng không được vượt quá 30 kg (30,000 gram). Giá trị tối đa: ${MAX_WEIGHT} gram`;
@@ -1096,13 +1058,13 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       
       const increase = numValue - originalValue;
       if (originalValue < 5000) {
-        // Product weight < 5kg: max increase 500gram
+       
         const maxValue = Math.min(originalValue + 500, MAX_WEIGHT);
         if (increase > 500) {
           return `Trọng lượng chỉ được tăng tối đa 500 gram so với giá trị gốc (${originalValue} gram). Giá trị tối đa: ${maxValue} gram`;
         }
       } else {
-        // Product weight >= 5kg: max increase 15%
+      
         const maxIncrease = Math.round(originalValue * 0.15);
         const maxValue = Math.min(originalValue + maxIncrease, MAX_WEIGHT);
         if (increase > maxIncrease) {
@@ -1110,7 +1072,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         }
       }
     } else {
-      // Dimension: max 150cm (GHN limit) and max increase 5cm
+     
       const MAX_DIMENSION = 150;
       if (numValue > MAX_DIMENSION) {
         const fieldName = field === 'length' ? 'Chiều dài' : field === 'width' ? 'Chiều rộng' : 'Chiều cao';
@@ -1130,13 +1092,13 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
   const handleItemChange = (index: number, field: keyof GhnItem, value: any) => {
     const numValue = typeof value === 'number' ? value : Number(value) || 0;
     
-    // Always update the value first (allow user to type)
+    
     setFormData(prev => {
       const updatedItems = prev.items.map((item, i) =>
         i === index ? { ...item, [field]: numValue } : item
       );
       
-      // Auto-update COD amount when item price or quantity changes
+  
       const totalProductValue = updatedItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
       
       return {
@@ -1146,11 +1108,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       };
     });
     
-    // Validate if it's a dimension or weight field (show error but allow input)
+ 
     if (field === 'length' || field === 'width' || field === 'height' || field === 'weight') {
       const error = validateItemValue(index, field, numValue);
       
-      // Update validation errors (will be checked on submit)
+      
       setItemValidationErrors(prev => ({
         ...prev,
         [index]: {
@@ -1188,16 +1150,16 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     }));
   };
 
-  // Helper function to format number with dot separator (1.000.000)
+  
   const formatCurrency = (value: number | undefined | null): string => {
     if (value === null || value === undefined || isNaN(value) || value === 0) return '';
     return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   };
 
-  // Helper function to mask sensitive information (2 đầu + ... + 2 cuối)
+  
   const maskSensitiveInfo = (value: string | null | undefined): string => {
     if (!value || value.length === 0) return '';
-    if (value.length <= 4) return value; // Nếu quá ngắn, hiển thị nguyên
+    if (value.length <= 4) return value; 
     const firstTwo = value.slice(0, 2);
     const lastTwo = value.slice(-2);
     return `${firstTwo}...${lastTwo}`;
@@ -1212,7 +1174,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     }));
   };
 
-  // Handle province selection
+
   const handleProvinceChange = (provinceId: number | null) => {
     setSelectedProvinceId(provinceId);
     setSelectedDistrictId(null);
@@ -1233,7 +1195,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     validateAddress();
   };
 
-  // Handle district selection
+ 
   const handleDistrictChange = (districtId: number | null) => {
     setSelectedDistrictId(districtId);
     setSelectedWardCode('');
@@ -1250,7 +1212,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     validateAddress();
   };
 
-  // Handle ward selection
+  
   const handleWardChange = (wardCode: string) => {
     setSelectedWardCode(wardCode);
     
@@ -1263,7 +1225,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     validateAddress();
   };
 
-  // Validate if selected address matches from_address
+
   const validateAddress = () => {
     if (!formData.from_address || !selectedProvince || !selectedDistrict || !selectedWard) {
       setAddressValidationError('');
@@ -1275,7 +1237,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     const districtNameLower = selectedDistrict.DistrictName.toLowerCase();
     const wardNameLower = selectedWard.WardName.toLowerCase();
 
-    // Check if address contains province, district, ward names
+    
     const hasProvince = addressLower.includes(provinceNameLower) || 
                        selectedProvince.NameExtension.some(ext => addressLower.includes(ext.toLowerCase()));
     const hasDistrict = addressLower.includes(districtNameLower) || 
@@ -1290,7 +1252,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     }
   };
 
-  // Auto-select district and ward when they are loaded
+  
   useEffect(() => {
     if (districts.length > 0 && selectedProvinceId) {
       const loadDefaultDistrict = async () => {
@@ -1341,7 +1303,6 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     console.log('🔍 Auto-selecting province from:', parsedAddressSegmentsValue.province);
 
-    // Find matching province from parsed address
     const matchedProvince = provinces.find((province) =>
       isAdministrativeMatch(
         parsedAddressSegmentsValue.province as string,
@@ -1354,7 +1315,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     console.log('✅ Matched province:', matchedProvince?.ProvinceName, matchedProvince?.ProvinceID);
 
-    // Auto-select province if matched and not already selected, or if different from current
+   
     if (matchedProvince) {
       if (!selectedProvinceId || selectedProvinceId !== matchedProvince.ProvinceID) {
         console.log('🎯 Setting province to:', matchedProvince.ProvinceID);
@@ -1384,7 +1345,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     console.log('🔍 Auto-selecting district from:', parsedAddressSegmentsValue.district);
 
-    // Find matching district from parsed address
+  
     const matchedDistrict = districts.find((district) =>
       isAdministrativeMatch(
         parsedAddressSegmentsValue.district as string,
@@ -1397,7 +1358,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     console.log('✅ Matched district:', matchedDistrict?.DistrictName, matchedDistrict?.DistrictID);
 
-    // Auto-select district if matched and not already selected, or if different from current
+  
     if (matchedDistrict) {
       if (!selectedDistrictId || selectedDistrictId !== matchedDistrict.DistrictID) {
         console.log('🎯 Setting district to:', matchedDistrict.DistrictID);
@@ -1428,7 +1389,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     console.log('🔍 Auto-selecting ward from:', parsedAddressSegmentsValue.ward);
 
-    // Find matching ward from parsed address
+    
     const matchedWard = wards.find((ward) =>
       isAdministrativeMatch(
         parsedAddressSegmentsValue.ward as string,
@@ -1441,7 +1402,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
 
     console.log('✅ Matched ward:', matchedWard?.WardName, matchedWard?.WardCode);
 
-    // Auto-select ward if matched and not already selected, or if different from current
+
     if (matchedWard) {
       if (!selectedWardCode || selectedWardCode !== matchedWard.WardCode) {
         console.log('🎯 Setting ward to:', matchedWard.WardCode);
@@ -1460,19 +1421,19 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     wardsLoading,
   ]);
 
-  // Validate address when from_address or selections change
+  
   useEffect(() => {
     validateAddress();
   }, [formData.from_address, selectedProvince, selectedDistrict, selectedWard]);
 
-  // Auto-calculate package dimensions and validate packing when items change
+
   useEffect(() => {
     if (formData.items.length === 0) {
       setPackingValidation(null);
       return;
     }
 
-    // Convert items to Product format
+    
     const products: Product[] = formData.items.map(item => ({
       length: item.length || 0,
       width: item.width || 0,
@@ -1480,11 +1441,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       weight: item.weight || 0,
     }));
 
-    // Validate packing
+  
     const packingResult = canPackTogether(products);
     setPackingValidation(packingResult);
 
-    // Auto-update package dimensions if valid
+   
     if (packingResult.canPack && packingResult.calculatedDimensions) {
       const calculated = packingResult.calculatedDimensions;
       setFormData(prev => ({
@@ -1501,7 +1462,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     try {
       setIsSubmitting(true);
 
-      // Validate required fields with specific messages
+     
       if (!formData.service_type_id || formData.service_type_id === 0) {
         showCenterError('Vui lòng chọn loại dịch vụ', 'Lỗi');
         setIsSubmitting(false);
@@ -1529,7 +1490,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         return;
       }
 
-      // Validate packing rules first
+      
       if (formData.items.length > 0) {
         const products: Product[] = formData.items.map(item => ({
           length: item.length || 0,
@@ -1546,10 +1507,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         }
       }
       
-      // Calculate total product value (price * quantity for all items)
+      
       const totalProductValue = formData.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
 
-      // Validate package information must be >= total items (fallback validation)
+      
       const totalItemWeight = formData.items.reduce((sum, item) => sum + (item.weight || 0), 0);
       if (!formData.weight || formData.weight < totalItemWeight) {
         showCenterError(`Trọng lượng kiện hàng (${formData.weight || 0}g) phải lớn hơn hoặc bằng tổng trọng lượng sản phẩm (${totalItemWeight}g)`, 'Lỗi');
@@ -1557,7 +1518,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         return;
       }
       
-      // Validate package weight must not exceed 30kg (30,000 gram) - GHN limit
+      
       const MAX_PACKAGE_WEIGHT = 30000;
       if (formData.weight > MAX_PACKAGE_WEIGHT) {
         showCenterError(`Trọng lượng kiện hàng không được vượt quá 30 kg (30,000 gram). Giá trị hiện tại: ${formData.weight.toLocaleString('vi-VN')} gram`, 'Lỗi');
@@ -1565,7 +1526,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         return;
       }
 
-      // Validate COD amount must be <= total product value
+  
       if (formData.cod_amount && formData.cod_amount > 0) {
         if (formData.cod_amount > totalProductValue) {
           showCenterError(
@@ -1577,7 +1538,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         }
       }
 
-      // Validate required fields for each item
+     
       for (let i = 0; i < formData.items.length; i++) {
         const item = formData.items[i];
         if (!item.length || item.length <= 0) {
@@ -1606,10 +1567,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           return;
         }
         
-        // Validate dimension and weight against original product values
+        
         const original = itemOriginalValues[i];
         if (original) {
-          // Validate length
+      
           const lengthError = validateItemValue(i, 'length', item.length);
           if (lengthError) {
             showCenterError(`Sản phẩm #${i + 1}: ${lengthError}`, 'Lỗi validation');
@@ -1617,7 +1578,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             return;
           }
           
-          // Validate width
+         
           const widthError = validateItemValue(i, 'width', item.width);
           if (widthError) {
             showCenterError(`Sản phẩm #${i + 1}: ${widthError}`, 'Lỗi validation');
@@ -1625,15 +1586,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             return;
           }
           
-          // Validate height
+          
           const heightError = validateItemValue(i, 'height', item.height);
           if (heightError) {
             showCenterError(`Sản phẩm #${i + 1}: ${heightError}`, 'Lỗi validation');
             setIsSubmitting(false);
             return;
           }
-          
-          // Validate weight
+         
           const weightError = validateItemValue(i, 'weight', item.weight);
           if (weightError) {
             showCenterError(`Sản phẩm #${i + 1}: ${weightError}`, 'Lỗi validation');
@@ -1643,19 +1603,19 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         }
       }
 
-      // Validate pick shift is required
+      
       if (!formData.pick_shift || formData.pick_shift.length === 0 || !formData.pick_shift[0]) {
         showCenterError('Vui lòng chọn ca lấy hàng', 'Lỗi');
         setIsSubmitting(false);
         return;
       }
 
-      // Get province, district, ward names from selected dropdowns if available
+      
       const fromProvinceName = selectedProvince?.ProvinceName || formData.from_province_name;
       const fromDistrictName = selectedDistrict?.DistrictName || formData.from_district_name;
       const fromWardName = selectedWard?.WardName || formData.from_ward_name;
 
-      // Prepare request data - match API format exactly
+     
       const requestData: any = {
         payment_type_id: formData.payment_type_id,
         required_note: formData.required_note,
@@ -1695,7 +1655,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         }),
       };
 
-      // Add optional fields only if they have values
+     
       if (formData.note && formData.note.trim()) {
         requestData.note = formData.note;
       }
@@ -1746,22 +1706,22 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         requestData.pick_shift = formData.pick_shift;
       }
 
-      // Log request data for debugging
+     
       console.log('📤 GHN Create Order Request:', JSON.stringify(requestData, null, 2));
 
-      // Call API
+ 
       const response = await GhnService.createOrder(requestData);
 
-      // Log full response to console
+      
       console.log('📦 GHN Create Order Response:', JSON.stringify(response, null, 2));
       console.log('📦 GHN Response Object:', response);
 
       if (response.code === 200 && response.data) {
-        // Extract response data
+     
         const responseData = response.data;
         const { order_code, expected_delivery_time, total_fee, fee } = responseData;
         
-        // Log detailed response information
+        
         console.log('✅ GHN Order Created Successfully!');
         console.log('📋 Order Details:', {
           order_code: order_code,
@@ -1776,26 +1736,26 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           station_pu: fee?.station_pu || 0,
         });
         
-        // Automatically create GHN order record in database
+       
         try {
           console.log('🔄 Creating GHN order record in database...');
           
-          // Get storeId from StoreService
+          
           const storeId = await StoreService.getStoreId();
           
-          // Prepare request body for /api/v1/ghn-orders
+         
           const ghnOrderRecordData = {
             storeOrderId: orderId,
             storeId: storeId,
             orderGhn: order_code,
             totalFee: total_fee,
             expectedDeliveryTime: expected_delivery_time,
-            status: 'READY_PICKUP', // Default status
+            status: 'READY_PICKUP', 
           };
           
           console.log('📤 GHN Order Record Request:', JSON.stringify(ghnOrderRecordData, null, 2));
           
-          // Call API to create GHN order record
+         
           const ghnOrderRecordResponse = await GhnService.createGhnOrderRecord(ghnOrderRecordData);
           
           console.log('✅ GHN Order Record Created Successfully!');
@@ -1820,14 +1780,14 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
             status: error?.status,
             data: error?.data,
           });
-          // Don't throw error - just log it, as the main GHN order creation was successful
+         
           showCenterError(
             `Đơn GHN đã được tạo nhưng không thể lưu vào database: ${error?.message || 'Lỗi không xác định'}`,
             'Cảnh báo'
           );
         }
         
-        // Update order status to GHN_CREATED after successful GHN order creation
+       
         try {
           console.log('═══════════════════════════════════════════════════════════════');
           console.log('📤 [GHN TRANSFER MODAL] API REQUEST - PATCH Order Status');
@@ -1870,7 +1830,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           console.error('Error Stack:', error?.stack);
           console.error('═══════════════════════════════════════════════════════════════');
           console.error('❌ Error updating order status:', error);
-          // Don't throw error - just log it, as the main GHN order creation was successful
+        
           console.warn('⚠️ GHN order created but order status update failed. Backend may handle this automatically.');
         }
         
@@ -1882,10 +1842,10 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           5000
         );
 
-        // Call onSubmit callback if provided
+      
         onSubmit?.(formData);
 
-        // Close modal after a short delay
+     
         setTimeout(() => {
           onClose();
         }, 2000);
@@ -1896,7 +1856,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           response: response,
         });
         
-        // Check for specific error codes
+       
         const errorData = (response as any).data || response;
         if (errorData?.code_message === 'PHONE_INVALID' || errorData?.code_message === 'PHONE_INVALID') {
           handlePhoneValidationError(errorData);
@@ -1907,24 +1867,24 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     } catch (error: any) {
       console.error('Error submitting GHN transfer:', error);
       
-      // Parse error response to check for PHONE_INVALID
+   
       let errorMessage = error?.message || 'Không thể tạo đơn hàng GHN. Vui lòng thử lại.';
       let errorData: any = null;
       
-      // Try to parse error response
+      
       try {
         if (error?.response?.data) {
           errorData = error.response.data;
         } else if (typeof error?.message === 'string') {
-          // Check if message contains PHONE_INVALID
+          
           if (error.message.includes('PHONE_INVALID') || error.message.includes('số điện thoại') || error.message.includes('không đúng')) {
-            // Try to extract JSON from error message
+           
             const jsonMatch = error.message.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               try {
                 errorData = JSON.parse(jsonMatch[0]);
               } catch (e) {
-                // If JSON parse fails, create error data from message
+              
                 errorData = {
                   code_message: 'PHONE_INVALID',
                   code_message_value: error.message.includes('không đúng') 
@@ -1934,7 +1894,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                 };
               }
             } else {
-              // No JSON found, but message suggests phone error
+             
               errorData = {
                 code_message: 'PHONE_INVALID',
                 code_message_value: 'Số điện thoại không hợp lệ. Vui lòng kiểm tra lại số điện thoại.',
@@ -1947,13 +1907,13 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
         console.warn('Could not parse error response:', parseError);
       }
       
-      // Check for PHONE_INVALID error
+     
       if (errorData?.code_message === 'PHONE_INVALID' || 
           errorMessage.includes('PHONE_INVALID') || 
           errorMessage.includes('số điện thoại') && errorMessage.includes('không đúng')) {
         handlePhoneValidationError(errorData || { message: errorMessage });
       } else {
-        // Show general error with better formatting
+       
         const formattedMessage = errorData?.code_message_value || errorData?.message || errorMessage;
         showCenterError(formattedMessage, 'Lỗi');
       }
@@ -1962,14 +1922,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     }
   };
 
-  /**
-   * Handle phone validation error from GHN API
-   */
+  
   const handlePhoneValidationError = (errorData: any) => {
     const errorMessage = errorData?.code_message_value || errorData?.message || 'Số điện thoại không hợp lệ';
     
-    // Extract phone number from error message
-    // Error message format: "Lỗi gọi API: master_data_validate_phone - số điện thoại 039690155 không đúng"
+   
     const phoneNumberMatch = errorData?.message?.match(/số điện thoại\s+(\d{10,11})/i) || 
                             errorMessage.match(/số điện thoại\s+(\d{10,11})/i) ||
                             errorData?.message?.match(/(\d{10,11})/);
@@ -1983,11 +1940,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       return_phone: formData.return_phone,
     });
     
-    // Determine which phone field has the error by checking the phone number
+   
     const errors: { from_phone?: string; to_phone?: string; return_phone?: string } = {};
     
     if (phoneNumber) {
-      // Normalize phone numbers for comparison (remove spaces, dashes, etc.)
+     
       const normalizePhone = (phone: string) => phone?.replace(/[\s\-\(\)]/g, '') || '';
       const normalizedPhoneNumber = normalizePhone(phoneNumber);
       const normalizedFromPhone = normalizePhone(formData.from_phone || '');
@@ -2001,29 +1958,29 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
       } else if (normalizedReturnPhone.includes(normalizedPhoneNumber) || normalizedPhoneNumber === normalizedReturnPhone) {
         errors.return_phone = 'Số điện thoại trả hàng không hợp lệ. Vui lòng kiểm tra lại.';
       } else {
-        // If can't determine, show error for to_phone (most common case)
+       
         errors.to_phone = 'Số điện thoại người nhận không hợp lệ. Vui lòng kiểm tra lại.';
       }
     } else {
-      // If can't determine which phone, show error for to_phone (most common case)
+     
       errors.to_phone = 'Số điện thoại người nhận không hợp lệ. Vui lòng kiểm tra lại.';
     }
     
     setPhoneValidationErrors(errors);
     
-    // Show user-friendly error message
+   
     const userMessage = Object.values(errors)[0] || errorMessage;
     showCenterError(
       userMessage,
       'Lỗi xác thực số điện thoại'
     );
     
-    // Scroll to first phone field with error
+   
     setTimeout(() => {
       const firstErrorField = document.querySelector('[data-phone-error="true"]');
       if (firstErrorField) {
         firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Try to focus if it's not disabled
+        
         if (!(firstErrorField as HTMLInputElement).disabled) {
           (firstErrorField as HTMLElement).focus();
         }
