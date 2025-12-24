@@ -1881,7 +1881,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700"><span className="text-red-500">* </span>Giá gốc (VND)</label>
+                  <label className="block text-sm font-medium text-gray-700"><span className="text-red-500">* </span>Giá (VND)</label>
                   <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
                 </div>
                 <div>
@@ -2004,7 +2004,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                           const parsed = parseFormattedNumber(e.target.value);
                           setBulkPrice(parsed);
                         }}
-                        placeholder="Nhập vào (ví dụ: 1.000.000)"
+                        placeholder="Nhập vào"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
                       />
                     </div>
@@ -2027,7 +2027,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                         type="text"
                         value={bulkSku}
                         onChange={(e) => setBulkSku(e.target.value)}
-                        placeholder="Nhập vào (không bắt buộc)"
+                        placeholder="Nhập vào"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
                       />
                     </div>

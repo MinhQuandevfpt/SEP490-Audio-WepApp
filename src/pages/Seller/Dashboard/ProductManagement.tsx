@@ -152,6 +152,12 @@ const ProductManagement: React.FC = () => {
 
   // Toggle product status (ACTIVE <-> INACTIVE)
   const handleToggleStatus = useCallback(async (productId: string, currentStatus: string, productName: string) => {
+    // Check if product is pending approval
+    if (currentStatus === 'PENDING' || currentStatus === 'PENDING_APPROVAL') {
+      showCenterError('Sản phẩm đang chờ duyệt, không thể thao tác.', 'Lỗi');
+      return;
+    }
+    
     const isActive = currentStatus === 'ACTIVE';
     
     Modal.confirm({
@@ -186,11 +192,26 @@ const ProductManagement: React.FC = () => {
           if (error instanceof Error) {
             errorMessage = error.message;
             
+            // Check if error message contains PENDING status information
+            if (errorMessage.includes('PENDING') || 
+                errorMessage.includes('PENDING_APPROVAL') ||
+                errorMessage.includes('Trạng thái hiện tại của sản phẩm: PENDING') ||
+                errorMessage.includes('Trạng thái hiện tại của sản phẩm: PENDING_APPROVAL')) {
+              errorMessage = 'Sản phẩm đang chờ duyệt, không thể thao tác.';
+            }
             // Check if error message contains SUSPENDED status information
-            if (errorMessage.includes('SUSPENDED') || 
-                errorMessage.includes('API này CHỈ cho phép') ||
+            else if (errorMessage.includes('SUSPENDED') || 
                 errorMessage.includes('Trạng thái hiện tại của sản phẩm: SUSPENDED')) {
               errorMessage = 'Sản phẩm đang bị cấm, không thể thao tác.';
+            }
+            // Check for generic API restriction message (could be for PENDING or SUSPENDED)
+            else if (errorMessage.includes('API này CHỈ cho phép')) {
+              // Try to determine from error message if it mentions status
+              if (errorMessage.includes('PENDING') || errorMessage.includes('chờ duyệt')) {
+                errorMessage = 'Sản phẩm đang chờ duyệt, không thể thao tác.';
+              } else {
+                errorMessage = 'Sản phẩm đang bị cấm, không thể thao tác.';
+              }
             }
           }
           
