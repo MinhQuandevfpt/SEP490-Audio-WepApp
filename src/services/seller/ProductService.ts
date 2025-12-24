@@ -6,10 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commer
 const API_URL = API_BASE_URL.endsWith('/api') ? API_BASE_URL : `${API_BASE_URL}/api`;
 
 export class ProductService {
-  /**
-   * Get list of products with filters
-   * GET /api/products
-   */
+ 
   static async getProducts(params: ProductQueryParams = {}): Promise<ProductListResponse> {
     try {
       // Build query string
@@ -64,17 +61,17 @@ export class ProductService {
         userType: 'seller',
       } as any);
 
-      // HttpInterceptor returns parsed JSON unless we ask for Response; we asked Response.
+      
       console.log('📥 Products request sent via HttpInterceptor');
 
-      const data = response as unknown as any; // fetch<T> already returns parsed JSON
+      const data = response as unknown as any; 
       
-      // Validate response structure
+     
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
       
-      // Log response structure for debugging
+      
       console.log('✅ Products API Response:', {
         status: data.status,
         message: data.message,
@@ -92,14 +89,14 @@ export class ProductService {
         }
       });
       
-      // Handle response structure - API returns array directly in data field
+      
       if (data.data) {
         if (data.data.content && Array.isArray(data.data.content)) {
-          // Pagination structure (Spring Boot Page format) - already correct
+          
           console.log('📄 Using pagination structure (Spring Boot Page)');
-          // Keep as is, already has totalElements
+          
         } else if (Array.isArray(data.data)) {
-          // API returns array directly - convert to pagination structure for consistency
+         
           console.log('📄 Converting array structure to pagination format');
           const productsArray = data.data;
           const currentPage = params.page || 0;
@@ -107,7 +104,7 @@ export class ProductService {
           
           data.data = {
             content: productsArray,
-            totalElements: productsArray.length, // Total items in current response
+            totalElements: productsArray.length,
             totalPages: Math.ceil(productsArray.length / pageSize),
             first: currentPage === 0,
             last: productsArray.length < pageSize,
@@ -157,7 +154,7 @@ export class ProductService {
           };
         }
       } else {
-        // No data field - create empty structure
+       
         console.warn('⚠️ API response has no data field');
         data.data = {
           content: [],
@@ -199,12 +196,9 @@ export class ProductService {
     }
   }
 
-  /**
-   * Get products for current seller's store
-   */
   static async getMyProducts(params: Omit<ProductQueryParams, 'storeId'> = {}): Promise<ProductListResponse> {
     try {
-      // Get store ID from localStorage or fetch via StoreService as fallback
+      
       let storeId = localStorage.getItem('seller_store_id');
 
       if (!storeId) {
@@ -227,18 +221,15 @@ export class ProductService {
     }
   }
 
-  /**
-   * Create a new product for current seller's store
-   * POST /api/products
-   */
+
   static async createProduct(payload: Record<string, any>, status: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<any> {
     try {
-      // Get store ID from localStorage or try to fetch it
+     
       let storeId = localStorage.getItem('seller_store_id');
       
       if (!storeId) {
         try {
-          // Try to get store ID from StoreService
+         
           const { StoreService } = await import('./StoreService');
           storeId = await StoreService.getStoreId();
         } catch (error) {
@@ -246,7 +237,7 @@ export class ProductService {
         }
       }
 
-      // Add status and store ID to payload
+      
       const payloadWithStatus = {
         ...payload,
         status: status,
@@ -272,14 +263,11 @@ export class ProductService {
     }
   }
 
-  /**
-   * Create a draft product (save as draft)
-   * POST /api/products with status: DRAFT
-   */
+
   static async createDraftProduct(payload: Record<string, any>): Promise<any> {
     console.log('📤 createDraftProduct called with payload:', JSON.stringify(payload, null, 2));
     
-    // Ensure status is explicitly set to DRAFT
+    
     const draftPayload = {
       ...payload,
       status: 'DRAFT'
@@ -294,14 +282,11 @@ export class ProductService {
     return result;
   }
 
-  /**
-   * Create an active product (publish immediately)
-   * POST /api/products with status: ACTIVE
-   */
+
   static async createActiveProduct(payload: Record<string, any>): Promise<any> {
     console.log('📤 createActiveProduct called with payload:', JSON.stringify(payload, null, 2));
     
-    // Ensure status is explicitly set to ACTIVE
+    
     const activePayload = {
       ...payload,
       status: 'ACTIVE'
@@ -316,10 +301,7 @@ export class ProductService {
     return result;
   }
 
-  /**
-   * Get product by ID
-   * GET /api/products/{productId}
-   */
+ 
   static async getProductById(productId: string): Promise<Product> {
     try {
       console.log('🔍 Fetching product detail:', productId);
@@ -350,10 +332,7 @@ export class ProductService {
     }
   }
 
-  /**
-   * Update an existing product owned by current seller
-   * PUT /api/products/{productId}
-   */
+
   static async updateProduct(productId: string, payload: ProductUpdateRequest): Promise<any> {
     try {
       if (!productId) {
@@ -379,10 +358,6 @@ export class ProductService {
     }
   }
 
-  /**
-   * Toggle product status (ACTIVE <-> INACTIVE)
-   * DELETE /api/products/{productId}
-   */
   static async toggleProductStatus(productId: string): Promise<any> {
     try {
       const url = `${API_URL}/products/${productId}`;
@@ -401,7 +376,6 @@ export class ProductService {
     } catch (error: any) {
       console.error('❌ Error toggling product status:', error);
       
-      // Check if error message contains PENDING status information
       if (error?.message && (
         error.message.includes('PENDING') || 
         error.message.includes('PENDING_APPROVAL') ||
@@ -413,7 +387,6 @@ export class ProductService {
         throw new Error('Sản phẩm đang chờ duyệt, không thể thao tác.');
       }
       
-      // Check if error message contains SUSPENDED status information
       if (error?.message && (
         error.message.includes('SUSPENDED') || 
         error.message.includes('Trạng thái hiện tại của sản phẩm: SUSPENDED') ||
@@ -427,9 +400,7 @@ export class ProductService {
     }
   }
 
-  /**
-   * Format currency
-   */
+
   static formatCurrency(amount: number | null | undefined): string {
     if (amount == null) return 'N/A';
     return new Intl.NumberFormat('vi-VN', {
@@ -438,9 +409,7 @@ export class ProductService {
     }).format(amount);
   }
 
-  /**
-   * Format date
-   */
+ 
   static formatDate(dateString: string | null | undefined): string {
     if (!dateString) return 'N/A';
     try {
@@ -457,9 +426,7 @@ export class ProductService {
     }
   }
 
-  /**
-   * Get status label in Vietnamese
-   */
+  
   static getStatusLabel(status: string): string {
     const statusMap: Record<string, string> = {
       'DRAFT': 'Bản nháp',
@@ -472,14 +439,13 @@ export class ProductService {
       'REJECTED': 'Bị từ chối',
       'REJECT': 'Bị từ chối',
       'SUSPENDED': 'Vi Phạm',
-      'SUSPENDED_DEBT': 'Tạm khóa do nợ'
+      'SUSPENDED_DEBT': 'Tạm khóa do nợ',
+      'BANNED': 'Vi phạm'
     };
     return statusMap[status] || status;
   }
 
-  /**
-   * Get status color
-   */
+  
   static getStatusColor(status: string): string {
     const colorMap: Record<string, string> = {
       'DRAFT': 'bg-gray-100 text-gray-800',
@@ -492,7 +458,8 @@ export class ProductService {
       'REJECTED': 'bg-red-100 text-red-800',
       'REJECT': 'bg-red-100 text-red-800',
       'SUSPENDED': 'bg-red-100 text-red-800',
-      'SUSPENDED_DEBT': 'bg-red-100 text-red-800'
+      'SUSPENDED_DEBT': 'bg-red-100 text-red-800',
+      'BANNED': 'bg-red-100 text-red-800'
     };
     return colorMap[status] || 'bg-gray-100 text-gray-800';
   }

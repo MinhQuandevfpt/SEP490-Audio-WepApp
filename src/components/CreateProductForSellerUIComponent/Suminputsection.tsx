@@ -53,12 +53,9 @@ interface FormState {
   currency: string;
   stockQuantity: string;
   sku: string;
-  // Warranty & manufacturer
+  // Warranty
   warrantyPeriod: string;
   warrantyType: string;
-  manufacturerName: string;
-  manufacturerAddress: string;
-  productCondition: string;
   isCustomMade: string; // 'true' | 'false'
   // Warehouse & shipping
   warehouseLocation: string;
@@ -98,9 +95,6 @@ const defaultForm: FormState = {
   sku: '',
   warrantyPeriod: '12 tháng',
   warrantyType: '',
-  manufacturerName: '',
-  manufacturerAddress: '',
-  productCondition: '',
   isCustomMade: 'false',
   warehouseLocation: '',
   provinceCode: '',
@@ -645,8 +639,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       material: product.material || '',
       dimensions: product.dimensions || '',
       weight: product.weight != null ? String(product.weight) : '',
-      connectionType: product.connectionType || '',
-      voltageInput: product.voltageInput || '',
       price: product.price != null ? String(product.price) : '',
       discountPrice: product.discountPrice != null ? String(product.discountPrice) : '',
       currency: product.currency || 'VND',
@@ -654,9 +646,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       sku: product.sku || '',
       warrantyPeriod: product.warrantyPeriod || '',
       warrantyType: product.warrantyType || '',
-      manufacturerName: product.manufacturerName || '',
-      manufacturerAddress: product.manufacturerAddress || '',
-      productCondition: product.productCondition || '',
       isCustomMade: product.isCustomMade ? 'true' : 'false',
       warehouseLocation: product.warehouseLocation || '',
       provinceCode,
@@ -1450,9 +1439,20 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       const brandValid = (form.brandName || '').trim().length >= 2;
       const categoryValid = Array.isArray(form.categoryIds) && form.categoryIds.length > 0;
       const imagesValid = images.length > 0;
+      const weightValid =
+        (form.weight || '').trim().length > 0 &&
+        !Number.isNaN(Number(form.weight)) &&
+        Number(form.weight) > 0;
+      // Dimensions: cả 3 trường Dài/Rộng/Cao phải được nhập và > 0
+      const dims = [getDimensionParts.l, getDimensionParts.w, getDimensionParts.h];
+      const dimensionValid = dims.every((v) => {
+        if (!v || v.trim() === '') return false;
+        const n = Number(v);
+        return !Number.isNaN(n) && n > 0;
+      });
       
-      if (!nameValid || !brandValid || !categoryValid || !imagesValid) {
-        showCenterError('Vui lòng nhập đầy đủ thông tin chung bắt buộc');
+      if (!nameValid || !brandValid || !categoryValid || !imagesValid || !weightValid || !dimensionValid) {
+        showCenterError('Vui lòng nhập đầy đủ thông tin chung bắt buộc (bao gồm kích thước và trọng lượng > 0)');
         return;
       }
     }
@@ -1619,8 +1619,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       material: form.material || undefined,
       dimensions: form.dimensions || undefined,
       weight: Number.isFinite(weightNum as number) ? weightNum : undefined,
-      connectionType: form.connectionType || undefined,
-      voltageInput: form.voltageInput || undefined,
       images: allImageUrls,
       videoUrl: form.videoUrl || undefined,
       // Nếu có variants thì price và stockQuantity sẽ null, nếu không có thì lấy từ form
@@ -1648,9 +1646,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         .filter(b => Number.isFinite(b.fromQuantity) && Number.isFinite(b.toQuantity) && Number.isFinite(b.unitPrice)),
       warrantyPeriod: form.warrantyPeriod || undefined,
       warrantyType: form.warrantyType || undefined,
-      manufacturerName: form.manufacturerName || undefined,
-      manufacturerAddress: form.manufacturerAddress || undefined,
-      productCondition: form.productCondition || undefined,
       isCustomMade: form.isCustomMade === 'true' ? true : undefined,
       ...normalizedExtra,
     };
@@ -1749,11 +1744,13 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       if (err?.message) {
         const msg = String(err.message);
         
-        // Dịch các lỗi SKU từ backend sang tiếng Việt
+        // Dịch các lỗi từ backend sang tiếng Việt
         if (msg.includes('SKU must not be empty') || msg.includes('SKU is required')) {
           errorMessage = 'SKU (Mã sản phẩm) là bắt buộc. Vui lòng nhập SKU cho sản phẩm.';
         } else if (msg.includes('SKU already exists')) {
           errorMessage = 'SKU này đã tồn tại trong cửa hàng của bạn. Vui lòng sử dụng SKU khác.';
+        } else if (msg.includes('PENDING_APPROVAL') || msg.includes('cannot be updated when status')) {
+          errorMessage = 'Không thể cập nhật sản phẩm khi trạng thái đang là "Chờ duyệt". Vui lòng đợi hệ thống kiểm duyệt sản phẩm trước khi chỉnh sửa.';
         } else {
           errorMessage = msg;
         }
@@ -2183,7 +2180,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
       </SectionCard>
       )}
 
-      <SectionCard title="Bảo hành & Nhà sản xuất" description="Thông tin hậu mãi và NSX">
+      <SectionCard title="Bảo hành" description="Thông tin hậu mãi và NSX">
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -2198,16 +2195,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 <option value="1 đổi 1">1 đổi 1</option>
                 <option value="Sửa chữa">Sửa chữa</option>
               </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tên nhà sản xuất</label>
-              <input name="manufacturerName" value={form.manufacturerName} onChange={onChange} type="text" placeholder="VD: Sony Corporation" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Địa chỉ nhà sản xuất</label>
-              <input name="manufacturerAddress" value={form.manufacturerAddress} onChange={onChange} type="text" placeholder="VD: Tokyo, Japan" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
             </div>
           </div>
         </div>
@@ -3010,21 +2997,6 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             />
             <p className="mt-1 text-xs text-gray-500">Mã định danh duy nhất cho sản phẩm</p>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Tình trạng sản phẩm</label>
-            <select 
-              name="productCondition" 
-              value={form.productCondition} 
-              onChange={onChange} 
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-            >
-              <option value="">Chọn tình trạng</option>
-              <option value="Mới 100%">Mới 100%</option>
-              <option value="Refurbished">Refurbished</option>
-              <option value="Used">Used</option>
-            </select>
-          </div>
-          
         </div>
       </SectionCard>
       </>
