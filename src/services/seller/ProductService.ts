@@ -401,11 +401,24 @@ export class ProductService {
     } catch (error: any) {
       console.error('❌ Error toggling product status:', error);
       
+      // Check if error message contains PENDING status information
+      if (error?.message && (
+        error.message.includes('PENDING') || 
+        error.message.includes('PENDING_APPROVAL') ||
+        error.message.includes('Trạng thái hiện tại của sản phẩm: PENDING') ||
+        error.message.includes('Trạng thái hiện tại của sản phẩm: PENDING_APPROVAL') ||
+        (error.message.includes('API này CHỈ cho phép') && 
+         (error.message.includes('PENDING') || error.message.includes('chờ duyệt')))
+      )) {
+        throw new Error('Sản phẩm đang chờ duyệt, không thể thao tác.');
+      }
+      
       // Check if error message contains SUSPENDED status information
       if (error?.message && (
         error.message.includes('SUSPENDED') || 
-        error.message.includes('API này CHỈ cho phép') ||
-        error.message.includes('Trạng thái hiện tại của sản phẩm: SUSPENDED')
+        error.message.includes('Trạng thái hiện tại của sản phẩm: SUSPENDED') ||
+        (error.message.includes('API này CHỈ cho phép') && 
+         !error.message.includes('PENDING') && !error.message.includes('chờ duyệt'))
       )) {
         throw new Error('Sản phẩm đang bị cấm, không thể thao tác.');
       }

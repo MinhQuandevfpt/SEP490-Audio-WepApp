@@ -313,31 +313,39 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
             </div>
           </div>
 
-          {/* Đánh giá tối thiểu Section - Only show 5 stars and 4 stars options */}
+          {/* Đánh giá tối thiểu Section - Dãy 5 ngôi sao clickable */}
           <div>
             <p className="text-sm font-semibold text-gray-800 mb-3">Đánh giá tối thiểu</p>
-            <div className="space-y-2">
-              {[5, 4].map((rating) => {
-                const label = rating === 5 ? '5 sao' : '4 sao trở lên';
-                return (
-                  <button
-                    key={rating}
-                    type="button"
-                    onClick={() => handleMinRatingChange(minRating === rating ? undefined : rating)}
-                    disabled={loading}
-                    className={`w-full px-4 py-2.5 text-sm font-medium rounded-lg border-2 transition-all duration-200 ${
-                      minRating === rating
-                        ? 'bg-orange-500 text-white border-orange-500 shadow-md'
-                        : 'text-gray-700 border-gray-200 bg-white hover:border-orange-300 hover:text-orange-600 hover:bg-orange-50'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <Star className={`w-4 h-4 ${minRating === rating ? 'text-yellow-200' : 'text-yellow-400'} fill-current`} />
-                      <span>{label}</span>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((rating) => {
+                  // Những sao <= minRating sẽ được tô vàng
+                  const isActive = typeof minRating === 'number' && rating <= minRating;
+                  return (
+                    <button
+                      key={rating}
+                      type="button"
+                      onClick={() =>
+                        handleMinRatingChange(minRating === rating ? undefined : rating)
+                      }
+                      disabled={loading}
+                      className="p-1 rounded-md hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label={`Từ ${rating} sao trở lên`}
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          isActive ? 'text-yellow-400' : 'text-gray-300'
+                        } fill-current`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+              {typeof minRating === 'number' && (
+                <span className="text-xs text-gray-600">
+                  Đang lọc từ <span className="font-semibold">{minRating} sao</span> trở lên
+                </span>
+              )}
             </div>
           </div>
         </div>

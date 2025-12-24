@@ -248,7 +248,7 @@ const CreateStaffForm: React.FC<CreateStaffFormProps> = ({ onSubmit, isLoading =
             className={`block w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 ${
               errors.phone ? 'border-red-500' : 'border-gray-300'
             }`}
-            placeholder="Nhập số điện thoại (VD: 0909123456)"
+            placeholder="Nhập số điện thoại"
           />
         </div>
         {errors.phone && (
