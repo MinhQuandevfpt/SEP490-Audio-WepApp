@@ -60,7 +60,7 @@ const AdminProductManagement: React.FC = () => {
   const [isBackgroundFetching, setIsBackgroundFetching] = useState(false); // For silent background refresh
   const isInitialMount = useRef(true);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [selectedCategoryNames, setSelectedCategoryNames] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined);
@@ -68,6 +68,7 @@ const AdminProductManagement: React.FC = () => {
   const [allStores, setAllStores] = useState<Array<{ id: string; name: string }>>([]);
   const [categories, setCategories] = useState<CategoryTreeNode[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [totalStores, setTotalStores] = useState<number>(0);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,12 +81,16 @@ const AdminProductManagement: React.FC = () => {
     showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} sản phẩm`,
   });
 
-  // Load all stores for filter
+  // Load all stores for filter and get total count
   useEffect(() => {
     const loadStores = async () => {
       try {
         const stores = await AdminStoreService.getAllStores(0, 1000);
         setAllStores(stores.map(s => ({ id: s.id, name: s.name || `Store ${s.id.slice(0, 8)}` })));
+        
+        // Get total stores count
+        const storesResponse = await AdminStoreService.getAllStoresWithPagination(0, 1);
+        setTotalStores(storesResponse.totalElements || 0);
       } catch (error) {
         console.error('Failed to load stores:', error);
       }
@@ -142,7 +147,7 @@ const AdminProductManagement: React.FC = () => {
       };
 
       if (searchKeyword.trim()) filters.keyword = searchKeyword.trim();
-      if (selectedStatus.length > 0) filters.status = selectedStatus.join(',');
+      if (selectedStatus) filters.status = selectedStatus;
       if (selectedStoreId) filters.storeId = selectedStoreId;
       if (selectedCategoryNames.length > 0) filters.categoryName = selectedCategoryNames.join(',');
       if (minPrice !== undefined) filters.minPrice = minPrice;
@@ -292,7 +297,7 @@ const AdminProductManagement: React.FC = () => {
   // Handle reset
   const handleReset = useCallback(() => {
     setSearchKeyword('');
-    setSelectedStatus([]);
+    setSelectedStatus('');
     setSelectedStoreId('');
     setSelectedCategoryNames([]);
     setMinPrice(undefined);
@@ -335,10 +340,8 @@ const AdminProductManagement: React.FC = () => {
   const stats = useMemo(() => {
     const total = products.length;
     const active = products.filter(p => p.status === 'ACTIVE').length;
-    const inactive = products.filter(p => p.status === 'INACTIVE').length;
-    const totalStock = products.reduce((sum, p) => sum + (p.stockQuantity || 0), 0);
 
-    return { total, active, inactive, totalStock };
+    return { total, active };
   }, [products]);
 
   // Get status badge
@@ -430,8 +433,8 @@ const AdminProductManagement: React.FC = () => {
         );
       case 'BANNED':
         return (
-          <Tag color="error" icon={<StopOutlined />}>
-            Cấm
+          <Tag color="error" icon={<ExclamationCircleOutlined />}>
+            Vô hiệu hoá
           </Tag>
         );
       default:
@@ -782,18 +785,8 @@ const AdminProductManagement: React.FC = () => {
         <Col xs={24} sm={12} md={6}>
           <Card>
             <Statistic
-              title="Ngừng bán"
-              value={stats.inactive}
-              prefix={<CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
-              valueStyle={{ color: '#ff4d4f' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Tổng tồn kho"
-              value={stats.totalStock}
+              title="Tổng cửa hàng"
+              value={totalStores}
               prefix={<ShopOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -839,12 +832,10 @@ const AdminProductManagement: React.FC = () => {
               <Select
                 placeholder="Trạng thái"
                 allowClear
-                mode="multiple"
-                maxTagCount="responsive"
                 size="large"
                 style={{ width: '100%' }}
-                value={selectedStatus}
-                onChange={(vals) => setSelectedStatus(vals as string[])}
+                value={selectedStatus || undefined}
+                onChange={(val) => setSelectedStatus(val as string || '')}
                 optionFilterProp="label"
               >
                 <Option value="ACTIVE" label="Đang bán">Đang bán</Option>
@@ -859,7 +850,7 @@ const AdminProductManagement: React.FC = () => {
                 <Option value="SUSPENDED" label="Vô hiệu hoá">Vô hiệu hoá</Option>
                 <Option value="SUSPENDED_DEBT" label="Tạm khóa do nợ">Tạm khóa do nợ</Option>
                 <Option value="DELETED" label="Đã xóa">Đã xóa</Option>
-                <Option value="BANNED" label="Cấm">Cấm</Option>
+                <Option value="BANNED" label="Vô hiệu hoá">Vô hiệu hoá</Option>
               </Select>
             </Col>
             <Col xs={24} md={5}>
