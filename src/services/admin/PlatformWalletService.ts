@@ -4,7 +4,9 @@ import type {
   PlatformWalletResponse,
   PlatformTransaction,
   PlatformTransactionFilterParams,
-  PlatformTransactionsPageResponse
+  PlatformTransactionsPageResponse,
+  GhnOverview,
+  GhnOverviewResponse
 } from '../../types/admin';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
@@ -154,6 +156,48 @@ export class PlatformWalletService {
     } catch (error: any) {
       console.error('❌ Error getting platform transactions:', error);
       throw new Error(error?.message || 'Không thể tải danh sách giao dịch');
+    }
+  }
+
+  /**
+   * Get GHN overview (Flat) - nợ GHN, ship khách trả, nợ shop
+   * GET /api/platform-wallets/ghn/overview
+   * @param params Optional date range filters
+   * @returns GHN overview data
+   */
+  static async getGhnOverview(params?: {
+    from?: string;
+    to?: string;
+  }): Promise<GhnOverview> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.from) queryParams.append('from', params.from);
+      if (params?.to) queryParams.append('to', params.to);
+
+      const endpoint = `${API_URL}/platform-wallets/ghn/overview${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      
+      console.log('📡 Calling GHN overview API:', endpoint);
+      
+      const response = await HttpInterceptor.get<GhnOverviewResponse>(
+        endpoint,
+        {
+          userType: 'admin',
+          headers: {
+            'Accept': '*/*',
+          },
+        }
+      );
+
+      console.log('📥 GHN overview API response:', response);
+      
+      if (response && response.data) {
+        return response.data;
+      }
+      
+      throw new Error('Unexpected response format');
+    } catch (error: any) {
+      console.error('❌ Error getting GHN overview:', error);
+      throw new Error(error?.message || 'Không thể tải tổng quan GHN');
     }
   }
 }

@@ -539,6 +539,23 @@ export interface PlatformTransactionFilterParams {
   size?: number;
 }
 
+export interface GhnOverview {
+  from: string | null;
+  toExclusive: string | null;
+  flatDebtShipToGHN: number;
+  customerShipPaid: number;
+  storeDebtOutstandingToFlat: number;
+  storeDebtPaidToFlat: number;
+  storeDebtTotalToFlat: number;
+  note: string;
+}
+
+export interface GhnOverviewResponse {
+  status: number;
+  message: string;
+  data: GhnOverview;
+}
+
 export interface PlatformTransactionsPageResponse {
   status: number;
   message: string;

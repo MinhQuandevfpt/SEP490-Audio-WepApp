@@ -116,7 +116,7 @@ const PlatformFeeManagement: React.FC = () => {
     {
       title: 'STT',
       key: 'index',
-      width: 60,
+      width: 80,
       align: 'center',
       render: (_: any, __: any, index: number) => index + 1
     },
@@ -124,7 +124,7 @@ const PlatformFeeManagement: React.FC = () => {
       title: 'ID',
       dataIndex: 'feeId',
       key: 'feeId',
-      width: 200,
+      width: 250,
       render: (text: string) => (
         <span className="font-mono text-xs">{text}</span>
       )
@@ -133,7 +133,7 @@ const PlatformFeeManagement: React.FC = () => {
       title: 'Phần trăm (%)',
       dataIndex: 'percentage',
       key: 'percentage',
-      width: 120,
+      width: 150,
       align: 'right',
       render: (percentage: number) => (
         <span className="font-semibold text-blue-600">{percentage}%</span>
@@ -144,13 +144,17 @@ const PlatformFeeManagement: React.FC = () => {
       title: 'Mô tả',
       dataIndex: 'description',
       key: 'description',
-      ellipsis: true
+      width: 300,
+      ellipsis: false,
+      render: (text: string) => (
+        <div className="break-words whitespace-normal">{text || '-'}</div>
+      )
     },
     {
       title: 'Ngày hiệu lực',
       dataIndex: 'effectiveDate',
       key: 'effectiveDate',
-      width: 180,
+      width: 200,
       render: (date: string) => formatDate(date),
       sorter: (a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()
     },
@@ -158,7 +162,7 @@ const PlatformFeeManagement: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'isActive',
       key: 'isActive',
-      width: 120,
+      width: 150,
       align: 'center',
       render: (isActive: boolean) => (
         <Tag color={isActive ? 'green' : 'default'}>
@@ -175,7 +179,7 @@ const PlatformFeeManagement: React.FC = () => {
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 180,
+      width: 200,
       render: (date: string) => formatDate(date),
       sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     },
@@ -183,13 +187,13 @@ const PlatformFeeManagement: React.FC = () => {
       title: 'Cập nhật',
       dataIndex: 'updatedAt',
       key: 'updatedAt',
-      width: 180,
+      width: 200,
       render: (date: string) => formatDate(date)
     },
     {
       title: 'Thao tác',
       key: 'action',
-      width: 100,
+      width: 130,
       align: 'center',
       fixed: 'right',
       render: (_: any, record: PlatformFee) => (
@@ -253,18 +257,34 @@ const PlatformFeeManagement: React.FC = () => {
             }
           />
         ) : (
-          <Table
-            columns={columns}
-            dataSource={fees}
-            rowKey="feeId"
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `Tổng cộng: ${total} mức phí`,
-              pageSizeOptions: ['10', '20', '50', '100']
-            }}
-            scroll={{ x: 1200 }}
-          />
+          <div className="platform-fee-table-wrapper">
+            <style>{`
+              .platform-fee-table-wrapper .ant-table-thead > tr > th {
+                padding: 16px 20px !important;
+                white-space: nowrap !important;
+                font-weight: 600 !important;
+              }
+              .platform-fee-table-wrapper .ant-table-tbody > tr > td {
+                padding: 16px 20px !important;
+                vertical-align: top !important;
+              }
+              .platform-fee-table-wrapper .ant-table {
+                font-size: 14px;
+              }
+            `}</style>
+            <Table
+              columns={columns}
+              dataSource={fees}
+              rowKey="feeId"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Tổng cộng: ${total} mức phí`,
+                pageSizeOptions: ['10', '20', '50', '100']
+              }}
+              scroll={{ x: 1600 }}
+            />
+          </div>
         )}
       </Card>
 
