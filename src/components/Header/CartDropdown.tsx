@@ -156,18 +156,10 @@ const CartDropdown: React.FC = () => {
         onMouseEnter={handleMouseEnter}
         onClick={(e) => {
           e.stopPropagation();
-          // On mobile, navigate directly to cart page
-          // On desktop, toggle dropdown
-          if (window.innerWidth < 640) { // sm breakpoint
-            setIsOpen(false);
-            navigate('/cartv2');
-          } else {
-            // Desktop: toggle dropdown
-            setIsOpen(!isOpen);
-            if (!isOpen && !cart) {
-              loadCart();
-            }
-          }
+          // Luôn điều hướng tới trang giỏ hàng v2 khi click icon,
+          // vẫn giữ behavior hover để xem nhanh dropdown
+          setIsOpen(false);
+          navigate('/cartv2');
         }}
         className="relative group"
         aria-label="Giỏ hàng"
@@ -260,26 +252,13 @@ const CartDropdown: React.FC = () => {
           </div>
 
           {/* Footer */}
-          {cartItemCount > 0 && (
-            <div className="p-3 border-t border-gray-200 bg-gray-50 space-y-2">
-              {/* Thông báo số sản phẩm còn lại */}
-              {remainingCount > 0 && (
-                <div className="text-center">
-                  <span className="text-xs text-gray-600">
-                    {remainingCount} sản phẩm thêm vào giỏ
-                  </span>
-                </div>
-              )}
-              {/* Button to navigate to cart page */}
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  navigate('/cartv2');
-                }}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
-              >
-                Xem giỏ hàng
-              </button>
+          {cartItemCount > 0 && remainingCount > 0 && (
+            <div className="p-3 border-t border-gray-200 bg-gray-50">
+              <div className="text-center">
+                <span className="text-xs text-gray-600">
+                  {remainingCount} sản phẩm thêm vào giỏ
+                </span>
+              </div>
             </div>
           )}
         </div>
