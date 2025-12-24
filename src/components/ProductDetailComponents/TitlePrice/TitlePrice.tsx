@@ -27,7 +27,6 @@ const TitlePrice: React.FC<TitlePriceProps> = ({
   brand,
   rating,
   reviewsCount,
-  soldCount,
   price,
   priceRange,
   discountedPriceRange,
@@ -79,17 +78,17 @@ const TitlePrice: React.FC<TitlePriceProps> = ({
   const displayedRating =
     reviewStats && reviewStats.count > 0
       ? {
-          avg: reviewStats.avg,
-          count: reviewStats.count,
-          text: `${reviewStats.avg.toFixed(1)} (${reviewStats.count.toLocaleString('vi-VN')} đánh giá)`,
-        }
+        avg: reviewStats.avg,
+        count: reviewStats.count,
+        text: `${reviewStats.avg.toFixed(1)} (${reviewStats.count.toLocaleString('vi-VN')} đánh giá)`,
+      }
       : {
-          avg: rating,
-          count: reviewsCount,
-          text: reviewsCount > 0
-            ? `${rating.toFixed(1)} (${reviewsCount.toLocaleString('vi-VN')} đánh giá)`
-            : 'Chưa có đánh giá',
-        };
+        avg: rating,
+        count: reviewsCount,
+        text: reviewsCount > 0
+          ? `${rating.toFixed(1)} (${reviewsCount.toLocaleString('vi-VN')} đánh giá)`
+          : 'Chưa có đánh giá',
+      };
 
   return (
     <div>
@@ -104,9 +103,7 @@ const TitlePrice: React.FC<TitlePriceProps> = ({
           {loadingReviews ? 'Đang tính...' : displayedRating.text}
         </span>
         <span className="hidden sm:inline h-4 w-px bg-gray-300" />
-        <span className="flex items-center gap-1">
-          <span className="text-red-500">🔥</span> Bán chạy {soldCount.toLocaleString('vi-VN')}+
-        </span>
+
       </div>
       <div className="mt-3 text-sm text-gray-600 leading-relaxed">{shortDescription}</div>
 
