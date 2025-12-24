@@ -25,21 +25,10 @@ const MATERIAL_SUGGESTIONS = [
   'Glass', 'Ceramic', 'Bamboo', 'Cork', 'Felt', 'Velour', 'Suede'
 ];
 
-const CONNECTION_SUGGESTIONS = [
-  'Bluetooth', 'Bluetooth 5.0', 'Bluetooth 5.1', 'Bluetooth 5.2', 'Bluetooth 5.3',
-  'USB', 'USB-A', 'USB-B', 'USB-C', 'USB 2.0', 'USB 3.0', 'USB 3.1',
-  'RCA', 'XLR', 'TRS', 'TS', '3.5mm', '6.35mm', 'Optical', 'Coaxial',
-  'HDMI', 'HDMI ARC', 'HDMI eARC', 'Ethernet', 'Wi-Fi', 'AirPlay',
-  'DLNA', 'Chromecast', 'Spotify Connect', 'Tidal Connect', 'Apple AirPlay',
-  'AptX', 'AptX HD', 'AptX Adaptive', 'LDAC', 'AAC', 'SBC', 'LC3',
-  'MQA', 'DSD', 'PCM', 'I2S', 'SPDIF', 'AES/EBU', 'Dante', 'AVB'
-];
-
-const VOLTAGE_SUGGESTIONS = [
-  '3.3V', '5V', '9V', '12V', '15V', '18V', '24V', '36V', '48V',
-  '110V', '220V', '230V', '240V', 'AC 110V', 'AC 220V', 'DC 5V', 'DC 12V',
-  'DC 24V', 'DC 48V', 'USB 5V', 'Phantom +48V', 'Phantom 48V'
-];
+// NOTE: CONNECTION_SUGGESTIONS và VOLTAGE_SUGGESTIONS từng được dùng cho
+// các field "connectionType" và "voltageInput". Do API POST /api/products
+// hiện không còn 2 thuộc tính này nên UI tương ứng đã bị ẩn và các hằng số
+// gợi ý cũng được loại bỏ để tránh gửi dữ liệu thừa.
 
 interface FormState {
   name: string;
@@ -289,13 +278,15 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
     // Nếu không phải số hợp lệ thì hiển thị lỗi và không cập nhật form state
     if (Number.isNaN(value)) {
       setWeightError('Trọng lượng không hợp lệ. Vui lòng nhập số.');
+      onChange(e);
       return;
     }
 
     // Chỉ chấp nhận trong khoảng (0, 27]
     if (value <= 0 || value > 27) {
-      // Hiển thị lỗi và không cập nhật form state với giá trị không hợp lệ
+      // Hiển thị lỗi nhưng vẫn cho phép user tiếp tục nhập cho đến khi hợp lệ
       setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 27 kg.');
+      onChange(e);
       return;
     }
 
@@ -654,167 +645,6 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               {weightError}
             </p>
           )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700">Kết nối</label>
-            <div className="relative mt-1">
-              {/* Hiển thị các tag đã chọn */}
-              {parseValueToArray(form.connectionType).length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {parseValueToArray(form.connectionType).map((item, index) => (
-                    <span
-                      key={`connection-tag-${index}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
-                    >
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeItemFromValue('connectionType', item)}
-                        className="hover:text-orange-900 focus:outline-none"
-                        title="Xóa"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              
-              <input
-                name="connectionType"
-                value={form.connectionType}
-                onChange={(e) => handleInputWithSuggestions('connectionType', e.target.value)}
-                onFocus={() => setShowSuggestions(prev => ({ ...prev, connectionType: true }))}
-                onBlur={() => {
-                  setTimeout(() => {
-                    setShowSuggestions(prev => ({ ...prev, connectionType: false }));
-                  }, 200);
-                }}
-                type="text"
-                placeholder="VD: Bluetooth, RCA, USB (có thể chọn nhiều)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-              />
-              {showSuggestions.connectionType && getFilteredSuggestions('connectionType', CONNECTION_SUGGESTIONS).length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  <div className="p-2">
-                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý kết nối (chọn nhiều):</p>
-                    <div className="space-y-1">
-                      {getFilteredSuggestions('connectionType', CONNECTION_SUGGESTIONS).map((connection, index) => {
-                        const isSelected = parseValueToArray(form.connectionType).includes(connection);
-                        return (
-                          <button
-                            key={`connection-${index}`}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              if (isSelected) {
-                                removeItemFromValue('connectionType', connection);
-                              } else {
-                                addItemToValue('connectionType', connection);
-                              }
-                            }}
-                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
-                              isSelected
-                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                : 'hover:bg-orange-50 hover:text-orange-700'
-                            }`}
-                          >
-                            <span className={`inline-block w-4 h-4 border-2 rounded ${
-                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
-                            } flex items-center justify-center`}>
-                              {isSelected && <span className="text-white text-xs">✓</span>}
-                            </span>
-                            {connection}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700">Điện áp</label>
-            <div className="relative mt-1">
-              {/* Hiển thị các tag đã chọn */}
-              {parseValueToArray(form.voltageInput).length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {parseValueToArray(form.voltageInput).map((item, index) => (
-                    <span
-                      key={`voltage-tag-${index}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
-                    >
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeItemFromValue('voltageInput', item)}
-                        className="hover:text-orange-900 focus:outline-none"
-                        title="Xóa"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              
-              <input
-                name="voltageInput"
-                value={form.voltageInput}
-                onChange={(e) => handleInputWithSuggestions('voltageInput', e.target.value)}
-                onFocus={() => setShowSuggestions(prev => ({ ...prev, voltageInput: true }))}
-                onBlur={() => {
-                  setTimeout(() => {
-                    setShowSuggestions(prev => ({ ...prev, voltageInput: false }));
-                  }, 200);
-                }}
-                type="text"
-                placeholder="VD: 5V, 12V (có thể chọn nhiều)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
-              />
-              {showSuggestions.voltageInput && getFilteredSuggestions('voltageInput', VOLTAGE_SUGGESTIONS).length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  <div className="p-2">
-                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý điện áp (chọn nhiều):</p>
-                    <div className="space-y-1">
-                      {getFilteredSuggestions('voltageInput', VOLTAGE_SUGGESTIONS).map((voltage, index) => {
-                        const isSelected = parseValueToArray(form.voltageInput).includes(voltage);
-                        return (
-                          <button
-                            key={`voltage-${index}`}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              if (isSelected) {
-                                removeItemFromValue('voltageInput', voltage);
-                              } else {
-                                addItemToValue('voltageInput', voltage);
-                              }
-                            }}
-                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
-                              isSelected
-                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                                : 'hover:bg-orange-50 hover:text-orange-700'
-                            }`}
-                          >
-                            <span className={`inline-block w-4 h-4 border-2 rounded ${
-                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
-                            } flex items-center justify-center`}>
-                              {isSelected && <span className="text-white text-xs">✓</span>}
-                            </span>
-                            {voltage}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </SectionCard>
