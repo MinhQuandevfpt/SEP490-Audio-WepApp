@@ -7,10 +7,7 @@ import { showTikiNotification } from '../../../utils/notification';
 import { FileUploadService } from '../../../services/FileUploadService';
 import { validateCampaignTimes, validateFlashSlots, hasCampaignStarted, getMinDateTime } from '../../../utils/campaignValidation';
 
-/**
- * Convert ISO datetime string to datetime-local format (YYYY-MM-DDTHH:mm:ss)
- * Preserves the local timezone without converting to UTC
- */
+
 const toDatetimeLocal = (isoString: string): string => {
   if (!isoString) return '';
   const date = new Date(isoString);
@@ -23,30 +20,11 @@ const toDatetimeLocal = (isoString: string): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 };
 
-/**
- * ⚠️ TEMPORARY HACK - REMOVE WHEN BACKEND FIXES TIMEZONE ISSUE
- * 
- * Convert datetime-local format and ADD 7 hours to compensate for backend bug
- * Backend's update API incorrectly subtracts 7 hours from the datetime
- * By adding 7 hours here, it will be correct after backend's subtraction
- * 
- * TODO: Remove this hack once backend handles timezone consistently between create and update APIs
- */
+
 const toISOWithTimezone = (datetimeLocal: string): string => {
   if (!datetimeLocal) return '';
-  
-  // HACK: Add 7 hours (25200000 ms) to compensate for backend timezone bug
-  const date = new Date(datetimeLocal);
-  const adjustedDate = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-  
-  const year = adjustedDate.getFullYear();
-  const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
-  const day = String(adjustedDate.getDate()).padStart(2, '0');
-  const hours = String(adjustedDate.getHours()).padStart(2, '0');
-  const minutes = String(adjustedDate.getMinutes()).padStart(2, '0');
-  const seconds = String(adjustedDate.getSeconds()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+
+  return datetimeLocal;
 };
 
 const EditCampaign: React.FC = () => {
@@ -58,10 +36,10 @@ const EditCampaign: React.FC = () => {
   const [badgeImageFile, setBadgeImageFile] = useState<File | null>(null);
   const [badgeImagePreview, setBadgeImagePreview] = useState('');
 
-  // Get minimum datetime for preventing past selection
+ 
   const minDateTime = useMemo(() => getMinDateTime(), []);
   
-  // Validation errors
+ 
   const [timeErrors, setTimeErrors] = useState({
     startTime: '',
     endTime: ''
@@ -93,7 +71,6 @@ const EditCampaign: React.FC = () => {
         const data = await CampaignService.getCampaignById(id);
         setCampaign(data);
 
-        // Populate form data
         setFormData({
           name: data.name,
           description: data.description,
@@ -106,12 +83,12 @@ const EditCampaign: React.FC = () => {
           status: data.status
         });
 
-        // Set badge preview if exists
+       
         if (data.badgeIconUrl) {
           setBadgeImagePreview(data.badgeIconUrl);
         }
 
-        // Populate flash slots if FAST_SALE
+        
         if (data.type === 'FAST_SALE' && data.flashSlots) {
           setFlashSlots(data.flashSlots.map(slot => ({
             slotId: slot.slotId,
@@ -141,7 +118,7 @@ const EditCampaign: React.FC = () => {
       [name]: newValue
     }));
 
-    // Validate time fields in real-time (only if campaign hasn't started)
+    
     if ((name === 'startTime' || name === 'endTime') && campaign && !campaignHasStarted) {
       validateTimeFields(name, value);
     }
@@ -160,7 +137,7 @@ const EditCampaign: React.FC = () => {
         newErrors.startTime = '';
       }
       
-      // Also validate endTime if it exists
+     
       if (formData.endTime) {
         const end = new Date(formData.endTime);
         if (value && end <= start) {
@@ -219,14 +196,14 @@ const EditCampaign: React.FC = () => {
     ));
   };
 
-  // Check if a slot overlaps with any other slot
+  
   const checkSlotOverlap = (currentIndex: number, openTime: string, closeTime: string): string | null => {
     if (!openTime || !closeTime) return null;
     
     const currentOpen = new Date(openTime);
     const currentClose = new Date(closeTime);
     
-    // Validate within campaign time
+    
     if (formData.startTime) {
       const campaignStart = new Date(formData.startTime);
       if (currentOpen < campaignStart) {
@@ -241,12 +218,12 @@ const EditCampaign: React.FC = () => {
       }
     }
     
-    // Check if openTime < closeTime
+    
     if (currentOpen >= currentClose) {
       return 'Thời gian mở phải nhỏ hơn thời gian đóng';
     }
     
-    // Check overlap with other slots
+    
     for (let i = 0; i < flashSlots.length; i++) {
       if (i === currentIndex) continue;
       
@@ -256,7 +233,7 @@ const EditCampaign: React.FC = () => {
       const slotOpen = new Date(slot.openTime);
       const slotClose = new Date(slot.closeTime);
       
-      // Check if slots overlap
+      
       const overlaps = (currentOpen < slotClose && currentClose > slotOpen);
       
       if (overlaps) {
@@ -272,17 +249,17 @@ const EditCampaign: React.FC = () => {
 
     if (!id) return;
 
-    // Basic validation
+    
     if (!formData.name || !formData.startTime || !formData.endTime) {
       showTikiNotification('Vui lòng điền đầy đủ thông tin bắt buộc', 'Lỗi', 'error');
       return;
     }
 
-    // Validate campaign times (Rule 1, 3)
+    
     const timeValidation = validateCampaignTimes(
       formData.startTime,
       formData.endTime,
-      true, // isEdit = true
+      true,
       campaign?.startTime,
       campaign?.status
     );
@@ -292,7 +269,7 @@ const EditCampaign: React.FC = () => {
       return;
     }
 
-    // Validate flash slots for FAST_SALE (Rule 3, 4)
+    
     if (campaign?.type === 'FAST_SALE') {
       if (flashSlots.length === 0) {
         showTikiNotification('Flash Sale cần ít nhất 1 khung giờ', 'Lỗi', 'error');
@@ -303,7 +280,7 @@ const EditCampaign: React.FC = () => {
         flashSlots,
         formData.startTime,
         formData.endTime,
-        true, // isEdit = true
+        true, 
         campaign?.status
       );
 
@@ -316,20 +293,20 @@ const EditCampaign: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Upload badge image if changed
+      
       let badgeIconUrl = formData.badgeIconUrl;
       if (badgeImageFile) {
         const uploadResult = await FileUploadService.uploadImage(badgeImageFile, 'Audio/campaigns');
         badgeIconUrl = uploadResult.url;
       }
 
-      // Prepare request data - convert datetime to ISO with timezone
+      
       const requestData: UpdateCampaignRequest = {
         ...formData,
         badgeIconUrl,
         startTime: toISOWithTimezone(formData.startTime),
         endTime: toISOWithTimezone(formData.endTime),
-        // Chỉ gửi flashSlots nếu là FAST_SALE
+        
         flashSlots:
           campaign?.type === 'FAST_SALE'
             ? flashSlots.map((slot) => ({
@@ -341,7 +318,7 @@ const EditCampaign: React.FC = () => {
             : undefined,
       };
 
-      // Submit
+     
       await CampaignService.updateCampaign(id, requestData);
       
       showTikiNotification('Cập nhật chiến dịch thành công!', 'Thành công', 'success');
@@ -405,7 +382,7 @@ const EditCampaign: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit}>
-        {/* Basic Information */}
+        
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-6 border border-gray-100">
           <h2 className="text-2xl font-bold mb-6 text-gray-900">Thông tin cơ bản</h2>
           
@@ -483,7 +460,7 @@ const EditCampaign: React.FC = () => {
           </div>
         </div>
 
-        {/* Badge Settings */}
+        
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-6 border border-gray-100">
           <h2 className="text-2xl font-bold mb-6 text-gray-900">Thiết lập huy hiệu</h2>
           
@@ -556,11 +533,9 @@ const EditCampaign: React.FC = () => {
           </div>
         </div>
 
-        {/* Time Settings */}
+        
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-6 border border-gray-100">
           <h2 className="text-2xl font-bold mb-6 text-gray-900">Thời gian chiến dịch</h2>
-          
-          {/* Warning if campaign has started */}
           {campaignHasStarted && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-3">
@@ -622,7 +597,7 @@ const EditCampaign: React.FC = () => {
           </div>
         </div>
 
-        {/* Flash Slots (only for FAST_SALE) */}
+        
         {campaign.type === 'FAST_SALE' && (
           <div className="bg-white rounded-2xl shadow-sm p-8 mb-6 border border-gray-100">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
