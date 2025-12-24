@@ -176,11 +176,17 @@ export const useAutoShippingFee = ({
         let totalShippingFee = 0;
         let hasError = false;
 
+        // Cache store addresses by storeId to avoid duplicate API calls
+        const storeAddressCache = new Map<string, { districtCode: string; wardCode: string }>();
+
         // Calculate shipping fee for each store
         const storeCalculations = Array.from(itemsByStore.entries()).map(async ([storeId, { items: storeItems, storeName }]) => {
           try {
-            // Get origin address from first product of this store
-            const firstStoreProduct = productById.get(storeItems[0].productId);
+            // Get origin address from store default address API
+            // Use first product of this store to get store default address
+            const firstProductId = storeItems[0].productId;
+            const firstStoreProduct = productById.get(firstProductId);
+            
             if (!firstStoreProduct) {
               storeShippingFees[storeId] = {
                 storeId,
@@ -192,15 +198,46 @@ export const useAutoShippingFee = ({
               return;
             }
 
-            const fromDistrictId = firstStoreProduct.districtCode ? Number(firstStoreProduct.districtCode) : NaN;
-            const fromWardCode = firstStoreProduct.wardCode || '';
+            // Check cache first
+            let storeAddress = storeAddressCache.get(storeId);
+            
+            // If not cached, fetch from API
+            if (!storeAddress) {
+              try {
+                const { CustomerStoreService } = await import('../services/customer/StoreService');
+                const defaultAddress = await CustomerStoreService.getStoreDefaultAddressByProduct(firstProductId);
+                
+                storeAddress = {
+                  districtCode: defaultAddress.districtCode,
+                  wardCode: defaultAddress.wardCode
+                };
+                
+                // Cache the result
+                storeAddressCache.set(storeId, storeAddress);
+                
+                console.log(`✅ Got store default address for store ${storeId}:`, storeAddress);
+              } catch (apiError: any) {
+                console.error(`❌ Error getting store default address for store ${storeId}:`, apiError);
+                storeShippingFees[storeId] = {
+                  storeId,
+                  storeName,
+                  fee: 0,
+                  error: `Không thể lấy địa chỉ cửa hàng: ${apiError?.message || 'Lỗi không xác định'}`
+                };
+                hasError = true;
+                return;
+              }
+            }
+
+            const fromDistrictId = storeAddress.districtCode ? Number(storeAddress.districtCode) : NaN;
+            const fromWardCode = storeAddress.wardCode || '';
             
             if (!fromWardCode || Number.isNaN(fromDistrictId)) {
               storeShippingFees[storeId] = {
                 storeId,
                 storeName,
                 fee: 0,
-                error: 'Thiếu thông tin địa chỉ gửi hàng'
+                error: 'Thiếu thông tin địa chỉ gửi hàng từ cửa hàng'
               };
               hasError = true;
               return;
