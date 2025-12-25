@@ -1834,6 +1834,62 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
           console.warn('⚠️ GHN order created but order status update failed. Backend may handle this automatically.');
         }
         
+        // Load lại thông tin vận chuyển GHN sau khi tạo thành công
+        try {
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📤 [GHN TRANSFER MODAL] API REQUEST - GET GHN Order Info (After Create)');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('Endpoint: GET /api/v1/ghn-orders/by-store-order/{storeOrderId}');
+          console.log('Request Attributes:');
+          console.log('  - Method: GET');
+          console.log('  - storeOrderId:', orderId);
+          console.log('  - Headers: { Authorization: "Bearer ...", Accept: "*/*" }');
+          console.log('═══════════════════════════════════════════════════════════════');
+          
+          console.log('🔄 Loading GHN order information after successful transfer...');
+          const ghnOrderInfo = await GhnService.getGhnOrderByStoreOrderId(orderId);
+          
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('📥 [GHN TRANSFER MODAL] API RESPONSE - GET GHN Order Info (After Create)');
+          console.log('═══════════════════════════════════════════════════════════════');
+          console.log('Response Status: Success');
+          console.log('Response Attributes:');
+          if (ghnOrderInfo && ghnOrderInfo.data) {
+            console.log('  - id:', ghnOrderInfo.data.id);
+            console.log('  - storeOrderId:', ghnOrderInfo.data.storeOrderId);
+            console.log('  - orderGhn:', ghnOrderInfo.data.orderGhn);
+            console.log('  - status:', ghnOrderInfo.data.status);
+            console.log('  - totalFee:', ghnOrderInfo.data.totalFee);
+            console.log('  - expectedDeliveryTime:', ghnOrderInfo.data.expectedDeliveryTime);
+            console.log('Response Body (Full):');
+            console.log(JSON.stringify(ghnOrderInfo, null, 2));
+          } else {
+            console.log('  - ghnOrderInfo: null or no data');
+          }
+          console.log('═══════════════════════════════════════════════════════════════');
+          
+          if (ghnOrderInfo && ghnOrderInfo.data) {
+            console.log('✅ GHN order information loaded successfully after transfer');
+            console.log('📋 Loaded GHN Order Details:', {
+              orderGhn: ghnOrderInfo.data.orderGhn,
+              status: ghnOrderInfo.data.status,
+              totalFee: ghnOrderInfo.data.totalFee,
+            });
+          } else {
+            console.warn('⚠️ GHN order information not found immediately after creation. It may take a moment to sync.');
+          }
+        } catch (error: any) {
+          console.error('═══════════════════════════════════════════════════════════════');
+          console.error('❌ [GHN TRANSFER MODAL] API ERROR - GET GHN Order Info (After Create)');
+          console.error('═══════════════════════════════════════════════════════════════');
+          console.error('Error:', error);
+          console.error('Error Message:', error?.message);
+          console.error('Error Status:', error?.status);
+          console.error('Error Data:', error?.data);
+          console.error('═══════════════════════════════════════════════════════════════');
+          console.warn('⚠️ Failed to load GHN order information after transfer. This is not critical - data will be available when parent component refreshes.');
+        }
+        
         const deliveryDate = new Date(expected_delivery_time).toLocaleString('vi-VN');
         
         showCenterSuccess(
