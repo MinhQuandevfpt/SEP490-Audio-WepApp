@@ -5,7 +5,7 @@ import Layout from '../../../components/Layout';
 import useCustomerReturns from '../../../hooks/useCustomerReturns';
 import ReturnHistory from '../../../components/ProfilePageComponents/ReturnHistory/ReturnHistory';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 const ReturnHistoryPage: React.FC = () => {
   const {
@@ -41,9 +41,7 @@ const ReturnHistoryPage: React.FC = () => {
             <Title level={2} className="!mb-1 !text-gray-900">
               Lịch sử hoàn trả
             </Title>
-            <Text type="secondary" className="text-base">
-              Theo dõi toàn bộ yêu cầu hoàn trả sản phẩm của bạn, bao gồm thông tin gói hàng và phí vận chuyển.
-            </Text>
+           
           </div>
 
           <ReturnHistory

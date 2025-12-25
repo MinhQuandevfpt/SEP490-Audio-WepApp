@@ -22,7 +22,14 @@ const useCustomerReturns = () => {
         size: pageSize,
       });
 
-      setReturns(res.data);
+      // Sort by createdAt descending (newest first)
+      const sortedData = [...res.data].sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA; // Descending order (newest first)
+      });
+
+      setReturns(sortedData);
       setTotal(res.total);
       setTotalPages(res.totalPages);
     } catch (e: any) {
