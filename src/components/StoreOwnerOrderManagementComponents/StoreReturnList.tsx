@@ -790,7 +790,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                       <Text strong className="ml-1">{record.ghnOrderCode}</Text>
                     </div>
                     {isWaitingForSync && (
-                      <Text type="secondary" className="text-xs text-orange-600 block">
+                      <Text type="secondary" className="text-xs text-orange-600 block hidden">
                         ⏳ Đang chờ đồng bộ từ GHN...
                       </Text>
                     )}
@@ -927,7 +927,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
               {!record.finalDecision && isShippingDelivered && (
                 <>
                   {isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                    <Text type="secondary" className="text-xs text-orange-600 block mb-2 hidden">
                       Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
                     </Text>
                   )}
@@ -987,7 +987,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                     </Text>
                   )}
                   {isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                    <Text type="secondary" className="text-xs text-orange-600 block mb-2 hidden">
                       Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
                     </Text>
                   )}

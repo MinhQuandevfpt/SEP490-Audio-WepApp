@@ -257,6 +257,16 @@ const PreCheckoutV2: React.FC = () => {
     Map<string, { shopVoucherId: string; code: string }>
   >(() => new Map());
 
+  // Serialize Map objects để dùng trong dependency array (tránh infinite loop)
+  const selectedShopVouchersKey = useMemo(
+    () => JSON.stringify(Array.from(selectedShopVouchers.entries())),
+    [selectedShopVouchers]
+  );
+  const selectedProductVouchersKey = useMemo(
+    () => JSON.stringify(Array.from(selectedProductVouchers.entries())),
+    [selectedProductVouchers]
+  );
+
   // Cache product voucher details để tính discount (tương tự ShopCartv2)
   type ProductVoucherDetail = {
     shopVoucherId: string;
@@ -363,6 +373,21 @@ const PreCheckoutV2: React.FC = () => {
         : allItems,
     [allItems, selectedCartItemIds]
   );
+
+  // Clear sessionStorage và redirect nếu cart rỗng sau khi checkout thành công
+  useEffect(() => {
+    // Nếu cart đã load xong và rỗng, nhưng có selectedCartItemIds từ sessionStorage
+    // Điều này có nghĩa là user đã checkout thành công và back về trang này
+    if (!isLoading && cart && (!cart.items || cart.items.length === 0)) {
+      if (selectedCartItemIds.length > 0) {
+        console.log('[PreCheckoutV2] Cart is empty after checkout, clearing session and redirecting...');
+        sessionStorage.removeItem(CHECKOUT_SESSION_KEY);
+        setSelectedCartItemIds([]);
+        // Redirect về trang giỏ hàng hoặc trang chủ
+        navigate('/cartv2', { replace: true });
+      }
+    }
+  }, [isLoading, cart, selectedCartItemIds.length, navigate]);
 
   // Items dùng cho logic tính phí vận chuyển (theo chuẩn CheckoutOrderContainer)
   const shippingItems = useMemo<UiCartItem[]>(
@@ -1156,6 +1181,11 @@ const PreCheckoutV2: React.FC = () => {
 
   // Gọi API preview checkout khi đã có địa chỉ + items + thông tin cửa hàng
   useEffect(() => {
+    // Guard: Không chạy nếu đang loading hoặc cart rỗng
+    if (isLoading || !cart || !cart.items || cart.items.length === 0) {
+      return;
+    }
+
     if (!selectedAddressId) return;
     if (!items.length) return;
 
@@ -1170,7 +1200,11 @@ const PreCheckoutV2: React.FC = () => {
       return;
     }
 
+    // Prevent infinite loop: cleanup flag
+    let isCancelled = false;
+
     const run = async () => {
+      if (isCancelled) return;
       const previewItems = items.map((item) => {
         const base: any = {
           type: item.type,
@@ -1191,6 +1225,8 @@ const PreCheckoutV2: React.FC = () => {
       // Merge store vouchers và product vouchers
       const storeVouchers = buildMergedStoreVouchersPayload();
 
+      if (isCancelled) return;
+
       const requestPayload: CheckoutPreviewRequest = {
         items: previewItems,
         addressId: selectedAddressId,
@@ -1208,10 +1244,14 @@ const PreCheckoutV2: React.FC = () => {
 
       try {
         const resp = await CustomerCartService.previewCheckout(requestPayload);
+        if (isCancelled) return;
+        
         console.log('Response Body:', resp);
         console.log('Response Body JSON:', JSON.stringify(resp, null, 2));
         setPreviewData(resp.data);
       } catch (err: any) {
+        if (isCancelled) return;
+        
         console.error('❌ [PreCheckoutV2] Failed to preview checkout:', err);
         
         // Parse error message sang tiếng Việt
@@ -1224,8 +1264,13 @@ const PreCheckoutV2: React.FC = () => {
     };
 
     void run();
+
+    return () => {
+      isCancelled = true;
+    };
+    // Use serialized keys instead of Map objects to prevent infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, selectedAddressId, productCache, selectedShopVouchers, selectedProductVouchers]);
+  }, [items, selectedAddressId, productCache, selectedShopVouchersKey, selectedProductVouchersKey, isLoading, cart]);
 
   // Trạng thái loading
   if (isLoading && !cart) {
@@ -1250,9 +1295,31 @@ const PreCheckoutV2: React.FC = () => {
 
   // Không có sản phẩm để pre-checkout
   if (!items.length) {
+    // Nếu đang loading, hiển thị loading state
+    if (isLoading) {
+      return (
+        <div className="flex min-h-[200px] items-center justify-center">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-orange-500" />
+            <span>Đang tải giỏ hàng...</span>
+          </div>
+        </div>
+      );
+    }
+
+    // Nếu cart rỗng sau khi checkout, hiển thị thông báo và nút quay lại
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-600">
-        Không có sản phẩm nào để thanh toán. Vui lòng quay lại giỏ hàng và chọn sản phẩm.
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center">
+        <p className="text-sm text-gray-600 mb-4">
+          Giỏ hàng của bạn đang trống. Vui lòng quay lại giỏ hàng và chọn sản phẩm.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/cartv2')}
+          className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
+        >
+          Quay lại giỏ hàng
+        </button>
       </div>
     );
   }
