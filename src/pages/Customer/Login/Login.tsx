@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Phone, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { GoogleLoginButton } from '../../../components/common';
@@ -12,12 +12,10 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
-    phone: '',
     password: '',
     rememberMe: false
   });
@@ -102,12 +100,6 @@ const Login: React.FC = () => {
       return;
     }
     
-    // Note: Phone login not supported by current API
-    if (loginMethod === 'phone') {
-      showCenterError(t('login.errors.phoneNotSupported'), t('login.errors.featureNotAvailable'));
-      return;
-    }
-    
     if (!loginData.password) {
       showCenterError(t('login.errors.passwordRequired'), t('login.errors.missingInfo'));
       return;
@@ -158,60 +150,24 @@ const Login: React.FC = () => {
         <p className="text-gray-600">{t('login.welcome')}</p>
       </div>
 
-      {/* Login Method Toggle */}
-      <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
-        <button
-          type="button"
-          onClick={() => setLoginMethod('email')}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-            loginMethod === 'email'
-              ? 'bg-white text-orange-500 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <Mail className="w-4 h-4 inline mr-2" />
-          {t('login.email')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setLoginMethod('phone')}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-            loginMethod === 'phone'
-              ? 'bg-white text-orange-500 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <Phone className="w-4 h-4 inline mr-2" />
-          {t('login.phone')}
-        </button>
-      </div>
-
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Email/Phone Input */}
+        {/* Email Input */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {loginMethod === 'email' ? t('login.email') : t('login.phone')}
+            {t('login.email')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              {loginMethod === 'email' ? (
-                <Mail className="h-5 w-5 text-gray-400" />
-              ) : (
-                <Phone className="h-5 w-5 text-gray-400" />
-              )}
+              <Mail className="h-5 w-5 text-gray-400" />
             </div>
             <input
-              type={loginMethod === 'email' ? 'email' : 'tel'}
-              name={loginMethod}
-              value={formData[loginMethod]}
+              type="email"
+              name="email"
+              value={formData.email}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder={
-                loginMethod === 'email' 
-                  ? t('login.emailPlaceholder')
-                  : t('login.phonePlaceholder')
-              }
+              placeholder={t('login.emailPlaceholder')}
               required
             />
           </div>
