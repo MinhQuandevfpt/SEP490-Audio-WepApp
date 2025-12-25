@@ -1,8 +1,3 @@
-/**
- * Return Bar Chart Component
- * Biểu đồ cột ngang thể hiện Top 5 sản phẩm bị trả hàng nhiều nhất
- */
-
 import React, { useState, useEffect } from 'react';
 import {
   BarChart,
@@ -260,7 +255,7 @@ const ReturnBarChart: React.FC<ReturnBarChartProps> = ({ returns, loading = fals
                           {item.product.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {item.product.categoryName || 'Không phân loại'}
+                          {item.product.categoryName || ''}
                         </p>
                       </div>
                     </div>

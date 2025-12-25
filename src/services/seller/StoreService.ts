@@ -10,6 +10,8 @@ import type {
   ToggleStoreStatusResponse,
   DebtComponentListResponse,
   DebtComponentPage,
+  UnpaidEndedOrder,
+  UnpaidEndedOrdersResponse,
 } from '../../types/seller';
 import { HttpInterceptor } from '../HttpInterceptor';
 import { getSellerStoreId, safeSetLocalStorage } from '../../utils/authHelper';
@@ -483,6 +485,48 @@ export class StoreService {
     } catch (error: any) {
       console.error('❌ Error getting debt components:', error);
       throw new Error(error?.message || 'Không thể tải breakdown các khoản nợ');
+    }
+  }
+
+  /**
+   * Get unpaid ended orders (Nợ cần thanh toán)
+   * GET /api/store/unpaid-ended
+   */
+  static async getUnpaidEndedOrders(): Promise<UnpaidEndedOrder[]> {
+    try {
+      const endpoint = `${API_URL}/store/unpaid-ended`;
+
+      console.log('📡 Calling unpaid ended orders API:', endpoint);
+
+      const response = await HttpInterceptor.get<UnpaidEndedOrdersResponse>(endpoint, {
+        userType: 'seller',
+        headers: {
+          Accept: '*/*',
+        },
+      });
+
+      console.log('📥 Unpaid ended orders API response:', response);
+
+      // Handle response format
+      if (response && response.data) {
+        return response.data;
+      }
+
+      // If response is directly an array
+      if (Array.isArray(response)) {
+        return response;
+      }
+
+      // If response has status and data
+      const respAny: any = response;
+      if (respAny && respAny.data && Array.isArray(respAny.data)) {
+        return respAny.data;
+      }
+
+      return [];
+    } catch (error: any) {
+      console.error('❌ Error getting unpaid ended orders:', error);
+      throw new Error(error?.message || 'Không thể tải danh sách nợ cần thanh toán');
     }
   }
 }
