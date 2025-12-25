@@ -314,6 +314,94 @@ const formatNumber = (value: string): string => {
 
 const parseFormattedNumber = (formattedValue: string): string => formattedValue.replace(/\./g, '');
 
+// Validate and limit price between 1.000 and 40.000.000
+// Returns the validated price value (as string) and shows warning if needed
+const validatePrice = (value: string, showWarningCallback?: (message: string, title: string) => void): string => {
+  const numericValue = parseFormattedNumber(value);
+  if (!numericValue) return '';
+  
+  // Check if the number is too large (more than 15 digits to prevent Number precision issues)
+  if (numericValue.length > 15) {
+    if (showWarningCallback) {
+      showWarningCallback(
+        `Giá trị quá lớn. Giá tối đa là ${formatNumber('40000000')} VND. Giá đã được tự động điều chỉnh về ${formatNumber('40000000')} VND.`,
+        'Cảnh báo'
+      );
+    }
+    return '40000000';
+  }
+  
+  const numValue = Number(numericValue);
+  
+  // Check for NaN or Infinity
+  if (!Number.isFinite(numValue) || isNaN(numValue)) {
+    return '';
+  }
+  
+  const MIN_PRICE = 1000;
+  const MAX_PRICE = 40000000;
+  
+  if (numValue < MIN_PRICE) {
+    if (showWarningCallback) {
+      showWarningCallback(
+        `Giá tối thiểu là ${formatNumber(String(MIN_PRICE))} VND. Giá đã được tự động điều chỉnh về ${formatNumber(String(MIN_PRICE))} VND.`,
+        'Cảnh báo'
+      );
+    }
+    return String(MIN_PRICE);
+  }
+  
+  if (numValue > MAX_PRICE) {
+    if (showWarningCallback) {
+      showWarningCallback(
+        `Giá tối đa là ${formatNumber(String(MAX_PRICE))} VND. Giá đã được tự động điều chỉnh về ${formatNumber(String(MAX_PRICE))} VND.`,
+        'Cảnh báo'
+      );
+    }
+    return String(MAX_PRICE);
+  }
+  
+  return numericValue;
+};
+
+// Validate and limit stock quantity to maximum 500
+// Returns the validated stock value (as string) and shows warning if needed
+const validateStock = (value: string, showWarningCallback?: (message: string, title: string) => void): string => {
+  const numericValue = value.replace(/[^\d]/g, '');
+  if (!numericValue) return '0';
+  
+  const numValue = Number(numericValue);
+  
+  // Check for NaN or Infinity
+  if (!Number.isFinite(numValue) || isNaN(numValue)) {
+    return '0';
+  }
+  
+  const MAX_STOCK = 500;
+  
+  if (numValue < 0) {
+    if (showWarningCallback) {
+      showWarningCallback(
+        `Số lượng kho hàng không được nhỏ hơn 0. Đã được tự động điều chỉnh về 0.`,
+        'Cảnh báo'
+      );
+    }
+    return '0';
+  }
+  
+  if (numValue > MAX_STOCK) {
+    if (showWarningCallback) {
+      showWarningCallback(
+        `Số lượng kho hàng tối đa là ${MAX_STOCK} sản phẩm. Đã được tự động điều chỉnh về ${MAX_STOCK} sản phẩm.`,
+        'Cảnh báo'
+      );
+    }
+    return String(MAX_STOCK);
+  }
+  
+  return numericValue;
+};
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -1261,10 +1349,15 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
 
   // Apply bulk values to all variants
   const applyBulkValues = () => {
+    // Validate bulkPrice before applying
+    const validatedBulkPrice = bulkPrice ? validatePrice(formatNumber(bulkPrice), showCenterError) : '';
+    // Validate bulkStock before applying
+    const validatedBulkStock = bulkStock ? validateStock(bulkStock, showCenterError) : '';
+    
     setVariants(prev => prev.map(v => ({
       ...v,
-      variantPrice: bulkPrice || v.variantPrice,
-      variantStock: bulkStock || v.variantStock,
+      variantPrice: validatedBulkPrice || v.variantPrice,
+      variantStock: validatedBulkStock || v.variantStock,
       variantSku: bulkSku || v.variantSku
     })));
   };
@@ -1882,11 +1975,54 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700"><span className="text-red-500">* </span>Giá (VND)</label>
-                  <input name="price" value={formatNumber(form.price)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); onChange({ ...e, target: { ...e.target, name: 'price', value: n } } as any); }} type="text" placeholder="VD: 5.000.000" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
+                  <input 
+                    name="price" 
+                    value={formatNumber(form.price)} 
+                    onChange={(e) => { 
+                      const f = formatNumber(e.target.value);
+                      const numericValue = parseFormattedNumber(f);
+                      onChange({ ...e, target: { ...e.target, name: 'price', value: numericValue } } as any); 
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pastedText = e.clipboardData.getData('text');
+                      const f = formatNumber(pastedText);
+                      const numericValue = parseFormattedNumber(f);
+                      onChange({ target: { name: 'price', value: numericValue } } as any);
+                    }}
+                    onBlur={(e) => {
+                      const f = formatNumber(e.target.value);
+                      const validated = validatePrice(f, showCenterError);
+                      if (validated !== form.price) {
+                        onChange({ target: { name: 'price', value: validated } } as any);
+                      }
+                    }}
+                    type="text" 
+                    placeholder="VD: 5.000.000 (Từ 1.000 - 40.000.000)" 
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Giá từ {formatNumber('1000')} đến {formatNumber('40000000')} VND</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700"><span className="text-red-500">* </span>Kho hàng</label>
-                  <input name="stockQuantity" value={form.stockQuantity} onChange={onChange} type="number" min="0" placeholder="VD: 50" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" />
+                  <input 
+                    name="stockQuantity" 
+                    value={form.stockQuantity} 
+                    onChange={(e) => {
+                      const numericValue = e.target.value.replace(/[^\d]/g, '');
+                      onChange({ ...e, target: { ...e.target, name: 'stockQuantity', value: numericValue } } as any);
+                    }}
+                    onBlur={(e) => {
+                      const validated = validateStock(e.target.value, showCenterError);
+                      if (validated !== form.stockQuantity) {
+                        onChange({ target: { name: 'stockQuantity', value: validated } } as any);
+                      }
+                    }}
+                    type="text" 
+                    placeholder="VD: 50 (Tối đa 500)" 
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors" 
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Số lượng tối đa: 500 sản phẩm</p>
                 </div>
               </div>
             </>
@@ -2001,23 +2137,48 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                         type="text"
                         value={formatNumber(bulkPrice)}
                         onChange={(e) => {
-                          const parsed = parseFormattedNumber(e.target.value);
-                          setBulkPrice(parsed);
+                          const f = formatNumber(e.target.value);
+                          const numericValue = parseFormattedNumber(f);
+                          setBulkPrice(numericValue);
                         }}
-                        placeholder="Nhập vào"
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedText = e.clipboardData.getData('text');
+                          const f = formatNumber(pastedText);
+                          const numericValue = parseFormattedNumber(f);
+                          setBulkPrice(numericValue);
+                        }}
+                        onBlur={(e) => {
+                          const f = formatNumber(e.target.value);
+                          const validated = validatePrice(f, showCenterError);
+                          if (validated !== bulkPrice) {
+                            setBulkPrice(validated);
+                          }
+                        }}
+                        placeholder="Nhập vào (1.000 - 40.000.000)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
                       />
+                      <p className="mt-1 text-xs text-gray-500">Giá từ {formatNumber('1000')} đến {formatNumber('40000000')} VND</p>
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-gray-700 mb-1">Kho hàng</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
                         value={bulkStock}
-                        onChange={(e) => setBulkStock(e.target.value)}
-                        placeholder="Nhập vào"
+                        onChange={(e) => {
+                          const numericValue = e.target.value.replace(/[^\d]/g, '');
+                          setBulkStock(numericValue);
+                        }}
+                        onBlur={(e) => {
+                          const validated = validateStock(e.target.value, showCenterError);
+                          if (validated !== bulkStock) {
+                            setBulkStock(validated);
+                          }
+                        }}
+                        placeholder="Nhập vào (Tối đa 500)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
                       />
+                      <p className="mt-1 text-xs text-gray-500">Tối đa: 500 sản phẩm</p>
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -2030,6 +2191,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                         placeholder="Nhập vào"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500"
                       />
+                      <p className="mt-1 text-xs text-gray-500">&nbsp;</p>
                     </div>
                     <button
                       type="button"
@@ -2082,21 +2244,46 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                                 type="text"
                                 value={formatNumber(variant.variantPrice)}
                                 onChange={(e) => {
-                                  const parsed = parseFormattedNumber(e.target.value);
-                                  updateVariantField(idx, 'variantPrice', parsed);
+                                  const f = formatNumber(e.target.value);
+                                  const numericValue = parseFormattedNumber(f);
+                                  updateVariantField(idx, 'variantPrice', numericValue);
                                 }}
-                                placeholder="Nhập vào (ví dụ: 1.000.000)"
+                                onPaste={(e) => {
+                                  e.preventDefault();
+                                  const pastedText = e.clipboardData.getData('text');
+                                  const f = formatNumber(pastedText);
+                                  const numericValue = parseFormattedNumber(f);
+                                  updateVariantField(idx, 'variantPrice', numericValue);
+                                }}
+                                onBlur={(e) => {
+                                  const f = formatNumber(e.target.value);
+                                  const validated = validatePrice(f, showCenterError);
+                                  if (validated !== variant.variantPrice) {
+                                    updateVariantField(idx, 'variantPrice', validated);
+                                  }
+                                }}
+                                placeholder="1.000 - 40.000.000"
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                                title={`Giá từ ${formatNumber('1000')} đến ${formatNumber('40000000')} VND`}
                               />
                             </td>
                             <td className="px-4 py-3">
                               <input
-                                type="number"
-                                min="0"
+                                type="text"
                                 value={variant.variantStock}
-                                onChange={(e) => updateVariantField(idx, 'variantStock', e.target.value)}
-                                placeholder="0"
+                                onChange={(e) => {
+                                  const numericValue = e.target.value.replace(/[^\d]/g, '');
+                                  updateVariantField(idx, 'variantStock', numericValue);
+                                }}
+                                onBlur={(e) => {
+                                  const validated = validateStock(e.target.value, showCenterError);
+                                  if (validated !== variant.variantStock) {
+                                    updateVariantField(idx, 'variantStock', validated);
+                                  }
+                                }}
+                                placeholder="0 (Tối đa 500)"
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500"
+                                title="Số lượng tối đa: 500 sản phẩm"
                               />
                             </td>
                             <td className="px-4 py-3">
@@ -2171,7 +2358,30 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
             <div key={idx} className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
               <input type="number" min="1" value={b.fromQuantity} onChange={(e) => setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, fromQuantity: e.target.value } : x))} placeholder="Từ SL" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
               <input type="number" min="1" value={b.toQuantity} onChange={(e) => setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, toQuantity: e.target.value } : x))} placeholder="Đến SL" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-              <input value={formatNumber(b.unitPrice)} onChange={(e) => { const f = formatNumber(e.target.value); const n = parseFormattedNumber(f); setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, unitPrice: n } : x)); }} placeholder="Đơn giá" className="w-full px-3 py-2 border border-gray-300 rounded-lg md:col-span-3" />
+              <input 
+                value={formatNumber(b.unitPrice)} 
+                onChange={(e) => { 
+                  const f = formatNumber(e.target.value);
+                  const numericValue = parseFormattedNumber(f);
+                  setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, unitPrice: numericValue } : x)); 
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const pastedText = e.clipboardData.getData('text');
+                  const f = formatNumber(pastedText);
+                  const numericValue = parseFormattedNumber(f);
+                  setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, unitPrice: numericValue } : x));
+                }}
+                onBlur={(e) => {
+                  const f = formatNumber(e.target.value);
+                  const validated = validatePrice(f, showCenterError);
+                  if (validated !== b.unitPrice) {
+                    setBulkDiscounts(prev => prev.map((x, i) => i === idx ? { ...x, unitPrice: validated } : x));
+                  }
+                }}
+                placeholder="Đơn giá (1.000 - 40.000.000)" 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg md:col-span-3" 
+              />
               <button type="button" onClick={() => setBulkDiscounts(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-2 text-sm rounded bg-red-50 text-red-700">Xoá</button>
             </div>
           ))}
@@ -2200,6 +2410,8 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
         </div>
       </SectionCard>
 
+      {/* Hidden by requirement: Warehouse & Shipping section */}
+      {false && currentStep === 2 && (
       <SectionCard title="Kho hàng & Vận chuyển" description="Địa chỉ kho và phương thức giao hàng cho đơn">
         <div className="space-y-5">
           {/* Warehouse & Location */}
@@ -2245,7 +2457,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                       {provincesLoading 
                         ? 'Đang tải tỉnh...' 
                         : selectedProvince 
-                          ? selectedProvince.ProvinceName 
+                          ? selectedProvince?.ProvinceName || 'Chọn tỉnh/thành phố'
                           : 'Chọn tỉnh/thành phố'
                       }
                     </span>
@@ -2360,7 +2572,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                         : districtsLoading 
                           ? 'Đang tải quận/huyện...' 
                           : selectedDistrict 
-                            ? selectedDistrict.DistrictName 
+                            ? selectedDistrict?.DistrictName || 'Chọn quận/huyện'
                             : 'Chọn quận/huyện'
                       }
                     </span>
@@ -2475,7 +2687,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                         : wardsLoading 
                           ? 'Đang tải phường/xã...' 
                           : selectedWard 
-                            ? selectedWard.WardName 
+                            ? selectedWard?.WardName || 'Chọn phường/xã'
                             : 'Chọn phường/xã'
                       }
                     </span>
@@ -2591,6 +2803,7 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
 
         </div>
       </SectionCard>
+      )}
 
       <SectionCard title="Thông số kỹ thuật theo danh mục" description="Các thuộc tính chỉ hiển thị khi đã chọn danh mục">
         {form.categoryIds.length === 0 && (

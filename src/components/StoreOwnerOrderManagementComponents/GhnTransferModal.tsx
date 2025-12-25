@@ -358,7 +358,7 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
     pick_station_id: 0,
     insurance_value: 0,
     service_id: 0,
-    service_type_id: 0,
+    service_type_id: 2, // Mặc định chọn Standard
     coupon: '',
     pick_shift: [],
     items: [],
@@ -2025,12 +2025,11 @@ const GhnTransferModal: React.FC<Props> = ({ orderId, storeOrderTotal, onClose, 
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Loại dịch vụ *</label>
                   <select
-                    value={formData.service_type_id || ''}
+                    value={formData.service_type_id || 2}
                     onChange={(e) => handleInputChange('service_type_id', Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 cursor-not-allowed"
                   >
-                    <option value="">-- Chọn loại dịch vụ --</option>
-                    <option value="1">1: Express</option>
                     <option value="2">2: Standard</option>
                   </select>
                 </div>
