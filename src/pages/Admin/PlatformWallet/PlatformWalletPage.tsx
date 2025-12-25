@@ -147,7 +147,7 @@ const PlatformWalletPage: React.FC = () => {
                 {/* Nợ shop */}
                 <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Nợ shop</span>
+                    <span className="text-sm font-medium text-gray-700">Shop nợ</span>
                     <Wallet className="w-4 h-4 text-orange-600" />
                   </div>
                   <p className="text-2xl font-bold text-orange-600">
