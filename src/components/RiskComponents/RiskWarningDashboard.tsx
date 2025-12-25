@@ -440,7 +440,7 @@ const RiskWarningDashboard: React.FC = () => {
                     {formatCurrency(riskData.debtBalance)}
                   </div>
                   <small className="text-xs text-gray-500">
-                    Bao gồm: nợ ship chênh lệch, phí quay đầu, phí return shipping
+                    Bao gồm: nợ ship chênh lệch, phí quay đầu, phí vận chuyển hoàn trả
                   </small>
                 </div>
 
