@@ -11,6 +11,11 @@ import { ProductReviewService } from '../../services/customer/ProductReviewServi
 import { FileUploadService } from '../../services/FileUploadService';
 import ReturnRequestModal from './ReturnRequestModal';
 import CustomerCartService from '../../services/customer/CartService';
+import { ShippingService, type GhnLeadtimeResponseData } from '../../services/customer/ShippingService';
+import { ProductListService, type Product } from '../../services/customer/ProductListService';
+import { useProvinces } from '../../hooks/useProvinces';
+import { useDistricts } from '../../hooks/useDistricts';
+import { useWards } from '../../hooks/useWards';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -79,6 +84,38 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
   const [showCancelShippingModal, setShowCancelShippingModal] = useState(false);
   const [isCancellingShipping, setIsCancellingShipping] = useState(false);
+  
+  // Store leadtime data: Map<storeOrderId, GhnLeadtimeResponseData>
+  const [storeLeadtimes, setStoreLeadtimes] = useState<Record<string, GhnLeadtimeResponseData>>({});
+  const [storeLeadtimesLoading, setStoreLeadtimesLoading] = useState<Set<string>>(new Set());
+  
+  // Product cache để lấy store address và weight
+  const [productCache, setProductCache] = useState<Map<string, Product>>(() => new Map());
+  
+  // Hooks để convert customer address
+  const { provinces } = useProvinces();
+  const customerProvince = useMemo(() => {
+    return provinces.find(p => 
+      p.ProvinceName.toLowerCase().includes(order.province.toLowerCase()) ||
+      order.province.toLowerCase().includes(p.ProvinceName.toLowerCase())
+    );
+  }, [provinces, order.province]);
+  const { districts } = useDistricts(customerProvince?.ProvinceID || null);
+  const customerDistrict = useMemo(() => {
+    if (!districts.length) return null;
+    return districts.find(d => 
+      d.DistrictName.toLowerCase().includes(order.district.toLowerCase()) ||
+      order.district.toLowerCase().includes(d.DistrictName.toLowerCase())
+    );
+  }, [districts, order.district]);
+  const { wards } = useWards(customerDistrict?.DistrictID || null);
+  const customerWard = useMemo(() => {
+    if (!wards.length) return null;
+    return wards.find(w => 
+      w.WardName.toLowerCase().includes(order.ward.toLowerCase()) ||
+      order.ward.toLowerCase().includes(w.WardName.toLowerCase())
+    );
+  }, [wards, order.ward]);
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
@@ -194,6 +231,152 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         });
       });
   };
+
+  // Helper: tính serviceTypeId cho storeOrder dựa trên trọng lượng
+  const calculateStoreOrderServiceType = (
+    items: OrderItem[],
+    storeId: string,
+    productCache: Map<string, Product>
+  ): 2 | 5 => {
+    let totalWeightGr = 0;
+    items.forEach((item) => {
+      if (item.type !== 'PRODUCT') return;
+      const product = productCache.get(item.refId);
+      if (!product || product.storeId !== storeId) return;
+      const weightKg = product.weight && product.weight > 0 ? product.weight : 0.5;
+      totalWeightGr += Math.round(weightKg * 1000) * item.quantity;
+    });
+    // ≤ 7500g → service_type_id = 2 (Hàng nhẹ), > 7500g → 5 (Hàng nặng)
+    return totalWeightGr <= 7500 ? 2 : 5;
+  };
+
+  // Load product details để lấy store address và weight
+  useEffect(() => {
+    const loadProductDetails = async () => {
+      const productIds = Array.from(
+        new Set(
+          storeOrders
+            .flatMap(so => so.items || [])
+            .filter(item => item.type === 'PRODUCT')
+            .map(item => item.refId)
+            .filter((id): id is string => !!id && !productCache.has(id))
+        )
+      );
+
+      if (productIds.length === 0) return;
+
+      const productDetails = await Promise.all(
+        productIds.map(async (productId) => {
+          try {
+            const res = await ProductListService.getProductById(productId);
+            return res.data;
+          } catch (error) {
+            console.error(`Failed to fetch product ${productId}:`, error);
+            return null;
+          }
+        })
+      );
+
+      const next = new Map(productCache);
+      productDetails.forEach((product) => {
+        if (product) {
+          next.set(product.productId, product);
+        }
+      });
+
+      if (productDetails.some(Boolean)) {
+        setProductCache(next);
+      }
+    };
+
+    if (storeOrders.length > 0) {
+      void loadProductDetails();
+    }
+  }, [storeOrders, productCache]);
+
+  // Load leadtime cho mỗi storeOrder khi có đủ thông tin
+  useEffect(() => {
+    if (storeOrders.length === 0) return;
+    
+    // Cần có customer address đã convert được
+    if (!customerDistrict || !customerWard) {
+      return;
+    }
+
+    const toDistrictId = customerDistrict.DistrictID;
+    const toWardCode = customerWard.WardCode;
+
+    // Gọi API leadtime cho mỗi storeOrder
+    storeOrders.forEach((storeOrder) => {
+      // Lấy thông tin store address từ product đầu tiên trong storeOrder
+      const firstProductItem = storeOrder.items?.find((item) => item.type === 'PRODUCT');
+      if (!firstProductItem) return;
+
+      const product = productCache.get(firstProductItem.refId);
+      if (!product) return;
+
+      // Lấy districtCode và wardCode từ store
+      const storeDistrictCode = product.store?.districtCode || product.districtCode;
+      const storeWardCode = product.store?.wardCode || product.wardCode;
+
+      if (!storeDistrictCode || !storeWardCode) {
+        console.warn(`[OrderCard] Missing store address info for storeOrder ${storeOrder.id}`);
+        return;
+      }
+
+      // Convert districtCode (string) to district_id (number)
+      const fromDistrictId = parseInt(storeDistrictCode, 10);
+      if (isNaN(fromDistrictId)) {
+        console.warn(`[OrderCard] Invalid districtCode for storeOrder ${storeOrder.id}: ${storeDistrictCode}`);
+        return;
+      }
+
+      // Tính serviceTypeId cho storeOrder này
+      const serviceTypeId = calculateStoreOrderServiceType(
+        storeOrder.items || [],
+        storeOrder.storeId,
+        productCache
+      );
+
+      // Map serviceTypeId to service_id: 2 -> 53322, 5 -> 100039
+      const serviceId = serviceTypeId === 2 ? 53322 : 100039;
+
+      // Kiểm tra xem đã load chưa hoặc đang load
+      if (storeLeadtimes[storeOrder.id] || storeLeadtimesLoading.has(storeOrder.id)) {
+        return;
+      }
+
+      // Set loading state
+      setStoreLeadtimesLoading((prev) => new Set(prev).add(storeOrder.id));
+
+      // Gọi API leadtime
+      ShippingService.getGhnLeadtime({
+        from_district_id: fromDistrictId,
+        from_ward_code: storeWardCode,
+        to_district_id: toDistrictId,
+        to_ward_code: toWardCode,
+        service_id: serviceId,
+      })
+        .then((response) => {
+          if (response.code === 200 && response.data) {
+            setStoreLeadtimes((prev) => ({
+              ...prev,
+              [storeOrder.id]: response.data,
+            }));
+          }
+        })
+        .catch((error) => {
+          console.error(`[OrderCard] Failed to get leadtime for storeOrder ${storeOrder.id}:`, error);
+        })
+        .finally(() => {
+          setStoreLeadtimesLoading((prev) => {
+            const next = new Set(prev);
+            next.delete(storeOrder.id);
+            return next;
+          });
+        });
+    });
+  }, [storeOrders, productCache, customerDistrict, customerWard, storeLeadtimes, storeLeadtimesLoading]);
 
   // Pre-load review status for all items in this order when card is mounted / reloaded
   useEffect(() => {
@@ -550,7 +733,39 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <div className="space-y-4">
               {storeOrders.map((storeOrder) => (
                 <div key={storeOrder.id} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                  <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{storeOrder.storeName}</span>
+                      </div>
+                      {/* Thời gian giao hàng dự kiến - chỉ hiển thị khi chưa giao hàng và chưa có GHN code */}
+                      {!ghnOrderData[storeOrder.id]?.orderGhn && 
+                       storeOrder.status !== 'SHIPPING' && 
+                       storeOrder.status !== 'DELIVERY_SUCCESS' && 
+                       storeOrder.status !== 'COMPLETED' && (
+                        <>
+                          {storeLeadtimesLoading.has(storeOrder.id) ? (
+                            <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                              <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500" />
+                              <span>Đang tính thời gian giao hàng...</span>
+                            </div>
+                          ) : storeLeadtimes[storeOrder.id] ? (
+                            <div className="mt-1 text-xs text-orange-600">
+                              ⏱️ Giao hàng dự kiến: {(() => {
+                                const baseDate = new Date(storeLeadtimes[storeOrder.id].leadtime_order.to_estimate_date);
+                                // Cộng thêm 48 giờ (2 ngày)
+                                const estimatedDate = new Date(baseDate.getTime() + 48 * 60 * 60 * 1000);
+                                return estimatedDate.toLocaleDateString('vi-VN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                });
+                              })()}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
                     <span style={getStatusBadgeStyle(storeOrder.status)} className="text-xs">
                       {getStatusLabel(storeOrder.status)}
                     </span>
@@ -986,13 +1201,24 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   danger 
                   className="h-10 w-full" 
                   style={{ borderRadius: '10px' }} 
-                  onClick={() => setShowCancelShippingModal(true)}
+                  onClick={() => {
+                    message.warning('Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.', 5);
+                    setShowCancelShippingModal(true);
+                  }}
                 >
                   Yêu cầu hủy giao hàng
                 </Button>
               )}
               {canCancelOrder(order.status) && !canCancelShipping && (
-                <Button danger className="h-10 w-full" style={{ borderRadius: '10px' }} onClick={() => setShowCancelModal(true)}>
+                <Button 
+                  danger 
+                  className="h-10 w-full" 
+                  style={{ borderRadius: '10px' }} 
+                  onClick={() => {
+                    message.warning('Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.', 5);
+                    setShowCancelModal(true);
+                  }}
+                >
                   {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
                 </Button>
               )}
@@ -1030,7 +1256,18 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <h3 className="text-lg font-semibold text-gray-900">
               {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
             </h3>
-            <p className="mt-3 text-sm text-gray-600">
+            
+            {/* Cảnh báo về điểm uy tín */}
+            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+              <p className="text-sm font-medium text-orange-800">
+                ⚠️ Cảnh báo về điểm uy tín
+              </p>
+              <p className="mt-2 text-sm text-orange-700">
+                Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.
+              </p>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-600">
               Bạn có chắc chắn muốn {order.status === 'AWAITING_SHIPMENT' ? 'gửi yêu cầu hủy' : 'hủy'} đơn hàng này không?
             </p>
 
@@ -1100,7 +1337,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                 ⚠️ Cảnh báo về điểm uy tín
               </p>
               <p className="mt-2 text-sm text-orange-700">
-                Yêu cầu hủy đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ ảnh hưởng đến thao tác mua hàng của bạn.
+                Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.
               </p>
             </div>
             <p className="mt-4 text-sm text-gray-600">

@@ -97,6 +97,11 @@ export const STORE_ORDER_STATUS_CONFIG: Record<StoreOrderStatus, StatusConfig> =
     color: 'text-orange-600',
     bgColor: 'bg-orange-50 border-orange-200',
   },
+  RETURNING: {
+    label: 'Đang trả hàng',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50 border-orange-200',
+  },
   RETURNED: {
     label: 'Đã trả hàng',
     color: 'text-gray-600',

@@ -1661,11 +1661,6 @@ const AIChatbot: React.FC = () => {
     chatContext.setProductIdForAdvise(null);
   };
 
-
-  const handleClearChat = () => {
-    setShowClearConfirm(true);
-  };
-
   const confirmClearChat = () => {
     setShowClearConfirm(false);
     
@@ -1971,16 +1966,6 @@ const AIChatbot: React.FC = () => {
                   )}
             </div>
             <div className="flex items-center gap-2">
-                  {/* Clear chat button for AI mode or list mode with selected store */}
-                  {(chatMode === 'ai' || (chatMode === 'list' && selectedStore)) && (
-              <button
-                onClick={handleClearChat}
-                className="hover:bg-white/20 p-2 rounded-full transition-colors"
-                title="Xóa cuộc trò chuyện"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
-                  )}
                   {/* Switch to conversations list from AI mode */}
                   {chatMode === 'ai' && (
                     <button

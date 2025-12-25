@@ -584,6 +584,7 @@ export type StoreOrderStatus =
   | 'COMPLETED'                // Đã giao hàng
   | 'CANCELLED'                // Đã hủy
   | 'RETURN_REQUESTED'         // Yêu cầu trả hàng
+  | 'RETURNING'                // Đang trả hàng
   | 'RETURNED';                // Đã trả hàng
 
 // Store Order Item
@@ -653,6 +654,11 @@ export interface StoreOrder {
     discount: number;
   }[];
   paymentMethod?: string;
+  // New fields from API response
+  platformFeeAmount?: number;
+  platformFeePercentage?: number;
+  netPayoutToStore?: number;
+  confirmedAt?: string | null;
 }
 
 // Store Orders List Response

@@ -144,6 +144,17 @@ const FinancePage: React.FC = () => {
     return colorMap[type] || 'default';
   };
 
+  // Remove text in parentheses and arrow notations (e.g., "(payout vào ví)", "pending->default")
+  const removeParenthesesText = (text: string): string => {
+    if (!text) return text;
+    // Remove content in parentheses: (text)
+    let cleaned = text.replace(/\([^)]*\)/g, '').trim();
+    // Remove arrow notations: ->text or text->
+    cleaned = cleaned.replace(/->[^\s]*/g, '').trim();
+    cleaned = cleaned.replace(/[^\s]*->/g, '').trim();
+    return cleaned;
+  };
+
   // Parse and format transaction description to Vietnamese
   const formatTransactionDescription = (description: string, type: TransactionType) => {
     // TOPUP - Nạp tiền qua PayOS
@@ -613,7 +624,7 @@ const FinancePage: React.FC = () => {
                   value={filters.type}
                   onChange={handleTypeChange}
                 >
-                  <Select.Option value="DEPOSIT">Nạp tiền</Select.Option>
+                  <Select.Option value="DEPOSIT">Tiền bán hàng</Select.Option>
                   <Select.Option value="TOPUP">Nạp tiền vào ví</Select.Option>
                   <Select.Option value="PENDING_HOLD">Giữ tiền chờ xác nhận</Select.Option>
                   <Select.Option value="RELEASE_PENDING">Giải phóng tiền chờ</Select.Option>
@@ -714,7 +725,7 @@ const FinancePage: React.FC = () => {
                         {/* Header Row */}
                         <div className="flex flex-wrap items-center gap-3">
                           <Tag color={getTransactionTypeColor(transaction.type)} className="text-sm font-medium">
-                            {transaction.displayType || transaction.type}
+                            {removeParenthesesText(transaction.displayType || transaction.type)}
                           </Tag>
                           <Text code className="text-xs bg-gray-100 px-2 py-1 rounded">
                             {transaction.transactionId.slice(0, 8).toUpperCase()}

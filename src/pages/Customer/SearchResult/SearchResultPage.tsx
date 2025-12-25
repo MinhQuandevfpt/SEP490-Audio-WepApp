@@ -276,35 +276,82 @@ const SearchResultPage: React.FC = () => {
     
     // Check if product has variants and calculate min price
     if (product.variants && product.variants.length > 0) {
-      const variantPrices = product.variants.map(v => v.price);
-      const minVariantPrice = Math.min(...variantPrices);
-      originalPrice = minVariantPrice;
-      discountedPrice = minVariantPrice;
+      const variantPrices = product.variants
+        .map(v => v.price)
+        .filter(p => p > 0);
+      if (variantPrices.length > 0) {
+        const minVariantPrice = Math.min(...variantPrices);
+        originalPrice = minVariantPrice;
+        discountedPrice = minVariantPrice;
+      }
     }
     
-    // Check platform vouchers ONLY (Flash Sale, etc.)
-    if (product.vouchers?.platformVouchers && product.vouchers.platformVouchers.length > 0) {
+    // Check platform vouchers ONLY (Flash Sale, etc.) - Same logic as ProductSuggestions
+    const hasCampaign = product.vouchers?.platformVouchers && product.vouchers.platformVouchers.length > 0;
+    const needsCampaignCalculation =
+      (product.discountPrice === null || product.discountPrice === undefined) &&
+      (product.finalPrice === null || product.finalPrice === undefined || discountedPrice === originalPrice) &&
+      originalPrice > 0 &&
+      hasCampaign;
+
+    if (needsCampaignCalculation && hasCampaign && product.vouchers?.platformVouchers) {
       const campaign = product.vouchers.platformVouchers[0];
       if (campaign.vouchers && campaign.vouchers.length > 0) {
         const voucher = campaign.vouchers[0];
-        
-        // Check if voucher is active
         const now = new Date();
-        const isActive = 
-          now >= new Date(voucher.startTime) && 
-          now <= new Date(voucher.endTime) && 
-          voucher.status === 'ACTIVE';
         
-        if (isActive && voucher.type === 'PERCENT' && voucher.discountPercent) {
-          discountPercent = voucher.discountPercent;
-          discountedPrice = originalPrice * (1 - discountPercent / 100);
-        } else if (isActive && voucher.type === 'FIXED' && voucher.discountValue) {
-          discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
-          if (originalPrice > 0) {
-            discountPercent = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
+        // Check if voucher is active - handle both Flash Sale (slot time) and regular campaigns
+        // Use type casting to access optional slot fields (may not be in interface)
+        const voucherAny = voucher as any;
+        let isActive = false;
+        
+        if (voucherAny.slotOpenTime && voucherAny.slotCloseTime) {
+          // Flash Sale: check slot time và slot status
+          const slotOpen = new Date(voucherAny.slotOpenTime);
+          const slotClose = new Date(voucherAny.slotCloseTime);
+          isActive =
+            now >= slotOpen &&
+            now <= slotClose &&
+            voucherAny.slotStatus === 'ACTIVE';
+        } else if (voucher.startTime && voucher.endTime) {
+          // Regular campaign: check voucher time
+          const startTime = new Date(voucher.startTime);
+          const endTime = new Date(voucher.endTime);
+          isActive =
+            now >= startTime &&
+            now <= endTime &&
+            voucher.status === 'ACTIVE';
+        } else {
+          // Nếu không có thời gian, chỉ check status
+          isActive = voucher.status === 'ACTIVE';
+        }
+        
+        if (isActive) {
+          // Tính giá sau giảm dựa trên type của voucher
+          if (voucher.type === 'PERCENT' && voucher.discountPercent) {
+            // PERCENT: price - (price * discountPercent / 100)
+            const discountAmount = (originalPrice * voucher.discountPercent) / 100;
+            // Áp dụng maxDiscountValue nếu có
+            const finalDiscount = voucher.maxDiscountValue
+              ? Math.min(discountAmount, voucher.maxDiscountValue)
+              : discountAmount;
+            discountedPrice = Math.max(0, originalPrice - finalDiscount);
+            discountPercent = voucher.discountPercent;
+          } else if (voucher.type === 'FIXED' && voucher.discountValue) {
+            // FIXED: price - discountValue
+            discountedPrice = Math.max(0, originalPrice - voucher.discountValue);
+            // Tính discountPercent từ discountValue
+            if (originalPrice > 0) {
+              discountPercent = Math.round(((voucher.discountValue / originalPrice) * 100));
+            }
           }
         }
       }
+    }
+    
+    // Fallback: Nếu discountedPrice vẫn là 0 (chưa được set), dùng originalPrice
+    if (discountedPrice === 0 && originalPrice > 0) {
+      discountedPrice = originalPrice;
     }
     
     return {

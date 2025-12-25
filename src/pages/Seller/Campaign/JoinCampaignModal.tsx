@@ -334,8 +334,10 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
       onSuccess();
       handleClose();
     } catch (error: any) {
+      const errorMessage = error.message || 'Không thể đăng ký tham gia chiến dịch';
+      const formattedMessage = formatCampaignError(errorMessage);
       showTikiNotification(
-        error.message || 'Không thể đăng ký tham gia chiến dịch',
+        formattedMessage,
         'Lỗi',
         'error'
       );
@@ -351,6 +353,61 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     onClose();
   };
 
+  // Format error message from backend to Vietnamese
+  const formatCampaignError = (errorMessage: string): string => {
+    if (!errorMessage) return 'Đã xảy ra lỗi không xác định';
+
+    // Check if error message contains product already participating in campaign
+    // Pattern: Product [name] đang tham gia campaign '[campaign]' từ [start] → [end] (status: [status])
+    const productCampaignPattern = /Product\s+(.+?)\s+đang tham gia campaign\s+'(.+?)'\s+từ\s+([^\s→]+)\s+→\s+([^\s\(]+)\s+\(status:\s+(.+?)\)/i;
+    const match = errorMessage.match(productCampaignPattern);
+
+    if (match) {
+      const [, productName, campaignName, startTime, endTime] = match;
+      
+      // Format date time to Vietnamese format
+      const formatDateTime = (dateTimeStr: string): string => {
+        try {
+          // Handle both ISO format with and without seconds
+          let dateTime = dateTimeStr.trim();
+          // If doesn't have timezone info, assume it's local time
+          if (!dateTime.includes('Z') && !dateTime.includes('+') && !dateTime.includes('-', 10)) {
+            // If it's in format YYYY-MM-DDTHH:mm, add :00 for seconds
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(dateTime)) {
+              dateTime = dateTime + ':00';
+            }
+          }
+          const date = new Date(dateTime);
+          
+          // Check if date is valid
+          if (isNaN(date.getTime())) {
+            return dateTimeStr; // Return original if invalid
+          }
+          
+          return date.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+        } catch {
+          return dateTimeStr;
+        }
+      };
+
+      const formattedStartTime = formatDateTime(startTime.trim());
+      const formattedEndTime = formatDateTime(endTime.trim());
+
+      return `Sản phẩm "${productName.trim()}" đang tham gia chiến dịch "${campaignName.trim()}" từ ${formattedStartTime} đến ${formattedEndTime}`;
+    }
+
+    // Return original message if pattern doesn't match
+    return errorMessage;
+  };
+
   // Calculate total stock quantity for a product
   // If product has variants, sum all variant stocks
   // Otherwise, use product's stockQuantity
@@ -363,6 +420,124 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
     }
     // Use product's stockQuantity
     return product.stockQuantity || 0;
+  };
+
+  // Get current price for validation (lowest price for products with variants)
+  const getCurrentPriceForValidation = (product: ProductWithConfig): number => {
+    if (product.variantData && product.variantData.length > 0) {
+      // Với sản phẩm có variant: lấy giá thấp nhất của các variant
+      const variantPrices = product.variantData
+        .map(variant => variant.price || 0)
+        .filter(price => price > 0);
+      
+      if (variantPrices.length > 0) {
+        return Math.min(...variantPrices);
+      }
+      return 0;
+    }
+    // Với sản phẩm không có variant: sử dụng finalPrice hoặc price
+    return product.finalPrice || product.price || 0;
+  };
+
+  // Format number with dot separator for thousands (e.g., 1000000 -> 1.000.000)
+  const formatCurrency = (value: string | number | undefined): string => {
+    if (value === null || value === undefined || value === '') return '';
+    const numericValue = String(value).replace(/[^\d]/g, '');
+    if (!numericValue) return '';
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // Parse formatted currency string to number (e.g., "1.000.000" -> 1000000)
+  const parseCurrency = (value: string | undefined): number => {
+    if (!value) return 0;
+    const cleaned = value.replace(/\./g, '').trim();
+    if (!cleaned) return 0;
+    return Number(cleaned) || 0;
+  };
+
+  // Validate a specific field and update validation errors
+  const validateField = (productKey: string, field: string, product: ProductWithConfig) => {
+    let error: string | undefined;
+
+    switch (field) {
+      case 'slotId':
+        if (isFlashSale && !product.slotId) {
+          error = 'Vui lòng chọn khung giờ';
+        }
+        break;
+      case 'type':
+        if (!product.type) {
+          error = 'Vui lòng chọn loại giảm';
+        }
+        break;
+      case 'discountPercent':
+        if (product.type === 'PERCENT' && (!product.discountPercent || product.discountPercent <= 0)) {
+          error = 'Vui lòng nhập % giảm';
+        }
+        break;
+      case 'discountValue':
+        if (product.type === 'FIXED') {
+          if (!product.discountValue || product.discountValue <= 0) {
+            error = 'Vui lòng nhập giá trị hợp lệ';
+          } else if (product.discountValue < 1000) {
+            error = 'Giá trị giảm tối thiểu là 1.000đ';
+          } else {
+            const currentPrice = getCurrentPriceForValidation(product);
+            if (currentPrice > 0 && product.discountValue > currentPrice) {
+              error = `Giá trị giảm không được vượt quá giá hiện tại (${currentPrice.toLocaleString('vi-VN')}đ)`;
+            }
+          }
+        }
+        break;
+      case 'totalVoucherIssued':
+        if (!product.totalVoucherIssued || product.totalVoucherIssued <= 0) {
+          error = 'Vui lòng nhập số lượng phát hành';
+        } else {
+          const totalStock = getTotalStockQuantity(product);
+          if (product.totalVoucherIssued > totalStock) {
+            error = `Số lượng phát hành không được vượt quá số lượng kho (${totalStock})`;
+          }
+        }
+        break;
+      case 'totalUsageLimit':
+        if (!product.totalUsageLimit || product.totalUsageLimit <= 0) {
+          error = 'Vui lòng nhập giới hạn sử dụng';
+        } else if (product.totalVoucherIssued && product.totalUsageLimit > product.totalVoucherIssued) {
+          error = `Giới hạn sử dụng không được vượt quá số lượng phát hành (${product.totalVoucherIssued})`;
+        }
+        break;
+      case 'usagePerUser':
+        if (!product.usagePerUser || product.usagePerUser <= 0) {
+          error = 'Vui lòng nhập số lượng sử dụng/người';
+        } else {
+          if (product.totalUsageLimit && product.usagePerUser > product.totalUsageLimit) {
+            error = `Số lượng sử dụng/người không được vượt quá giới hạn sử dụng (${product.totalUsageLimit})`;
+          } else if (product.totalVoucherIssued && product.usagePerUser > product.totalVoucherIssued) {
+            error = `Số lượng sử dụng/người không được vượt quá số lượng phát hành (${product.totalVoucherIssued})`;
+          }
+        }
+        break;
+    }
+
+    // Update validation errors
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      if (!newErrors[productKey]) {
+        newErrors[productKey] = {};
+      }
+
+      if (error) {
+        newErrors[productKey][field] = error;
+      } else {
+        const { [field]: _, ...rest } = newErrors[productKey];
+        newErrors[productKey] = rest;
+        if (Object.keys(newErrors[productKey]).length === 0) {
+          delete newErrors[productKey];
+        }
+      }
+
+      return newErrors;
+    });
   };
 
   // Validate a single product and return errors
@@ -385,8 +560,15 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
         errors.discountPercent = 'Vui lòng nhập % giảm';
       }
     } else if (product.type === 'FIXED') {
-      if (!product.discountValue || product.discountValue <= 0) {
-        errors.discountValue = 'Vui lòng nhập số tiền giảm';
+      if (!product.discountValue || product.discountValue <= 0 || product.discountValue < 1000) {
+        errors.discountValue = 'Vui lòng nhập giá trị hợp lệ';
+      } else {
+        // Validate: Giá trị giảm không được vượt quá giá hiện tại
+        const currentPrice = getCurrentPriceForValidation(product);
+        
+        if (currentPrice > 0 && product.discountValue > currentPrice) {
+          errors.discountValue = `Giá trị giảm không được vượt quá giá hiện tại (${currentPrice.toLocaleString('vi-VN')}đ)`;
+        }
       }
     }
 
@@ -463,20 +645,13 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                     value={record.slotId}
                     onChange={(value: any) => {
                       handleProductUpdate(productKey, 'slotId', value);
-                      // Clear error when value changes
-                      if (errors.slotId) {
-                        setValidationErrors(prev => {
-                          const newErrors = { ...prev };
-                          if (newErrors[productKey]) {
-                            const { slotId, ...rest } = newErrors[productKey];
-                            newErrors[productKey] = rest;
-                            if (Object.keys(newErrors[productKey]).length === 0) {
-                              delete newErrors[productKey];
-                            }
-                          }
-                          return newErrors;
-                        });
-                      }
+                    }}
+                    onBlur={() => {
+                      // Use setTimeout to ensure state is updated after handleProductUpdate
+                      setTimeout(() => {
+                        const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                        validateField(productKey, 'slotId', currentProduct);
+                      }, 0);
                     }}
                     className="w-full"
                     size="small"
@@ -527,20 +702,13 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               value={record.type}
               onChange={(value: any) => {
                 handleProductUpdate(productKey, 'type', value);
-                // Clear error when value changes
-                if (errors.type) {
-                  setValidationErrors(prev => {
-                    const newErrors = { ...prev };
-                    if (newErrors[productKey]) {
-                      const { type, ...rest } = newErrors[productKey];
-                      newErrors[productKey] = rest;
-                      if (Object.keys(newErrors[productKey]).length === 0) {
-                        delete newErrors[productKey];
-                      }
-                    }
-                    return newErrors;
-                  });
-                }
+              }}
+              onBlur={() => {
+                // Use setTimeout to ensure state is updated after handleProductUpdate
+                setTimeout(() => {
+                  const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                  validateField(productKey, 'type', currentProduct);
+                }, 0);
               }}
               className="w-full"
               size="small"
@@ -585,22 +753,15 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                       } else if (typeof value === 'number') {
                         if (value >= 1 && value <= 99) {
                           handleProductUpdate(productKey, 'discountPercent', value);
-                          // Clear error when value changes
-                          if (errors.discountPercent) {
-                            setValidationErrors(prev => {
-                              const newErrors = { ...prev };
-                              if (newErrors[productKey]) {
-                                const { discountPercent, ...rest } = newErrors[productKey];
-                                newErrors[productKey] = rest;
-                                if (Object.keys(newErrors[productKey]).length === 0) {
-                                  delete newErrors[productKey];
-                                }
-                              }
-                              return newErrors;
-                            });
-                          }
                         }
                       }
+                    }}
+                    onBlur={() => {
+                      // Use setTimeout to ensure state is updated after handleProductUpdate
+                      setTimeout(() => {
+                        const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                        validateField(productKey, 'discountPercent', currentProduct);
+                      }, 0);
                     }}
                     min={1}
                     max={99}
@@ -620,6 +781,8 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                   onChange={(value: any) =>
                     handleProductUpdate(productKey, 'maxDiscountValue', value)
                   }
+                  formatter={(value) => formatCurrency(value)}
+                  parser={(value) => parseCurrency(value) as any}
                   placeholder="Giảm tối đa"
                   addonAfter="đ"
                   className="w-full"
@@ -634,24 +797,51 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
                   <InputNumber
                     value={record.discountValue}
                     onChange={(value: any) => {
-                      handleProductUpdate(productKey, 'discountValue', value);
-                      // Clear error when value changes
-                      if (errors.discountValue) {
-                        setValidationErrors(prev => {
-                          const newErrors = { ...prev };
-                          if (newErrors[productKey]) {
-                            const { discountValue, ...rest } = newErrors[productKey];
-                            newErrors[productKey] = rest;
-                            if (Object.keys(newErrors[productKey]).length === 0) {
-                              delete newErrors[productKey];
-                            }
-                          }
-                          return newErrors;
-                        });
+                      // Validate real-time: giá trị giảm không được vượt quá giá hiện tại
+                      const currentPrice = getCurrentPriceForValidation(record);
+                      let validationError: string | undefined;
+                      
+                      if (value !== null && value !== undefined) {
+                        if (value <= 0 || value < 1000) {
+                          validationError = 'Vui lòng nhập giá trị hợp lệ';
+                        } else if (currentPrice > 0 && value > currentPrice) {
+                          validationError = `Giá trị giảm không được vượt quá giá hiện tại (${currentPrice.toLocaleString('vi-VN')}đ)`;
+                        }
                       }
+                      
+                      handleProductUpdate(productKey, 'discountValue', value);
+                      
+                      // Update validation errors
+                      setValidationErrors(prev => {
+                        const newErrors = { ...prev };
+                        if (!newErrors[productKey]) {
+                          newErrors[productKey] = {};
+                        }
+                        
+                        if (validationError) {
+                          newErrors[productKey].discountValue = validationError;
+                        } else {
+                          const { discountValue, ...rest } = newErrors[productKey];
+                          newErrors[productKey] = rest;
+                          if (Object.keys(newErrors[productKey]).length === 0) {
+                            delete newErrors[productKey];
+                          }
+                        }
+                        
+                        return newErrors;
+                      });
                     }}
+                    onBlur={() => {
+                      // Use setTimeout to ensure state is updated after handleProductUpdate
+                      setTimeout(() => {
+                        const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                        validateField(productKey, 'discountValue', currentProduct);
+                      }, 0);
+                    }}
+                    formatter={(value) => formatCurrency(value)}
+                    parser={(value) => parseCurrency(value) as any}
                     min={1000}
-                    max={undefined} // Remove max limit to allow any value for products with variants
+                    max={getCurrentPriceForValidation(record) || undefined}
                     addonAfter="đ"
                     className="w-full"
                     size="small"
@@ -716,18 +906,16 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               value={record.totalVoucherIssued}
               onChange={(value: any) => {
                 handleProductUpdate(productKey, 'totalVoucherIssued', value);
-                // Clear errors for this field and dependent fields when value changes
-                setValidationErrors(prev => {
-                  const newErrors = { ...prev };
-                  if (newErrors[productKey]) {
-                    const { totalVoucherIssued, totalUsageLimit, usagePerUser, ...rest } = newErrors[productKey];
-                    newErrors[productKey] = rest;
-                    if (Object.keys(newErrors[productKey]).length === 0) {
-                      delete newErrors[productKey];
-                    }
-                  }
-                  return newErrors;
-                });
+              }}
+              onBlur={() => {
+                // Use setTimeout to ensure state is updated after handleProductUpdate
+                setTimeout(() => {
+                  const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                  validateField(productKey, 'totalVoucherIssued', currentProduct);
+                  // Also re-validate dependent fields
+                  validateField(productKey, 'totalUsageLimit', currentProduct);
+                  validateField(productKey, 'usagePerUser', currentProduct);
+                }, 0);
               }}
               min={1}
               className="w-full"
@@ -755,18 +943,15 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               value={record.totalUsageLimit}
               onChange={(value: any) => {
                 handleProductUpdate(productKey, 'totalUsageLimit', value);
-                // Clear errors for this field and dependent fields when value changes
-                setValidationErrors(prev => {
-                  const newErrors = { ...prev };
-                  if (newErrors[productKey]) {
-                    const { totalUsageLimit, usagePerUser, ...rest } = newErrors[productKey];
-                    newErrors[productKey] = rest;
-                    if (Object.keys(newErrors[productKey]).length === 0) {
-                      delete newErrors[productKey];
-                    }
-                  }
-                  return newErrors;
-                });
+              }}
+              onBlur={() => {
+                // Use setTimeout to ensure state is updated after handleProductUpdate
+                setTimeout(() => {
+                  const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                  validateField(productKey, 'totalUsageLimit', currentProduct);
+                  // Also re-validate dependent field
+                  validateField(productKey, 'usagePerUser', currentProduct);
+                }, 0);
               }}
               min={1}
               className="w-full"
@@ -794,20 +979,13 @@ const JoinCampaignModal: React.FC<JoinCampaignModalProps> = ({
               value={record.usagePerUser}
               onChange={(value: any) => {
                 handleProductUpdate(productKey, 'usagePerUser', value);
-                // Clear error when value changes
-                if (errors.usagePerUser) {
-                  setValidationErrors(prev => {
-                    const newErrors = { ...prev };
-                    if (newErrors[productKey]) {
-                      const { usagePerUser, ...rest } = newErrors[productKey];
-                      newErrors[productKey] = rest;
-                      if (Object.keys(newErrors[productKey]).length === 0) {
-                        delete newErrors[productKey];
-                      }
-                    }
-                    return newErrors;
-                  });
-                }
+              }}
+              onBlur={() => {
+                // Use setTimeout to ensure state is updated after handleProductUpdate
+                setTimeout(() => {
+                  const currentProduct = products.find(p => (p.key || p.productId) === productKey) || record;
+                  validateField(productKey, 'usagePerUser', currentProduct);
+                }, 0);
               }}
               min={1}
               className="w-full"

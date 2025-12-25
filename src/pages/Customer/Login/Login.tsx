@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Phone, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { GoogleLoginButton } from '../../../components/common';
@@ -12,18 +12,17 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
-    phone: '',
     password: '',
     rememberMe: false
   });
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0); // Thời gian đếm ngược (giây)
 
   // Check for message from registration - just pre-fill email if provided
   useEffect(() => {
@@ -31,6 +30,16 @@ const Login: React.FC = () => {
       setFormData(prev => ({ ...prev, email: location.state.email }));
     }
   }, [location.state]);
+
+  // Countdown timer cho resend verify email
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => {
+        setResendCooldown(resendCooldown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -41,20 +50,38 @@ const Login: React.FC = () => {
   };
 
   const handleResendVerifyEmail = async () => {
+    // Kiểm tra cooldown
+    if (resendCooldown > 0) {
+      return;
+    }
+
     if (!formData.email) {
       showCenterError(t('login.errors.emailRequired'), t('login.errors.missingInfo'));
       return;
     }
+    
     try {
       const res = await CustomerAuthService.resendVerifyEmail(formData.email, 'CUSTOMER');
       if (res?.status === 200) {
         showCenterSuccess(res.message || 'Đã gửi lại email xác nhận', 'Thành công');
+        // Bắt đầu đếm ngược 60 giây
+        setResendCooldown(60);
       } else {
-        showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+        // Hiển thị thông báo tiếng Việt cho lỗi 404
+        if (res?.status === 404) {
+          showCenterError('Tài khoản không tồn tại', 'Lỗi');
+        } else {
+          showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+        }
       }
     } catch (error: any) {
-      const msg = error?.message || 'Không thể gửi lại email xác nhận';
-      showCenterError(msg, 'Lỗi');
+      // Kiểm tra nếu lỗi có status 404
+      if (error?.status === 404 || error?.response?.status === 404) {
+        showCenterError('Tài khoản không tồn tại', 'Lỗi');
+      } else {
+        const msg = error?.message || 'Không thể gửi lại email xác nhận';
+        showCenterError(msg, 'Lỗi');
+      }
     }
   };
 
@@ -70,12 +97,6 @@ const Login: React.FC = () => {
     // Basic validation
     if (!loginData.email) {
       showCenterError(t('login.errors.emailRequired'), t('login.errors.missingInfo'));
-      return;
-    }
-    
-    // Note: Phone login not supported by current API
-    if (loginMethod === 'phone') {
-      showCenterError(t('login.errors.phoneNotSupported'), t('login.errors.featureNotAvailable'));
       return;
     }
     
@@ -129,60 +150,24 @@ const Login: React.FC = () => {
         <p className="text-gray-600">{t('login.welcome')}</p>
       </div>
 
-      {/* Login Method Toggle */}
-      <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
-        <button
-          type="button"
-          onClick={() => setLoginMethod('email')}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-            loginMethod === 'email'
-              ? 'bg-white text-orange-500 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <Mail className="w-4 h-4 inline mr-2" />
-          {t('login.email')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setLoginMethod('phone')}
-          className={`flex-1 py-2 px-4 rounded-md font-medium transition-all ${
-            loginMethod === 'phone'
-              ? 'bg-white text-orange-500 shadow-sm'
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <Phone className="w-4 h-4 inline mr-2" />
-          {t('login.phone')}
-        </button>
-      </div>
-
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Email/Phone Input */}
+        {/* Email Input */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {loginMethod === 'email' ? t('login.email') : t('login.phone')}
+            {t('login.email')}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              {loginMethod === 'email' ? (
-                <Mail className="h-5 w-5 text-gray-400" />
-              ) : (
-                <Phone className="h-5 w-5 text-gray-400" />
-              )}
+              <Mail className="h-5 w-5 text-gray-400" />
             </div>
             <input
-              type={loginMethod === 'email' ? 'email' : 'tel'}
-              name={loginMethod}
-              value={formData[loginMethod]}
+              type="email"
+              name="email"
+              value={formData.email}
               onChange={handleInputChange}
               className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder={
-                loginMethod === 'email' 
-                  ? t('login.emailPlaceholder')
-                  : t('login.phonePlaceholder')
-              }
+              placeholder={t('login.emailPlaceholder')}
               required
             />
           </div>
@@ -248,9 +233,16 @@ const Login: React.FC = () => {
             <button
               type="button"
               onClick={handleResendVerifyEmail}
-              className="text-xs text-orange-500 hover:text-orange-600 font-medium underline"
+              disabled={resendCooldown > 0}
+              className={`text-xs font-medium underline ${
+                resendCooldown > 0
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-orange-500 hover:text-orange-600'
+              }`}
             >
-              Gửi lại mail xác nhận
+              {resendCooldown > 0
+                ? `Gửi lại mail xác nhận (${resendCooldown}s)`
+                : 'Gửi lại mail xác nhận'}
             </button>
           </div>
         </div>
