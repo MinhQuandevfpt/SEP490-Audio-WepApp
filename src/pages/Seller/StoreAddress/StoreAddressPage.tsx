@@ -181,8 +181,8 @@ const StoreAddressPage: React.FC = () => {
 
       const request: CreateStoreAddressRequest = {
         defaultAddress: values.defaultAddress || false,
-        provinceCode: selectedProvince.Code,
-        districtCode: selectedDistrict.Code,
+        provinceCode: selectedProvince.ProvinceID.toString(),
+        districtCode: selectedDistrict.DistrictID.toString(),
         wardCode: selectedWard.WardCode,
         address: fullAddress,
       };

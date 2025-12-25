@@ -4,6 +4,8 @@ import { SellerChatService, type ChatMessage } from '../../../services/seller/Ch
 import HttpInterceptor from '../../../services/HttpInterceptor';
 import FirestoreChatService from '../../../services/FirestoreChatService';
 import FileUploadService from '../../../services/FileUploadService';
+import { filterMessages, containsSensitiveInfo } from '../../../utils/messageFilter';
+import MessageBlockedModal from '../../../components/common/MessageBlockedModal';
 
 interface Conversation {
   customerId: string;
@@ -34,6 +36,7 @@ const MessagesPage: React.FC = () => {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [zoomMedia, setZoomMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [showBlockedModal, setShowBlockedModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -79,9 +82,13 @@ const MessagesPage: React.FC = () => {
 
   // Helper function to format last message text (shared across component)
   const formatLastMessage = useCallback((message: any): string => {
-    // If has content, return content (with truncation if needed)
+    // If has content, check if it contains sensitive info first
     if (message.content && message.content.trim()) {
       const content = message.content.trim();
+      // If message contains sensitive info, show blocked message
+      if (containsSensitiveInfo(content)) {
+        return '[Tin nhắn đã bị chặn]';
+      }
       return content.length > 50 ? `${content.substring(0, 50)}...` : content;
     }
     
@@ -425,7 +432,9 @@ const MessagesPage: React.FC = () => {
         console.log('✅ Parsed messages:', messagesData.length, messagesData);
         
         if (messagesData.length > 0) {
-          setMessages(messagesData);
+          // Filter out messages containing sensitive information
+          const filteredMessages = filterMessages(messagesData);
+          setMessages(filteredMessages);
           
           // Update lastMessageSenderType from the last message
           const lastMessage = messagesData[messagesData.length - 1];
@@ -492,7 +501,9 @@ const MessagesPage: React.FC = () => {
           };
           return formatted;
         });
-        setMessages(formattedMessages);
+        // Filter out messages containing sensitive information
+        const filteredMessages = filterMessages(formattedMessages);
+        setMessages(filteredMessages);
       }
     );
 
@@ -509,7 +520,9 @@ const MessagesPage: React.FC = () => {
         setIsLoading(true);
       }
       const response = await SellerChatService.getMessages(customerId, storeId, 100);
-      setMessages(response.data || []);
+      // Filter out messages containing sensitive information
+      const filteredMessages = filterMessages(response.data || []);
+      setMessages(filteredMessages);
     } catch (error) {
       setMessages([]);
     } finally {
@@ -527,6 +540,14 @@ const MessagesPage: React.FC = () => {
     const hasFiles = selectedFiles.length > 0;
 
     if (!hasText && !hasFiles) return;
+
+    // Check if message contains sensitive information before sending
+    if (hasText) {
+      if (containsSensitiveInfo(inputMessage)) {
+        setShowBlockedModal(true);
+        return;
+      }
+    }
 
     const messageContent = inputMessage.trim();
     const filesToSend = [...selectedFiles];
@@ -1433,6 +1454,9 @@ const MessagesPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Message Blocked Modal */}
+      <MessageBlockedModal open={showBlockedModal} onClose={() => setShowBlockedModal(false)} />
     </div>
   );
 };

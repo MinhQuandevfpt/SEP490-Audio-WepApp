@@ -77,15 +77,26 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   const [cancelNote, setCancelNote] = useState<string>('');
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
+  const [showCancelShippingModal, setShowCancelShippingModal] = useState(false);
+  const [isCancellingShipping, setIsCancellingShipping] = useState(false);
 
   const displayOrderCode = order.orderCode ?? ' - ';
   const statusStyle = getStatusBadgeStyle(order.status);
   const formattedDate = formatDate(order.createdAt);
   const isDeliverySuccess = order.status === 'DELIVERY_SUCCESS';
+  const isAwaitingShipment = order.status === 'AWAITING_SHIPMENT';
 
   type LegacyOrderWithItems = CustomerOrder & { items?: Array<OrderItem & { storeName?: string | null }> };
   const storeOrders = Array.isArray(order.storeOrders) ? order.storeOrders : [];
   const legacyItems = Array.isArray((order as LegacyOrderWithItems).items) ? (order as LegacyOrderWithItems).items : [];
+  
+  // Kiểm tra xem có GHN code không
+  const hasGhnCode = useMemo(() => {
+    return storeOrders.some(storeOrder => ghnOrderData[storeOrder.id]?.orderGhn);
+  }, [storeOrders, ghnOrderData]);
+  
+  // Kiểm tra điều kiện hiển thị button "Yêu cầu hủy giao hàng"
+  const canCancelShipping = isAwaitingShipment && hasGhnCode;
 
   type ReviewableItem = {
     id: string;
@@ -382,6 +393,24 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       message.error(getErrorMessage(err, 'Không thể xác nhận đã nhận hàng'));
     } finally {
       setIsConfirmingReceived(false);
+    }
+  };
+
+  const handleCancelShipping = async () => {
+    try {
+      setIsCancellingShipping(true);
+      await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
+      message.success('Yêu cầu hủy giao hàng đã được gửi đến cửa hàng.');
+      setShowCancelShippingModal(false);
+      setCancelReason('CHANGE_OF_MIND');
+      setCancelNote('');
+      if (onOrderCancelled) {
+        onOrderCancelled();
+      }
+    } catch (err: any) {
+      message.error(getErrorMessage(err, 'Không thể gửi yêu cầu hủy giao hàng'));
+    } finally {
+      setIsCancellingShipping(false);
     }
   };
 
@@ -952,7 +981,17 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   </Button>
                 </>
               )}
-              {canCancelOrder(order.status) && (
+              {canCancelShipping && (
+                <Button 
+                  danger 
+                  className="h-10 w-full" 
+                  style={{ borderRadius: '10px' }} 
+                  onClick={() => setShowCancelShippingModal(true)}
+                >
+                  Yêu cầu hủy giao hàng
+                </Button>
+              )}
+              {canCancelOrder(order.status) && !canCancelShipping && (
                 <Button danger className="h-10 w-full" style={{ borderRadius: '10px' }} onClick={() => setShowCancelModal(true)}>
                   {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
                 </Button>
@@ -1046,6 +1085,85 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
           </div>
         </div>
       )}
+      {/* Cancel Shipping Modal with Reputation Warning */}
+      {showCancelShippingModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !isCancellingShipping && setShowCancelShippingModal(false)}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Yêu cầu hủy giao hàng
+            </h3>
+            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+              <p className="text-sm font-medium text-orange-800">
+                ⚠️ Cảnh báo về điểm uy tín
+              </p>
+              <p className="mt-2 text-sm text-orange-700">
+                Yêu cầu hủy đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ ảnh hưởng đến thao tác mua hàng của bạn.
+              </p>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              Bạn có chắc chắn muốn gửi yêu cầu hủy giao hàng này không?
+            </p>
+
+            {/* Lý do hủy */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Lý do hủy</p>
+              <Select
+                value={cancelReason}
+                onChange={setCancelReason}
+                className="w-full"
+                size="large"
+                style={{ borderRadius: 8 }}
+              >
+                <Option value="CHANGE_OF_MIND">Đổi ý</Option>
+                <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
+                <Option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</Option>
+                <Option value="ORDERED_BY_ACCIDENT">Đặt nhầm</Option>
+                <Option value="OTHER">Khác</Option>
+              </Select>
+            </div>
+
+            {/* Ghi chú */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Ghi chú</p>
+              <TextArea
+                rows={3}
+                value={cancelNote}
+                onChange={(e) => setCancelNote(e.target.value)}
+                placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
+                style={{ borderRadius: 8 }}
+              />
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (!isCancellingShipping) {
+                    setShowCancelShippingModal(false);
+                    setCancelReason('CHANGE_OF_MIND');
+                    setCancelNote('');
+                  }
+                }}
+                disabled={isCancellingShipping}
+              >
+                Hủy
+              </Button>
+              <Button 
+                danger 
+                className="flex-1" 
+                loading={isCancellingShipping} 
+                onClick={handleCancelShipping}
+              >
+                Xác nhận gửi yêu cầu
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ReturnRequestModal
         open={showReturnModal}
         order={order}

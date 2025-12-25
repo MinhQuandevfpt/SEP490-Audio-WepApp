@@ -270,7 +270,7 @@ const TopSellingTable: React.FC<TopSellingTableProps> = ({
                           {item.product.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {item.product.categoryName || 'Không phân loại'}
+                          {item.product.categoryName || ''}
                         </p>
                       </div>
                     </div>
