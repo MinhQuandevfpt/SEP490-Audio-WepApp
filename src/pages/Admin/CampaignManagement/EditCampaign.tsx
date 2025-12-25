@@ -464,46 +464,6 @@ const EditCampaign: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm p-8 mb-6 border border-gray-100">
           <h2 className="text-2xl font-bold mb-6 text-gray-900">Thiết lập huy hiệu</h2>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Nhãn huy hiệu
-              </label>
-              <input
-                type="text"
-                name="badgeLabel"
-                value={formData.badgeLabel}
-                onChange={handleInputChange}
-                placeholder="VD: SALE SỐC, GIẢM 50%"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Màu huy hiệu
-              </label>
-              <div className="flex gap-3">
-                <div className="relative">
-                  <input
-                    type="color"
-                    name="badgeColor"
-                    value={formData.badgeColor}
-                    onChange={handleInputChange}
-                    className="w-14 h-11 border border-gray-300 rounded-lg cursor-pointer"
-                  />
-                </div>
-                <input
-                  type="text"
-                  value={formData.badgeColor}
-                  onChange={(e) => setFormData(prev => ({ ...prev, badgeColor: e.target.value }))}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all font-mono"
-                  placeholder="#FF6600"
-                />
-              </div>
-            </div>
-          </div>
-
           <div className="mt-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">
               Icon huy hiệu

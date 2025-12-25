@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Store, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Store } from 'lucide-react';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
@@ -113,14 +113,7 @@ const SellerLogin: React.FC = () => {
         <p className="text-gray-600">Truy cập vào Seller Center để quản lý cửa hàng</p>
       </div>
 
-      {/* Security Badge */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <div className="flex items-center text-blue-700">
-          <Shield className="w-5 h-5 mr-2" />
-          <span className="text-sm font-medium">Bảo mật cao cấp cho tài khoản kinh doanh</span>
-        </div>
-      </div>
-
+     
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Email Input */}
