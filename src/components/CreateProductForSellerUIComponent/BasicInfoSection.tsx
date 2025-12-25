@@ -273,7 +273,30 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
 
     // Chuẩn hoá: thay dấu phẩy thành chấm trước khi parse
     const normalized = raw.replace(',', '.');
-    const value = Number(normalized);
+    
+    // Kiểm tra và giới hạn số chữ số thập phân (tối đa 5 chữ số sau dấu chấm)
+    let processedValue = normalized;
+    const decimalIndex = processedValue.indexOf('.');
+    if (decimalIndex !== -1) {
+      const integerPart = processedValue.substring(0, decimalIndex);
+      const decimalPart = processedValue.substring(decimalIndex + 1);
+      // Nếu có quá 5 chữ số thập phân, cắt bớt về 5 chữ số
+      if (decimalPart.length > 5) {
+        processedValue = integerPart + '.' + decimalPart.substring(0, 5);
+        // Tạo event mới với giá trị đã được giới hạn
+        const syntheticEvent = {
+          ...e,
+          target: {
+            ...e.target,
+            value: processedValue
+          }
+        } as React.ChangeEvent<HTMLInputElement>;
+        onChange(syntheticEvent);
+        return;
+      }
+    }
+    
+    const value = Number(processedValue);
 
     // Nếu không phải số hợp lệ thì hiển thị lỗi và không cập nhật form state
     if (Number.isNaN(value)) {
@@ -282,15 +305,29 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
       return;
     }
 
-    // Chỉ chấp nhận trong khoảng (0, 27]
-    if (value <= 0 || value > 27) {
-      // Hiển thị lỗi nhưng vẫn cho phép user tiếp tục nhập cho đến khi hợp lệ
+    // Nếu giá trị > 27, tự động set thành 27kg
+    if (value > 27) {
+      setWeightError(null);
+      // Tạo event mới với giá trị 27
+      const syntheticEvent = {
+        ...e,
+        target: {
+          ...e.target,
+          value: '27'
+        }
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange(syntheticEvent);
+      return;
+    }
+
+    // Nếu giá trị <= 0, hiển thị lỗi
+    if (value <= 0) {
       setWeightError('Chỉ cho phép nhập trọng lượng trong khoảng lớn hơn 0 kg và không quá 27 kg.');
       onChange(e);
       return;
     }
 
-    // Giá trị hợp lệ - xóa lỗi và cập nhật form state
+    // Giá trị hợp lệ (0 < value <= 27) - xóa lỗi và cập nhật form state
     setWeightError(null);
     onChange(e);
   };
@@ -666,6 +703,9 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               {weightError}
             </p>
           )}
+          <p className="mt-1 text-xs text-orange-700">
+            Lưu ý: Trọng lượng không được vượt quá 27 kg. Nếu nhập vượt quá, hệ thống sẽ tự động điều chỉnh về 27 kg. Số thập phân tối đa 5 chữ số sau dấu chấm.
+          </p>
         </div>
       </div>
     </SectionCard>
