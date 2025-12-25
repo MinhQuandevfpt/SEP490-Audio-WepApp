@@ -14,6 +14,7 @@ export interface RolePermissions {
   manage_banners: boolean;
   manage_finance: boolean;
   manage_policies: boolean;
+  view_dashboard: boolean;
 }
 
 /**
@@ -46,6 +47,7 @@ export const ROLE_PERMISSIONS: Record<'admin' | 'staffadmin', RolePermissions> =
     manage_banners: true,
     manage_finance: true,
     manage_policies: true,
+    view_dashboard: true,
   },
   staffadmin: {
     manage_users: false,      // Không quản lý users
@@ -56,6 +58,7 @@ export const ROLE_PERMISSIONS: Record<'admin' | 'staffadmin', RolePermissions> =
     manage_banners: true,     // Có thể quản lý banners
     manage_finance: false,    // Không quản lý finance
     manage_policies: true,    // Có thể quản lý policies
+    view_dashboard: false,    // Không được xem dashboard
   },
 };
 

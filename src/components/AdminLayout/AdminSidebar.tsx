@@ -60,6 +60,7 @@ const AdminSidebar: React.FC = () => {
     {
       name: 'Dashboard',
       href: `${baseUrl}/dashboard`,
+      permission: 'view_dashboard',
       icon: <LayoutDashboard className="w-6 h-6" />
     },
     {
@@ -141,9 +142,13 @@ const AdminSidebar: React.FC = () => {
 
  
   const filteredNavigationItems = navigationItems.filter(item => {
-   
-    if (!item.permission) return true;
+    // FlatStaff cannot see Dashboard
+    if (flatStaffUser && item.name === 'Dashboard') {
+      return false;
+    }
     
+    // Check other permissions
+    if (!item.permission) return true;
     
     const userRole = currentUser?.role || '';
     return hasPermission(userRole, item.permission);

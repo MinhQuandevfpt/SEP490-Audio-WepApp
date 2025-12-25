@@ -620,11 +620,11 @@ export const router = createBrowserRouter([
     children: [
       {
         path: '',
-        element: <Navigate to="/flatstaff/dashboard" replace />
+        element: <Navigate to="/flatstaff/users/customers" replace />
       },
       {
         path: 'dashboard',
-        element: <AdminDashboard />
+        element: <Navigate to="/flatstaff/users/customers" replace />
       },
       {
         path: 'users',
@@ -771,7 +771,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'dashboard',
-        element: <AdminDashboard />
+        element: <PermissionProtectedRoute permission="view_dashboard" element={<AdminDashboard />} />
       },
       // Add more admin routes here as needed
       {
