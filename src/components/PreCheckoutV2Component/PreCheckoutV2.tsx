@@ -19,6 +19,7 @@ import type { PaymentMethod } from '../../data/checkout';
 import { useAutoShippingFee, type StoreShippingFee } from '../../hooks/useAutoShippingFee';
 import { CustomerCartService } from '../../services/customer/CartService';
 import ProductVoucherService from '../../services/customer/ProductVoucherService';
+import { ShippingService, type GhnLeadtimeResponseData } from '../../services/customer/ShippingService';
 import { showCenterError } from '../../utils/notification';
 
 const CHECKOUT_SESSION_KEY = 'checkout:payload:v1';
@@ -405,6 +406,10 @@ const PreCheckoutV2: React.FC = () => {
   const [storeShippingFees, setStoreShippingFees] = useState<Record<string, StoreShippingFee>>({});
   const [storeLogoErrors, setStoreLogoErrors] = useState<Set<string>>(new Set());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
+  
+  // Store leadtime data: Map<storeId, GhnLeadtimeResponseData>
+  const [storeLeadtimes, setStoreLeadtimes] = useState<Record<string, GhnLeadtimeResponseData>>({});
+  const [storeLeadtimesLoading, setStoreLeadtimesLoading] = useState<Set<string>>(new Set());
 
   // Cache thông tin sản phẩm để lấy storeId / storeName
   const [productCache, setProductCache] = useState<Map<string, Product>>(
@@ -547,6 +552,90 @@ const PreCheckoutV2: React.FC = () => {
     // Vì logo URL có thể đã thay đổi hoặc có items mới với logo mới
     setStoreLogoErrors(new Set());
   }, [storeGroups]);
+
+  // Load leadtime cho mỗi store khi có đủ thông tin
+  useEffect(() => {
+    if (!selectedAddressId || storeGroups.length === 0) return;
+
+    const selectedAddress = addresses.find((a) => a.id === selectedAddressId);
+    if (!selectedAddress || !selectedAddress.districtId || !selectedAddress.wardCode) {
+      return;
+    }
+
+    // Gọi API leadtime cho mỗi store
+    storeGroups.forEach((group) => {
+      // Lấy thông tin store address từ product đầu tiên trong group
+      const firstProductItem = group.items.find((item) => item.type === 'PRODUCT');
+      if (!firstProductItem) return;
+
+      const product = productCache.get(firstProductItem.refId);
+      if (!product) return;
+
+      // Lấy districtCode và wardCode từ store
+      const storeDistrictCode = product.store?.districtCode || product.districtCode;
+      const storeWardCode = product.store?.wardCode || product.wardCode;
+
+      if (!storeDistrictCode || !storeWardCode) {
+        console.warn(`[PreCheckoutV2] Missing store address info for store ${group.storeId}`);
+        return;
+      }
+
+      // Convert districtCode (string) to district_id (number)
+      const fromDistrictId = parseInt(storeDistrictCode, 10);
+      if (isNaN(fromDistrictId)) {
+        console.warn(`[PreCheckoutV2] Invalid districtCode for store ${group.storeId}: ${storeDistrictCode}`);
+        return;
+      }
+
+      // Tính serviceTypeId cho store này
+      const serviceTypeId = calculateStoreServiceType(
+        group.items as ApiCartItem[],
+        group.storeId,
+        productCache
+      );
+
+      // Map serviceTypeId to service_id: 2 -> 53322, 5 -> 100039
+      const serviceId = serviceTypeId === 2 ? 53322 : 100039;
+
+      // Kiểm tra xem đã load chưa hoặc đang load
+      if (storeLeadtimes[group.storeId] || storeLeadtimesLoading.has(group.storeId)) {
+        return;
+      }
+
+      // Set loading state
+      setStoreLeadtimesLoading((prev) => new Set(prev).add(group.storeId));
+
+      // Gọi API leadtime (đã check null ở trên)
+      const toDistrictId = selectedAddress.districtId!;
+      const toWardCode = selectedAddress.wardCode!;
+      
+      ShippingService.getGhnLeadtime({
+        from_district_id: fromDistrictId,
+        from_ward_code: storeWardCode,
+        to_district_id: toDistrictId,
+        to_ward_code: toWardCode,
+        service_id: serviceId,
+      })
+        .then((response) => {
+          if (response.code === 200 && response.data) {
+            setStoreLeadtimes((prev) => ({
+              ...prev,
+              [group.storeId]: response.data,
+            }));
+          }
+        })
+        .catch((error) => {
+          console.error(`[PreCheckoutV2] Failed to get leadtime for store ${group.storeId}:`, error);
+        })
+        .finally(() => {
+          setStoreLeadtimesLoading((prev) => {
+            const next = new Set(prev);
+            next.delete(group.storeId);
+            return next;
+          });
+        });
+    });
+  }, [storeGroups, selectedAddressId, addresses, productCache, storeLeadtimes, storeLeadtimesLoading]);
 
   const [previewData, setPreviewData] = useState<CheckoutPreviewData | null>(null);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
@@ -1405,6 +1494,26 @@ const PreCheckoutV2: React.FC = () => {
                         <div className="text-xs text-gray-500">
                           {group.items.length} sản phẩm
                         </div>
+                        {/* Thời gian giao hàng dự kiến */}
+                        {storeLeadtimesLoading.has(group.storeId) ? (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500" />
+                            <span>Đang tính thời gian giao hàng...</span>
+                          </div>
+                        ) : storeLeadtimes[group.storeId] ? (
+                          <div className="mt-1 text-xs text-orange-600">
+                            ⏱️ Giao hàng dự kiến: {(() => {
+                              const baseDate = new Date(storeLeadtimes[group.storeId].leadtime_order.to_estimate_date);
+                              // Cộng thêm 48 giờ (2 ngày)
+                              const estimatedDate = new Date(baseDate.getTime() + 48 * 60 * 60 * 1000);
+                              return estimatedDate.toLocaleDateString('vi-VN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              });
+                            })()}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
