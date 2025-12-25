@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X } from 'lucide-react';
-import { StoreOrderFilter, GhnTransferModal } from '../../../components/StoreOwnerOrderManagementComponents';
+import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X, AlertTriangle, Wallet, TrendingUp } from 'lucide-react';
+import { StoreOrderFilter, GhnTransferModal, OrderStatistics } from '../../../components/StoreOwnerOrderManagementComponents';
 import useStoreOrders from '../../../hooks/useStoreOrders';
 import type { StoreOrder } from '../../../types/seller';
 import { formatCurrency, getStatusLabel } from '../../../utils/orderStatus';
 import { StoreOrderService } from '../../../services/seller/OrderService';
 import { GhnService } from '../../../services/seller/GhnService';
+import { ProductListService } from '../../../services/customer/ProductListService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -89,6 +90,47 @@ const getGhnStatusInfo = (status: string): { label: string; color: string } => {
   return statusMap[status] || { label: status, color: 'default' };
 };
 
+// Helper function to calculate remaining time until auto-cancel (24 hours from createdAt)
+const calculateTimeUntilAutoCancel = (createdAt: string): { 
+  totalSeconds: number; 
+  hours: number; 
+  minutes: number; 
+  seconds: number;
+  isExpired: boolean;
+} => {
+  const createdAtDate = new Date(createdAt);
+  const deadlineDate = new Date(createdAtDate.getTime() + 24 * 60 * 60 * 1000); // +24 hours
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return { totalSeconds: 0, hours: 0, minutes: 0, seconds: 0, isExpired: true };
+  }
+  
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  return { totalSeconds, hours, minutes, seconds, isExpired: false };
+};
+
+// Helper function to format countdown time
+const formatCountdown = (hours: number, minutes: number, seconds: number): string => {
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+// Helper function to get countdown color based on remaining time
+const getCountdownColor = (totalSeconds: number): string => {
+  const hours = totalSeconds / 3600;
+  if (hours < 1) return 'text-red-600 font-bold'; // < 1h: đỏ
+  if (hours < 6) return 'text-orange-600 font-semibold'; // < 6h: vàng
+  return 'text-green-600'; // > 6h: xanh
+};
+
 const OrderManageForStoreOwner: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -138,6 +180,16 @@ const OrderManageForStoreOwner: React.FC = () => {
   const [showCancelOrderModal, setShowCancelOrderModal] = useState<{ orderId: string; orderCode: string } | null>(null);
   const [cancelOrderReason, setCancelOrderReason] = useState('');
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  
+  // Countdown state for PENDING orders (orderId -> { hours, minutes, seconds, totalSeconds, isExpired })
+  const [pendingCountdowns, setPendingCountdowns] = useState<Record<string, { hours: number; minutes: number; seconds: number; totalSeconds: number; isExpired: boolean }>>({});
+  
+  // Countdown state for AWAITING_SHIPMENT orders (orderId -> { hours, minutes, seconds, totalSeconds, isExpired })
+  const [awaitingShipmentCountdowns, setAwaitingShipmentCountdowns] = useState<Record<string, { hours: number; minutes: number; seconds: number; totalSeconds: number; isExpired: boolean }>>({});
+  
+  // Product images cache (productId -> images[])
+  const [productImages, setProductImages] = useState<Record<string, string[]>>({});
+  const [loadingProductImages, setLoadingProductImages] = useState<Record<string, boolean>>({});
 
   // Auto-expand order when navigated from notification with customerOrderId
   useEffect(() => {
@@ -158,6 +210,96 @@ const OrderManageForStoreOwner: React.FC = () => {
       navigate(cleanUrl.pathname + cleanUrl.search, { replace: true });
     }
   }, [targetCustomerOrderId, hasAutoExpanded, isLoading, orders, navigate]);
+
+  // Update countdown for PENDING orders every second
+  useEffect(() => {
+    const pendingOrders = orders.filter(order => order.status === 'PENDING' && order.createdAt);
+    
+    if (pendingOrders.length === 0) {
+      setPendingCountdowns({});
+      return;
+    }
+
+    // Calculate initial countdowns
+    const initialCountdowns: Record<string, { hours: number; minutes: number; seconds: number; totalSeconds: number; isExpired: boolean }> = {};
+    pendingOrders.forEach(order => {
+      const timeInfo = calculateTimeUntilAutoCancel(order.createdAt);
+      initialCountdowns[order.id] = {
+        hours: timeInfo.hours,
+        minutes: timeInfo.minutes,
+        seconds: timeInfo.seconds,
+        totalSeconds: timeInfo.totalSeconds,
+        isExpired: timeInfo.isExpired,
+      };
+    });
+    setPendingCountdowns(initialCountdowns);
+
+    // Update countdown every second
+    const interval = setInterval(() => {
+      setPendingCountdowns(prev => {
+        const updated: typeof prev = {};
+        pendingOrders.forEach(order => {
+          const timeInfo = calculateTimeUntilAutoCancel(order.createdAt);
+          updated[order.id] = {
+            hours: timeInfo.hours,
+            minutes: timeInfo.minutes,
+            seconds: timeInfo.seconds,
+            totalSeconds: timeInfo.totalSeconds,
+            isExpired: timeInfo.isExpired,
+          };
+        });
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [orders]);
+
+  // Update countdown for AWAITING_SHIPMENT orders every second (based on confirmedAt)
+  useEffect(() => {
+    const awaitingShipmentOrders = orders.filter(order => 
+      order.status === 'AWAITING_SHIPMENT' && (order as any).confirmedAt
+    );
+    
+    if (awaitingShipmentOrders.length === 0) {
+      setAwaitingShipmentCountdowns({});
+      return;
+    }
+
+    // Calculate initial countdowns based on confirmedAt
+    const initialCountdowns: Record<string, { hours: number; minutes: number; seconds: number; totalSeconds: number; isExpired: boolean }> = {};
+    awaitingShipmentOrders.forEach(order => {
+      const timeInfo = calculateTimeUntilAutoCancel((order as any).confirmedAt);
+      initialCountdowns[order.id] = {
+        hours: timeInfo.hours,
+        minutes: timeInfo.minutes,
+        seconds: timeInfo.seconds,
+        totalSeconds: timeInfo.totalSeconds,
+        isExpired: timeInfo.isExpired,
+      };
+    });
+    setAwaitingShipmentCountdowns(initialCountdowns);
+
+    // Update countdown every second
+    const interval = setInterval(() => {
+      setAwaitingShipmentCountdowns(prev => {
+        const updated: typeof prev = {};
+        awaitingShipmentOrders.forEach(order => {
+          const timeInfo = calculateTimeUntilAutoCancel((order as any).confirmedAt);
+          updated[order.id] = {
+            hours: timeInfo.hours,
+            minutes: timeInfo.minutes,
+            seconds: timeInfo.seconds,
+            totalSeconds: timeInfo.totalSeconds,
+            isExpired: timeInfo.isExpired,
+          };
+        });
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [orders]);
 
   // Load cancel requests for AWAITING_SHIPMENT orders to check if button should be disabled
   useEffect(() => {
@@ -393,7 +535,7 @@ const OrderManageForStoreOwner: React.FC = () => {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => {
+      render: (status: string, record: StoreOrder) => {
         const label = getStatusLabel(status as any);
         const colorMap: Record<string, string> = {
           COMPLETED: 'green',
@@ -404,6 +546,7 @@ const OrderManageForStoreOwner: React.FC = () => {
           UNPAID: 'orange',
           CANCELLED: 'red',
           RETURN_REQUESTED: 'orange',
+          RETURNING: 'orange',
           RETURNED: 'default',
           PENDING: 'default',
           READY_FOR_PICKUP: 'cyan',
@@ -415,6 +558,65 @@ const OrderManageForStoreOwner: React.FC = () => {
           DELIVERY_FAIL: 'red',
           EXCEPTION: 'volcano',
         };
+        
+        // Hiển thị countdown cho đơn PENDING
+        if (status === 'PENDING' && record.createdAt) {
+          const countdown = pendingCountdowns[record.id];
+          if (countdown) {
+            const { hours, minutes, seconds, isExpired } = countdown;
+            if (isExpired) {
+              return (
+                <div className="flex flex-col gap-1">
+                  <Tag color="red">{label}</Tag>
+                  <div className="text-xs text-red-600 font-semibold">
+                    ⚠️ Đã quá hạn - Đơn sẽ bị hủy tự động
+                  </div>
+                </div>
+              );
+            }
+            const countdownText = formatCountdown(hours, minutes, seconds);
+            const countdownColor = getCountdownColor(countdown.totalSeconds);
+            return (
+              <div className="flex flex-col gap-1">
+                <Tag color={colorMap[status] || 'default'}>{label}</Tag>
+                <div className={`text-xs ${countdownColor} flex items-center gap-1`}>
+                  <Clock className="w-3 h-3" />
+                  <span>Còn lại: {countdownText}</span>
+                </div>
+              </div>
+            );
+          }
+        }
+        
+        // Hiển thị countdown cho đơn AWAITING_SHIPMENT
+        if (status === 'AWAITING_SHIPMENT' && (record as any).confirmedAt) {
+          const countdown = awaitingShipmentCountdowns[record.id];
+          if (countdown) {
+            const { hours, minutes, seconds, isExpired } = countdown;
+            if (isExpired) {
+              return (
+                <div className="flex flex-col gap-1">
+                  <Tag color={colorMap[status] || 'default'}>{label}</Tag>
+                  <div className="text-xs text-red-600 font-semibold">
+                    ⚠️ Đã quá hạn - Sẽ bị trừ điểm uy tín
+                  </div>
+                </div>
+              );
+            }
+            const countdownText = formatCountdown(hours, minutes, seconds);
+            const countdownColor = getCountdownColor(countdown.totalSeconds);
+            return (
+              <div className="flex flex-col gap-1">
+                <Tag color={colorMap[status] || 'default'}>{label}</Tag>
+                <div className={`text-xs ${countdownColor} flex items-center gap-1`}>
+                  <Clock className="w-3 h-3" />
+                  <span>Còn lại: {countdownText}</span>
+                </div>
+              </div>
+            );
+          }
+        }
+        
         return <Tag color={colorMap[status] || 'default'}>{label}</Tag>;
       }
     },
@@ -524,12 +726,16 @@ const OrderManageForStoreOwner: React.FC = () => {
     },
   ];
 
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Quản lý đơn hàng</h1>
         <p className="text-gray-600 mt-1">Xem và quản lý tất cả đơn hàng của cửa hàng</p>
       </div>
+
+      {/* Order Statistics with Sidebar */}
+      <OrderStatistics onStatusChange={(status) => setStatus(status as any)} />
 
       <StoreOrderFilter
         status={status}
@@ -618,11 +824,107 @@ const OrderManageForStoreOwner: React.FC = () => {
                   setLoadingCancelRequests(prev => ({ ...prev, [record.id]: false }));
                 }
               }
+
+              // Load product images when row is expanded
+              if (expanded && record.items) {
+                record.items.forEach(async (item: any) => {
+                  if (item.refId && !productImages[item.refId] && !loadingProductImages[item.refId]) {
+                    try {
+                      setLoadingProductImages(prev => ({ ...prev, [item.refId]: true }));
+                      const productData = await ProductListService.getProductById(item.refId);
+                      if (productData.data?.images && productData.data.images.length > 0) {
+                        setProductImages(prev => ({ ...prev, [item.refId]: productData.data.images || [] }));
+                      }
+                    } catch (error: any) {
+                      console.error(`Error loading product images for ${item.refId}:`, error);
+                    } finally {
+                      setLoadingProductImages(prev => ({ ...prev, [item.refId]: false }));
+                    }
+                  }
+                });
+              }
             },
             expandedRowRender: (record) => {
               const addr = [record.shipStreet, record.shipWard, record.shipDistrict, record.shipProvince].filter(Boolean).join(', ');
+              const isPending = record.status === 'PENDING';
+              const isAwaitingShipment = record.status === 'AWAITING_SHIPMENT';
+              const pendingCountdown = isPending && record.createdAt ? pendingCountdowns[record.id] : null;
+              const awaitingShipmentCountdown = isAwaitingShipment && (record as any).confirmedAt ? awaitingShipmentCountdowns[record.id] : null;
+              
               return (
                 <div className="bg-gray-50 p-4 rounded-lg">
+                  {/* Notification cảnh báo cho đơn PENDING */}
+                  {isPending && pendingCountdown && (
+                    <Alert
+                      message={
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-5 h-5" />
+                          <span className="font-semibold">Cảnh báo: Đơn hàng sắp hết hạn xác nhận</span>
+                        </div>
+                      }
+                      description={
+                        <div className="mt-2">
+                          {pendingCountdown.isExpired ? (
+                            <div className="text-red-700 font-semibold">
+                              ⚠️ Đơn hàng đã quá 24 giờ kể từ khi tạo. Đơn sẽ bị hủy tự động nếu không được xác nhận ngay!
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-gray-700 mb-1">
+                                Bạn còn <span className={`font-bold text-lg ${getCountdownColor(pendingCountdown.totalSeconds)}`}>
+                                  {formatCountdown(pendingCountdown.hours, pendingCountdown.minutes, pendingCountdown.seconds)}
+                                </span> để xác nhận đơn hàng này.
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Nếu không xác nhận trong thời gian này, đơn hàng sẽ tự động bị hủy và cửa hàng của bạn sẽ bị trừ điểm uy tín.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      }
+                      type={pendingCountdown.isExpired ? 'error' : pendingCountdown.hours < 1 ? 'error' : pendingCountdown.hours < 6 ? 'warning' : 'info'}
+                      showIcon
+                      icon={<AlertTriangle className="w-4 h-4" />}
+                      className="mb-4"
+                    />
+                  )}
+                  
+                  {/* Notification cảnh báo cho đơn AWAITING_SHIPMENT */}
+                  {isAwaitingShipment && awaitingShipmentCountdown && (
+                    <Alert
+                      message={
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-5 h-5" />
+                          <span className="font-semibold">Cảnh báo: Cần chuẩn bị hàng và chuyển nhượng GHN</span>
+                        </div>
+                      }
+                      description={
+                        <div className="mt-2">
+                          {awaitingShipmentCountdown.isExpired ? (
+                            <div className="text-red-700 font-semibold">
+                              ⚠️ Đã quá 24 giờ kể từ khi xác nhận đơn hàng. Cửa hàng của bạn sẽ bị trừ điểm uy tín nếu không chuẩn bị hàng và chuyển nhượng GHN ngay!
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-gray-700 mb-1">
+                                Bạn còn <span className={`font-bold text-lg ${getCountdownColor(awaitingShipmentCountdown.totalSeconds)}`}>
+                                  {formatCountdown(awaitingShipmentCountdown.hours, awaitingShipmentCountdown.minutes, awaitingShipmentCountdown.seconds)}
+                                </span> để chuẩn bị hàng và chuyển nhượng GHN.
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Nếu không chuẩn bị hàng và chuyển nhượng GHN trong thời gian này, cửa hàng của bạn sẽ bị trừ điểm uy tín.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      }
+                      type={awaitingShipmentCountdown.isExpired ? 'error' : awaitingShipmentCountdown.hours < 1 ? 'error' : awaitingShipmentCountdown.hours < 6 ? 'warning' : 'info'}
+                      showIcon
+                      icon={<AlertTriangle className="w-4 h-4" />}
+                      className="mb-4"
+                    />
+                  )}
+                  
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="bg-white border border-gray-200 rounded-lg p-4">
                       <Descriptions title="Thông tin khách hàng" size="small" column={1} bordered>
@@ -678,6 +980,76 @@ const OrderManageForStoreOwner: React.FC = () => {
 
                   <Divider className="my-4" />
 
+                  {/* Thông tin tài chính - Luồng tiền */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Wallet className="w-5 h-5 text-green-600" />
+                      <div className="text-sm font-semibold">Thông tin tài chính</div>
+                    </div>
+                    <Descriptions title="Tổng hợp tài chính đơn hàng" size="small" column={1} bordered>
+                      <Descriptions.Item label="Tổng giá trị đơn hàng">
+                        <span className="font-semibold text-gray-800">{formatCurrency(record.grandTotal)}</span>
+                      </Descriptions.Item>
+                      {(record as any).platformFeeAmount !== undefined && (
+                        <Descriptions.Item label={
+                          <div className="flex items-center gap-1">
+                            <span>Phí nền tảng</span>
+                            {(record as any).platformFeePercentage !== undefined && (
+                              <Tag color="orange" className="ml-1">
+                                {(record as any).platformFeePercentage}%
+                              </Tag>
+                            )}
+                          </div>
+                        }>
+                          <span className="font-semibold text-orange-600">
+                            -{formatCurrency((record as any).platformFeeAmount)}
+                          </span>
+                        </Descriptions.Item>
+                      )}
+                      {(() => {
+                        // Tính tổng netPayoutItem từ tất cả các items
+                        const totalNetPayoutFromItems = record.items?.reduce((sum: number, item: any) => {
+                          return sum + (item.netPayoutItem || 0);
+                        }, 0) || 0;
+                        
+                        // Sử dụng netPayoutToStore nếu có và > 0, nếu không thì tính từ items
+                        const netPayoutToDisplay = (record as any).netPayoutToStore !== undefined && (record as any).netPayoutToStore > 0
+                          ? (record as any).netPayoutToStore
+                          : totalNetPayoutFromItems;
+                        
+                        if (netPayoutToDisplay > 0 || (record as any).netPayoutToStore !== undefined) {
+                          return (
+                            <Descriptions.Item label={
+                              <div className="flex items-center gap-1">
+                                <TrendingUp className="w-3 h-3 text-green-600" />
+                                <span className="font-semibold">Số tiền cửa hàng nhận được</span>
+                                {(record as any).netPayoutToStore === 0 || (record as any).netPayoutToStore === undefined ? (
+                                  <Tag color="blue" className="ml-1 text-xs">
+                                    (Tính từ sản phẩm)
+                                  </Tag>
+                                ) : null}
+                              </div>
+                            }>
+                              <span className="font-bold text-lg text-green-600">
+                                {formatCurrency(netPayoutToDisplay)}
+                              </span>
+                            </Descriptions.Item>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {(record as any).confirmedAt && (
+                        <Descriptions.Item label="Thời gian xác nhận thanh toán">
+                          <span className="text-sm text-gray-600">
+                            {new Date((record as any).confirmedAt).toLocaleString('vi-VN')}
+                          </span>
+                        </Descriptions.Item>
+                      )}
+                    </Descriptions>
+                  </div>
+
+                  <Divider className="my-4" />
+
                   <div className="bg-white border border-gray-200 rounded-lg p-4">
                     <div className="text-sm font-semibold mb-2">Sản phẩm ({record.items?.length || 0})</div>
                     <List
@@ -688,24 +1060,125 @@ const OrderManageForStoreOwner: React.FC = () => {
                         const finalUnit = item.finalUnitPrice ?? item.unitPrice;
                         const finalLine = item.finalLineTotal ?? finalUnit * item.quantity;
 
+                        const itemImages = item.refId ? productImages[item.refId] : null;
+                        const isLoadingImages = item.refId ? loadingProductImages[item.refId] : false;
+                        
                         return (
                           <List.Item>
-                            <div className="flex items-start justify-between w-full">
-                              <div className="flex-1 pr-4">
-                                <div className="font-medium text-gray-800">{item.name}</div>
-                                <div className="text-xs text-gray-500">
-                                  Giá gốc: {formatCurrency(originalUnit)} × {item.quantity} = {formatCurrency(originalLine)}
+                            <div className="w-full">
+                              <div className="flex items-start justify-between mb-2 gap-4">
+                                {/* Product Image */}
+                                {item.refId && (
+                                  <div className="flex-shrink-0">
+                                    {isLoadingImages ? (
+                                      <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                                        <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                      </div>
+                                    ) : itemImages && itemImages.length > 0 ? (
+                                      <img
+                                        src={itemImages[0]}
+                                        alt={item.name}
+                                        className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                                        <Package className="w-8 h-8 text-gray-400" />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                <div className="flex-1 pr-4">
+                                  <div className="font-medium text-gray-800">{item.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    Giá gốc: {formatCurrency(originalUnit)} × {item.quantity} = {formatCurrency(originalLine)}
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    Giá sau giảm: {formatCurrency(finalUnit)} × {item.quantity} ={' '}
+                                    <span className="font-semibold text-green-600">
+                                      {formatCurrency(finalLine)}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="mt-1 text-xs text-gray-600">
-                                  Giá sau giảm: {formatCurrency(finalUnit)} × {item.quantity} ={' '}
-                                  <span className="font-semibold text-green-600">
-                                    {formatCurrency(finalLine)}
-                                  </span>
+                                <div className="text-right text-sm font-semibold">
+                                  {formatCurrency(finalLine)}
                                 </div>
                               </div>
-                              <div className="text-right text-sm font-semibold">
-                                {formatCurrency(finalLine)}
-                              </div>
+                              
+                              {/* Thông tin tài chính cho từng item */}
+                              {(item.shippingFeeEstimated !== undefined || 
+                                item.shippingFeeActual !== undefined || 
+                                item.platformFeeAmount !== undefined || 
+                                item.netPayoutItem !== undefined) && (
+                                <div className="mt-3 pt-3 border-t border-gray-200 bg-gray-50 rounded p-3">
+                                  <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                                    <Wallet className="w-3 h-3" />
+                                    Thông tin tài chính sản phẩm:
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-xs">
+                                    {item.shippingFeeEstimated !== undefined && (
+                                      <div>
+                                        <span className="text-gray-500">Phí vận chuyển dự kiến:</span>
+                                        <span className="ml-1 font-medium text-gray-700">
+                                          {formatCurrency(item.shippingFeeEstimated)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {item.shippingFeeActual !== undefined && (
+                                      <div>
+                                        <span className="text-gray-500">Phí vận chuyển thực tế:</span>
+                                        <span className="ml-1 font-medium text-gray-700">
+                                          {formatCurrency(item.shippingFeeActual)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {item.shippingExtraForStore !== undefined && item.shippingExtraForStore > 0 && (
+                                      <div>
+                                        <span className="text-gray-500">Phí vận chuyển bổ sung:</span>
+                                        <span className="ml-1 font-medium text-green-600">
+                                          +{formatCurrency(item.shippingExtraForStore)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {item.platformFeeAmount !== undefined && (
+                                      <div>
+                                        <span className="text-gray-500">Phí nền tảng</span>
+                                        {item.platformFeePercentage !== undefined && (
+                                          <Tag color="orange" className="ml-1 text-xs">
+                                            {item.platformFeePercentage}%
+                                          </Tag>
+                                        )}
+                                        <span className="ml-1 font-medium text-orange-600">
+                                          -{formatCurrency(item.platformFeeAmount)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {item.netPayoutItem !== undefined && (
+                                      <div className="col-span-2 mt-1 pt-2 border-t border-gray-300">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-gray-700 font-semibold flex items-center gap-1">
+                                            <TrendingUp className="w-3 h-3 text-green-600" />
+                                            Số tiền cửa hàng nhận được:
+                                          </span>
+                                          <span className="font-bold text-green-600">
+                                            {formatCurrency(item.netPayoutItem)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {item.payoutProcessed !== undefined && (
+                                      <div className="col-span-2 mt-1">
+                                        <Tag color={item.payoutProcessed ? 'green' : 'default'} className="text-xs">
+                                          {item.payoutProcessed ? '✓ Đã thanh toán' : '⏳ Chờ thanh toán'}
+                                        </Tag>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </List.Item>
                         );

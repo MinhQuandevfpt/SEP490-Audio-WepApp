@@ -55,6 +55,11 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     color: 'text-orange-600',
     bgColor: 'bg-orange-50 border-orange-200',
   },
+  RETURNING: {
+    label: 'Đang trả hàng',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50 border-orange-200',
+  },
   RETURNED: {
     label: 'Đã trả hàng',
     color: 'text-gray-600',
@@ -87,7 +92,7 @@ export const ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
     bgColor: 'bg-[#E6F4FF] border-[#2D9CDB]',
   },
   DELIVERY_SUCCESS: {
-    label: 'Hoàn thành',
+    label: 'Giao hàng thành công',
     color: 'text-[#27AE60]',
     bgColor: 'bg-[#E6F8F0] border-[#27AE60]',
   },
