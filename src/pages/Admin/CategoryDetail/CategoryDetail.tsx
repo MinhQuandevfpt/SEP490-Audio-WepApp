@@ -127,6 +127,9 @@ const CategoryDetail: React.FC = () => {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Kiểu dữ liệu
                         </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Tùy chọn
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -149,10 +152,24 @@ const CategoryDetail: React.FC = () => {
                               attr.dataType === 'NUMBER' ? 'green' :
                               attr.dataType === 'BOOLEAN' ? 'orange' :
                               attr.dataType === 'DATE' ? 'purple' :
+                              attr.dataType === 'SELECT' ? 'cyan' :
                               'default'
                             }>
                               {attr.dataType}
                             </Tag>
+                          </td>
+                          <td className="px-4 py-3">
+                            {attr.options && attr.options.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {attr.options.map((option, idx) => (
+                                  <Tag key={idx} color="geekblue" className="text-xs">
+                                    {option}
+                                  </Tag>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">Không có</span>
+                            )}
                           </td>
                         </tr>
                       ))}

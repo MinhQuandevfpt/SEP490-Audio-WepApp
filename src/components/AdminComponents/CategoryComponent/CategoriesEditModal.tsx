@@ -29,8 +29,15 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
   const [newAttribute, setNewAttribute] = useState<CategoryAttributeToAdd>({
     attributeName: '',
     attributeLabel: '',
-    dataType: 'STRING'
+    dataType: 'STRING',
+    options: []
   });
+  
+  // Options input for new attribute
+  const [newAttributeOptionsInput, setNewAttributeOptionsInput] = useState<string>('');
+  
+  // Options input for editing attribute
+  const [editingOptionInput, setEditingOptionInput] = useState<string>('');
   
   // Editing state
   const [editingAttributeId, setEditingAttributeId] = useState<string | null>(null);
@@ -72,7 +79,9 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
       setAttributesToDelete([]);
       setEditingAttributeId(null);
       setEditingAttribute(null);
-      setNewAttribute({ attributeName: '', attributeLabel: '', dataType: 'STRING' });
+      setEditingOptionInput('');
+      setNewAttribute({ attributeName: '', attributeLabel: '', dataType: 'STRING', options: [] });
+      setNewAttributeOptionsInput('');
     }
   }, [initial, open]);
 
@@ -102,8 +111,22 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
       setError('Vui lòng điền đầy đủ tên và nhãn thuộc tính');
       return;
     }
-    setAttributesToAdd([...attributesToAdd, { ...newAttribute }]);
-    setNewAttribute({ attributeName: '', attributeLabel: '', dataType: 'STRING' });
+    
+    // Parse options from input (comma or newline separated)
+    const options = newAttributeOptionsInput
+      .split(/[,\n]/)
+      .map(opt => opt.trim())
+      .filter(opt => opt.length > 0);
+    
+    const attributeToAdd: CategoryAttributeToAdd = {
+      ...newAttribute,
+      // Only include options if dataType is SELECT and has options
+      options: newAttribute.dataType === 'SELECT' && options.length > 0 ? options : undefined
+    };
+    
+    setAttributesToAdd([...attributesToAdd, attributeToAdd]);
+    setNewAttribute({ attributeName: '', attributeLabel: '', dataType: 'STRING', options: [] });
+    setNewAttributeOptionsInput('');
     setError(null);
   };
 
@@ -113,8 +136,10 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
       attributeId: attr.attributeId,
       attributeName: attr.attributeName,
       attributeLabel: attr.attributeLabel,
-      dataType: attr.dataType
+      dataType: attr.dataType,
+      options: attr.options ? [...attr.options] : undefined
     });
+    setEditingOptionInput(''); // Reset input when starting to edit
   };
 
   const handleSaveEditAttribute = () => {
@@ -123,20 +148,39 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
       return;
     }
     
-    // Check if already in update list
+    // Prepare editingAttribute for payload: if options is empty array, keep it to clear options; if undefined, don't include
+    const attributeForUpdate: CategoryAttributeToUpdate = {
+      attributeId: editingAttribute.attributeId,
+      attributeName: editingAttribute.attributeName,
+      attributeLabel: editingAttribute.attributeLabel,
+      dataType: editingAttribute.dataType,
+      // Only include options if it's defined (empty array means clear options, array with values means update)
+      ...(editingAttribute.options !== undefined && { options: editingAttribute.options })
+    };
+    
+    // Update the attribute in attributesToUpdate with the prepared attribute
     const existingIndex = attributesToUpdate.findIndex(a => a.attributeId === editingAttribute.attributeId);
     if (existingIndex >= 0) {
       const updated = [...attributesToUpdate];
-      updated[existingIndex] = editingAttribute;
+      updated[existingIndex] = attributeForUpdate;
       setAttributesToUpdate(updated);
     } else {
-      setAttributesToUpdate([...attributesToUpdate, editingAttribute]);
+      setAttributesToUpdate([...attributesToUpdate, attributeForUpdate]);
     }
     
     // Update local attributes display
     const updatedAttributes = attributes.map(attr => 
       attr.attributeId === editingAttribute.attributeId 
-        ? { ...attr, ...editingAttribute }
+        ? { 
+            ...attr, 
+            attributeName: editingAttribute.attributeName,
+            attributeLabel: editingAttribute.attributeLabel,
+            dataType: editingAttribute.dataType,
+            // Preserve options: if empty array, it means clear options; if undefined, keep original
+            options: editingAttribute.options !== undefined 
+              ? (editingAttribute.options.length > 0 ? editingAttribute.options : [])
+              : attr.options
+          }
         : attr
     );
     setAttributes(updatedAttributes);
@@ -149,6 +193,7 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
   const handleCancelEditAttribute = () => {
     setEditingAttributeId(null);
     setEditingAttribute(null);
+    setEditingOptionInput('');
     setError(null);
   };
 
@@ -315,7 +360,9 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
                               value={editingAttribute?.dataType}
                               onChange={(value) => setEditingAttribute({
                                 ...editingAttribute!,
-                                dataType: value
+                                dataType: value,
+                                // Keep options if changing to STRING or SELECT, clear for other types
+                                options: (value === 'SELECT' || value === 'STRING') ? (editingAttribute?.options || []) : undefined
                               })}
                               style={{ width: '100%' }}
                               size="small"
@@ -325,7 +372,80 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
                               <Option value="BOOLEAN">BOOLEAN</Option>
                               <Option value="DATE">DATE</Option>
                               <Option value="DECIMAL">DECIMAL</Option>
+                              <Option value="SELECT">SELECT</Option>
                             </Select>
+                            {/* Show options management for SELECT type or if attribute has options */}
+                            {(editingAttribute?.dataType === 'SELECT' || (editingAttribute?.options && editingAttribute.options.length > 0)) && (
+                              <div className="space-y-2">
+                                <label className="text-xs text-gray-600 font-medium">Tùy chọn:</label>
+                                
+                                {/* Display existing options with delete buttons */}
+                                {editingAttribute.options && editingAttribute.options.length > 0 && (
+                                  <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+                                    {editingAttribute.options.map((opt, idx) => (
+                                      <Tag
+                                        key={idx}
+                                        closable
+                                        onClose={(e) => {
+                                          e.preventDefault();
+                                          const newOptions = editingAttribute.options?.filter((_, i) => i !== idx) || [];
+                                          setEditingAttribute({
+                                            ...editingAttribute!,
+                                            options: newOptions.length > 0 ? newOptions : []
+                                          });
+                                        }}
+                                        color="blue"
+                                        className="mb-0"
+                                      >
+                                        {opt}
+                                      </Tag>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                {/* Add new option input */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={editingOptionInput}
+                                    onChange={(e) => setEditingOptionInput(e.target.value)}
+                                    placeholder="Nhập tùy chọn mới"
+                                    size="small"
+                                    onPressEnter={(e) => {
+                                      e.preventDefault();
+                                      const value = editingOptionInput.trim();
+                                      if (value && !editingAttribute.options?.includes(value)) {
+                                        setEditingAttribute({
+                                          ...editingAttribute!,
+                                          options: [...(editingAttribute.options || []), value]
+                                        });
+                                        setEditingOptionInput('');
+                                      }
+                                    }}
+                                  />
+                                  <Button
+                                    type="dashed"
+                                    icon={<PlusOutlined />}
+                                    size="small"
+                                    onClick={() => {
+                                      const value = editingOptionInput.trim();
+                                      if (value && !editingAttribute.options?.includes(value)) {
+                                        setEditingAttribute({
+                                          ...editingAttribute!,
+                                          options: [...(editingAttribute.options || []), value]
+                                        });
+                                        setEditingOptionInput('');
+                                      }
+                                    }}
+                                  >
+                                    Thêm
+                                  </Button>
+                                </div>
+                                
+                                <p className="text-xs text-gray-500">
+                                  Nhấn Enter hoặc nút "Thêm" để thêm tùy chọn mới. Click vào tag để xóa.
+                                </p>
+                              </div>
+                            )}
                             <Space>
                               <Button
                                 type="primary"
@@ -359,6 +479,15 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
                                 </Tag>
                               </div>
                               <p className="text-xs text-gray-500 mt-1">{attr.attributeName}</p>
+                              {attr.options && attr.options.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {attr.options.map((opt, idx) => (
+                                    <Tag key={idx} color="geekblue" className="text-xs">
+                                      {opt}
+                                    </Tag>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <Space>
                               <Button
@@ -397,6 +526,15 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
                         <span className="font-medium text-gray-900">{attr.attributeLabel}</span>
                         <Tag color="blue" className="ml-2">{attr.dataType}</Tag>
                         <p className="text-xs text-gray-500 mt-1">{attr.attributeName}</p>
+                        {attr.options && attr.options.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {attr.options.map((opt, idx) => (
+                              <Tag key={idx} color="geekblue" className="text-xs">
+                                {opt}
+                              </Tag>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <Button
                         danger
@@ -430,7 +568,12 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
                 />
                 <Select
                   value={newAttribute.dataType}
-                  onChange={(value) => setNewAttribute({ ...newAttribute, dataType: value })}
+                  onChange={(value) => setNewAttribute({ 
+                    ...newAttribute, 
+                    dataType: value,
+                    // Keep options if changing to STRING or SELECT, clear for other types
+                    options: (value === 'SELECT' || value === 'STRING') ? (newAttribute.options || []) : undefined
+                  })}
                   style={{ width: '100%' }}
                   size="small"
                 >
@@ -439,7 +582,80 @@ const CategoriesEditModal: React.FC<CategoriesEditModalProps> = ({ open, initial
                   <Option value="BOOLEAN">BOOLEAN</Option>
                   <Option value="DATE">DATE</Option>
                   <Option value="DECIMAL">DECIMAL</Option>
+                  <Option value="SELECT">SELECT</Option>
                 </Select>
+                {/* Show options management for SELECT or STRING type */}
+                {(newAttribute.dataType === 'SELECT' || newAttribute.dataType === 'STRING') && (
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-600 font-medium">Tùy chọn:</label>
+                    
+                    {/* Display existing options with delete buttons */}
+                    {newAttribute.options && newAttribute.options.length > 0 && (
+                      <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+                        {newAttribute.options.map((opt, idx) => (
+                          <Tag
+                            key={idx}
+                            closable
+                            onClose={(e) => {
+                              e.preventDefault();
+                              const newOptions = newAttribute.options?.filter((_, i) => i !== idx) || [];
+                              setNewAttribute({
+                                ...newAttribute,
+                                options: newOptions.length > 0 ? newOptions : undefined
+                              });
+                            }}
+                            color="blue"
+                            className="mb-0"
+                          >
+                            {opt}
+                          </Tag>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Add new option input */}
+                    <div className="flex gap-2">
+                      <Input
+                        value={newAttributeOptionsInput}
+                        onChange={(e) => setNewAttributeOptionsInput(e.target.value)}
+                        placeholder="Nhập tùy chọn mới"
+                        size="small"
+                        onPressEnter={(e) => {
+                          e.preventDefault();
+                          const value = newAttributeOptionsInput.trim();
+                          if (value && !newAttribute.options?.includes(value)) {
+                            setNewAttribute({
+                              ...newAttribute,
+                              options: [...(newAttribute.options || []), value]
+                            });
+                            setNewAttributeOptionsInput('');
+                          }
+                        }}
+                      />
+                      <Button
+                        type="dashed"
+                        icon={<PlusOutlined />}
+                        size="small"
+                        onClick={() => {
+                          const value = newAttributeOptionsInput.trim();
+                          if (value && !newAttribute.options?.includes(value)) {
+                            setNewAttribute({
+                              ...newAttribute,
+                              options: [...(newAttribute.options || []), value]
+                            });
+                            setNewAttributeOptionsInput('');
+                          }
+                        }}
+                      >
+                        Thêm
+                      </Button>
+                    </div>
+                    
+                    <p className="text-xs text-gray-500">
+                      Nhấn Enter hoặc nút "Thêm" để thêm tùy chọn mới. Click vào tag để xóa.
+                    </p>
+                  </div>
+                )}
                 <Button
                   type="dashed"
                   icon={<PlusOutlined />}

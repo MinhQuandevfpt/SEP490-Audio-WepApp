@@ -986,13 +986,24 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                   danger 
                   className="h-10 w-full" 
                   style={{ borderRadius: '10px' }} 
-                  onClick={() => setShowCancelShippingModal(true)}
+                  onClick={() => {
+                    message.warning('Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.', 5);
+                    setShowCancelShippingModal(true);
+                  }}
                 >
                   Yêu cầu hủy giao hàng
                 </Button>
               )}
               {canCancelOrder(order.status) && !canCancelShipping && (
-                <Button danger className="h-10 w-full" style={{ borderRadius: '10px' }} onClick={() => setShowCancelModal(true)}>
+                <Button 
+                  danger 
+                  className="h-10 w-full" 
+                  style={{ borderRadius: '10px' }} 
+                  onClick={() => {
+                    message.warning('Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.', 5);
+                    setShowCancelModal(true);
+                  }}
+                >
                   {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
                 </Button>
               )}
@@ -1030,7 +1041,18 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
             <h3 className="text-lg font-semibold text-gray-900">
               {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
             </h3>
-            <p className="mt-3 text-sm text-gray-600">
+            
+            {/* Cảnh báo về điểm uy tín */}
+            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+              <p className="text-sm font-medium text-orange-800">
+                ⚠️ Cảnh báo về điểm uy tín
+              </p>
+              <p className="mt-2 text-sm text-orange-700">
+                Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.
+              </p>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-600">
               Bạn có chắc chắn muốn {order.status === 'AWAITING_SHIPMENT' ? 'gửi yêu cầu hủy' : 'hủy'} đơn hàng này không?
             </p>
 
@@ -1100,7 +1122,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
                 ⚠️ Cảnh báo về điểm uy tín
               </p>
               <p className="mt-2 text-sm text-orange-700">
-                Yêu cầu hủy đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ ảnh hưởng đến thao tác mua hàng của bạn.
+                Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.
               </p>
             </div>
             <p className="mt-4 text-sm text-gray-600">

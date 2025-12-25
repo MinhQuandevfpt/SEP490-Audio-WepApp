@@ -651,7 +651,8 @@ export interface CategoryAttribute {
   attributeId: string;
   attributeName: string;
   attributeLabel: string;
-  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL';
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL' | 'SELECT';
+  options?: string[];
 }
 
 export interface CategoryDetailData {
@@ -670,14 +671,16 @@ export interface CategoryDetailResponse {
 export interface CategoryAttributeToAdd {
   attributeName: string;
   attributeLabel: string;
-  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL';
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL' | 'SELECT';
+  options?: string[];
 }
 
 export interface CategoryAttributeToUpdate {
   attributeId: string;
   attributeName: string;
   attributeLabel: string;
-  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL';
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DECIMAL' | 'SELECT';
+  options?: string[];
 }
 
 export interface UpdateCategoryRequest {
