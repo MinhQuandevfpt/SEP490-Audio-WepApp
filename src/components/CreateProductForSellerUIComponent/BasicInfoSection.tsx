@@ -359,72 +359,67 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               <span className="text-red-500">* </span>Thương hiệu
             </label>
             <div className="relative mt-1">
-              {/* Hiển thị các tag đã chọn */}
-              {parseValueToArray(form.brandName).length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {parseValueToArray(form.brandName).map((item, index) => (
-                    <span
-                      key={`brand-tag-${index}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-md"
-                    >
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeItemFromValue('brandName', item)}
-                        className="hover:text-orange-900 focus:outline-none"
-                        title="Xóa"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              
               <input
                 name="brandName"
-                value={form.brandName}
-                onChange={(e) => handleInputWithSuggestions('brandName', e.target.value)}
-                onFocus={() => setShowSuggestions(prev => ({ ...prev, brandName: true }))}
+                value={showSuggestions.brandName ? (searchQuery.brandName ?? form.brandName) : form.brandName}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  onChange({
+                    target: { name: 'brandName', value: newValue }
+                  } as React.ChangeEvent<HTMLInputElement>);
+                  setSearchQuery(prev => ({
+                    ...prev,
+                    brandName: newValue
+                  }));
+                }}
+                onFocus={() => {
+                  setShowSuggestions(prev => ({ ...prev, brandName: true }));
+                  setSearchQuery(prev => ({
+                    ...prev,
+                    brandName: prev.brandName ?? form.brandName
+                  }));
+                }}
                 onBlur={() => {
                   setTimeout(() => {
                     setShowSuggestions(prev => ({ ...prev, brandName: false }));
+                    setSearchQuery(prev => ({
+                      ...prev,
+                      brandName: ''
+                    }));
                   }, 200);
                 }}
                 type="text"
-                placeholder="VD: Sony, Sennheiser, JBL (có thể chọn nhiều)"
+                placeholder="VD: Sony hoặc nhập thương hiệu khác"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors"
               />
               {showSuggestions.brandName && getFilteredSuggestions('brandName', BRAND_SUGGESTIONS).length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                   <div className="p-2">
-                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý thương hiệu (chọn nhiều):</p>
+                    <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý thương hiệu:</p>
                     <div className="space-y-1">
                       {getFilteredSuggestions('brandName', BRAND_SUGGESTIONS).map((brand, index) => {
-                        const isSelected = parseValueToArray(form.brandName).includes(brand);
+                        const isSelected = form.brandName === brand;
                         return (
                           <button
                             key={`brand-${index}`}
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
-                              if (isSelected) {
-                                removeItemFromValue('brandName', brand);
-                              } else {
-                                addItemToValue('brandName', brand);
-                              }
+                              onChange({
+                                target: { name: 'brandName', value: brand }
+                              } as React.ChangeEvent<HTMLInputElement>);
+                              setSearchQuery(prev => ({
+                                ...prev,
+                                brandName: ''
+                              }));
+                              setShowSuggestions(prev => ({ ...prev, brandName: false }));
                             }}
-                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
+                            className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 ${
                               isSelected
                                 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                                 : 'hover:bg-orange-50 hover:text-orange-700'
                             }`}
                           >
-                            <span className={`inline-block w-4 h-4 border-2 rounded ${
-                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-gray-300'
-                            } flex items-center justify-center`}>
-                              {isSelected && <span className="text-white text-xs">✓</span>}
-                            </span>
                             {brand}
                           </button>
                         );
@@ -520,12 +515,30 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
               
               <input
                 name="material"
-                value={form.material}
-                onChange={(e) => handleInputWithSuggestions('material', e.target.value)}
-                onFocus={() => setShowSuggestions(prev => ({ ...prev, material: true }))}
+                value={showSuggestions.material ? (searchQuery.material || '') : formatArrayToString(parseValueToArray(form.material))}
+                onChange={(e) => {
+                  const newInput = e.target.value;
+                  setSearchQuery(prev => ({
+                    ...prev,
+                    material: newInput
+                  }));
+                }}
+                onFocus={() => {
+                  setShowSuggestions(prev => ({ ...prev, material: true }));
+                  // Khi focus, hiển thị search query (nếu có) hoặc rỗng để tìm kiếm
+                  setSearchQuery(prev => ({
+                    ...prev,
+                    material: prev.material || ''
+                  }));
+                }}
                 onBlur={() => {
                   setTimeout(() => {
                     setShowSuggestions(prev => ({ ...prev, material: false }));
+                    // Clear search query khi blur để hiển thị lại selected values
+                    setSearchQuery(prev => ({
+                      ...prev,
+                      material: ''
+                    }));
                   }, 200);
                 }}
                 type="text"
@@ -538,18 +551,26 @@ const BasicInfoSection: React.FC<BasicInfoSectionProps> = ({
                     <p className="text-xs text-gray-500 mb-2 px-2 font-medium">Gợi ý chất liệu (chọn nhiều):</p>
                     <div className="space-y-1">
                       {getFilteredSuggestions('material', MATERIAL_SUGGESTIONS).map((material, index) => {
-                        const isSelected = parseValueToArray(form.material).includes(material);
+                        const selectedValues = parseValueToArray(form.material);
+                        const isSelected = selectedValues.includes(material);
                         return (
                           <button
                             key={`material-${index}`}
                             type="button"
-                            onMouseDown={(e) => e.preventDefault()}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                            }}
                             onClick={() => {
                               if (isSelected) {
                                 removeItemFromValue('material', material);
                               } else {
                                 addItemToValue('material', material);
                               }
+                              // Clear search query sau khi chọn để input hiển thị lại selected values
+                              setSearchQuery(prev => ({
+                                ...prev,
+                                material: ''
+                              }));
                             }}
                             className={`w-full px-3 py-2 text-left text-sm transition-colors rounded border-b border-gray-100 last:border-b-0 flex items-center gap-2 ${
                               isSelected

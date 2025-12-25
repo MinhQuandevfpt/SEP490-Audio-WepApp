@@ -54,6 +54,41 @@ const maskCustomerInfo = (value: string | undefined | null): string => {
   }
 };
 
+// Helper function to get GHN status label and color
+const getGhnStatusInfo = (status: string): { label: string; color: string } => {
+  const statusMap: Record<string, { label: string; color: string }> = {
+    'CANCEL': { label: 'Đã hủy', color: 'red' },
+    'CANCELED': { label: 'Đã hủy', color: 'red' },
+    'DAMAGE': { label: 'Hàng hư hỏng', color: 'volcano' },
+    'DELIVERED': { label: 'Đã giao hàng', color: 'green' },
+    'DELIVERING': { label: 'Đang giao hàng', color: 'processing' },
+    'DELIVERY_FAIL': { label: 'Giao hàng thất bại', color: 'red' },
+    'EXCEPTION': { label: 'Ngoại lệ', color: 'volcano' },
+    'GHN_CREATED': { label: 'Đã tạo đơn GHN', color: 'blue' },
+    'LOST': { label: 'Thất lạc', color: 'red' },
+    'MONEY_COLLECT_DELIVERING': { label: 'Đang thu tiền khi giao', color: 'orange' },
+    'MONEY_COLLECT_PICKING': { label: 'Đang thu tiền khi lấy', color: 'orange' },
+    'ON_DELIVERY': { label: 'Đang giao hàng', color: 'processing' },
+    'PICKED': { label: 'Đã lấy hàng', color: 'cyan' },
+    'PICKING': { label: 'Đang lấy hàng', color: 'cyan' },
+    'READY_PICKUP': { label: 'Sẵn sàng lấy hàng', color: 'blue' },
+    'READY_TO_PICK': { label: 'Sẵn sàng lấy hàng', color: 'blue' },
+    'RETURN': { label: 'Trả hàng', color: 'orange' },
+    'RETURNED': { label: 'Đã trả hàng', color: 'default' },
+    'RETURNING': { label: 'Đang trả hàng', color: 'orange' },
+    'RETURN_FAIL': { label: 'Trả hàng thất bại', color: 'red' },
+    'RETURN_SORTING': { label: 'Đang phân loại trả hàng', color: 'orange' },
+    'RETURN_TRANSPORTING': { label: 'Đang vận chuyển trả hàng', color: 'orange' },
+    'SORTING': { label: 'Đang phân loại', color: 'purple' },
+    'STORING': { label: 'Đang lưu kho', color: 'purple' },
+    'TRANSPORTING': { label: 'Đang vận chuyển', color: 'purple' },
+    'WAITING_TO_RETURN': { label: 'Chờ trả hàng', color: 'orange' },
+    'SHIPPING': { label: 'Đang vận chuyển', color: 'purple' },
+  };
+
+  return statusMap[status] || { label: status, color: 'default' };
+};
+
 const OrderManageForStoreOwner: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -123,6 +158,36 @@ const OrderManageForStoreOwner: React.FC = () => {
       navigate(cleanUrl.pathname + cleanUrl.search, { replace: true });
     }
   }, [targetCustomerOrderId, hasAutoExpanded, isLoading, orders, navigate]);
+
+  // Load cancel requests for AWAITING_SHIPMENT orders to check if button should be disabled
+  useEffect(() => {
+    if (!orders || orders.length === 0 || isLoading) {
+      return;
+    }
+
+    const awaitingShipmentOrders = orders.filter(
+      (order) => order.status === 'AWAITING_SHIPMENT' && !cancelRequestsData[order.id] && !loadingCancelRequests[order.id]
+    );
+
+    if (awaitingShipmentOrders.length === 0) {
+      return;
+    }
+
+    // Load cancel requests for all AWAITING_SHIPMENT orders
+    awaitingShipmentOrders.forEach(async (order) => {
+      try {
+        setLoadingCancelRequests(prev => ({ ...prev, [order.id]: true }));
+        const cancelRequests = await StoreOrderService.getCancelRequests(order.id);
+        setCancelRequestsData(prev => ({ ...prev, [order.id]: cancelRequests }));
+      } catch (error: any) {
+        console.error(`Error loading cancel requests for ${order.id}:`, error);
+        // Set empty array on error to avoid retrying
+        setCancelRequestsData(prev => ({ ...prev, [order.id]: [] }));
+      } finally {
+        setLoadingCancelRequests(prev => ({ ...prev, [order.id]: false }));
+      }
+    });
+  }, [orders, isLoading]);
 
   const handlePrepareOrder = async (orderId: string) => {
     try {
@@ -287,6 +352,15 @@ const OrderManageForStoreOwner: React.FC = () => {
     }
   };
 
+  // Helper function to check if order has pending cancel request (status = REQUESTED)
+  const hasPendingCancelRequest = (orderId: string): boolean => {
+    const requests = cancelRequestsData[orderId];
+    if (!requests || !Array.isArray(requests)) {
+      return false;
+    }
+    return requests.some((request: any) => request.status === 'REQUESTED');
+  };
+
   const columns: ColumnsType<StoreOrder> = [
     {
       title: 'Mã đơn',
@@ -427,15 +501,18 @@ const OrderManageForStoreOwner: React.FC = () => {
         
         // Chỉ cho phép "Chuyển nhượng GHN" khi đơn đang chờ lấy hàng
         // và CHƯA có thông tin vận chuyển GHN trong hệ thống
+        // và KHÔNG có yêu cầu hủy đơn đang chờ xử lý (status = REQUESTED)
         if (isAwaitingShipment && !hasGhnOrder) {
+          const hasPendingRequest = hasPendingCancelRequest(record.id);
           return (
             <Button
               type="primary"
               icon={<Truck className="w-4 h-4" />}
               onClick={() => setGhnTransferOrderId(record.id)}
+              disabled={hasPendingRequest}
               size="small"
               style={{ backgroundColor: '#3b82f6', borderColor: '#3b82f6' }}
-              title="Chuyển nhượng GHN"
+              title={hasPendingRequest ? 'Không thể chuyển nhượng GHN vì có yêu cầu hủy đơn đang chờ xử lý' : 'Chuyển nhượng GHN'}
             >
               Chuyển nhượng GHN
             </Button>
@@ -676,17 +753,14 @@ const OrderManageForStoreOwner: React.FC = () => {
                           {new Date(ghnOrderData[record.id].expectedDeliveryTime).toLocaleString('vi-VN')}
                         </Descriptions.Item>
                         <Descriptions.Item label="Trạng thái">
-                          <Tag color={
-                            ghnOrderData[record.id].status === 'READY_PICKUP' ? 'blue' :
-                            ghnOrderData[record.id].status === 'SHIPPING' ? 'purple' :
-                            ghnOrderData[record.id].status === 'DELIVERED' ? 'green' :
-                            'default'
-                          }>
-                            {ghnOrderData[record.id].status === 'READY_PICKUP' ? 'Sẵn sàng lấy hàng' :
-                             ghnOrderData[record.id].status === 'SHIPPING' ? 'Đang vận chuyển' :
-                             ghnOrderData[record.id].status === 'DELIVERED' ? 'Đã giao hàng' :
-                             ghnOrderData[record.id].status}
-                          </Tag>
+                          {(() => {
+                            const statusInfo = getGhnStatusInfo(ghnOrderData[record.id].status);
+                            return (
+                              <Tag color={statusInfo.color}>
+                                {statusInfo.label}
+                              </Tag>
+                            );
+                          })()}
                         </Descriptions.Item>
                         <Descriptions.Item label="Ngày tạo">
                           {new Date(ghnOrderData[record.id].createdAt).toLocaleString('vi-VN')}
@@ -756,6 +830,9 @@ const OrderManageForStoreOwner: React.FC = () => {
                                    request.reason === 'CHANGE_OF_MIND' ? 'Thay đổi ý định' :
                                    request.reason === 'WRONG_ITEM' ? 'Sai sản phẩm' :
                                    request.reason === 'DELIVERY_ISSUE' ? 'Vấn đề giao hàng' :
+                                   request.reason === 'WRONG_INFO_OR_ADDRESS' ? 'Sai thông tin/địa chỉ' :
+                                   request.reason === 'ORDERED_BY_ACCIDENT' ? 'Đặt nhầm' :
+                                   request.reason === 'OTHER' ? 'Khác' :
                                    request.reason}
                                 </div>
                               </div>
@@ -795,8 +872,26 @@ const OrderManageForStoreOwner: React.FC = () => {
                                     const key = `${record.id}-${request.id}`;
                                     try {
                                       setProcessingCancelRequest(prev => ({ ...prev, [key]: true }));
-                                      await StoreOrderService.approveCancelRequest(record.id);
-                                      showCenterSuccess('Đã chấp nhận yêu cầu hủy đơn hàng và hoàn tiền', 'Thành công');
+                                      
+                                      // Kiểm tra xem có GHN code không
+                                      const ghnCode = ghnOrderData[record.id]?.orderGhn;
+                                      
+                                      if (ghnCode) {
+                                        // Nếu có GHN code, gọi cả 2 API
+                                        console.log('🔄 Approving cancel request with GHN code:', ghnCode);
+                                        
+                                        // Gọi API approve cancel request
+                                        await StoreOrderService.approveCancelRequest(record.id);
+                                        
+                                        // Gọi API hủy đơn GHN
+                                        await GhnService.cancelOrder([ghnCode]);
+                                        
+                                        showCenterSuccess('Đã chấp nhận yêu cầu hủy đơn hàng, hủy đơn GHN và hoàn tiền', 'Thành công');
+                                      } else {
+                                        // Nếu không có GHN code, chỉ gọi API approve
+                                        await StoreOrderService.approveCancelRequest(record.id);
+                                        showCenterSuccess('Đã chấp nhận yêu cầu hủy đơn hàng và hoàn tiền', 'Thành công');
+                                      }
                                       
                                       // Refresh cancel requests
                                       const updatedRequests = await StoreOrderService.getCancelRequests(record.id);
@@ -805,6 +900,7 @@ const OrderManageForStoreOwner: React.FC = () => {
                                       // Refresh order list
                                       refresh();
                                     } catch (error: any) {
+                                      console.error('❌ Error approving cancel request:', error);
                                       showCenterError(error?.message || 'Không thể chấp nhận yêu cầu hủy đơn hàng', 'Lỗi');
                                     } finally {
                                       setProcessingCancelRequest(prev => ({ ...prev, [key]: false }));
