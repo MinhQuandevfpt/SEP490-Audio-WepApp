@@ -4,14 +4,16 @@ import { Button, Modal, Alert, message } from 'antd';
 import { Typography } from 'antd';
 import { StoreService } from '../../services/seller/StoreService';
 import { FinanceService } from '../../services/seller/FinanceService';
-import type { RiskWarningResponse, DebtComponentItem, DebtComponentPage, WalletOverview } from '../../types/seller';
+import type { RiskWarningResponse, DebtComponentItem, DebtComponentPage, WalletOverview, UnpaidEndedOrder } from '../../types/seller';
 
 const { Text } = Typography;
 
 const RiskWarningDashboard: React.FC = () => {
   const [riskData, setRiskData] = useState<RiskWarningResponse | null>(null);
   const [debtItems, setDebtItems] = useState<DebtComponentItem[]>([]);
+  const [unpaidEndedOrders, setUnpaidEndedOrders] = useState<UnpaidEndedOrder[]>([]);
   const [debtLoading, setDebtLoading] = useState(false);
+  const [unpaidEndedLoading, setUnpaidEndedLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -32,18 +34,21 @@ const RiskWarningDashboard: React.FC = () => {
   });
 
   const [payableNowOnly, setPayableNowOnly] = useState(false);
+  const [activeTab, setActiveTab] = useState<'breakdown' | 'unpaid-ended'>('breakdown');
 
   useEffect(() => {
     // Load lần đầu khi mở trang
     loadRiskData();
     loadDebtComponents();
+    loadUnpaidEndedOrders();
     loadWalletOverview();
 
     // Mỗi 2 phút tự động reload lại dữ liệu cảnh báo + breakdown
     const intervalId = window.setInterval(() => {
-      console.log('⏰ Auto refresh RiskWarningDashboard (every 3 minutes)');
+      console.log('⏰ Auto refresh RiskWarningDashboard (every 2 minutes)');
       loadRiskData();
       loadDebtComponents();
+      loadUnpaidEndedOrders();
       loadWalletOverview();
     }, 2 * 60 * 1000);
 
@@ -130,6 +135,19 @@ const RiskWarningDashboard: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error loading wallet overview:', err);
+    }
+  };
+
+  const loadUnpaidEndedOrders = async () => {
+    try {
+      setUnpaidEndedLoading(true);
+      const orders = await StoreService.getUnpaidEndedOrders();
+      setUnpaidEndedOrders(orders);
+    } catch (err: any) {
+      console.error('Error loading unpaid ended orders:', err);
+      message.error(err.message || 'Không thể tải danh sách nợ cần thanh toán');
+    } finally {
+      setUnpaidEndedLoading(false);
     }
   };
 
@@ -647,7 +665,7 @@ const RiskWarningDashboard: React.FC = () => {
                   onChange={(e) => setPayableNowOnly(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
                 />
-                <span>Chỉ hiển thị khoản nợ có thể thanh toán ngay (payableNowOnly)</span>
+                <span>Chỉ hiển thị khoản nợ có thể thanh toán ngay</span>
               </label>
             </div>
 
@@ -669,80 +687,221 @@ const RiskWarningDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Table Card */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Chi tiết khoản nợ (Breakdown)
-            </h2>
-              <span className="text-sm text-gray-500">
-                {debtItems.length} khoản nợ trong trang hiện tại
-              </span>
+        {/* Table Card with Tabs */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Tabs Header */}
+          <div className="border-b border-gray-200 bg-gray-50">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('breakdown')}
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors ${
+                  activeTab === 'breakdown'
+                    ? 'bg-white text-orange-600 border-b-2 border-orange-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                Chi tiết khoản nợ
+              </button>
+              <button
+                onClick={() => setActiveTab('unpaid-ended')}
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors ${
+                  activeTab === 'unpaid-ended'
+                    ? 'bg-white text-orange-600 border-b-2 border-orange-600'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                Nợ cần thanh toán
+              </button>
+            </div>
           </div>
 
-          {/* Table Header */}
-          <div className="grid grid-cols-5 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
-            <div>Loại</div>
-            <div>Mã đơn/Tham chiếu</div>
-            <div>Số tiền (VND)</div>
-            <div>Trạng thái</div>
-            <div>Ngày phát sinh</div>
-          </div>
-
-          {/* Table Content */}
-          {debtLoading ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
-              Đang tải breakdown nợ...
-            </div>
-          ) : debtItems.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
-              Không có khoản nợ nào theo bộ lọc hiện tại.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {debtItems.map((item, index) => {
-                const isPaid = item.status === 'PAID';
-                const isUnpaid = item.status === 'UNPAID';
-                return (
-                  <div
-                    key={index}
-                    className="grid grid-cols-5 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
-                  >
-                    <div>{item.displayType}</div>
-                    <div className="font-mono text-xs">
-                      {item.orderCode || '-'}
-                      {item.ghnOrderCode && (
-                        <div className="text-[10px] text-gray-500">
-                          GHN: {item.ghnOrderCode}
-                        </div>
-                      )}
-                    </div>
-                    <div className="font-medium">{formatCurrency(item.amount)}</div>
-                    <div>
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          isPaid
-                            ? 'bg-green-100 text-green-700'
-                            : isUnpaid
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}
-                      >
-                        {isPaid
-                          ? 'Đã thanh toán'
-                          : isUnpaid
-                          ? 'Chưa thanh toán'
-                          : item.status}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {formatDate(item.occurredAt)}
-                    </div>
+          {/* Tab Content */}
+          <div className="p-5">
+            {/* Chi tiết khoản nợ Tab */}
+            {activeTab === 'breakdown' && (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      Chi tiết khoản nợ
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Các khoản nợ tạo ra tổng nợ hiện tại
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <span className="text-sm text-gray-500">
+                    {debtItems.length} khoản nợ trong trang hiện tại
+                  </span>
+                </div>
+
+                {/* Table Header */}
+                <div className="grid grid-cols-5 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
+                  <div>Loại</div>
+                  <div>Mã đơn/Tham chiếu</div>
+                  <div>Số tiền (VND)</div>
+                  <div>Trạng thái</div>
+                  <div>Ngày phát sinh</div>
+                </div>
+
+                {/* Table Content */}
+                {debtLoading ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    Đang tải breakdown nợ...
+                  </div>
+                ) : debtItems.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    Không có khoản nợ nào theo bộ lọc hiện tại.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {debtItems.map((item, index) => {
+                      const isPaid = item.status === 'PAID';
+                      const isUnpaid = item.status === 'UNPAID';
+                      return (
+                        <div
+                          key={index}
+                          className="grid grid-cols-5 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
+                        >
+                          <div>{item.displayType}</div>
+                          <div className="font-mono text-xs">
+                            {item.orderCode || '-'}
+                            {item.ghnOrderCode && (
+                              <div className="text-[10px] text-gray-500">
+                                GHN: {item.ghnOrderCode}
+                              </div>
+                            )}
+                          </div>
+                          <div className="font-medium">{formatCurrency(item.amount)}</div>
+                          <div>
+                            <span
+                              className={`px-2 py-1 rounded text-xs ${
+                                isPaid
+                                  ? 'bg-green-100 text-green-700'
+                                  : isUnpaid
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {isPaid
+                                ? 'Đã thanh toán'
+                                : isUnpaid
+                                ? 'Chưa thanh toán'
+                                : item.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDate(item.occurredAt)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Nợ cần thanh toán Tab */}
+            {activeTab === 'unpaid-ended' && (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      Nợ cần thanh toán
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Danh sách các đơn hàng đã kết thúc (giao thành công) nhưng còn nợ phí ship chênh lệch cần thanh toán
+                    </p>
+                  </div>
+                  <Button
+                    size="small"
+                    onClick={loadUnpaidEndedOrders}
+                    loading={unpaidEndedLoading}
+                  >
+                    Làm mới
+                  </Button>
+                </div>
+
+                {/* Table Header */}
+                <div className="grid grid-cols-7 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
+                  <div>Mã đơn</div>
+                  <div>Trạng thái</div>
+                  <div>Phí ship KH trả</div>
+                  <div>Phí ship thực tế</div>
+                  <div>Nợ cần trả</div>
+                  <div>Phí boom</div>
+                  <div>Đã áp dụng phí return</div>
+                </div>
+
+                {/* Table Content */}
+                {unpaidEndedLoading ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    Đang tải danh sách nợ cần thanh toán...
+                  </div>
+                ) : unpaidEndedOrders.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 text-sm">
+                    Không có đơn hàng nào còn nợ cần thanh toán.
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      {unpaidEndedOrders.map((order, index) => (
+                        <div
+                          key={order.orderId || index}
+                          className="grid grid-cols-7 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
+                        >
+                          <div className="font-mono text-xs font-medium text-blue-600">
+                            {order.orderCode}
+                          </div>
+                          <div>
+                            <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
+                              {order.status === 'DELIVERY_SUCCESS' ? 'Giao thành công' : order.status}
+                            </span>
+                          </div>
+                          <div className="text-gray-700">
+                            {formatCurrency(order.shippingFeeCustomerPaid)}
+                          </div>
+                          <div className="text-gray-700">
+                            {formatCurrency(order.shippingFeeReal)}
+                          </div>
+                          <div className="font-semibold text-red-600">
+                            {formatCurrency(order.debtNeedToPay)}
+                          </div>
+                          <div className="text-gray-700">
+                            {order.boomFee ? formatCurrency(order.boomFee) : '-'}
+                          </div>
+                          <div>
+                            <span
+                              className={`px-2 py-1 rounded text-xs ${
+                                order.returnChargeApplied
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}
+                            >
+                              {order.returnChargeApplied ? 'Có' : 'Không'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Summary */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-700">
+                          Tổng nợ cần thanh toán:
+                        </span>
+                        <span className="text-lg font-bold text-red-600">
+                          {formatCurrency(
+                            unpaidEndedOrders.reduce((sum, order) => sum + order.debtNeedToPay, 0)
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Pay Debt Modal */}
