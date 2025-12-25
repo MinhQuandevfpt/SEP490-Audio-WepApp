@@ -24,6 +24,7 @@ const Login: React.FC = () => {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0); // Thời gian đếm ngược (giây)
 
   // Check for message from registration - just pre-fill email if provided
   useEffect(() => {
@@ -31,6 +32,16 @@ const Login: React.FC = () => {
       setFormData(prev => ({ ...prev, email: location.state.email }));
     }
   }, [location.state]);
+
+  // Countdown timer cho resend verify email
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => {
+        setResendCooldown(resendCooldown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -41,20 +52,38 @@ const Login: React.FC = () => {
   };
 
   const handleResendVerifyEmail = async () => {
+    // Kiểm tra cooldown
+    if (resendCooldown > 0) {
+      return;
+    }
+
     if (!formData.email) {
       showCenterError(t('login.errors.emailRequired'), t('login.errors.missingInfo'));
       return;
     }
+    
     try {
       const res = await CustomerAuthService.resendVerifyEmail(formData.email, 'CUSTOMER');
       if (res?.status === 200) {
         showCenterSuccess(res.message || 'Đã gửi lại email xác nhận', 'Thành công');
+        // Bắt đầu đếm ngược 60 giây
+        setResendCooldown(60);
       } else {
-        showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+        // Hiển thị thông báo tiếng Việt cho lỗi 404
+        if (res?.status === 404) {
+          showCenterError('Tài khoản không tồn tại', 'Lỗi');
+        } else {
+          showCenterError(res?.message || 'Không thể gửi lại email xác nhận', 'Lỗi');
+        }
       }
     } catch (error: any) {
-      const msg = error?.message || 'Không thể gửi lại email xác nhận';
-      showCenterError(msg, 'Lỗi');
+      // Kiểm tra nếu lỗi có status 404
+      if (error?.status === 404 || error?.response?.status === 404) {
+        showCenterError('Tài khoản không tồn tại', 'Lỗi');
+      } else {
+        const msg = error?.message || 'Không thể gửi lại email xác nhận';
+        showCenterError(msg, 'Lỗi');
+      }
     }
   };
 
@@ -248,9 +277,16 @@ const Login: React.FC = () => {
             <button
               type="button"
               onClick={handleResendVerifyEmail}
-              className="text-xs text-orange-500 hover:text-orange-600 font-medium underline"
+              disabled={resendCooldown > 0}
+              className={`text-xs font-medium underline ${
+                resendCooldown > 0
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-orange-500 hover:text-orange-600'
+              }`}
             >
-              Gửi lại mail xác nhận
+              {resendCooldown > 0
+                ? `Gửi lại mail xác nhận (${resendCooldown}s)`
+                : 'Gửi lại mail xác nhận'}
             </button>
           </div>
         </div>
