@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ProductListFilters, ProductListSort as ProductListSortType } from '../../types/productList';
 import { useCategories } from '../../hooks/useCategories';
+import { useProvinces } from '../../hooks/useProvinces';
 import type { CategoryItem } from '../../types/api';
 import { Star, X } from 'lucide-react';
 
@@ -24,6 +25,7 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
   onClose,
 }) => {
   const { categories, loading: categoriesLoading } = useCategories();
+  const { provinces, loading: provincesLoading } = useProvinces();
   const [minPriceInput, setMinPriceInput] = useState<string>(
     filters.minPrice?.toString() || ''
   );
@@ -32,14 +34,18 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
   );
   const [priceError, setPriceError] = useState<string>('');
   const [minRating, setMinRating] = useState<number | undefined>(filters.minRating);
+  const [selectedProvinceId, setSelectedProvinceId] = useState<string>(
+    filters.provinceCode || ''
+  );
 
   // Sync input fields when filters change from outside (e.g., reset, URL params)
   useEffect(() => {
     setMinPriceInput(filters.minPrice?.toString() || '');
     setMaxPriceInput(filters.maxPrice?.toString() || '');
     setMinRating(filters.minRating);
+    setSelectedProvinceId(filters.provinceCode || '');
     setPriceError(''); // Clear error when filters change from outside
-  }, [filters.minPrice, filters.maxPrice, filters.minRating]);
+  }, [filters.minPrice, filters.maxPrice, filters.minRating, filters.provinceCode]);
 
   const handleSelectCategory = (categoryId: string, categoryName: string) => {
     if (loading || categoriesLoading) return;
@@ -120,10 +126,23 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
     }
   };
 
+  const handleProvinceChange = (provinceId: string) => {
+    if (loading || provincesLoading) return;
+    const newProvinceCode = provinceId === selectedProvinceId ? undefined : provinceId;
+    setSelectedProvinceId(newProvinceCode || '');
+    onFiltersChange({ provinceCode: newProvinceCode });
+    
+    // Đóng filter trên mobile sau khi chọn province
+    if (onClose) {
+      setTimeout(() => onClose(), 300); // Delay nhỏ để user thấy feedback
+    }
+  };
+
   const handleReset = () => {
     setMinPriceInput('');
     setMaxPriceInput('');
     setMinRating(undefined);
+    setSelectedProvinceId('');
     setPriceError('');
     
     // Reset sort to default if onSortChange is provided
@@ -347,6 +366,34 @@ export const ProductListFilter: React.FC<ProductListFilterProps> = ({
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Tỉnh/Thành phố Section */}
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-3">Tỉnh/Thành phố</p>
+            <div className="relative">
+              <select
+                value={selectedProvinceId}
+                onChange={(e) => handleProvinceChange(e.target.value)}
+                disabled={loading || provincesLoading}
+                className="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed appearance-none bg-white cursor-pointer"
+              >
+                <option value="">Tất cả tỉnh/thành phố</option>
+                {provinces.map((province) => (
+                  <option key={province.ProvinceID} value={province.ProvinceID.toString()}>
+                    {province.ProvinceName}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            {provincesLoading && (
+              <p className="text-xs text-gray-500 mt-1">Đang tải danh sách tỉnh...</p>
+            )}
           </div>
         </div>
       </div>

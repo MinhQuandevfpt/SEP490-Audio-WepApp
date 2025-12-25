@@ -254,6 +254,29 @@ export class ProductViewService {
     const endpoint = `${this.BASE_URL}/${productId}/vouchers${suffix}`;
     return await HttpInterceptor.get<ProductVouchersResponse>(endpoint, { userType: 'customer' });
   }
+
+  /**
+   * Get nearby products based on customer's default address location
+   * Requires customer authentication
+   */
+  static async getNearbyProducts(params: ProductViewParams = {}): Promise<ProductViewApiResponse> {
+    const query = new URLSearchParams();
+
+    if (params.status) query.append('status', params.status);
+    if (params.categoryId) query.append('categoryId', params.categoryId);
+    if (params.keyword) query.append('keyword', params.keyword);
+    if (params.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
+    if (params.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
+    if (params.minRating !== undefined) query.append('minRating', String(params.minRating));
+    if (params.sortBy) query.append('sortBy', params.sortBy);
+    if (params.sortDir) query.append('sortDir', params.sortDir);
+    query.append('page', String(params.page ?? 0));
+    query.append('size', String(params.size ?? 10));
+
+    const endpoint = `${this.BASE_URL}/nearby?${query.toString()}`;
+    // Requires customer authentication - will use token from HttpInterceptor
+    return await HttpInterceptor.get<ProductViewApiResponse>(endpoint, { userType: 'customer' });
+  }
 }
 
 export default ProductViewService;

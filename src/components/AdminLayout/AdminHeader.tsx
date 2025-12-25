@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminAuthService } from '../../services/admin/AdminAuthService';
+import { FlatStaffAuthService } from '../../services/admin/FlatStaffAuthService';
 
 const AdminHeader: React.FC = () => {
   const navigate = useNavigate();
@@ -8,7 +9,9 @@ const AdminHeader: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
-  const currentUser = AdminAuthService.getCurrentUser();
+  const adminUser = AdminAuthService.getCurrentUser();
+  const flatStaffUser = FlatStaffAuthService.getCurrentUser();
+  const currentUser = adminUser || flatStaffUser;
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -28,8 +31,16 @@ const AdminHeader: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
+    // Logout both services
     AdminAuthService.logout();
-    navigate('/admin/login');
+    FlatStaffAuthService.logout();
+    
+    // Navigate to correct login page
+    if (flatStaffUser) {
+      navigate('/admin/flatstaff/login');
+    } else {
+      navigate('/admin/login');
+    }
   };
 
   // Mock notifications

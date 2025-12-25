@@ -4,11 +4,42 @@ import Sidebar from '../../components/Sidebar';
 import BannerSlider from '../../components/BannerSlider';
 import FlashSaleHome from '../../components/FlashSale/FlashSaleHome';
 import ProductSuggestions from '../../components/ProductSuggestions';
+import NearbyProducts from '../../components/NearbyProducts';
 import { showCenterSuccess } from '../../utils/notification';
+import { CustomerAuthService } from '../../services/customer/Authcustomer';
 import { Menu, X } from 'lucide-react';
 
 const HomePage: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCustomerAuthenticated, setIsCustomerAuthenticated] = useState(false);
+
+  // Check if customer is authenticated
+  useEffect(() => {
+    const checkAuth = () => {
+      const isAuthenticated = CustomerAuthService.isAuthenticated();
+      setIsCustomerAuthenticated(isAuthenticated);
+    };
+
+    // Check on mount
+    checkAuth();
+
+    // Listen to storage changes (login/logout)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'CUSTOMER_token' || e.key === 'customer_token') {
+        checkAuth();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically (every 2 seconds) for same-tab changes
+    const interval = setInterval(checkAuth, 2000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Check for welcome message after login
   useEffect(() => {
@@ -95,6 +126,9 @@ const HomePage: React.FC = () => {
 
             {/* Flash Sale Section */}
             <FlashSaleHome />
+
+            {/* Nearby Products Section - Only show when customer is authenticated */}
+            {isCustomerAuthenticated && <NearbyProducts />}
 
             {/* Product Suggestions Section */}
             <ProductSuggestions />

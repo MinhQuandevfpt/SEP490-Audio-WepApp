@@ -57,22 +57,16 @@ const UserManagement: React.FC = () => {
     
     return [
       {
-        title: 'Tổng khách hàng',
+        title: 'Tổng tài khoản',
         value: stats.totalCustomers,
         color: 'blue',
         icon: <UserOutlined className="text-2xl" />
       },
       {
-        title: 'Khách hàng hoạt động',
+        title: 'Tài khoản hoạt động',
         value: stats.activeCustomers,
         color: 'green',
         icon: <UnlockOutlined className="text-2xl" />
-      },
-      {
-        title: 'Khách hàng mới hôm nay',
-        value: stats.newCustomersToday,
-        color: 'purple',
-        icon: <UserOutlined className="text-2xl" />
       },
       {
         title: 'Tài khoản bị cấm',
@@ -112,7 +106,7 @@ const UserManagement: React.FC = () => {
     
     Modal.confirm({
       title: `${action === 'cấm' ? 'Cấm' : 'Cho phép'} mua hàng`,
-      content: `Bạn có chắc chắn muốn ${action} khách hàng "${customerName}" ${action === 'cấm' ? 'không' : ''} được mua hàng?`,
+      content: `Bạn có chắc chắn muốn ${action} tài khoản "${customerName}" ${action === 'cấm' ? 'không' : ''} được mua hàng?`,
       okText: 'Xác nhận',
       cancelText: 'Hủy',
       okType: action === 'cấm' ? 'danger' : 'primary',
@@ -129,14 +123,14 @@ const UserManagement: React.FC = () => {
             return customer;
           }));
           
-          showCenterSuccess(`Đã ${action} mua hàng cho khách hàng "${customerName}"`, 'Thành công');
+          showCenterSuccess(`Đã ${action} mua hàng cho tài khoản "${customerName}"`, 'Thành công');
           
           // Refresh customer list to get latest data
           await refreshCustomers();
         } catch (error: any) {
           console.error('Error toggling buyable:', error);
           const errorMessage = AdminUserService.formatApiError(error);
-          showCenterError(errorMessage || `Không thể ${action} mua hàng cho khách hàng`, 'Lỗi');
+          showCenterError(errorMessage || `Không thể ${action} mua hàng cho tài khoản`, 'Lỗi');
         } finally {
           setTogglingBuyable(null);
         }
@@ -260,13 +254,13 @@ const UserManagement: React.FC = () => {
             Quản lý người dùng
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Quản lý tài khoản khách hàng của hệ thống
+            Quản lý tài khoản người dùng của hệ thống
           </p>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
         {userStats.map((stat, index) => {
           const colorClasses = {
             blue: 'bg-blue-500',

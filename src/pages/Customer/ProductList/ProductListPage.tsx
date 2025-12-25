@@ -59,14 +59,16 @@ const ProductListPage: React.FC = () => {
     const size = searchParams.get('size');
     const status = searchParams.get('status');
     const brandName = searchParams.get('brandName');
+    const provinceCode = searchParams.get('provinceCode');
 
-    if (categoryId || categoryName || keyword || page || size || status || brandName) {
+    if (categoryId || categoryName || keyword || page || size || status || brandName || provinceCode) {
       setFilters({
         categoryId: categoryId || undefined,
         categoryName: categoryName || undefined, // Keep for backward compatibility
         keyword: keyword || undefined,
         status: status ? (status.toUpperCase() as any) : 'ACTIVE', // Default to ACTIVE if not in URL
         brandName: brandName || undefined,
+        provinceCode: provinceCode || undefined,
       });
       
       // Set search keyword state
@@ -92,6 +94,7 @@ const ProductListPage: React.FC = () => {
     if (filters.keyword) params.set('search', filters.keyword);
     if (filters.status) params.set('status', filters.status);
     if (filters.brandName) params.set('brandName', filters.brandName);
+    if (filters.provinceCode) params.set('provinceCode', filters.provinceCode);
     if (pagination.page > 0) params.set('page', (pagination.page + 1).toString()); // Convert to 1-based
     if (pagination.size !== 20) params.set('size', pagination.size.toString());
 
@@ -148,18 +151,6 @@ const ProductListPage: React.FC = () => {
           />
         </div>
 
-        {/* Pagination - Desktop: top, Mobile: after filters */}
-        {!loading && products.length > 0 && (
-          <div className="mb-6 hidden lg:block">
-            <ProductListPagination
-              pagination={pagination}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-              loading={loading}
-            />
-          </div>
-        )}
-
         {/* Mobile Filter Toggle Button */}
         <div className="lg:hidden mb-4">
           <button
@@ -169,7 +160,7 @@ const ProductListPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-orange-500" />
               <span className="font-medium text-gray-900">Bộ lọc</span>
-              {(filters.categoryId || filters.minPrice || filters.maxPrice || filters.minRating) && (
+              {(filters.categoryId || filters.minPrice || filters.maxPrice || filters.minRating || filters.provinceCode) && (
                 <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-600 text-xs font-medium rounded-full">
                   Đã chọn
                 </span>
@@ -199,18 +190,6 @@ const ProductListPage: React.FC = () => {
                 onSortChange={handleSortChange}
                 onClose={() => setIsFilterExpanded(false)} // Đóng filter trên mobile
               />
-              
-              {/* Pagination - Mobile: after filters */}
-              {!loading && products.length > 0 && (
-                <div className="mt-4 lg:hidden">
-                  <ProductListPagination
-                    pagination={pagination}
-                    onPageChange={handlePageChange}
-                    onPageSizeChange={handlePageSizeChange}
-                    loading={loading}
-                  />
-                </div>
-              )}
             </div>
           </aside>
 
@@ -245,6 +224,18 @@ const ProductListPage: React.FC = () => {
               selectedProductIds={selectedProducts.map((item) => item.productId)}
               onToggleCompare={toggleProduct}
             />
+
+            {/* Pagination - Bottom */}
+            {!loading && products.length > 0 && (
+              <div className="mt-6">
+                <ProductListPagination
+                  pagination={pagination}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  loading={loading}
+                />
+              </div>
+            )}
           </main>
         </div>
       </div>
