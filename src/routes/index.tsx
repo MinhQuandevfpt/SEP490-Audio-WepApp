@@ -94,6 +94,7 @@ import { PoliciesPage, PolicyCategoryDetailPage } from '../pages/PoliciesPage';
 import SetupStorePage from '../pages/Seller/SetupStore';
 import { RiskWarningPage } from '../pages/Seller/RiskWarningFol';
 import { StorePayoutV2 } from '../pages/Seller/StorePayoutVersion2';
+import { FlatStaffManagement } from '../pages/Admin/FlatStaffManagement';
 import AdminReturnDisputesPage from '../pages/Admin/ReturnDisputes/AdminReturnDisputesPage';
 import GhnOrderStatusPage from '../pages/Admin/GhnOrderStatus/GhnOrderStatusPage';
 
@@ -612,6 +613,154 @@ export const router = createBrowserRouter([
     path: '/admin/flatstaff/login',
     element: <FlatStaffLogin />
   },
+  // FlatStaff routes (using same layout and components as admin but different URLs)
+  {
+    path: '/flatstaff',
+    element: <ProtectedAdminRoute element={<AdminLayout />} />,
+    children: [
+      {
+        path: '',
+        element: <Navigate to="/flatstaff/dashboard" replace />
+      },
+      {
+        path: 'dashboard',
+        element: <AdminDashboard />
+      },
+      {
+        path: 'users',
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
+      },
+      {
+        path: 'users/:id',
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserDetailManagement />} />
+      },
+      {
+        path: 'users/customers',
+        element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
+      },
+      {
+        path: 'flatstaff',
+        element: <PermissionProtectedRoute permission="manage_users" element={<FlatStaffManagement />} />
+      },
+      {
+        path: 'stores',
+        element: <StoreManagement />
+      },
+      {
+        path: 'stores/all',
+        element: <StoreManagement />
+      },
+      {
+        path: 'stores/:storeId',
+        element: <StoreDetail />
+      },
+      {
+        path: 'products',
+        element: <AdminProductManagement />
+      },
+      {
+        path: 'products/:productId',
+        element: <AdminProductDetail />
+      },
+      {
+        path: 'kyc',
+        element: <KycManagement />
+      },
+      {
+        path: 'kyc/:kycId',
+        element: <KycDetail />
+      },
+      {
+        path: 'stores/kyc',
+        element: <KycManagement />
+      },
+      {
+        path: 'campaigns',
+        element: <CampaignList />
+      },
+      {
+        path: 'campaigns/:campaignId',
+        element: <CampaignDetailPage />
+      },
+      {
+        path: 'campaigns/create',
+        element: <CreateCampaign />
+      },
+      {
+        path: 'campaigns/:id/edit',
+        element: <EditCampaign />
+      },
+      {
+        path: 'campaigns/products/approval',
+        element: <CampaignProductApproval />
+      },
+      {
+        path: 'banners',
+        element: <BannerManagement />
+      },
+      {
+        path: 'banners/create',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id',
+        element: <BannerDetail />
+      },
+      {
+        path: 'banners/:id/edit',
+        element: <BannerDetail />
+      },
+      {
+        path: 'policies',
+        element: <PolicyManagement />
+      },
+      {
+        path: 'platform-fees',
+        element: <PermissionProtectedRoute permission="manage_system" element={<PlatformFeeManagement />} />
+      },
+      {
+        path: 'returns/disputes',
+        element: <PermissionProtectedRoute permission="manage_orders" element={<AdminReturnDisputesPage />} />
+      },
+      {
+        path: 'ghn-orders',
+        element: <PermissionProtectedRoute permission="manage_orders" element={<GhnOrderStatusPage />} />
+      },
+      {
+        path: 'finance',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<div>Tài chính</div>} />
+      },
+      {
+        path: 'finance/platform-wallet',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PlatformWalletPage />} />
+      },
+      {
+        path: 'finance/settlement-statistics',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<SettlementStatisticsPage />} />
+      },
+      {
+        path: 'finance/customer-withdraw-requests',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<CustomerWithdrawRequestsPage />} />
+      },
+      {
+        path: 'reports/payout',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PayoutManagement />} />
+      },
+      {
+        path: 'reports/payout/:billId',
+        element: <PermissionProtectedRoute permission="manage_finance" element={<PayoutBillDetail />} />
+      },
+      {
+        path: 'categories',
+        element: <CategoriesList />
+      },
+      {
+        path: 'categories/:id',
+        element: <CategoryDetail />
+      },
+    ]
+  },
+  // Admin routes
   {
     path: '/admin',
     element: <ProtectedAdminRoute element={<AdminLayout />} />,
@@ -636,6 +785,10 @@ export const router = createBrowserRouter([
       {
         path: 'users/customers',
         element: <PermissionProtectedRoute permission="manage_users" element={<UserManagement />} />
+      },
+      {
+        path: 'flatstaff',
+        element: <PermissionProtectedRoute permission="manage_users" element={<FlatStaffManagement />} />
       },
       {
         path: 'users/sellers',

@@ -53,85 +53,88 @@ const AdminSidebar: React.FC = () => {
     }
   };
 
+  // Determine base URL based on user type
+  const baseUrl = flatStaffUser ? '/flatstaff' : '/admin';
   
   const navigationItems: NavigationItem[] = [
     {
       name: 'Dashboard',
-      href: '/admin/dashboard',
+      href: `${baseUrl}/dashboard`,
       icon: <LayoutDashboard className="w-6 h-6" />
     },
     {
       name: 'Quản lý người dùng',
-      href: '/admin/users',
+      href: `${baseUrl}/users`,
       permission: 'manage_users',
       icon: <Users className="w-6 h-6" />,
       children: [
-        { name: 'Khách hàng', href: '/admin/users/customers', icon: null }
+        { name: 'Tài khoản', href: `${baseUrl}/users/customers`, icon: null },
+        { name: 'Nhân viên hệ thống', href: `${baseUrl}/flatstaff`, icon: null }
       ]
     },
     {
       name: 'Quản lý cửa hàng',
-      href: '/admin/stores',
+      href: `${baseUrl}/stores`,
       permission: 'manage_products',
       icon: <Store className="w-6 h-6" />,
       children: [
-        { name: 'Mục lục sản phẩm', href: '/admin/categories', icon: null },
-        { name: 'Tất cả cửa hàng', href: '/admin/stores/all', icon: null },
-        { name: 'Quản lý sản phẩm', href: '/admin/products', icon: null },
-        { name: 'Yêu cầu KYC', href: '/admin/stores/kyc', icon: null }
+        { name: 'Mục lục sản phẩm', href: `${baseUrl}/categories`, icon: null },
+        { name: 'Tất cả cửa hàng', href: `${baseUrl}/stores/all`, icon: null },
+        { name: 'Quản lý sản phẩm', href: `${baseUrl}/products`, icon: null },
+        { name: 'Yêu cầu KYC', href: `${baseUrl}/stores/kyc`, icon: null }
       ]
     },
     {
       name: 'Quản lý đơn hàng',
-      href: '/admin/orders',
+      href: `${baseUrl}/orders`,
       permission: 'manage_orders',
       icon: <ShoppingCart className="w-6 h-6" />,
       children: [
-        { name: 'Khiếu nại hoàn trả', href: '/admin/returns/disputes', icon: null },
-        { name: 'Cập nhật trạng thái GHN', href: '/admin/ghn-orders', icon: null }
+        { name: 'Khiếu nại hoàn trả', href: `${baseUrl}/returns/disputes`, icon: null },
+        { name: 'Cập nhật trạng thái GHN', href: `${baseUrl}/ghn-orders`, icon: null }
       ]
     },
     {
       name: 'Chiến dịch khuyến mãi',
-      href: '/admin/campaigns',
+      href: `${baseUrl}/campaigns`,
       permission: 'manage_campaigns',
       icon: <Zap className="w-6 h-6" />,
       children: [
-        { name: 'Tất cả chiến dịch', href: '/admin/campaigns', icon: null },
-        { name: 'Tạo chiến dịch mới', href: '/admin/campaigns/create', icon: null },
-        { name: 'Duyệt sản phẩm chiến dịch', href: '/admin/campaigns/products/approval', icon: null }
+        { name: 'Tất cả chiến dịch', href: `${baseUrl}/campaigns`, icon: null },
+        { name: 'Tạo chiến dịch mới', href: `${baseUrl}/campaigns/create`, icon: null },
+        { name: 'Duyệt sản phẩm chiến dịch', href: `${baseUrl}/campaigns/products/approval`, icon: null }
       ]
     },
     {
       name: 'Quản lý Banner',
-      href: '/admin/banners',
+      href: `${baseUrl}/banners`,
       permission: 'manage_banners',
       icon: <Image className="w-6 h-6" />,
       children: [
-        { name: 'Tất cả banner', href: '/admin/banners', icon: null },
-        { name: 'Tạo banner mới', href: '/admin/banners/create', icon: null }
+        { name: 'Tất cả banner', href: `${baseUrl}/banners`, icon: null },
+        { name: 'Tạo banner mới', href: `${baseUrl}/banners/create`, icon: null }
       ]
     },
     {
       name: 'Quản lý Chính Sách',
-      href: '/admin/policies',
+      href: `${baseUrl}/policies`,
       permission: 'manage_policies',
       icon: <FileText className="w-6 h-6" />
     },
     {
       name: 'Phí nền tảng',
-      href: '/admin/platform-fees',
+      href: `${baseUrl}/platform-fees`,
       permission: 'manage_system',
       icon: <DollarSign className="w-6 h-6" />
     },
     {
       name: 'Tài chính',
-      href: '/admin/finance',
+      href: `${baseUrl}/finance`,
       permission: 'manage_finance',
       icon: <Wallet className="w-6 h-6" />,
       children: [
-        { name: 'Ví hệ thống', href: '/admin/finance/platform-wallet', icon: null },
-        { name: 'Yêu cầu rút tiền KH', href: '/admin/finance/customer-withdraw-requests', icon: null }
+        { name: 'Ví hệ thống', href: `${baseUrl}/finance/platform-wallet`, icon: null },
+        { name: 'Yêu cầu rút tiền KH', href: `${baseUrl}/finance/customer-withdraw-requests`, icon: null }
       ]
     },
   ];

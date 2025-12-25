@@ -459,7 +459,8 @@ export type PlatformTransactionType =
   | 'REFUND_CUSTOMER_RETURN'
   | 'DEBT_PAYMENT'
   | 'TOPUP'
-  | 'TRANSFER';
+  | 'TRANSFER'
+  | 'COD_COLLECTED';
 
 export type PlatformTransactionStatus = 'PENDING' | 'DONE' | 'FAILED' | 'SUCCESS';
 

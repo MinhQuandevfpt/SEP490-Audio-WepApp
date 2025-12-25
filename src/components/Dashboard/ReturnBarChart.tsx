@@ -185,7 +185,7 @@ const ReturnBarChart: React.FC<ReturnBarChartProps> = ({ returns, loading = fals
             formatter={(value: number | undefined) => [formatNumber(value || 0), 'Số lần trả']}
             labelFormatter={(label) => {
               const item = chartData.find((d) => d.name === label);
-              return item ? `Product: ${item.productName}` : label;
+              return item ? `${item.productName}` : label;
             }}
           />
           <Bar dataKey="Số lần trả" radius={[0, 8, 8, 0]}>

@@ -132,7 +132,8 @@ const PlatformTransactionList: React.FC = () => {
       SHIPPING_FEE_ADJUST: 'Điều chỉnh phí ship',
       REFUND_CUSTOMER_RETURN: 'Hoàn trả khách',
       DEBT_PAYMENT: 'Thanh toán nợ',
-      TOPUP: 'Nạp tiền'
+      TOPUP: 'Nạp tiền',
+      COD_COLLECTED: 'Thu tiền COD'
     };
     return labels[type] || type;
   };
@@ -151,7 +152,8 @@ const PlatformTransactionList: React.FC = () => {
       SHIPPING_FEE_ADJUST: 'lime',
       REFUND_CUSTOMER_RETURN: 'volcano',
       DEBT_PAYMENT: 'cyan',
-      TOPUP: 'green'
+      TOPUP: 'green',
+      COD_COLLECTED: 'green'
     };
     return colors[type] || 'default';
   };
