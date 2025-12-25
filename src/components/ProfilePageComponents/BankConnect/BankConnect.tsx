@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Modal } from 'antd';
 import { CreditCard, Plus, Trash2, Edit, Check, Shield, Eye, EyeOff } from 'lucide-react';
 
 interface BankCard {
@@ -119,8 +120,17 @@ const BankConnect: React.FC<BankConnectProps> = ({
   };
 
   const handleDeleteCard = (id: string) => {
-    if (onDeleteCard && window.confirm('Bạn có chắc chắn muốn xóa thẻ ngân hàng này?')) {
-      onDeleteCard(id);
+    if (onDeleteCard) {
+      Modal.confirm({
+        title: 'Xác nhận xóa thẻ ngân hàng',
+        content: 'Bạn có chắc chắn muốn xóa thẻ ngân hàng này?',
+        okText: 'Xóa',
+        cancelText: 'Hủy',
+        okButtonProps: { danger: true },
+        onOk: () => {
+          onDeleteCard(id);
+        },
+      });
     }
   };
 

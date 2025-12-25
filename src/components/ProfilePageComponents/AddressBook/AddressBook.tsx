@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Modal } from 'antd';
 import { Plus, Edit, MapPin, Trash2, Check } from 'lucide-react';
 import { AddressService } from '../../../services/customer/AddressService';
 import { useProvinces } from '../../../hooks/useProvinces';
@@ -283,22 +284,28 @@ const AddressBook: React.FC<AddressBookProps> = ({ preloadedData }) => {
     const addressToDelete = addresses.find(a => a.id === id);
     if (!addressToDelete) return;
 
-    const confirmDelete = window.confirm(`Bạn có chắc chắn muốn xóa địa chỉ "${addressToDelete.receiverName}"?`);
-    if (!confirmDelete) return;
-
-    try {
-      setIsSubmitting(true);
-      await AddressService.deleteAddress(id);
-      showCenterSuccess('Xóa địa chỉ thành công', 'Thành công');
-      await loadAddresses();
-      if (selectedAddress === id) {
-        setSelectedAddress(null);
-      }
-    } catch (error: any) {
-      showCenterError(error?.message || 'Không thể xóa địa chỉ. Vui lòng thử lại.', 'Lỗi');
-    } finally {
-      setIsSubmitting(false);
-    }
+    Modal.confirm({
+      title: 'Xác nhận xóa địa chỉ',
+      content: `Bạn có chắc chắn muốn xóa địa chỉ "${addressToDelete.receiverName}"?`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          setIsSubmitting(true);
+          await AddressService.deleteAddress(id);
+          showCenterSuccess('Xóa địa chỉ thành công', 'Thành công');
+          await loadAddresses();
+          if (selectedAddress === id) {
+            setSelectedAddress(null);
+          }
+        } catch (error: any) {
+          showCenterError(error?.message || 'Không thể xóa địa chỉ. Vui lòng thử lại.', 'Lỗi');
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   // Show loading skeleton while data is being fetched

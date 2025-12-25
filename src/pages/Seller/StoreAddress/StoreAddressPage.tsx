@@ -119,39 +119,40 @@ const StoreAddressPage: React.FC = () => {
   };
 
   const handleSetDefaultAddress = async (addressId: string) => {
-    const confirmed = window.confirm(
-      'Bạn có chắc chắn muốn đổi địa chỉ hiện tại thành địa chỉ mặc định của cửa hàng?'
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await StoreAddressService.setDefaultAddress(addressId);
-      showCenterSuccess('Đặt địa chỉ mặc định thành công', 'Thành công');
-      refresh();
-    } catch (err: any) {
-      showCenterError(err?.message || 'Không thể đặt địa chỉ mặc định', 'Lỗi');
-    }
+    Modal.confirm({
+      title: 'Xác nhận đặt địa chỉ mặc định',
+      content: 'Bạn có chắc chắn muốn đổi địa chỉ hiện tại thành địa chỉ mặc định của cửa hàng?',
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      onOk: async () => {
+        try {
+          await StoreAddressService.setDefaultAddress(addressId);
+          showCenterSuccess('Đặt địa chỉ mặc định thành công', 'Thành công');
+          refresh();
+        } catch (err: any) {
+          showCenterError(err?.message || 'Không thể đặt địa chỉ mặc định', 'Lỗi');
+        }
+      },
+    });
   };
 
   const handleDeleteAddress = async (addressId: string) => {
-    const confirmed = window.confirm(
-      'Bạn có chắc chắn muốn xóa địa chỉ này khỏi danh sách? Hành động này không thể hoàn tác.'
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await StoreAddressService.deleteStoreAddress(addressId);
-      showCenterSuccess('Xóa địa chỉ thành công', 'Thành công');
-      refresh();
-    } catch (err: any) {
-      showCenterError(err?.message || 'Không thể xóa địa chỉ cửa hàng', 'Lỗi');
-    }
+    Modal.confirm({
+      title: 'Xác nhận xóa địa chỉ',
+      content: 'Bạn có chắc chắn muốn xóa địa chỉ này khỏi danh sách? Hành động này không thể hoàn tác.',
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await StoreAddressService.deleteStoreAddress(addressId);
+          showCenterSuccess('Xóa địa chỉ thành công', 'Thành công');
+          refresh();
+        } catch (err: any) {
+          showCenterError(err?.message || 'Không thể xóa địa chỉ cửa hàng', 'Lỗi');
+        }
+      },
+    });
   };
 
   const handleSubmit = async (values: any) => {

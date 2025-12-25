@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Modal } from 'antd';
 import { Users, Plus, Search, Edit, Trash2, Mail, Phone, User } from 'lucide-react';
 import { useStaffList } from '../../../hooks/useStaffList';
 import LoadingSkeleton from '../../../components/common/LoadingSkeleton';
@@ -31,16 +32,22 @@ const StaffList: React.FC = () => {
   };
 
   const handleDeleteStaff = async (_staffId: string, staffName: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhân viên "${staffName}"?`)) {
-      return;
-    }
-    try {
-      // TODO: Implement delete functionality later
-      // await StaffService.deleteStaff(staffId);
-      showCenterError('Chức năng xóa nhân viên đang được phát triển', 'Thông báo');
-    } catch (err: any) {
-      showCenterError(err?.message || 'Không thể xóa nhân viên', 'Lỗi');
-    }
+    Modal.confirm({
+      title: 'Xác nhận xóa nhân viên',
+      content: `Bạn có chắc chắn muốn xóa nhân viên "${staffName}"?`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          // TODO: Implement delete functionality later
+          // await StaffService.deleteStaff(staffId);
+          showCenterError('Chức năng xóa nhân viên đang được phát triển', 'Thông báo');
+        } catch (err: any) {
+          showCenterError(err?.message || 'Không thể xóa nhân viên', 'Lỗi');
+        }
+      },
+    });
   };
 
   const handlePageChange = (newPage: number) => {
