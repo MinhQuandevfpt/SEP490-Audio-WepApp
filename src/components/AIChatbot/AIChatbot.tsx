@@ -10,6 +10,8 @@ import FirestoreChatService from '../../services/FirestoreChatService';
 import FileUploadService from '../../services/FileUploadService';
 import { ProductListService } from '../../services/customer/ProductListService';
 import { getCustomerId } from '../../utils/authHelper';
+import { filterMessages, containsSensitiveInfo } from '../../utils/messageFilter';
+import MessageBlockedModal from '../common/MessageBlockedModal';
 
 interface Message {
   id: string;
@@ -166,6 +168,7 @@ const AIChatbot: React.FC = () => {
   const [currentProductIdForAdvise, setCurrentProductIdForAdvise] = useState<string | null>(null); // Track product ID that was advised to AI
   const [isDraggingOver, setIsDraggingOver] = useState(false); // Track if dragging over chat window
   const [showClearConfirm, setShowClearConfirm] = useState(false); // Show confirmation dialog for clearing chat
+  const [showBlockedModal, setShowBlockedModal] = useState(false); // Show message blocked modal
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -294,9 +297,13 @@ const AIChatbot: React.FC = () => {
 
   // Helper function to format last message text (shared across component)
   const formatLastMessage = useCallback((message: any): string => {
-    // If has content, return content (with truncation if needed)
+    // If has content, check if it contains sensitive info first
     if (message.content && message.content.trim()) {
       const content = message.content.trim();
+      // If message contains sensitive info, show blocked message
+      if (containsSensitiveInfo(content)) {
+        return '[Tin nhắn đã bị chặn]';
+      }
       return content.length > 50 ? `${content.substring(0, 50)}...` : content;
     }
     
@@ -780,7 +787,9 @@ const AIChatbot: React.FC = () => {
             timestamp: new Date(msg.createdAt || msg.timestamp || Date.now()),
             read: msg.read !== undefined ? msg.read : false, // Default to false if not provided
           }));
-          setMessages(loadedMessages);
+          // Filter out messages containing sensitive information
+          const filteredMessages = filterMessages(loadedMessages);
+          setMessages(filteredMessages);
           
           // Update lastMessageSenderType from the last message
           const lastMessage = loadedMessages[loadedMessages.length - 1];
@@ -863,7 +872,9 @@ const AIChatbot: React.FC = () => {
             
             return formatted;
           });
-          setMessages(formattedMessages);
+          // Filter out messages containing sensitive information
+          const filteredMessages = filterMessages(formattedMessages);
+          setMessages(filteredMessages);
         }
       }
     );
@@ -909,7 +920,9 @@ const AIChatbot: React.FC = () => {
           timestamp: new Date(),
         }]);
       } else {
-        setMessages(loadedMessages);
+        // Filter out messages containing sensitive information
+        const filteredMessages = filterMessages(loadedMessages);
+        setMessages(filteredMessages);
       }
     } catch (error) {
       setMessages([{
@@ -1142,6 +1155,12 @@ const AIChatbot: React.FC = () => {
           productImage: selectedProductForAdvise.productImage,
         } : undefined;
         
+        // Check if message contains sensitive information before sending (for AI chat)
+        if (containsSensitiveInfo(messageToSend)) {
+          setShowBlockedModal(true);
+          return;
+        }
+
         // Add user message immediately cho Agent chat (kèm thông tin sản phẩm nếu có)
         const userMessage: Message = {
           id: Date.now().toString(),
@@ -1294,6 +1313,14 @@ const AIChatbot: React.FC = () => {
         const targetStoreId = storeId || selectedStore?.storeId;
         if (!targetStoreId) {
           throw new Error('Không tìm thấy thông tin cửa hàng.');
+        }
+
+        // Check if message contains sensitive information before sending
+        if (messageToSend.trim()) {
+          if (containsSensitiveInfo(messageToSend)) {
+            setShowBlockedModal(true);
+            return;
+          }
         }
 
         let mediaUrl: string | Array<{ url: string; type: string }> | undefined;
@@ -2643,6 +2670,9 @@ const AIChatbot: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Message Blocked Modal */}
+      <MessageBlockedModal open={showBlockedModal} onClose={() => setShowBlockedModal(false)} />
     </>
   );
 };
