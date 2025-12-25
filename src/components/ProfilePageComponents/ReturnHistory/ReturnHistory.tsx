@@ -338,7 +338,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       width: 70,
       align: 'center',
       render: (_: any, __: ReturnRequestResponse, index: number) => (
-        <Text>{(page - 1) * pageSize + index + 1}</Text>
+        <Text className="text-gray-600 font-medium">{(page - 1) * pageSize + index + 1}</Text>
       ),
     },
     {
@@ -346,7 +346,11 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       dataIndex: 'productName',
       key: 'productName',
       width: 220,
-      render: (value: string) => <Text strong>{value}</Text>,
+      render: (value: string) => (
+        <Text strong className="text-gray-800 text-sm leading-5">
+          {value}
+        </Text>
+      ),
     },
     {
       title: 'Giá hoàn trả',
@@ -354,7 +358,11 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       key: 'itemPrice',
       width: 160,
       align: 'right',
-      render: (value: number) => <Text>{formatCurrency(value)}</Text>,
+      render: (value: number) => (
+        <Text strong className="text-orange-500 text-base font-semibold whitespace-nowrap">
+          {formatCurrency(value)}
+        </Text>
+      ),
     },
     {
       title: 'Loại lý do',
@@ -362,7 +370,10 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       key: 'reasonType',
       width: 180,
       render: (value: string) => (
-        <Tag color={value === 'SHOP_FAULT' ? 'red' : 'default'}>
+        <Tag 
+          color={value === 'SHOP_FAULT' ? 'red' : 'default'}
+          className="font-medium text-xs px-3 py-1 rounded-full"
+        >
           {reasonTypeLabel[value] || value}
         </Tag>
       ),
@@ -427,8 +438,11 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
             : statusLabelMap[record.status] || record.status;
 
         return (
-          <Space direction="vertical" size={4}>
-            <Tag color={statusColorMap[record.status] || 'default'}>
+          <Space direction="vertical" size={6}>
+            <Tag 
+              color={statusColorMap[record.status] || 'default'}
+              className="font-semibold text-xs px-3 py-1.5 rounded-md shadow-sm"
+            >
               {label}
             </Tag>
             {record.status === 'PENDING' && (
@@ -479,7 +493,11 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
         const hasRealVideo = rawVideo && rawVideo !== 'string';
 
         if (!hasRealImages && !hasRealVideo) {
-          return <Text type="secondary">Không cung cấp</Text>;
+          return (
+            <Text type="secondary" className="text-sm italic">
+              Không cung cấp
+            </Text>
+          );
         }
 
         return (
@@ -559,26 +577,31 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
           record.shippingFee != null;
 
         if (!hasPackageInfo) {
-          return <Text type="secondary">Chưa đóng gói</Text>;
+          return (
+            <Text type="secondary" className="text-sm italic">
+              Chưa đóng gói
+            </Text>
+          );
         }
 
         return (
-          <div className="space-y-1 text-xs">
-            <div>
-              Khối lượng:{' '}
-              <Text strong>
+          <div className="text-sm whitespace-nowrap flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-600">Khối lượng:</span>
+              <Text strong className="text-gray-800">
                 {record.packageWeight} kg
               </Text>
             </div>
-            <div>
-              Kích thước:{' '}
-              <Text strong>
-                {record.packageLength} x {record.packageWidth} x {record.packageHeight} cm
+            <span className="text-gray-300">•</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-600">Kích thước:</span>
+              <Text strong className="text-gray-800">
+                {record.packageLength} × {record.packageWidth} × {record.packageHeight} cm
               </Text>
             </div>
-            <div>
-              Phí vận chuyển:{' '}
-              <Text strong>{formatCurrency(record.shippingFee || 0)}</Text>
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-600">Phí vận chuyển:</span>
+              <Text strong className="text-gray-800">{formatCurrency(record.shippingFee || 0)}</Text>
             </div>
           </div>
         );
@@ -589,7 +612,9 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 190,
-      render: (value: string) => <Text>{formatDate(value)}</Text>,
+      render: (value: string) => (
+        <Text className="text-gray-600 text-sm">{formatDate(value)}</Text>
+      ),
     },
     {
       title: 'Thao tác',
@@ -633,6 +658,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
               size="small"
               danger
               icon={<AlertTriangle className="w-4 h-4" />}
+              className="font-medium"
               onClick={() => {
                 setShowComplaintModal({ visible: true, returnId: record.id });
                 setComplaintReason('');
@@ -675,7 +701,12 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
 
         if (hasPackageInfo) {
           return (
-            <Button type="primary" size="small" disabled>
+            <Button 
+              type="primary" 
+              size="small" 
+              disabled
+              className="font-medium"
+            >
               Đã đóng gói
             </Button>
           );
@@ -686,6 +717,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
             type="primary"
             size="small"
             onClick={() => handleOpenPackingModal(record)}
+            className="font-medium bg-orange-500 hover:bg-orange-600 border-orange-500"
           >
             Thực hiện đóng gói và hoàn đơn
           </Button>
@@ -696,34 +728,84 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
 
   return (
     <Card
-      title="Lịch sử hoàn trả"
-      className="border-gray-200 shadow-sm"
+      title={
+        <div className="flex items-center gap-2">
+          <span className="text-xl font-bold text-gray-800">Lịch sử hoàn trả</span>
+        </div>
+      }
+      className="border-gray-200 shadow-md"
       style={{ borderRadius: 12 }}
       bodyStyle={{ padding: 0 }}
+      headStyle={{ 
+        background: 'linear-gradient(to right, #f9fafb, #ffffff)',
+        borderBottom: '2px solid #e5e7eb',
+        borderRadius: '12px 12px 0 0',
+        padding: '20px 24px'
+      }}
     >
       {isLoading ? (
-        <div className="py-12 text-center">
-          <Spin size="large" />
-          <p className="mt-4 text-gray-500">Đang tải lịch sử hoàn trả...</p>
+        <div className="py-16 text-center">
+          <Spin size="large" className="mb-4" />
+          <p className="mt-4 text-gray-600 text-base">Đang tải lịch sử hoàn trả...</p>
         </div>
       ) : error ? (
-        <div className="py-12 text-center">
-          <Text type="danger">{error}</Text>
+        <div className="py-16 text-center">
+          <Text type="danger" className="text-base font-medium">{error}</Text>
         </div>
       ) : data.length === 0 ? (
-        <div className="py-12 text-center">
-          <Empty description="Bạn chưa có yêu cầu hoàn trả nào" />
+        <div className="py-16 text-center">
+          <Empty 
+            description={<span className="text-gray-600 text-base">Bạn chưa có yêu cầu hoàn trả nào</span>}
+          />
         </div>
       ) : (
         <>
-          <Table<ReturnRequestResponse>
-            rowKey="id"
-            columns={columns}
-            dataSource={data}
-            pagination={false}
-            scroll={{ x: 1200 }}
-          />
-          <div className="px-4 py-3 flex justify-end">
+          <div className="overflow-hidden">
+            <Table<ReturnRequestResponse>
+              rowKey="id"
+              columns={columns}
+              dataSource={data}
+              pagination={false}
+              scroll={{ x: 1200 }}
+              className="return-history-table"
+              rowClassName="hover:bg-gray-50 transition-colors border-b border-gray-100"
+              style={{
+                backgroundColor: '#ffffff',
+              }}
+            />
+          </div>
+          
+          {/* Custom styles for return history table */}
+          <style>{`
+            .return-history-table .ant-table-thead > tr > th {
+              background: #f9fafb !important;
+              font-weight: 600 !important;
+              color: #374151 !important;
+              border-bottom: 2px solid #e5e7eb !important;
+              padding: 14px 16px !important;
+              font-size: 13px !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.5px !important;
+            }
+            .return-history-table .ant-table-tbody > tr > td {
+              padding: 16px !important;
+              border-bottom: 1px solid #f3f4f6 !important;
+              vertical-align: top !important;
+            }
+            .return-history-table .ant-table-tbody > tr:hover > td {
+              background: #f9fafb !important;
+            }
+            .return-history-table .ant-table-container {
+              border: none !important;
+            }
+            .return-history-table .ant-table {
+              border-radius: 0 !important;
+            }
+          `}</style>
+          <div className="px-6 py-4 flex justify-between items-center bg-gray-50 border-t border-gray-200">
+            <Text className="text-gray-600 text-sm">
+              Hiển thị <strong>{(page - 1) * pageSize + 1}</strong> - <strong>{Math.min(page * pageSize, total)}</strong> trong tổng số <strong>{total}</strong> yêu cầu
+            </Text>
             <Pagination
               current={page}
               pageSize={pageSize}
@@ -731,7 +813,7 @@ const ReturnHistory: React.FC<ReturnHistoryProps> = ({
               showSizeChanger
               pageSizeOptions={['5', '10', '20', '50']}
               onChange={onPageChange}
-              showTotal={(t) => `Tổng ${t} yêu cầu`}
+              className="return-history-pagination"
             />
           </div>
         </>
