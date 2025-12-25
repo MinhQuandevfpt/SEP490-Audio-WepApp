@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Modal } from 'antd';
 import { Plus, Check, MapPin } from 'lucide-react';
 import type { CustomerAddressApiItem, AddressLabel } from '../../types/api';
 import { AddressService } from '../../services/customer/AddressService';
@@ -212,23 +213,30 @@ const AddressForm: React.FC<AddressFormProps> = ({
   };
 
   const handleDelete = async (address: CustomerAddressApiItem) => {
-    const confirmed = window.confirm(t('address.confirmDelete', { name: address.receiverName }));
-    if (!confirmed) return;
-    try {
-      setIsSubmitting(true);
-      await AddressService.deleteAddress(address.id);
-      showCenterSuccess(t('address.success.deleted'), t('checkout.success.title'));
-      const remaining = addresses.filter(a => a.id !== address.id);
-      if (selectedAddressId === address.id) {
-        const fallback = remaining.find(a => a.default) || remaining[0] || null;
-        onSelect(fallback ? fallback.id : null);
-      }
-      await onAddressesChange();
-    } catch (error: any) {
-      showCenterError(error?.message || t('address.errors.cannotDelete'), t('checkout.errors.title'));
-    } finally {
-      setIsSubmitting(false);
-    }
+    Modal.confirm({
+      title: 'Xác nhận xóa địa chỉ',
+      content: t('address.confirmDelete', { name: address.receiverName }),
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          setIsSubmitting(true);
+          await AddressService.deleteAddress(address.id);
+          showCenterSuccess(t('address.success.deleted'), t('checkout.success.title'));
+          const remaining = addresses.filter(a => a.id !== address.id);
+          if (selectedAddressId === address.id) {
+            const fallback = remaining.find(a => a.default) || remaining[0] || null;
+            onSelect(fallback ? fallback.id : null);
+          }
+          await onAddressesChange();
+        } catch (error: any) {
+          showCenterError(error?.message || t('address.errors.cannotDelete'), t('checkout.errors.title'));
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   const handleSetDefault = async (address: CustomerAddressApiItem) => {

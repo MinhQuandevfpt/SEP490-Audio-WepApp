@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Modal } from 'antd';
 import type { CustomerAddressApiItem } from '../../types/api';
 import { ChevronDown, Edit2, Trash2 } from 'lucide-react';
 import AddressFormForCart from './AddressFormForCart';
@@ -37,27 +38,33 @@ const AddressSelectorCompact: React.FC<Props> = ({ addresses, selectedAddressId,
     const addressToDelete = addresses.find(a => a.id === addressId);
     if (!addressToDelete) return;
 
-    const confirmDelete = window.confirm(t('addressSelector.confirmDelete', { name: addressToDelete.receiverName }));
-    if (!confirmDelete) return;
-
-    try {
-      await AddressService.deleteAddress(addressId);
-      toast.success(t('addressSelector.success.delete'));
-      
-      // If deleted address was selected, select default or first available
-      if (addressId === selectedAddressId) {
-        const remaining = addresses.filter(a => a.id !== addressId);
-        const nextDefault = remaining.find(a => a.default) || remaining[0];
-        if (nextDefault) {
-          onSelect(nextDefault.id);
+    Modal.confirm({
+      title: 'Xác nhận xóa địa chỉ',
+      content: t('addressSelector.confirmDelete', { name: addressToDelete.receiverName }),
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await AddressService.deleteAddress(addressId);
+          toast.success(t('addressSelector.success.delete'));
+          
+          // If deleted address was selected, select default or first available
+          if (addressId === selectedAddressId) {
+            const remaining = addresses.filter(a => a.id !== addressId);
+            const nextDefault = remaining.find(a => a.default) || remaining[0];
+            if (nextDefault) {
+              onSelect(nextDefault.id);
+            }
+          }
+          
+          onAddressesChange();
+          setOpen(false);
+        } catch (error: any) {
+          toast.error(error?.message || t('addressSelector.errors.cannotDelete'));
         }
-      }
-      
-      onAddressesChange();
-      setOpen(false);
-    } catch (error: any) {
-      toast.error(error?.message || t('addressSelector.errors.cannotDelete'));
-    }
+      },
+    });
   };
 
   return (

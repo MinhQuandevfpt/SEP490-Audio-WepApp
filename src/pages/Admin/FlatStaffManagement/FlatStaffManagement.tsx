@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, UserCog, Trash2, RefreshCw, Eye, EyeOff, Mail, Phone, User } from 'lucide-react';
+import { Modal } from 'antd';
 import { AdminFlatStaffService } from '../../../services/admin/AdminFlatStaffService';
 import type { FlatStaffAccount, CreateFlatStaffRequest } from '../../../types/flatstaff';
 
@@ -123,19 +124,22 @@ const FlatStaffManagement: React.FC = () => {
 
   // Handle delete flatstaff
   const handleDelete = async (id: string, name: string) => {
-    const confirmed = window.confirm(`Bạn có chắc chắn muốn xóa tài khoản "${name}"?`);
-
-    if (confirmed) {
-      try {
-        await AdminFlatStaffService.deleteFlatStaff(id);
-        
-        alert('Tài khoản đã được xóa thành công');
-
-        loadFlatStaffList();
-      } catch (error: any) {
-        alert('Lỗi: ' + (error?.message || 'Không thể xóa tài khoản'));
-      }
-    }
+    Modal.confirm({
+      title: 'Xác nhận xóa tài khoản',
+      content: `Bạn có chắc chắn muốn xóa tài khoản "${name}"?`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await AdminFlatStaffService.deleteFlatStaff(id);
+          alert('Tài khoản đã được xóa thành công');
+          loadFlatStaffList();
+        } catch (error: any) {
+          alert('Lỗi: ' + (error?.message || 'Không thể xóa tài khoản'));
+        }
+      },
+    });
   };
 
   return (
