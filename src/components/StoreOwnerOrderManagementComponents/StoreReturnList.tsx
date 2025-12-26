@@ -21,6 +21,7 @@ export interface StoreReturnListProps {
   error?: string | null;
   onPageChange: (page: number, pageSize?: number) => void;
   onReload?: () => void;
+  highlightReturnId?: string | null;
 }
 
 const statusColorMap: Record<string, string> = {
@@ -119,7 +120,9 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   error,
   onPageChange,
   onReload,
+  highlightReturnId,
 }) => {
+  const highlightedCardRef = useRef<HTMLDivElement | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [pickShiftModalOpen, setPickShiftModalOpen] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<ReturnRequestResponse | null>(null);
@@ -532,7 +535,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   };
 
   // Render return request card
-  const renderReturnCard = (record: ReturnRequestResponse) => {
+  const renderReturnCard = (record: ReturnRequestResponse, isHighlighted: boolean = false) => {
     const productImage = getProductImage(record);
     const variantLabel = getVariantLabel(record);
     const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
@@ -574,8 +577,15 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     return (
       <Card
         key={record.id}
-        className="mb-4 hover:shadow-lg transition-shadow"
-        style={{ borderRadius: 12 }}
+        className={`mb-4 hover:shadow-lg transition-shadow ${isHighlighted ? 'ring-4 ring-orange-400 ring-opacity-50' : ''}`}
+        style={{ 
+          borderRadius: 12,
+          ...(isHighlighted ? { 
+            borderColor: '#fb923c',
+            borderWidth: 2,
+            backgroundColor: '#fff7ed',
+          } : {})
+        }}
       >
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Left: Product Image & Basic Info */}
@@ -1107,6 +1117,19 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     return bubbleSortByDate(data);
   }, [data]);
 
+  // Scroll to highlighted return request when highlightReturnId changes
+  useEffect(() => {
+    if (highlightReturnId && highlightedCardRef.current && !isLoading) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        highlightedCardRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 300);
+    }
+  }, [highlightReturnId, isLoading, sortedData]);
+
   return (
     <Card
       className="border-gray-200 shadow-sm"
@@ -1158,17 +1181,24 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       ) : (
         <>
           <div className="space-y-4">
-            {sortedData.map((record, index) => (
-              <div key={record.id} className="relative">
-                {/* STT Badge */}
-                <div className="absolute -left-2 -top-2 z-10">
-                  <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
-                    {(page - 1) * pageSize + index + 1}
+            {sortedData.map((record, index) => {
+              const isHighlighted = highlightReturnId === record.id;
+              return (
+                <div 
+                  key={record.id} 
+                  className="relative"
+                  ref={isHighlighted ? highlightedCardRef : null}
+                >
+                  {/* STT Badge */}
+                  <div className="absolute -left-2 -top-2 z-10">
+                    <div className={`w-8 h-8 ${isHighlighted ? 'bg-orange-600' : 'bg-orange-500'} text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg`}>
+                      {(page - 1) * pageSize + index + 1}
+                    </div>
                   </div>
+                  {renderReturnCard(record, isHighlighted)}
                 </div>
-                {renderReturnCard(record)}
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="mt-6 flex justify-end">
             <Pagination

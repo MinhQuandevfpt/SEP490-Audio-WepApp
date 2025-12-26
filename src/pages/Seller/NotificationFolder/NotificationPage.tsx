@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, Package } from 'lucide-react';
 import { Input, Card, Pagination, Button, Space, Tag, Empty, Spin, message } from 'antd';
 import { 
   SearchOutlined, 
@@ -85,6 +85,31 @@ const NotificationPage: React.FC = () => {
       if (notification.actionUrl) {
         let route = notification.actionUrl;
         let customerOrderId: string | null = null;
+        let returnId: string | null = null;
+
+        // Xử lý RETURN_REQUESTED: parse returnId từ /shop/returns/{returnId}
+        if (notification.type === 'RETURN_REQUESTED' && route.startsWith('/shop/returns/')) {
+          try {
+            // Parse URL properly to handle query parameters
+            const url = new URL(route, window.location.origin);
+            const pathSegments = url.pathname.split('/').filter(Boolean);
+            // Find 'returns' in path and get the next segment as returnId
+            const returnsIndex = pathSegments.indexOf('returns');
+            if (returnsIndex !== -1 && returnsIndex + 1 < pathSegments.length) {
+              returnId = pathSegments[returnsIndex + 1];
+            }
+          } catch {
+            // Fallback to substring if URL parsing fails (relative path)
+            const pathWithoutQuery = route.split('?')[0];
+            returnId = pathWithoutQuery.substring('/shop/returns/'.length);
+          }
+          
+          // Navigate đến trang returns với returnId trong query
+          if (returnId) {
+            navigate(`/seller/dashboard/returns?returnId=${returnId}`);
+            return; // Early return để không xử lý logic khác
+          }
+        }
 
         // Ưu tiên lấy customerOrderId từ metadataJson nếu có
         if (notification.metadataJson) {
@@ -211,6 +236,8 @@ const NotificationPage: React.FC = () => {
         return <TruckOutlined style={{ fontSize: '20px' }} />;
       case 'ORDER_DELIVERED':
         return <CheckCircleOutlined style={{ fontSize: '20px' }} />;
+      case 'RETURN_REQUESTED':
+        return <Package style={{ fontSize: '20px' }} />;
       default:
         return <BellOutlined style={{ fontSize: '20px' }} />;
     }
@@ -230,6 +257,8 @@ const NotificationPage: React.FC = () => {
         return '#fa8c16'; // orange
       case 'ORDER_DELIVERED':
         return '#52c41a'; // green
+      case 'RETURN_REQUESTED':
+        return '#fa8c16'; // orange
       default:
         return '#595959';
     }
@@ -247,6 +276,8 @@ const NotificationPage: React.FC = () => {
         return 'orange';
       case 'ORDER_DELIVERED':
         return 'green';
+      case 'RETURN_REQUESTED':
+        return 'orange';
       default:
         return 'default';
     }
@@ -264,6 +295,8 @@ const NotificationPage: React.FC = () => {
         return 'Đơn hàng đã gửi';
       case 'ORDER_DELIVERED':
         return 'Đơn hàng đã giao';
+      case 'RETURN_REQUESTED':
+        return 'Yêu cầu trả hàng';
       default:
         return 'Thông báo';
     }

@@ -5,6 +5,7 @@ import { showCenterError, showCenterSuccess } from '../../../utils/notification'
 import { SellerAuthService } from '../../../services/seller/AuthSeller';
 import { CustomerAuthService } from '../../../services/customer/Authcustomer';
 import type { SellerLoginRequest } from '../../../types/seller';
+import { resetNotificationSoundFlag } from '../../../utils/notificationSound';
 
 const SellerLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -63,6 +64,9 @@ const SellerLogin: React.FC = () => {
       if (response.status === 200) {
         // Login API đã trả về storeId trong response.data.user.storeId
         // Không cần gọi thêm API để lấy store status hoặc store ID nữa
+        
+        // Reset flag để có thể phát âm thanh thông báo sau khi vào dashboard
+        resetNotificationSoundFlag();
         
         // Lưu message vào sessionStorage để hiển thị sau
         sessionStorage.setItem('sellerLoginSuccess', JSON.stringify({

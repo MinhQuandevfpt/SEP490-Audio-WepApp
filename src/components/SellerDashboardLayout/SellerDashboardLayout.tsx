@@ -28,6 +28,7 @@ import {
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
 import { NotificationService, type StoreNotification } from '../../services/seller/NotificationService';
+import { playNotificationSound, hasPlayedNotificationSound, markNotificationSoundPlayed } from '../../utils/notificationSound';
 import type { StoreInfo, RiskWarningResponse } from '../../types/seller';
 
 const SellerDashboardLayout: React.FC = () => {
@@ -114,6 +115,15 @@ const SellerDashboardLayout: React.FC = () => {
     try {
       const count = await NotificationService.getUnreadCount();
       setNotificationCount(count);
+      
+      // Phát âm thanh thông báo nếu có thông báo chưa đọc và chưa phát sau login
+      if (count > 0 && !hasPlayedNotificationSound()) {
+        // Delay nhỏ để đảm bảo user đã vào trang
+        setTimeout(() => {
+          playNotificationSound();
+          markNotificationSoundPlayed();
+        }, 500);
+      }
     } catch (error) {
       console.error('Error loading notification count:', error);
       // Set to 0 on error instead of showing incorrect count
