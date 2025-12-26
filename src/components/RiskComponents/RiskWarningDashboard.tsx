@@ -226,6 +226,41 @@ const RiskWarningDashboard: React.FC = () => {
     }
   };
 
+  // Helper function to translate status to Vietnamese
+  const translateStatus = (status: string | null): string => {
+    if (!status) return 'Không xác định';
+    
+    const statusMap: Record<string, string> = {
+      'DELIVERY_SUCCESS': 'Giao thành công',
+      'RETURNING': 'Đang trả về',
+      'RETURNED': 'Đã trả hàng',
+      'RETURN_REQUESTED': 'Yêu cầu trả hàng',
+      'DELIVERED': 'Đã giao hàng',
+      'SHIPPING': 'Đang giao hàng',
+      'PROCESSING': 'Đang xử lý',
+      'CONFIRMED': 'Đã xác nhận',
+      'PENDING': 'Chờ xử lý',
+      'COMPLETED': 'Hoàn tất',
+      'CANCELLED': 'Đã hủy',
+      'REFUNDED': 'Đã hoàn tiền',
+      'DELIVERY_FAIL': 'Giao hàng thất bại',
+      'DELIVERY_DENIED': 'Giao hàng bị từ chối',
+      'UNPAID': 'Chờ thanh toán',
+    };
+    
+    return statusMap[status] || status;
+  };
+
+  // Helper function to translate debtType to Vietnamese
+  const translateDebtType = (debtType: 'ORDER' | 'RETURN_SHIP'): string => {
+    const debtTypeMap: Record<string, string> = {
+      'ORDER': 'Nợ đơn hàng',
+      'RETURN_SHIP': 'Nợ phí vận chuyển trả hàng',
+    };
+    
+    return debtTypeMap[debtType] || debtType;
+  };
+
   // Map warning level to Vietnamese text and color
   const getWarningLevelInfo = (level: string) => {
     switch (level) {
@@ -808,9 +843,7 @@ const RiskWarningDashboard: React.FC = () => {
                     <h3 className="text-base font-semibold text-gray-900">
                       Nợ cần thanh toán
                     </h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Danh sách các đơn hàng đã kết thúc (giao thành công) nhưng còn nợ phí ship chênh lệch cần thanh toán
-                    </p>
+                   
                   </div>
                   <Button
                     size="small"
@@ -822,14 +855,15 @@ const RiskWarningDashboard: React.FC = () => {
                 </div>
 
                 {/* Table Header */}
-                <div className="grid grid-cols-7 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
+                <div className="grid grid-cols-8 gap-3 pb-3 border-b border-gray-200 text-xs font-semibold text-gray-600 mb-3">
                   <div>Mã đơn</div>
+                  <div>Loại nợ</div>
                   <div>Trạng thái</div>
                   <div>Phí ship KH trả</div>
                   <div>Phí ship thực tế</div>
                   <div>Nợ cần trả</div>
                   <div>Phí boom</div>
-                  <div>Đã áp dụng phí return</div>
+                  <div>Đã áp dụng phí hoàn</div>
                 </div>
 
                 {/* Table Content */}
@@ -846,15 +880,20 @@ const RiskWarningDashboard: React.FC = () => {
                     <div className="space-y-2">
                       {unpaidEndedOrders.map((order, index) => (
                         <div
-                          key={order.orderId || index}
-                          className="grid grid-cols-7 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
+                          key={order.orderId || order.returnRequestId || `order-${index}`}
+                          className="grid grid-cols-8 gap-3 py-2 text-sm text-gray-900 hover:bg-gray-50 rounded-lg"
                         >
                           <div className="font-mono text-xs font-medium text-blue-600">
-                            {order.orderCode}
+                            {order.orderCode || order.ghnOrderCode || '-'}
                           </div>
                           <div>
-                            <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">
-                              {order.status === 'DELIVERY_SUCCESS' ? 'Giao thành công' : order.status}
+                            <span className="px-2 py-1 rounded text-xs bg-orange-100 text-orange-700 font-medium">
+                              {translateDebtType(order.debtType)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="px-2 py-1 rounded text-xs bg-cyan-100 text-cyan-700">
+                              {translateStatus(order.status)}
                             </span>
                           </div>
                           <div className="text-gray-700">
@@ -872,12 +911,18 @@ const RiskWarningDashboard: React.FC = () => {
                           <div>
                             <span
                               className={`px-2 py-1 rounded text-xs ${
-                                order.returnChargeApplied
+                                order.returnChargeApplied === true
                                   ? 'bg-green-100 text-green-700'
-                                  : 'bg-gray-100 text-gray-700'
+                                  : order.returnChargeApplied === false
+                                  ? 'bg-gray-100 text-gray-700'
+                                  : 'bg-gray-100 text-gray-500'
                               }`}
                             >
-                              {order.returnChargeApplied ? 'Có' : 'Không'}
+                              {order.returnChargeApplied === true 
+                                ? 'Có' 
+                                : order.returnChargeApplied === false 
+                                ? 'Không' 
+                                : '-'}
                             </span>
                           </div>
                         </div>

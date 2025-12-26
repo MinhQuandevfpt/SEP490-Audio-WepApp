@@ -535,15 +535,18 @@ export interface DebtComponentListResponse extends ApiResponse<DebtComponentPage
 
 // Unpaid Ended Orders Types (Nợ cần thanh toán)
 export interface UnpaidEndedOrder {
-  orderId: string;
-  orderCode: string;
-  status: string;
+  orderId: string | null;
+  orderCode: string | null;
+  status: string | null;
+  returnRequestId: string | null;
+  ghnOrderCode: string | null;
   debtNeedToPay: number;
   shippingFeeCustomerPaid: number;
   shippingFeeReal: number;
-  afterSubtract: number;
+  afterSubtract: number | null;
   boomFee: number | null;
-  returnChargeApplied: boolean;
+  returnChargeApplied: boolean | null;
+  debtType: 'ORDER' | 'RETURN_SHIP';
 }
 
 export interface UnpaidEndedOrdersResponse extends ApiResponse<UnpaidEndedOrder[]> {}
