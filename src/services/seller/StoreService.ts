@@ -419,6 +419,50 @@ export class StoreService {
   }
 
   /**
+   * Recalculate all store debt balances
+   * POST /api/admin/debts/recalc-all
+   */
+  static async recalculateDebts(): Promise<{ status: number; message: string; data: { updatedStores: number } }> {
+    try {
+      const endpoint = `${API_URL}/admin/debts/recalc-all`;
+      
+      console.log('📡 Calling recalculate debts API:', endpoint);
+      
+      const response = await HttpInterceptor.post<any>(
+        endpoint,
+        {},
+        {
+          userType: 'seller',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('📥 Recalculate debts API response:', response);
+      
+      // Handle different response formats
+      if (response.data) {
+        return {
+          status: response.status || 200,
+          message: response.message || response.data.message || '✅ Recalculated store debt balances',
+          data: response.data.data || response.data,
+        };
+      }
+      
+      return {
+        status: response.status || 200,
+        message: response.message || '✅ Recalculated store debt balances',
+        data: response.data || { updatedStores: 0 },
+      };
+    } catch (error: any) {
+      console.error('❌ Error recalculating debts:', error);
+      throw new Error(error?.message || 'Không thể làm mới thông số nợ');
+    }
+  }
+
+  /**
    * Get debt components (breakdown) for current store
    * GET /api/store/me/debt-components
    */

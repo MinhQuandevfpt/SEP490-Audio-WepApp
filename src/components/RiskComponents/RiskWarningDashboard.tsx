@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertTriangle, XCircle, Banknote } from 'lucide-react';
-import { Button, Modal, Alert, message } from 'antd';
+import { Button, Modal, Alert, message, Tooltip } from 'antd';
 import { Typography } from 'antd';
 import { StoreService } from '../../services/seller/StoreService';
 import { FinanceService } from '../../services/seller/FinanceService';
@@ -35,6 +35,7 @@ const RiskWarningDashboard: React.FC = () => {
 
   const [payableNowOnly, setPayableNowOnly] = useState(false);
   const [activeTab, setActiveTab] = useState<'breakdown' | 'unpaid-ended'>('breakdown');
+  const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
     // Load lần đầu khi mở trang
@@ -202,6 +203,28 @@ const RiskWarningDashboard: React.FC = () => {
     });
     setPayableNowOnly(false);
     loadDebtComponents();
+  };
+
+  const handleRecalculateDebts = async () => {
+    try {
+      setRecalculating(true);
+      //const response = await StoreService.recalculateDebts();
+      
+      // Translate message to Vietnamese
+      const vietnameseMessage = `Đã làm mới thông số nợ cửa hàng.`;
+      
+      message.success(vietnameseMessage);
+      
+      // Reload data after recalculate
+      loadRiskData();
+      loadDebtComponents();
+      loadUnpaidEndedOrders();
+      loadWalletOverview();
+    } catch (error: any) {
+      message.error(error.message || 'Không thể làm mới thông số nợ');
+    } finally {
+      setRecalculating(false);
+    }
   };
 
   const formatCurrency = (amount: number): string => {
@@ -424,8 +447,18 @@ const RiskWarningDashboard: React.FC = () => {
               {riskData.storeName} • Dashboard quản lý nợ và rủi ro
             </p>
           </div>
-          <div className={`${warningInfo.bgColor} ${warningInfo.textColor} px-4 py-2 rounded-full text-sm font-medium border ${warningInfo.borderColor}`}>
-            {warningInfo.emoji} Mức cảnh báo: {warningInfo.text} • {warningInfo.description}
+          <div className="flex items-center gap-3">
+            <Button
+              size="small"
+              onClick={handleRecalculateDebts}
+              loading={recalculating}
+              className="bg-orange-500 hover:bg-orange-600 text-white border-orange-500"
+            >
+              Làm mới thông số
+            </Button>
+            <div className={`${warningInfo.bgColor} ${warningInfo.textColor} px-4 py-2 rounded-full text-sm font-medium border ${warningInfo.borderColor}`}>
+              {warningInfo.emoji} Mức cảnh báo: {warningInfo.text} • {warningInfo.description}
+            </div>
           </div>
         </div>
 
@@ -780,8 +813,9 @@ const RiskWarningDashboard: React.FC = () => {
 
                 {/* Table Content */}
                 {debtLoading ? (
-                  <div className="text-center py-8 text-gray-500 text-sm">
-                    Đang tải breakdown nợ...
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
+                    <p className="text-gray-500 text-sm">Đang tải breakdown nợ...</p>
                   </div>
                 ) : debtItems.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 text-sm">
@@ -861,15 +895,24 @@ const RiskWarningDashboard: React.FC = () => {
                   <div>Trạng thái</div>
                   <div>Phí ship KH trả</div>
                   <div>Phí ship thực tế</div>
-                  <div>Nợ cần trả</div>
+                  <div className="flex items-center gap-1">
+                    Nợ cần trả
+                    <Tooltip 
+                      title="Đối với đơn hoàn trả, đơn vị vận chuyển sẽ thu thêm 50% tiền vận chuyển vòng đi ( tiền vận chuyển gốc * 150%)"
+                      placement="top"
+                    >
+                      <span className="text-orange-500 cursor-help font-normal">*</span>
+                    </Tooltip>
+                  </div>
                   <div>Phí boom</div>
                   <div>Đã áp dụng phí hoàn</div>
                 </div>
 
                 {/* Table Content */}
                 {unpaidEndedLoading ? (
-                  <div className="text-center py-8 text-gray-500 text-sm">
-                    Đang tải danh sách nợ cần thanh toán...
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-3"></div>
+                    <p className="text-gray-500 text-sm">Đang tải danh sách nợ cần thanh toán...</p>
                   </div>
                 ) : unpaidEndedOrders.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 text-sm">
@@ -959,21 +1002,22 @@ const RiskWarningDashboard: React.FC = () => {
         >
           <div className="space-y-4">
             {walletOverview && riskData && (
+              
               <div className="space-y-3">
-                <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <Text className="text-sm font-medium text-gray-700">Nợ cần thanh toán ngay:</Text>
-                    <Text strong className="text-xl text-red-600">
-                      {formatCurrency(riskData.payableNowDebt)}
-                    </Text>
-                  </div>
-                </div>
-                
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center justify-between mb-2">
                     <Text className="text-sm font-medium text-gray-700">Số dư ví khả dụng:</Text>
                     <Text strong className="text-xl text-blue-600">
                       {formatCurrency(walletOverview.defaultBalance)}
+                    </Text>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <Text className="text-sm font-medium text-gray-700">Nợ cần thanh toán ngay:</Text>
+                    <Text strong className="text-xl text-red-600">
+                      {formatCurrency(riskData.payableNowDebt)}
                     </Text>
                   </div>
                 </div>
