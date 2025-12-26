@@ -963,26 +963,6 @@ export const router = createBrowserRouter([
         element: <BannerDetail />
       },
       {
-        path: 'settings',
-        element: <PermissionProtectedRoute permission="manage_system" element={<div>System Settings Page (Coming Soon)</div>} />
-      },
-      {
-        path: 'settings/general',
-        element: <PermissionProtectedRoute permission="manage_system" element={<div>General Settings Page (Coming Soon)</div>} />
-      },
-      {
-        path: 'settings/payment',
-        element: <PermissionProtectedRoute permission="manage_system" element={<div>Payment Settings Page (Coming Soon)</div>} />
-      },
-      {
-        path: 'settings/shipping',
-        element: <PermissionProtectedRoute permission="manage_system" element={<div>Shipping Settings Page (Coming Soon)</div>} />
-      },
-      {
-        path: 'settings/email',
-        element: <PermissionProtectedRoute permission="manage_system" element={<div>Email Template Settings Page (Coming Soon)</div>} />
-      },
-      {
         path: 'profile',
         element: <div>Admin Profile Page (Coming Soon)</div>
       }

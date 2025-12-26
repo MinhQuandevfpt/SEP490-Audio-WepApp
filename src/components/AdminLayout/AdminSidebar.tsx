@@ -69,8 +69,8 @@ const AdminSidebar: React.FC = () => {
       permission: 'manage_users',
       icon: <Users className="w-6 h-6" />,
       children: [
-        { name: 'Tài khoản', href: `${baseUrl}/users/customers`, icon: null },
-        { name: 'Nhân viên hệ thống', href: `${baseUrl}/flatstaff`, icon: null }
+        { name: 'Tài khoản', href: `${baseUrl}/users/customers`, icon: null }
+        // { name: 'Nhân viên hệ thống', href: `${baseUrl}/flatstaff`, icon: null }
       ]
     },
     {

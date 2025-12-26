@@ -557,6 +557,29 @@ export interface GhnOverviewResponse {
   data: GhnOverview;
 }
 
+// GHN/Flat Debt Summary Types
+export interface DebtBreakdown {
+  total: number;
+  paid: number;
+  outstanding: number;
+}
+
+export interface GhnFlatDebtSummary {
+  scope: 'ALL_SYSTEM' | 'SINGLE_STORE';
+  storeId: string | null;
+  flatDebtToGHN: number;
+  customerPaidTotal: number;
+  storeOrderDebtToFlat: DebtBreakdown;
+  returnFeeDebtToFlat: DebtBreakdown;
+  formula: string;
+}
+
+export interface GhnFlatDebtSummaryResponse {
+  status: number;
+  message: string;
+  data: GhnFlatDebtSummary;
+}
+
 export interface PlatformTransactionsPageResponse {
   status: number;
   message: string;
