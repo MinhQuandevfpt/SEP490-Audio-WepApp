@@ -54,12 +54,13 @@ export const useOrderHistory = () => {
         size: pageSize,
       });
       
-      // Sử dụng startTransition để không block UI
+      // 🧩 Update từng field nhỏ, không replace toàn state (keepPreviousData pattern)
       ordersRef.current = res.data;
       startTransition(() => {
+        // Chỉ update nếu data thực sự thay đổi
         debouncedSetOrders(res.data);
-        setTotal(res.total);
-        setTotalPages(res.totalPages);
+        setTotal(prev => prev !== res.total ? res.total : prev);
+        setTotalPages(prev => prev !== res.totalPages ? res.totalPages : prev);
       });
       
       // Restart polling với interval mới dựa trên order status
@@ -225,20 +226,26 @@ export const useOrderHistory = () => {
     };
   }, []);
 
-  useEffect(() => { 
-    load(false); // Initial load with loading state
-  }, [load]);
-
-  // Start polling sau khi load xong
+  // ⚡ Fetch NGAY khi vào page + Start polling ngay
   useEffect(() => {
-    if (!isLoading && orders.length > 0) {
-      ordersRef.current = orders;
-      if (startPollingRef.current) {
+    let mounted = true;
+    
+    // Fetch ngay lập tức (không chờ interval)
+    const initialLoad = async () => {
+      if (loadRef.current) {
+        await loadRef.current(false);
+      }
+      
+      // Start polling ngay sau initial fetch (không chờ orders.length > 0)
+      if (mounted && startPollingRef.current) {
         startPollingRef.current();
       }
-    }
+    };
+    
+    initialLoad();
 
     return () => {
+      mounted = false;
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -248,7 +255,12 @@ export const useOrderHistory = () => {
         timeoutRef.current = null;
       }
     };
-  }, [isLoading, orders]);
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Update ordersRef khi orders thay đổi
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   // Reset to page 1 when pageSize changes
   useEffect(() => {

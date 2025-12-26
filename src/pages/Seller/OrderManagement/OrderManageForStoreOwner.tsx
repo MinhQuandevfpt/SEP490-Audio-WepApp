@@ -304,62 +304,31 @@ const OrderManageForStoreOwner: React.FC = () => {
   }, [orders]);
 
   const cancelRequestsDataRef = useRef<Record<string, any[]>>({});
-  const isTabVisibleRef = useRef(true);
-  const cancelRequestsPollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const cancelRequestsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Tab visibility detection cho cancel requests polling
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      isTabVisibleRef.current = !document.hidden;
-      
-      if (!document.hidden) {
-        // Tab active lại → restart polling
-        startCancelRequestsPolling();
-      } else {
-        // Tab inactive → pause polling
-        if (cancelRequestsPollingIntervalRef.current) {
-          clearInterval(cancelRequestsPollingIntervalRef.current);
-          cancelRequestsPollingIntervalRef.current = null;
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+  const ghnOrderDataRef = useRef<Record<string, any>>({});
+  const expandedPollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load cancel requests tuần tự cho AWAITING_SHIPMENT orders
-  const loadCancelRequestsSequential = useCallback(async (orderIds: string[], forceRefresh: boolean = false) => {
-    if (!isTabVisibleRef.current || orderIds.length === 0) return;
+  const loadCancelRequestsSequential = useCallback(async (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
 
     // Load tuần tự với delay giữa mỗi call để tránh lag UI
     for (let i = 0; i < orderIds.length; i++) {
       const orderId = orderIds[i];
       
-      // Skip nếu đang load (trừ khi force refresh)
-      if (!forceRefresh && loadingCancelRequests[orderId]) {
+      // Skip nếu đang load hoặc đã có data
+      if (loadingCancelRequests[orderId] || cancelRequestsData[orderId]) {
         continue;
       }
 
-      // Nếu không force refresh và đã có data, vẫn load để check updates nhưng không set loading state
-      const shouldSetLoading = !forceRefresh && !cancelRequestsData[orderId];
-
       try {
-        if (shouldSetLoading) {
-          setLoadingCancelRequests(prev => ({ ...prev, [orderId]: true }));
-        }
-        
+        setLoadingCancelRequests(prev => ({ ...prev, [orderId]: true }));
         const cancelRequests = await StoreOrderService.getCancelRequests(orderId);
         
-        // So sánh với data cũ để detect changes
+        // 🧩 Chỉ update nếu data thực sự thay đổi (tránh re-render không cần thiết)
         const oldData = cancelRequestsDataRef.current[orderId] || [];
-        const hasChanged = JSON.stringify(cancelRequests) !== JSON.stringify(oldData);
+        const hasChanged = JSON.stringify(oldData) !== JSON.stringify(cancelRequests);
         
-        // Luôn update data khi polling (force refresh) hoặc khi có thay đổi hoặc chưa có data
-        if (forceRefresh || hasChanged || !oldData || oldData.length === 0) {
+        if (hasChanged || !oldData || oldData.length === 0) {
           startTransition(() => {
             setCancelRequestsData(prev => ({ ...prev, [orderId]: cancelRequests }));
             cancelRequestsDataRef.current[orderId] = cancelRequests;
@@ -367,7 +336,6 @@ const OrderManageForStoreOwner: React.FC = () => {
         }
       } catch (error: any) {
         console.error(`Error loading cancel requests for ${orderId}:`, error);
-        // Chỉ set empty array nếu chưa có data
         if (!cancelRequestsDataRef.current[orderId]) {
           startTransition(() => {
             setCancelRequestsData(prev => ({ ...prev, [orderId]: [] }));
@@ -375,9 +343,7 @@ const OrderManageForStoreOwner: React.FC = () => {
           });
         }
       } finally {
-        if (shouldSetLoading) {
-          setLoadingCancelRequests(prev => ({ ...prev, [orderId]: false }));
-        }
+        setLoadingCancelRequests(prev => ({ ...prev, [orderId]: false }));
       }
 
       // Delay 200ms giữa mỗi API call (trừ call cuối cùng)
@@ -385,47 +351,9 @@ const OrderManageForStoreOwner: React.FC = () => {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
-  }, [loadingCancelRequests]);
+  }, [loadingCancelRequests, cancelRequestsData]);
 
-  // Smart polling cho cancel requests
-  const startCancelRequestsPolling = useCallback(() => {
-    if (cancelRequestsPollingIntervalRef.current) {
-      clearInterval(cancelRequestsPollingIntervalRef.current);
-      cancelRequestsPollingIntervalRef.current = null;
-    }
-
-    if (!isTabVisibleRef.current || !orders || orders.length === 0) {
-      return;
-    }
-
-    // Poll cho:
-    // 1. AWAITING_SHIPMENT orders (để check button disabled)
-    // 2. Expanded orders (để update UI khi user đang xem)
-    const awaitingShipmentOrderIds = orders
-      .filter(order => order.status === 'AWAITING_SHIPMENT')
-      .map(order => order.id);
-    
-    const expandedOrderIds = expandedRowKeys
-      .filter(key => typeof key === 'string')
-      .map(key => key as string)
-      .filter(orderId => orders.some(o => o.id === orderId));
-
-    // Kết hợp và loại bỏ duplicate
-    const allOrderIdsToPoll = Array.from(new Set([...awaitingShipmentOrderIds, ...expandedOrderIds]));
-
-    if (allOrderIdsToPoll.length === 0) {
-      return;
-    }
-
-    // Interval 10s cho cancel requests - force refresh để luôn check updates
-    cancelRequestsPollingIntervalRef.current = setInterval(() => {
-      if (isTabVisibleRef.current) {
-        loadCancelRequestsSequential(allOrderIdsToPoll, true); // Force refresh khi polling
-      }
-    }, 10000);
-  }, [orders, expandedRowKeys, loadCancelRequestsSequential]);
-
-  // Load cancel requests for AWAITING_SHIPMENT orders to check if button should be disabled
+  // ⚡ Load cancel requests NGAY khi có AWAITING_SHIPMENT orders
   useEffect(() => {
     if (!orders || orders.length === 0 || isLoading) {
       return;
@@ -436,37 +364,98 @@ const OrderManageForStoreOwner: React.FC = () => {
     );
 
     if (awaitingShipmentOrders.length === 0) {
-      // Start polling nếu có orders nhưng đã load hết
-      startCancelRequestsPolling();
       return;
     }
 
-    // Load tuần tự (không force refresh lần đầu)
+    // Load tuần tự một lần duy nhất - không await để không block UI
     const orderIds = awaitingShipmentOrders.map(o => o.id);
-    loadCancelRequestsSequential(orderIds, false).then(() => {
-      // Start polling sau khi load xong
-      startCancelRequestsPolling();
+    loadCancelRequestsSequential(orderIds).catch(err => {
+      console.error('Error loading cancel requests:', err);
     });
+  }, [orders, isLoading, loadCancelRequestsSequential, cancelRequestsData, loadingCancelRequests]);
 
-    // Cleanup
+  // 🔄 Poll GHN info + cancel requests gần realtime cho các dòng đang mở rộng
+  useEffect(() => {
+    // Clear interval cũ nếu có
+    if (expandedPollingIntervalRef.current) {
+      clearInterval(expandedPollingIntervalRef.current);
+      expandedPollingIntervalRef.current = null;
+    }
+
+    // Lấy danh sách orderId đang được expand
+    const expandedOrderIds = expandedRowKeys
+      .filter((key): key is string => typeof key === 'string')
+      .filter(orderId => orders.some(o => o.id === orderId));
+
+    if (expandedOrderIds.length === 0) {
+      return;
+    }
+
+    // Poll mỗi 8s cho GHN + cancel requests của các dòng đang mở
+    expandedPollingIntervalRef.current = setInterval(() => {
+      (async () => {
+        for (let i = 0; i < expandedOrderIds.length; i++) {
+          const orderId = expandedOrderIds[i];
+
+          // 1. GHN shipping info
+          try {
+            const ghnOrder = await GhnService.getGhnOrderByStoreOrderId(orderId);
+            const newData = ghnOrder && ghnOrder.data ? ghnOrder.data : null;
+            const oldData = ghnOrderDataRef.current[orderId] || null;
+
+            if (JSON.stringify(oldData) !== JSON.stringify(newData)) {
+              startTransition(() => {
+                setGhnOrderData(prev => {
+                  const next = { ...prev };
+                  if (newData) {
+                    next[orderId] = newData;
+                  } else {
+                    delete next[orderId];
+                  }
+                  return next;
+                });
+                ghnOrderDataRef.current[orderId] = newData;
+              });
+            }
+          } catch (err) {
+            // GHN không có đơn hoặc lỗi 404/500 là bình thường → chỉ log nhẹ
+            // console.error('Error polling GHN order for', orderId, err);
+          }
+
+          // 2. Cancel requests (silent, không đổi loading state)
+          try {
+            const cancelRequests = await StoreOrderService.getCancelRequests(orderId);
+            const oldData = cancelRequestsDataRef.current[orderId] || [];
+            const hasChanged = JSON.stringify(oldData) !== JSON.stringify(cancelRequests);
+
+            if (hasChanged) {
+              startTransition(() => {
+                setCancelRequestsData(prev => ({ ...prev, [orderId]: cancelRequests }));
+                cancelRequestsDataRef.current[orderId] = cancelRequests;
+              });
+            }
+          } catch (err) {
+            // Giữ data cũ, không xoá
+            // console.error('Error polling cancel requests for', orderId, err);
+          }
+
+          // Nhỏ giọt 200ms giữa các order để tránh spike
+          if (i < expandedOrderIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+      })().catch(() => {
+        // ignore
+      });
+    }, 8000);
+
     return () => {
-      if (cancelRequestsPollingIntervalRef.current) {
-        clearInterval(cancelRequestsPollingIntervalRef.current);
-        cancelRequestsPollingIntervalRef.current = null;
-      }
-      if (cancelRequestsTimeoutRef.current) {
-        clearTimeout(cancelRequestsTimeoutRef.current);
-        cancelRequestsTimeoutRef.current = null;
+      if (expandedPollingIntervalRef.current) {
+        clearInterval(expandedPollingIntervalRef.current);
+        expandedPollingIntervalRef.current = null;
       }
     };
-  }, [orders, isLoading, loadCancelRequestsSequential, startCancelRequestsPolling]);
-
-  // Restart polling khi expanded rows thay đổi
-  useEffect(() => {
-    if (!isLoading && orders.length > 0) {
-      startCancelRequestsPolling();
-    }
-  }, [expandedRowKeys, isLoading, orders, startCancelRequestsPolling]);
+  }, [expandedRowKeys, orders]);
 
   const handlePrepareOrder = async (orderId: string) => {
     try {
@@ -485,7 +474,7 @@ const OrderManageForStoreOwner: React.FC = () => {
     console.log('GHN Transfer Data for order:', ghnTransferOrderId, data);
     // TODO: Gọi API khi đã sẵn sàng
     setGhnTransferOrderId(null);
-    refresh(); // Refresh order list after GHN transfer
+    refresh();
   };
 
   const handleCancelGhnOrder = async () => {
@@ -510,7 +499,6 @@ const OrderManageForStoreOwner: React.FC = () => {
       setShowCancelModal(false);
       setCancelOrderCode('');
       
-      // Refresh order list
       refresh();
     } catch (error: any) {
       console.error('❌ Error cancelling GHN order:', error);
@@ -618,7 +606,6 @@ const OrderManageForStoreOwner: React.FC = () => {
       setShowCancelOrderModal(null);
       setCancelOrderReason('');
       
-      // Refresh order list
       refresh();
     } catch (error: any) {
       console.error('❌ Error cancelling order:', error);
@@ -934,7 +921,7 @@ const OrderManageForStoreOwner: React.FC = () => {
                 expanded ? [...prev, record.id] : prev.filter((key) => key !== record.id)
               );
 
-              // Load GHN order data when row is expanded
+              // Load GHN order data when row is expanded (initial load)
               if (expanded && !ghnOrderData[record.id] && !loadingGhnOrders[record.id]) {
                 try {
                   setLoadingGhnOrders(prev => ({ ...prev, [record.id]: true }));
@@ -942,6 +929,7 @@ const OrderManageForStoreOwner: React.FC = () => {
                   if (ghnOrder && ghnOrder.data) {
                     startTransition(() => {
                       setGhnOrderData(prev => ({ ...prev, [record.id]: ghnOrder.data }));
+                      ghnOrderDataRef.current[record.id] = ghnOrder.data;
                     });
                   }
                 } catch (error: any) {
@@ -1347,7 +1335,7 @@ const OrderManageForStoreOwner: React.FC = () => {
                   <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Truck className="w-5 h-5 text-blue-500" />
-                      <div className="text-sm font-semibold">Thông tin vận chuyển GHN</div>
+                      <div className="text-sm font-semibold">Thông tin vận chuyển GHN cho đơn hàng này</div>
                     </div>
                     {loadingGhnOrders[record.id] ? (
                       <div className="flex items-center justify-center py-4">
@@ -1428,7 +1416,7 @@ const OrderManageForStoreOwner: React.FC = () => {
                   <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
                     <div className="flex items-center gap-2 mb-3">
                       <XCircle className="w-5 h-5 text-red-500" />
-                      <div className="text-sm font-semibold">Yêu cầu hủy đơn hàng</div>
+                      <div className="text-sm font-semibold">Yêu cầu hủy đơn hàng từ khách hàng</div>
                       {cancelRequestsData[record.id] && cancelRequestsData[record.id].length > 0 && (
                         <Tag color="red" className="ml-2">
                           {cancelRequestsData[record.id].length} yêu cầu
@@ -1544,14 +1532,13 @@ const OrderManageForStoreOwner: React.FC = () => {
                                         showCenterSuccess('Đã chấp nhận yêu cầu hủy đơn hàng và hoàn tiền', 'Thành công');
                                       }
                                       
-                                      // Refresh cancel requests
+                                      // Update cancel requests ngay lập tức
                                       const updatedRequests = await StoreOrderService.getCancelRequests(record.id);
                                       startTransition(() => {
                                         setCancelRequestsData(prev => ({ ...prev, [record.id]: updatedRequests }));
                                         cancelRequestsDataRef.current[record.id] = updatedRequests;
                                       });
                                       
-                                      // Refresh order list
                                       refresh();
                                     } catch (error: any) {
                                       console.error('❌ Error approving cancel request:', error);
@@ -1810,14 +1797,13 @@ const OrderManageForStoreOwner: React.FC = () => {
                   );
                   showCenterSuccess('Đã từ chối yêu cầu hủy đơn hàng', 'Thành công');
                   
-                  // Refresh cancel requests
+                  // Update cancel requests ngay lập tức
                   const updatedRequests = await StoreOrderService.getCancelRequests(showRejectModal.orderId);
                   startTransition(() => {
                     setCancelRequestsData(prev => ({ ...prev, [showRejectModal.orderId]: updatedRequests }));
                     cancelRequestsDataRef.current[showRejectModal.orderId] = updatedRequests;
                   });
                   
-                  // Refresh order list
                   refresh();
                   
                   // Close modal
