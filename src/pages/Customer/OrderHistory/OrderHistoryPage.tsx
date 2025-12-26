@@ -48,6 +48,11 @@ const OrderHistoryPage: React.FC = () => {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs để lưu giá trị filter hiện tại - tránh race condition
+  const statusRef = useRef<OrderStatus | 'ALL'>('ALL');
+  const searchRef = useRef<string>('');
+  const pageRef = useRef<number>(1);
+  const pageSizeRef = useRef<number>(5);
   
   // Debounce helper chỉ dùng cho polling (background updates)
   const debouncedSetOrders = useCallback((newOrders: CustomerOrder[]) => {
@@ -73,11 +78,11 @@ const OrderHistoryPage: React.FC = () => {
         setOrders([]);
       }
       
-      // Sử dụng overrideParams nếu có, nếu không dùng từ state
-      const currentStatus = overrideParams?.status ?? status;
-      const currentSearch = overrideParams?.search ?? search;
-      const currentPage = overrideParams?.page ?? page;
-      const currentPageSize = overrideParams?.pageSize ?? pageSize;
+      // Sử dụng overrideParams nếu có, nếu không dùng từ ref (luôn có giá trị mới nhất)
+      const currentStatus = overrideParams?.status ?? statusRef.current;
+      const currentSearch = overrideParams?.search ?? searchRef.current;
+      const currentPage = overrideParams?.page ?? pageRef.current;
+      const currentPageSize = overrideParams?.pageSize ?? pageSizeRef.current;
       
       // Backend uses 0-based indexing
       const backendPage = currentPage - 1;
@@ -109,9 +114,11 @@ const OrderHistoryPage: React.FC = () => {
         });
       }
       
-      // Restart polling với interval mới dựa trên order status
-      if (silent) {
-        startPolling();
+      // Không sử dụng polling cho filter - chỉ load một lần khi user action
+      // Dừng polling khi có user action (filter change)
+      if (!silent && pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
 
       // Load GHN order data for each storeOrder tuần tự để tránh lag UI
@@ -185,45 +192,19 @@ const OrderHistoryPage: React.FC = () => {
         setIsLoading(false);
       }
     }
-  }, [status, search, page, pageSize, debouncedSetOrders]);
+  }, [debouncedSetOrders]); // Chỉ giữ debouncedSetOrders, các filter dùng ref
 
-  // Smart polling function
-  const startPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
 
-    if (!isTabVisibleRef.current) {
-      return;
-    }
-
-    const hasActiveOrders = ordersRef.current.some(
-      order => 
-        order.status !== 'COMPLETED' && 
-        order.status !== 'CANCELLED' &&
-        order.status !== 'RETURNED'
-    );
-
-    const interval = hasActiveOrders ? 10000 : 30000;
-
-    pollingIntervalRef.current = setInterval(() => {
-      if (!isTabVisibleRef.current) {
-        return;
-      }
-      load(true); // Silent refresh
-    }, interval);
-  }, [load]);
-
-  // Tab visibility detection
+  // Tab visibility detection - chỉ load khi tab active, không polling
   useEffect(() => {
     const handleVisibilityChange = () => {
       isTabVisibleRef.current = !document.hidden;
       
       if (!document.hidden) {
+        // Chỉ load một lần khi tab active, không start polling
         load(true);
-        startPolling();
       } else {
+        // Tab inactive → dừng polling nếu có
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
@@ -235,23 +216,27 @@ const OrderHistoryPage: React.FC = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [load, startPolling]);
+  }, [load]);
 
-  // Initial load khi mount
+  // Sync refs với state ban đầu khi mount
   useEffect(() => {
-    let mounted = true;
-    
+    statusRef.current = status;
+    searchRef.current = search;
+    pageRef.current = page;
+    pageSizeRef.current = pageSize;
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Initial load khi mount - không start polling
+  useEffect(() => {
     const initialLoad = async () => {
       await load(false);
-      if (mounted) {
-        startPolling();
-      }
+      // Không start polling - chỉ load một lần
     };
     
     initialLoad();
 
     return () => {
-      mounted = false;
+      // Cleanup: dừng polling và clear timeouts
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -271,6 +256,23 @@ const OrderHistoryPage: React.FC = () => {
   useEffect(() => {
     ordersRef.current = orders;
   }, [orders]);
+
+  // Update filter refs khi state thay đổi - đảm bảo ref luôn có giá trị mới nhất
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
+    pageSizeRef.current = pageSize;
+  }, [pageSize]);
 
   // Reset to page 1 when pageSize changes
   useEffect(() => {
@@ -440,15 +442,21 @@ const OrderHistoryPage: React.FC = () => {
             <OrderStatusTabs
               value={status}
               onChange={async (newStatus) => {
-                // Update state ngay lập tức để UI responsive
+                // Update ref ngay lập tức để tránh race condition
+                statusRef.current = newStatus;
+                pageRef.current = 1;
+                // Update state để UI responsive
                 setStatus(newStatus);
                 setPage(1);
-                // Call service trực tiếp - không đợi state update
-                await load(false, { status: newStatus, page: 1, pageSize });
+                // Call service trực tiếp với giá trị mới
+                await load(false, { status: newStatus, page: 1, pageSize: pageSizeRef.current });
               }}
               search={search}
               onSearchChange={(newSearch) => {
-                // Update state ngay lập tức để UI responsive
+                // Update ref ngay lập tức
+                searchRef.current = newSearch;
+                pageRef.current = 1;
+                // Update state để UI responsive
                 setSearch(newSearch);
                 setPage(1);
                 
@@ -458,8 +466,8 @@ const OrderHistoryPage: React.FC = () => {
                 }
                 
                 searchTimeoutRef.current = setTimeout(async () => {
-                  // Call service sau khi user ngừng gõ 500ms
-                  await load(false, { search: newSearch, page: 1, pageSize });
+                  // Call service sau khi user ngừng gõ 500ms với giá trị mới nhất từ ref
+                  await load(false, { search: searchRef.current, page: pageRef.current, pageSize: pageSizeRef.current });
                 }, 500);
               }}
             />
@@ -534,9 +542,14 @@ const OrderHistoryPage: React.FC = () => {
                   <Select
                     value={pageSize}
                     onChange={async (newPageSize) => {
+                      // Update ref ngay lập tức
+                      pageSizeRef.current = newPageSize;
+                      pageRef.current = 1;
+                      // Update state
                       setPageSize(newPageSize);
                       setPage(1);
-                      await load(false, { pageSize: newPageSize, page: 1 });
+                      // Call service với giá trị mới
+                      await load(false, { pageSize: newPageSize, page: 1, status: statusRef.current, search: searchRef.current });
                     }}
                     style={{ 
                       width: 80, 
@@ -573,8 +586,12 @@ const OrderHistoryPage: React.FC = () => {
                       total={totalPages}
                       pageSize={1}
                       onChange={async (newPage) => {
+                        // Update ref ngay lập tức
+                        pageRef.current = newPage;
+                        // Update state
                         setPage(newPage);
-                        await load(false, { page: newPage });
+                        // Call service với giá trị mới
+                        await load(false, { page: newPage, status: statusRef.current, search: searchRef.current, pageSize: pageSizeRef.current });
                       }}
                       showSizeChanger={false}
                       showQuickJumper={totalPages > 10}
