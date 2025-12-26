@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { startTransition } from 'react';
 import { 
   Card, 
   Select, 
@@ -17,7 +18,8 @@ import {
 import { Home, ShoppingBag, DollarSign, FileText } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import { OrderCard, OrderDetailModal, OrderStatusTabs } from '../../../components/OrderHistoryComponents';
-import useOrderHistory from '../../../hooks/useOrderHistory';
+import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
+import type { CustomerOrder, OrderStatus } from '../../../types/api';
 import { formatCurrency } from '../../../utils/orderStatus';
 
 const { Option } = Select;
@@ -26,26 +28,246 @@ const { Title, Text } = Typography;
 const OrderHistoryPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const {
-    status,
-    setStatus,
-    search,
-    setSearch,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    totalPages,
-    orders,
-    isLoading,
-    error,
-    selectedOrder,
-    setSelectedOrder,
-    viewDetail,
-    reload,
-    total,
-    ghnOrderData,
-  } = useOrderHistory();
+  
+  // State
+  const [status, setStatus] = useState<OrderStatus | 'ALL'>('ALL');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+  const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
+  
+  // Refs
+  const ghnOrderDataRef = useRef<Record<string, any>>({});
+  const ordersRef = useRef<CustomerOrder[]>([]);
+  const isTabVisibleRef = useRef(true);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Debounce helper để tránh giật UI khi update state
+  const debouncedSetOrders = useCallback((newOrders: CustomerOrder[]) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      startTransition(() => {
+        setOrders(newOrders);
+        ordersRef.current = newOrders;
+      });
+    }, 300);
+  }, []);
+
+  // Load orders function
+  const load = useCallback(async (silent: boolean = false, overrideParams?: { status?: OrderStatus | 'ALL'; search?: string; page?: number; pageSize?: number }) => {
+    try {
+      if (!silent) {
+        setIsLoading(true);
+        setError(null);
+      }
+      
+      // Sử dụng overrideParams nếu có, nếu không dùng từ state
+      const currentStatus = overrideParams?.status ?? status;
+      const currentSearch = overrideParams?.search ?? search;
+      const currentPage = overrideParams?.page ?? page;
+      const currentPageSize = overrideParams?.pageSize ?? pageSize;
+      
+      // Backend uses 0-based indexing
+      const backendPage = currentPage - 1;
+      
+      const res = await OrderHistoryService.list({
+        status: currentStatus === 'ALL' ? undefined : currentStatus,
+        search: currentSearch || undefined,
+        page: backendPage,
+        size: currentPageSize,
+      });
+      
+      // Update từng field nhỏ, không replace toàn state
+      ordersRef.current = res.data;
+      startTransition(() => {
+        debouncedSetOrders(res.data);
+        setTotal(prev => prev !== res.total ? res.total : prev);
+        setTotalPages(prev => prev !== res.totalPages ? res.totalPages : prev);
+      });
+      
+      // Restart polling với interval mới dựa trên order status
+      if (silent) {
+        startPolling();
+      }
+
+      // Load GHN order data for each storeOrder tuần tự để tránh lag UI
+      const ghnDataTasks: Array<{ storeOrderId: string }> = [];
+      res.data.forEach((order) => {
+        if (!Array.isArray(order.storeOrders)) {
+          return;
+        }
+        order.storeOrders.forEach((storeOrder) => {
+          if (!storeOrder.id || storeOrder.id.includes('-store-')) {
+            return;
+          }
+          if (silent || !ghnOrderDataRef.current[storeOrder.id]) {
+            ghnDataTasks.push({ storeOrderId: storeOrder.id });
+          }
+        });
+      });
+
+      // Load GHN data tuần tự với delay giữa mỗi call và batch updates
+      if (ghnDataTasks.length > 0) {
+        (async () => {
+          const ghnUpdates: Record<string, any> = {};
+          let updateCount = 0;
+          const BATCH_SIZE = 3;
+          
+          for (const task of ghnDataTasks) {
+            try {
+              const ghnOrder = await OrderHistoryService.getGhnOrderByStoreOrderId(task.storeOrderId);
+              if (ghnOrder && ghnOrder.data) {
+                ghnUpdates[task.storeOrderId] = ghnOrder.data;
+                updateCount++;
+                
+                if (updateCount >= BATCH_SIZE || ghnDataTasks.indexOf(task) === ghnDataTasks.length - 1) {
+                  const updatesToApply = { ...ghnUpdates };
+                  Object.assign(ghnOrderDataRef.current, updatesToApply);
+                  startTransition(() => {
+                    setGhnOrderData((prev) => ({
+                      ...prev,
+                      ...updatesToApply,
+                    }));
+                  });
+                  Object.keys(ghnUpdates).forEach(key => delete ghnUpdates[key]);
+                  updateCount = 0;
+                }
+              }
+              if (ghnDataTasks.indexOf(task) < ghnDataTasks.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+              }
+            } catch (err: any) {
+              if (err?.status !== 404 && err?.status !== 500) {
+                console.error(`Unexpected error loading GHN order for ${task.storeOrderId}:`, err);
+              }
+              if (ghnDataTasks.indexOf(task) < ghnDataTasks.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+              }
+            }
+          }
+        })().catch(() => {
+          // Silently fail
+        });
+      }
+    } catch (e: any) {
+      if (!silent) {
+        setError(e?.message || 'Không thể tải danh sách đơn hàng');
+        setOrders([]);
+        setTotal(0);
+        setTotalPages(0);
+      }
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
+    }
+  }, [status, search, page, pageSize, debouncedSetOrders]);
+
+  // Smart polling function
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    if (!isTabVisibleRef.current) {
+      return;
+    }
+
+    const hasActiveOrders = ordersRef.current.some(
+      order => 
+        order.status !== 'COMPLETED' && 
+        order.status !== 'CANCELLED' &&
+        order.status !== 'RETURNED'
+    );
+
+    const interval = hasActiveOrders ? 10000 : 30000;
+
+    pollingIntervalRef.current = setInterval(() => {
+      if (!isTabVisibleRef.current) {
+        return;
+      }
+      load(true); // Silent refresh
+    }, interval);
+  }, [load]);
+
+  // Tab visibility detection
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisibleRef.current = !document.hidden;
+      
+      if (!document.hidden) {
+        load(true);
+        startPolling();
+      } else {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [load, startPolling]);
+
+  // Initial load khi mount
+  useEffect(() => {
+    let mounted = true;
+    
+    const initialLoad = async () => {
+      await load(false);
+      if (mounted) {
+        startPolling();
+      }
+    };
+    
+    initialLoad();
+
+    return () => {
+      mounted = false;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Update ordersRef khi orders thay đổi
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
+
+  // Reset to page 1 when pageSize changes
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
+
+  // View detail function
+  const viewDetail = async (orderId: string) => {
+    try {
+      const detail = await OrderHistoryService.getById(orderId);
+      setSelectedOrder(detail);
+    } catch (error: any) {
+      console.error('Error loading order detail:', error);
+    }
+  };
 
 
   // Auto-open order detail modal if orderId is passed via navigation state
@@ -158,9 +380,17 @@ const OrderHistoryPage: React.FC = () => {
             {/* Status Tabs Section - Horizontal Tabs Style */}
             <OrderStatusTabs
               value={status}
-              onChange={setStatus}
+              onChange={(newStatus) => {
+                setStatus(newStatus);
+                setPage(1);
+                load(false, { status: newStatus, page: 1, pageSize });
+              }}
               search={search}
-              onSearchChange={setSearch}
+              onSearchChange={(newSearch) => {
+                setSearch(newSearch);
+                setPage(1);
+                load(false, { search: newSearch, page: 1, pageSize });
+              }}
             />
 
             {/* Orders List */}
@@ -218,7 +448,7 @@ const OrderHistoryPage: React.FC = () => {
                     key={order.id}
                     order={order}
                     ghnOrderData={ghnOrderData}
-                    onOrderCancelled={reload}
+                    onOrderCancelled={() => load()}
                   />
                 ))}
               </div>
@@ -244,7 +474,11 @@ const OrderHistoryPage: React.FC = () => {
                         <Text className="text-sm font-medium text-gray-700">Hiển thị:</Text>
                         <Select
                           value={pageSize}
-                          onChange={setPageSize}
+                          onChange={(newPageSize) => {
+                            setPageSize(newPageSize);
+                            setPage(1);
+                            load(false, { pageSize: newPageSize, page: 1 });
+                          }}
                           style={{ 
                             width: 150, 
                             borderRadius: '8px',
@@ -282,7 +516,10 @@ const OrderHistoryPage: React.FC = () => {
                           current={page}
                           total={totalPages * pageSize}
                           pageSize={pageSize}
-                          onChange={(newPage) => setPage(newPage)}
+                          onChange={(newPage) => {
+                            setPage(newPage);
+                            load(false, { page: newPage });
+                          }}
                           showSizeChanger={false}
                           showQuickJumper={totalPages > 5}
                           showTotal={(total, range) => (
@@ -309,7 +546,7 @@ const OrderHistoryPage: React.FC = () => {
         order={selectedOrder} 
         onClose={() => setSelectedOrder(null)} 
         ghnOrderData={ghnOrderData}
-        onOrderCancelled={reload}
+        onOrderCancelled={() => load()}
       />
     </Layout>
   );
