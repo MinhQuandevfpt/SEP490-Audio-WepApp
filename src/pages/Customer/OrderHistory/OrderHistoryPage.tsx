@@ -12,8 +12,7 @@ import {
   Breadcrumb,
   Row,
   Col,
-  Statistic,
-  Divider
+  Statistic
 } from 'antd';
 import { Home, ShoppingBag, DollarSign, FileText } from 'lucide-react';
 import Layout from '../../../components/Layout';
@@ -48,8 +47,9 @@ const OrderHistoryPage: React.FC = () => {
   const isTabVisibleRef = useRef(true);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  // Debounce helper để tránh giật UI khi update state
+  // Debounce helper chỉ dùng cho polling (background updates)
   const debouncedSetOrders = useCallback((newOrders: CustomerOrder[]) => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -63,12 +63,14 @@ const OrderHistoryPage: React.FC = () => {
     }, 300);
   }, []);
 
-  // Load orders function
+  // Load orders function - immediate update cho user actions, debounced cho polling
   const load = useCallback(async (silent: boolean = false, overrideParams?: { status?: OrderStatus | 'ALL'; search?: string; page?: number; pageSize?: number }) => {
     try {
       if (!silent) {
         setIsLoading(true);
         setError(null);
+        // Optimistic update: clear orders ngay để UI responsive
+        setOrders([]);
       }
       
       // Sử dụng overrideParams nếu có, nếu không dùng từ state
@@ -80,6 +82,7 @@ const OrderHistoryPage: React.FC = () => {
       // Backend uses 0-based indexing
       const backendPage = currentPage - 1;
       
+      // Call service trực tiếp - không qua debounce
       const res = await OrderHistoryService.list({
         status: currentStatus === 'ALL' ? undefined : currentStatus,
         search: currentSearch || undefined,
@@ -87,13 +90,24 @@ const OrderHistoryPage: React.FC = () => {
         size: currentPageSize,
       });
       
-      // Update từng field nhỏ, không replace toàn state
+      // Update ngay lập tức cho user actions, debounced cho polling
       ordersRef.current = res.data;
-      startTransition(() => {
-        debouncedSetOrders(res.data);
-        setTotal(prev => prev !== res.total ? res.total : prev);
-        setTotalPages(prev => prev !== res.totalPages ? res.totalPages : prev);
-      });
+      if (silent) {
+        // Polling: dùng debounce để batch updates
+        startTransition(() => {
+          debouncedSetOrders(res.data);
+          setTotal(prev => prev !== res.total ? res.total : prev);
+          setTotalPages(prev => prev !== res.totalPages ? res.totalPages : prev);
+        });
+      } else {
+        // User action: update ngay lập tức không debounce
+        startTransition(() => {
+          setOrders(res.data);
+          ordersRef.current = res.data;
+          setTotal(res.total);
+          setTotalPages(res.totalPages);
+        });
+      }
       
       // Restart polling với interval mới dựa trên order status
       if (silent) {
@@ -246,6 +260,10 @@ const OrderHistoryPage: React.FC = () => {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = null;
+      }
     };
   }, []); // Chỉ chạy 1 lần khi mount
 
@@ -297,6 +315,47 @@ const OrderHistoryPage: React.FC = () => {
 
   return (
     <Layout>
+      <style>{`
+        .custom-pagination-simple .ant-pagination-item {
+          border-radius: 6px;
+          border-color: #e5e7eb;
+          min-width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .custom-pagination-simple .ant-pagination-item:hover {
+          border-color: #FF6A00;
+        }
+        .custom-pagination-simple .ant-pagination-item-active {
+          background: #FF6A00;
+          border-color: #FF6A00;
+        }
+        .custom-pagination-simple .ant-pagination-item-active a {
+          color: white;
+        }
+        .custom-pagination-simple .ant-pagination-prev,
+        .custom-pagination-simple .ant-pagination-next {
+          border-radius: 6px;
+          border-color: #e5e7eb;
+          min-width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .custom-pagination-simple .ant-pagination-prev:hover,
+        .custom-pagination-simple .ant-pagination-next:hover {
+          border-color: #FF6A00;
+          color: #FF6A00;
+        }
+        .custom-pagination-simple .ant-pagination-jump-prev,
+        .custom-pagination-simple .ant-pagination-jump-next {
+          border-radius: 6px;
+        }
+      `}</style>
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Breadcrumb
@@ -380,16 +439,28 @@ const OrderHistoryPage: React.FC = () => {
             {/* Status Tabs Section - Horizontal Tabs Style */}
             <OrderStatusTabs
               value={status}
-              onChange={(newStatus) => {
+              onChange={async (newStatus) => {
+                // Update state ngay lập tức để UI responsive
                 setStatus(newStatus);
                 setPage(1);
-                load(false, { status: newStatus, page: 1, pageSize });
+                // Call service trực tiếp - không đợi state update
+                await load(false, { status: newStatus, page: 1, pageSize });
               }}
               search={search}
               onSearchChange={(newSearch) => {
+                // Update state ngay lập tức để UI responsive
                 setSearch(newSearch);
                 setPage(1);
-                load(false, { search: newSearch, page: 1, pageSize });
+                
+                // Debounce search để tránh spam API khi user đang gõ
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                }
+                
+                searchTimeoutRef.current = setTimeout(async () => {
+                  // Call service sau khi user ngừng gõ 500ms
+                  await load(false, { search: newSearch, page: 1, pageSize });
+                }, 500);
               }}
             />
 
@@ -454,89 +525,67 @@ const OrderHistoryPage: React.FC = () => {
               </div>
             )}
 
-            {/* Pagination & Page Size Selector */}
+            {/* Pagination - Tối giản và đẹp hơn */}
             {orders.length > 0 && (
-              <Card 
-                className="border-gray-200 shadow-sm"
-                style={{
-                  borderRadius: 12,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                }}
-                styles={{ 
-                  body: { padding: '20px 24px' }
-                }}
-              >
-                <Row gutter={[24, 16]} align="middle" justify="space-between">
-                  {/* Page Size Selector */}
-                  <Col xs={24} sm={12} md={8}>
-                    <Space size="middle" className="w-full sm:w-auto">
-                      <div className="flex items-center gap-2">
-                        <Text className="text-sm font-medium text-gray-700">Hiển thị:</Text>
-                        <Select
-                          value={pageSize}
-                          onChange={(newPageSize) => {
-                            setPageSize(newPageSize);
-                            setPage(1);
-                            load(false, { pageSize: newPageSize, page: 1 });
-                          }}
-                          style={{ 
-                            width: 150, 
-                            borderRadius: '8px',
-                            minWidth: '150px'
-                          }}
-                          size="large"
-                        >
-                          <Option value={5}>5 đơn hàng</Option>
-                          <Option value={10}>10 đơn hàng</Option>
-                          <Option value={15}>15 đơn hàng</Option>
-                          <Option value={20}>20 đơn hàng</Option>
-                        </Select>
-                        <Text className="text-sm text-gray-500 hidden sm:inline">/ trang</Text>
-                      </div>
-                    </Space>
-                  </Col>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-lg border border-gray-200 px-4 py-3">
+                {/* Page Size Selector - Compact */}
+                <div className="flex items-center gap-2">
+                  <Text className="text-sm text-gray-600">Hiển thị</Text>
+                  <Select
+                    value={pageSize}
+                    onChange={async (newPageSize) => {
+                      setPageSize(newPageSize);
+                      setPage(1);
+                      await load(false, { pageSize: newPageSize, page: 1 });
+                    }}
+                    style={{ 
+                      width: 80, 
+                      borderRadius: '6px',
+                    }}
+                    size="middle"
+                    bordered={false}
+                    className="[&_.ant-select-selector]:border-gray-200 [&_.ant-select-selector]:rounded-md"
+                  >
+                    <Option value={5}>5</Option>
+                    <Option value={10}>10</Option>
+                    <Option value={15}>15</Option>
+                    <Option value={20}>20</Option>
+                  </Select>
+                  <Text className="text-sm text-gray-500">/ trang</Text>
+                </div>
+
+                {/* Pagination Info & Controls */}
+                <div className="flex items-center gap-4 flex-wrap justify-center">
+                  {/* Compact Info */}
+                  <Text className="text-sm text-gray-600 whitespace-nowrap">
+                    <span className="font-medium text-gray-900">{page}</span>
+                    <span className="mx-1">/</span>
+                    <span className="font-medium text-gray-900">{totalPages}</span>
+                    <span className="mx-2 text-gray-300">•</span>
+                    <span className="text-gray-500">Tổng:</span>
+                    <span className="ml-1 font-semibold text-[#FF6A00]">{total || 0}</span>
+                  </Text>
 
                   {/* Pagination */}
-                  <Col xs={24} sm={12} md={16}>
-                    <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
-                      {/* Total Info */}
-                      <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        <Text className="text-sm text-gray-600">
-                          Trang <strong className="text-gray-900">{page}</strong> / <strong className="text-gray-900">{totalPages}</strong>
-                        </Text>
-                        <Divider type="vertical" style={{ height: '16px', margin: '0 8px' }} />
-                        <Text className="text-sm text-gray-600">
-                          Tổng: <strong className="text-orange-600">{total || 0}</strong> đơn hàng
-                        </Text>
-                      </div>
-
-                      {/* Pagination Component */}
-                      {totalPages > 1 && (
-                        <Pagination
-                          current={page}
-                          total={totalPages * pageSize}
-                          pageSize={pageSize}
-                          onChange={(newPage) => {
-                            setPage(newPage);
-                            load(false, { page: newPage });
-                          }}
-                          showSizeChanger={false}
-                          showQuickJumper={totalPages > 5}
-                          showTotal={(total, range) => (
-                            <span className="text-sm text-gray-600 hidden lg:inline">
-                              Hiển thị <strong className="text-gray-900">{range[0]}-{range[1]}</strong> của <strong className="text-gray-900">{total}</strong> đơn hàng
-                            </span>
-                          )}
-                          style={{ 
-                            textAlign: 'right',
-                          }}
-                          className="custom-pagination"
-                        />
-                      )}
-                    </div>
-                  </Col>
-                </Row>
-              </Card>
+                  {totalPages > 1 && (
+                    <Pagination
+                      current={page}
+                      total={totalPages}
+                      pageSize={1}
+                      onChange={async (newPage) => {
+                        setPage(newPage);
+                        await load(false, { page: newPage });
+                      }}
+                      showSizeChanger={false}
+                      showQuickJumper={totalPages > 10}
+                      showLessItems
+                      size="small"
+                      style={{ margin: 0 }}
+                      className="custom-pagination-simple"
+                    />
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

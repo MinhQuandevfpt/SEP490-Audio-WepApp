@@ -11,17 +11,18 @@ interface Props {
   search: string;
 }
 
-// Simplified status options for tabs (main statuses only)
+// Status options - chỉ các status chính
 const mainStatusOptions: { key: AllOrStatus; label: string }[] = [
   { key: 'ALL', label: 'Tất cả' },
+  { key: 'UNPAID', label: 'Chờ thanh toán' },
   { key: 'PENDING', label: 'Chờ xử lý' },
-  { key: 'CONFIRMED', label: 'Chờ xác nhận' },
   { key: 'AWAITING_SHIPMENT', label: 'Chờ lấy hàng' },
-  { key: 'SHIPPING', label: 'Vận chuyển' },
-  // Hoàn thành đơn: sử dụng status DELIVERY_SUCCESS từ backend
-  { key: 'DELIVERY_SUCCESS', label: 'Vận chuyển thành công' },
+  { key: 'READY_FOR_DELIVERY', label: 'Chờ giao hàng' },
+  { key: 'DELIVERY_SUCCESS', label: 'Giao thành công' },
   { key: 'CANCELLED', label: 'Đã hủy' },
-  { key: 'RETURN_REQUESTED', label: 'Trả hàng/Hoàn tiền' },
+  { key: 'RETURN_REQUESTED', label: 'Yêu cầu trả hàng' },
+  { key: 'RETURNING', label: 'Đang trả hàng' },
+  { key: 'RETURNED', label: 'Đã trả hàng' },
 ];
 
 const OrderStatusTabs: React.FC<Props> = ({ value, onChange, search, onSearchChange }) => {
@@ -33,7 +34,7 @@ const OrderStatusTabs: React.FC<Props> = ({ value, onChange, search, onSearchCha
         boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
       }}
     >
-      {/* Status Tabs - Horizontal */}
+      {/* Status Tabs - Horizontal với scroll */}
       <div className="border-b border-gray-200">
         <div 
           className="flex items-center gap-1 overflow-x-auto px-4 py-0 [&::-webkit-scrollbar]:hidden"
@@ -49,7 +50,7 @@ const OrderStatusTabs: React.FC<Props> = ({ value, onChange, search, onSearchCha
                 key={option.key}
                 onClick={() => onChange(option.key)}
                 className={`
-                  relative px-4 py-4 text-sm font-medium whitespace-nowrap transition-all duration-200
+                  relative px-3 py-3 text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 flex-shrink-0
                   ${isActive 
                     ? 'text-[#FF6A00] font-semibold' 
                     : 'text-gray-600 hover:text-gray-900'
