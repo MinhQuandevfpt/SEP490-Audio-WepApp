@@ -82,6 +82,14 @@ const FinancePage: React.FC = () => {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [withdrawForm] = Form.useForm();
+  const [isWithdrawConfirmModalOpen, setIsWithdrawConfirmModalOpen] = useState(false);
+  const [withdrawFormData, setWithdrawFormData] = useState<{
+    amount: number;
+    bankName: string;
+    bankAccountNo: string;
+    bankAccountName: string;
+    note?: string;
+  } | null>(null);
 
   // Transfer to deposit modal state
   const [isTransferToDepositModalOpen, setIsTransferToDepositModalOpen] = useState(false);
@@ -374,13 +382,23 @@ const FinancePage: React.FC = () => {
     bankAccountName: string;
     note?: string;
   }) => {
+    // Store form data and show confirmation modal
+    setWithdrawFormData(values);
+    setIsWithdrawModalOpen(false);
+    setIsWithdrawConfirmModalOpen(true);
+  };
+
+  const handleWithdrawConfirm = async () => {
+    if (!withdrawFormData) return;
+
     try {
       setWithdrawLoading(true);
       
-      const response = await FinanceService.withdraw(values);
+      await FinanceService.withdraw(withdrawFormData);
 
-      message.success(`Rút tiền thành công! Số dư sau giao dịch: ${formatCurrency(response.balanceAfter)}`);
-      setIsWithdrawModalOpen(false);
+      message.success('Rút tiền thành công!');
+      setIsWithdrawConfirmModalOpen(false);
+      setWithdrawFormData(null);
       withdrawForm.resetFields();
       refresh();
     } catch (error: any) {
@@ -390,9 +408,16 @@ const FinancePage: React.FC = () => {
     }
   };
 
+  const handleWithdrawConfirmCancel = () => {
+    setIsWithdrawConfirmModalOpen(false);
+    setWithdrawFormData(null);
+    setIsWithdrawModalOpen(true);
+  };
+
   const handleWithdrawCancel = () => {
     setIsWithdrawModalOpen(false);
     withdrawForm.resetFields();
+    setWithdrawFormData(null);
   };
 
   // Handle transfer to deposit
@@ -512,7 +537,7 @@ const FinancePage: React.FC = () => {
           </div>
         ) : walletOverview ? (
         <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12} lg={8}>
+            <Col xs={24} sm={12} lg={12}>
               <Card className="h-full border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
                 <Statistic
                   title={
@@ -554,7 +579,7 @@ const FinancePage: React.FC = () => {
                   </div>
             </Card>
           </Col>
-            <Col xs={24} sm={12} lg={8}>
+            <Col xs={24} sm={12} lg={12}>
               <Card className="h-full border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
               <Statistic
                 title={
@@ -727,9 +752,6 @@ const FinancePage: React.FC = () => {
                           <Tag color={getTransactionTypeColor(transaction.type)} className="text-sm font-medium">
                             {removeParenthesesText(transaction.displayType || transaction.type)}
                           </Tag>
-                          <Text code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                            {transaction.transactionId.slice(0, 8).toUpperCase()}
-                          </Text>
                           {(transaction.orderId || formattedDesc.orderId) && (
                             <div className="flex items-center gap-1 text-xs text-gray-600">
                               <ShoppingBag className="w-3 h-3" />
@@ -979,24 +1001,55 @@ const FinancePage: React.FC = () => {
               },
               {
                 validator: (_, value) => {
-                  if (value && walletOverview && value > walletOverview.defaultBalance) {
-                    return Promise.reject(new Error('Số tiền rút không được vượt quá số dư hiện có'));
+                  if (!value || value === null || value === undefined) {
+                    return Promise.resolve();
+                  }
+                  const numValue = Number(value);
+                  if (isNaN(numValue)) {
+                    return Promise.reject(new Error('Vui lòng nhập số hợp lệ'));
+                  }
+                  if (walletOverview && numValue > walletOverview.defaultBalance) {
+                    return Promise.reject(new Error('Số tiền rút vượt quá số dư ví hiện tại'));
                   }
                   return Promise.resolve();
-                }
+                },
+                validateTrigger: ['onChange', 'onBlur']
               }
             ]}
           >
             <InputNumber
               className="w-full"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => Number(value!.replace(/\$\s?|(,*)/g, '')) as any}
+              formatter={(value) => {
+                if (value === undefined || value === null) return '';
+                // Làm tròn về số nguyên
+                const numValue = Math.floor(Number(value));
+                if (isNaN(numValue) || numValue === 0) return '';
+                // Format với dấu phẩy ngăn cách hàng nghìn
+                return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+              }}
+              parser={(value) => {
+                if (!value) return undefined as any;
+                // Loại bỏ tất cả ký tự không phải số
+                const numericValue = value.replace(/\D/g, '');
+                if (!numericValue) return undefined as any;
+                // Chỉ trả về số nguyên
+                const numValue = parseInt(numericValue, 10);
+                return isNaN(numValue) ? undefined : (numValue as any);
+              }}
               placeholder="Nhập số tiền"
               addonAfter="VNĐ"
               min={10000}
               step={10000}
               style={{ width: '100%' }}
-              max={walletOverview?.defaultBalance || undefined}
+              precision={0}
+              decimalSeparator=""
+              controls={true}
+              onChange={() => {
+                // Trigger validation ngay khi giá trị thay đổi
+                setTimeout(() => {
+                  withdrawForm.validateFields(['amount']);
+                }, 100);
+              }}
             />
           </Form.Item>
 
@@ -1089,6 +1142,109 @@ const FinancePage: React.FC = () => {
         </Form>
       </Modal>
 
+      {/* Withdraw Confirmation Modal */}
+      <Modal
+        title="Xác nhận rút tiền"
+        open={isWithdrawConfirmModalOpen}
+        onCancel={handleWithdrawConfirmCancel}
+        footer={null}
+        width={600}
+        closable={!withdrawLoading}
+        maskClosable={!withdrawLoading}
+      >
+        {withdrawFormData && (
+          <>
+            <Alert
+              message="Cảnh báo quan trọng"
+              description="Sau khi rút tiền, giao dịch không thể hoàn tác. Vui lòng kiểm tra kỹ thông tin trước khi xác nhận."
+              type="warning"
+              showIcon
+              className="mb-4"
+            />
+
+            <div className="mb-4 space-y-3">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <Text className="text-sm text-gray-600 block mb-1">Số tiền rút:</Text>
+                <Text strong className="text-lg text-red-600">
+                  {formatCurrency(withdrawFormData.amount)}
+                </Text>
+              </div>
+
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <Text className="text-sm text-gray-600 block mb-1">Ngân hàng:</Text>
+                <Text strong className="text-base">
+                  {withdrawFormData.bankName}
+                </Text>
+              </div>
+
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <Text className="text-sm text-gray-600 block mb-1">Số tài khoản:</Text>
+                <Text strong className="text-base">
+                  {withdrawFormData.bankAccountNo}
+                </Text>
+              </div>
+
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <Text className="text-sm text-gray-600 block mb-1">Tên chủ tài khoản:</Text>
+                <Text strong className="text-base">
+                  {withdrawFormData.bankAccountName}
+                </Text>
+              </div>
+
+              {withdrawFormData.note && (
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <Text className="text-sm text-gray-600 block mb-1">Ghi chú:</Text>
+                  <Text className="text-base">
+                    {withdrawFormData.note}
+                  </Text>
+                </div>
+              )}
+
+              {walletOverview && (
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <Text className="text-sm text-gray-600 block mb-1">Số dư hiện tại:</Text>
+                  <Text strong className="text-base text-blue-600">
+                    {formatCurrency(walletOverview.defaultBalance)}
+                  </Text>
+                </div>
+              )}
+
+              {walletOverview && (
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <Text className="text-sm text-gray-600 block mb-1">Số dư sau khi rút:</Text>
+                  <Text strong className="text-base text-green-600">
+                    {formatCurrency(walletOverview.defaultBalance - withdrawFormData.amount)}
+                  </Text>
+                </div>
+              )}
+            </div>
+
+            <Alert
+              message="Bạn có chắc chắn muốn rút tiền?"
+              description="Giao dịch này không thể hoàn tác sau khi xác nhận. Vui lòng đảm bảo tất cả thông tin đã chính xác."
+              type="error"
+              showIcon
+              className="mb-4"
+            />
+
+            <div className="flex gap-2 justify-end">
+              <Button onClick={handleWithdrawConfirmCancel} disabled={withdrawLoading}>
+                Quay lại
+              </Button>
+              <Button 
+                type="primary" 
+                onClick={handleWithdrawConfirm} 
+                loading={withdrawLoading} 
+                danger
+                className="bg-red-600 hover:bg-red-700 border-red-600"
+              >
+                Xác nhận rút tiền
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
+
       {/* Transfer to Deposit Modal */}
       <Modal
         title="Chuyển tiền sang ký quỹ"
@@ -1117,24 +1273,55 @@ const FinancePage: React.FC = () => {
               },
               {
                 validator: (_, value) => {
-                  if (value && walletOverview && value > walletOverview.defaultBalance) {
-                    return Promise.reject(new Error('Số tiền chuyển không được vượt quá số dư hiện có'));
+                  if (!value || value === null || value === undefined) {
+                    return Promise.resolve();
+                  }
+                  const numValue = Number(value);
+                  if (isNaN(numValue)) {
+                    return Promise.reject(new Error('Vui lòng nhập số hợp lệ'));
+                  }
+                  if (walletOverview && numValue > walletOverview.defaultBalance) {
+                    return Promise.reject(new Error('Số tiền chuyển vượt quá số dư ví hiện tại'));
                   }
                   return Promise.resolve();
-                }
+                },
+                validateTrigger: ['onChange', 'onBlur']
               }
             ]}
           >
             <InputNumber
               className="w-full"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => Number(value!.replace(/\$\s?|(,*)/g, '')) as any}
+              formatter={(value) => {
+                if (value === undefined || value === null) return '';
+                // Làm tròn về số nguyên
+                const numValue = Math.floor(Number(value));
+                if (isNaN(numValue) || numValue === 0) return '';
+                // Format với dấu phẩy ngăn cách hàng nghìn
+                return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+              }}
+              parser={(value) => {
+                if (!value) return undefined as any;
+                // Loại bỏ tất cả ký tự không phải số
+                const numericValue = value.replace(/\D/g, '');
+                if (!numericValue) return undefined as any;
+                // Chỉ trả về số nguyên
+                const numValue = parseInt(numericValue, 10);
+                return isNaN(numValue) ? undefined : (numValue as any);
+              }}
               placeholder="Nhập số tiền"
               addonAfter="VNĐ"
               min={1000}
               step={1000}
               style={{ width: '100%' }}
-              max={walletOverview?.defaultBalance || undefined}
+              precision={0}
+              decimalSeparator=""
+              controls={true}
+              onChange={() => {
+                // Trigger validation ngay khi giá trị thay đổi
+                setTimeout(() => {
+                  transferToDepositForm.validateFields(['amount']);
+                }, 100);
+              }}
             />
           </Form.Item>
 
@@ -1209,30 +1396,60 @@ const FinancePage: React.FC = () => {
               { required: true, message: 'Vui lòng nhập số tiền' },
               { 
                 type: 'number', 
-                min: 0.01, 
-                message: 'Số tiền tối thiểu là 0.01 VNĐ' 
+                min: 1000, 
+                message: 'Số tiền tối thiểu là 1,000 VNĐ' 
               },
               {
                 validator: (_, value) => {
-                  if (value && walletOverview && value > walletOverview.depositBalance) {
-                    return Promise.reject(new Error('Số tiền hoàn không được vượt quá số dư ký quỹ hiện có'));
+                  if (!value || value === null || value === undefined) {
+                    return Promise.resolve();
+                  }
+                  const numValue = Number(value);
+                  if (isNaN(numValue)) {
+                    return Promise.reject(new Error('Vui lòng nhập số hợp lệ'));
+                  }
+                  if (walletOverview && numValue > walletOverview.depositBalance) {
+                    return Promise.reject(new Error('Số tiền hoàn vượt quá số dư ký quỹ hiện tại'));
                   }
                   return Promise.resolve();
-                }
+                },
+                validateTrigger: ['onChange', 'onBlur']
               }
             ]}
           >
             <InputNumber
               className="w-full"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => Number(value!.replace(/\$\s?|(,*)/g, '')) as any}
+              formatter={(value) => {
+                if (value === undefined || value === null) return '';
+                // Làm tròn về số nguyên
+                const numValue = Math.floor(Number(value));
+                if (isNaN(numValue) || numValue === 0) return '';
+                // Format với dấu phẩy ngăn cách hàng nghìn
+                return numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+              }}
+              parser={(value) => {
+                if (!value) return undefined as any;
+                // Loại bỏ tất cả ký tự không phải số
+                const numericValue = value.replace(/\D/g, '');
+                if (!numericValue) return undefined as any;
+                // Chỉ trả về số nguyên
+                const numValue = parseInt(numericValue, 10);
+                return isNaN(numValue) ? undefined : (numValue as any);
+              }}
               placeholder="Nhập số tiền"
               addonAfter="VNĐ"
-              min={0.01}
+              min={1000}
               step={1000}
               style={{ width: '100%' }}
-              max={walletOverview?.depositBalance || undefined}
-              precision={2}
+              precision={0}
+              decimalSeparator=""
+              controls={true}
+              onChange={() => {
+                // Trigger validation ngay khi giá trị thay đổi
+                setTimeout(() => {
+                  withdrawFromDepositForm.validateFields(['amount']);
+                }, 100);
+              }}
             />
           </Form.Item>
 

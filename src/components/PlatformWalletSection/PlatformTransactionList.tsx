@@ -413,11 +413,6 @@ const PlatformTransactionList: React.FC = () => {
                   <Descriptions.Item label="Kênh thanh toán">
                     {getChannelLabel(transaction.channel)}
                   </Descriptions.Item>
-                  <Descriptions.Item label="Loại ví">
-                    <Tag color={transaction.bucket === 'CASH' ? 'green' : 'gold'}>
-                      {transaction.bucket === 'CASH' ? 'Tiền mặt' : 'Đang chờ'}
-                    </Tag>
-                  </Descriptions.Item>
                   <Descriptions.Item label="Mô tả" span={2}>
                     {formatDescription(transaction.description || 'Không có mô tả')}
                   </Descriptions.Item>
@@ -567,24 +562,81 @@ const PlatformTransactionList: React.FC = () => {
               </Card>
 
               {/* Metadata */}
-              {transaction.metadataJson && (
-                <Card title="Dữ liệu bổ sung" size="small">
-                  <pre
-                    style={{
-                      background: '#001529',
-                      color: '#52c41a',
-                      padding: '12px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      overflow: 'auto',
-                      maxHeight: '300px',
-                      margin: 0
-                    }}
-                  >
-                    {JSON.stringify(JSON.parse(transaction.metadataJson), null, 2)}
-                  </pre>
-                </Card>
-              )}
+              {transaction.metadataJson && (() => {
+                try {
+                  const metadata = JSON.parse(transaction.metadataJson);
+                  // Kiểm tra nếu là giao dịch rút tiền cho cửa hàng
+                  const isWithdrawTransaction = 
+                    transaction.type === 'PAYOUT_STORE' || 
+                    transaction.description?.includes('Chi rút tiền cho cửa hàng') ||
+                    transaction.description?.includes('Store withdraw');
+                  
+                  if (isWithdrawTransaction && (metadata.bankName || metadata.bankAccountNo || metadata.note)) {
+                    // Hiển thị dưới dạng Descriptions cho giao dịch rút tiền
+                    return (
+                      <Card title="Thông tin rút tiền" size="small">
+                        <Descriptions column={1} bordered size="small">
+                          {metadata.bankName && (
+                            <Descriptions.Item label="Ngân hàng">
+                              {metadata.bankName}
+                            </Descriptions.Item>
+                          )}
+                          {metadata.bankAccountNo && (
+                            <Descriptions.Item label="Số tài khoản">
+                              {metadata.bankAccountNo}
+                            </Descriptions.Item>
+                          )}
+                          {metadata.note && (
+                            <Descriptions.Item label="Ghi chú">
+                              {metadata.note}
+                            </Descriptions.Item>
+                          )}
+                        </Descriptions>
+                      </Card>
+                    );
+                  } else {
+                    // Hiển thị JSON raw cho các loại giao dịch khác
+                    return (
+                      <Card title="Dữ liệu bổ sung" size="small">
+                        <pre
+                          style={{
+                            background: '#001529',
+                            color: '#52c41a',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            overflow: 'auto',
+                            maxHeight: '300px',
+                            margin: 0
+                          }}
+                        >
+                          {JSON.stringify(metadata, null, 2)}
+                        </pre>
+                      </Card>
+                    );
+                  }
+                } catch (error) {
+                  // Nếu parse JSON lỗi, hiển thị raw
+                  return (
+                    <Card title="Dữ liệu bổ sung" size="small">
+                      <pre
+                        style={{
+                          background: '#001529',
+                          color: '#52c41a',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          overflow: 'auto',
+                          maxHeight: '300px',
+                          margin: 0
+                        }}
+                      >
+                        {transaction.metadataJson}
+                      </pre>
+                    </Card>
+                  );
+                }
+              })()}
             </Space>
           </>
         )}

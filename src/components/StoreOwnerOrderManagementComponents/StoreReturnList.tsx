@@ -32,6 +32,7 @@ const statusColorMap: Record<string, string> = {
   CANCELED: 'gray',
   AUTO_REFUNDED: 'gray',
   SHIPPING: 'blue',
+  DELIVERED: 'orange',
   RECEIVED: 'cyan',
   DISPUTE: 'orange',
   DISPUTE_ESCALATED: 'purple',
@@ -54,6 +55,7 @@ const statusLabelMap: Record<string, string> = {
   CANCELED: 'Đã huỷ (khách hủy yêu cầu)',
   AUTO_REFUNDED: 'AUTO REFUND – Shop không xử lý sau khi nhận hàng',
   SHIPPING: 'GHN đang vận chuyển',
+  DELIVERED: 'Đã giao tới shop – Chờ xác nhận',
   RECEIVED: 'Shop xác nhận đã nhận đúng hàng',
   DISPUTE: 'Đang khiếu nại',
   DISPUTE_ESCALATED: 'Khiếu nại đã được đưa lên sàn xử lý',
@@ -145,6 +147,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   });
   const [rejectReason, setRejectReason] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [showRefundWithoutReturn, setShowRefundWithoutReturn] = useState<{ visible: boolean; record: ReturnRequestResponse | null }>({
     visible: false,
     record: null,
@@ -249,6 +252,39 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     } finally {
       setApprovingId(null);
     }
+  };
+
+  const handleConfirmReceived = async (record: ReturnRequestResponse) => {
+    try {
+      setConfirmingId(record.id);
+      await StoreReturnService.shopConfirmReceived(record.id);
+      message.success('Đã xác nhận nhận hàng trả về');
+      onReload?.();
+    } catch (e: any) {
+      message.error(e?.message || 'Không thể xác nhận đã nhận hàng');
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const handleOpenConfirmReceivedModal = (record: ReturnRequestResponse) => {
+    Modal.confirm({
+      title: 'Xác nhận đã nhận hàng trả về',
+      content: (
+        <div className="space-y-2">
+          <p>Bạn có chắc chắn đã nhận được hàng trả về từ khách hàng?</p>
+          <p className="text-sm text-gray-600">
+            <strong>Lưu ý:</strong> Sau khi xác nhận, hệ thống sẽ tiến hành hoàn tiền cho khách hàng.
+          </p>
+        </div>
+      ),
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: false },
+      onOk: async () => {
+        await handleConfirmReceived(record);
+      },
+    });
   };
 
   const handleOpenRejectModal = (record: ReturnRequestResponse) => {
@@ -799,11 +835,6 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                       <Text type="secondary" className="text-xs">Mã GHN:</Text>
                       <Text strong className="ml-1">{record.ghnOrderCode}</Text>
                     </div>
-                    {isWaitingForSync && (
-                      <Text type="secondary" className="text-xs text-orange-600 block hidden">
-                        ⏳ Đang chờ đồng bộ từ GHN...
-                      </Text>
-                    )}
                     <Button
                       type="link"
                       size="small"
@@ -936,16 +967,9 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
 
               {!record.finalDecision && isShippingDelivered && (
                 <>
-                  {isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2 hidden">
-                      Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
-                    </Text>
-                  )}
-                  {!isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
-                      Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý.
-                    </Text>
-                  )}
+                  <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                    Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý.
+                  </Text>
                   <Space direction="vertical" size={6} className="w-full">
                     <Button
                       type="primary"
@@ -996,12 +1020,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                       Yêu cầu đã được hệ thống auto-approve, không thể chấp nhận/từ chối.
                     </Text>
                   )}
-                  {isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2 hidden">
-                      Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
-                    </Text>
-                  )}
-                  {hasGhnOrderCode && !isWaitingForSync && (
+                  {hasGhnOrderCode && (
                     <Text type="secondary" className="text-xs text-green-600 block mb-2">
                       Đã tạo đơn GHN: {record.ghnOrderCode}
                     </Text>
@@ -1065,6 +1084,39 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 <Text type="secondary" className="text-xs block">
                   Yêu cầu auto-approve, không thể thay đổi. Chờ shop tạo đơn GHN sau khi có thông tin gói hàng.
                 </Text>
+              )}
+
+              {/* DELIVERED Status - Show confirm received and dispute buttons */}
+              {!record.finalDecision && record.status === 'DELIVERED' && (
+                <>
+                  <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                    Hàng trả đã được giao tới shop. Vui lòng xác nhận đã nhận hàng hoặc khiếu nại nếu có vấn đề.
+                  </Text>
+                  <Space direction="vertical" size={6} className="w-full">
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => handleOpenConfirmReceivedModal(record)}
+                      loading={confirmingId === record.id}
+                      disabled={confirmingId === record.id || disputingId === record.id}
+                      className="w-full"
+                    >
+                      Xác nhận đã nhận hàng
+                    </Button>
+                    {!record.adminForcedContinue && (
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<AlertTriangle className="w-3 h-3" />}
+                        onClick={() => handleOpenDisputeModal(record)}
+                        disabled={confirmingId === record.id || disputingId === record.id}
+                        className="w-full"
+                      >
+                        Khiếu nại lên admin
+                      </Button>
+                    )}
+                  </Space>
+                </>
               )}
 
               {!record.finalDecision && record.status === 'DISPUTE' && (

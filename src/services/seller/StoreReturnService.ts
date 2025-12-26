@@ -142,6 +142,24 @@ export class StoreReturnService {
       throw new Error(error?.message || 'Không thể khiếu nại yêu cầu hoàn trả');
     }
   }
+
+  /**
+   * Shop confirms received goods for DELIVERED status
+   * POST /api/store/returns/{id}/shop-confirm-received
+   */
+  static async shopConfirmReceived(id: string): Promise<ReturnRequestResponse> {
+    try {
+      const endpoint = `/api/store/returns/${id}/shop-confirm-received`;
+      const response = await HttpInterceptor.post<ReturnRequestResponse>(
+        endpoint,
+        undefined,
+        { userType: 'seller' }
+      );
+      return response;
+    } catch (error: any) {
+      throw new Error(error?.message || 'Không thể xác nhận đã nhận hàng');
+    }
+  }
 }
 
 export default StoreReturnService;
