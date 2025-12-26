@@ -6,7 +6,9 @@ import type {
   PlatformTransactionFilterParams,
   PlatformTransactionsPageResponse,
   GhnOverview,
-  GhnOverviewResponse
+  GhnOverviewResponse,
+  GhnFlatDebtSummary,
+  GhnFlatDebtSummaryResponse
 } from '../../types/admin';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://audioe-commerce-production.up.railway.app';
@@ -198,6 +200,44 @@ export class PlatformWalletService {
     } catch (error: any) {
       console.error('❌ Error getting GHN overview:', error);
       throw new Error(error?.message || 'Không thể tải tổng quan GHN');
+    }
+  }
+
+  /**
+   * Get GHN/Flat Debt Summary - Tổng hợp công nợ GHN/Flat (operator view)
+   * GET /api/debt/ghn-flat-summary
+   * @param storeId Optional store ID to filter by specific store
+   * @returns GHN/Flat debt summary data
+   */
+  static async getGhnFlatDebtSummary(storeId?: string): Promise<GhnFlatDebtSummary> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (storeId) queryParams.append('storeId', storeId);
+
+      const endpoint = `${API_URL}/debt/ghn-flat-summary${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      
+      console.log('📡 Calling GHN/Flat Debt Summary API:', endpoint);
+      
+      const response = await HttpInterceptor.get<GhnFlatDebtSummaryResponse>(
+        endpoint,
+        {
+          userType: 'admin',
+          headers: {
+            'Accept': '*/*',
+          },
+        }
+      );
+
+      console.log('📥 GHN/Flat Debt Summary API response:', response);
+      
+      if (response && response.data) {
+        return response.data;
+      }
+      
+      throw new Error('Unexpected response format');
+    } catch (error: any) {
+      console.error('❌ Error getting GHN/Flat debt summary:', error);
+      throw new Error(error?.message || 'Không thể tải tổng hợp công nợ GHN/Flat');
     }
   }
 }
