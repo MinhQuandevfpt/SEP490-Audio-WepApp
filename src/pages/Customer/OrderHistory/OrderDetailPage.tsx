@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { startTransition } from 'react';
 import {
@@ -100,9 +100,6 @@ const OrderDetailPage: React.FC = () => {
   const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
   
   const cancelRequestsRef = useRef<any[]>([]);
-  const isTabVisibleRef = useRef(true);
-  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const loadOrderDetail = async () => {
@@ -180,76 +177,6 @@ const OrderDetailPage: React.FC = () => {
     void loadGhnData();
   }, [order, ghnOrderData]);
 
-  // Tab visibility detection - chỉ poll khi tab active
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      isTabVisibleRef.current = !document.hidden;
-      
-      if (!document.hidden) {
-        // Tab active lại → fetch ngay
-        loadCancelRequestsSilent();
-        startCancelRequestsPolling();
-      } else {
-        // Tab inactive → pause polling
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  // Load cancel requests (silent - không set loading state)
-  const loadCancelRequestsSilent = useCallback(async () => {
-    if (!isTabVisibleRef.current || !order) return;
-
-    try {
-      const requests = await OrderHistoryService.getCancelRequests(order.id);
-      
-      // So sánh với data cũ để detect changes
-      const hasChanged = JSON.stringify(requests) !== JSON.stringify(cancelRequestsRef.current);
-      
-      if (hasChanged) {
-        // Sử dụng startTransition để không block UI
-        startTransition(() => {
-          setCancelRequests(requests);
-          cancelRequestsRef.current = requests;
-        });
-      }
-    } catch (error) {
-      // Silently fail - không update state để tránh mất data hiện tại
-      console.error('Failed to load cancel requests:', error);
-    }
-  }, [order]);
-
-  // Smart polling cho cancel requests
-  const startCancelRequestsPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
-    if (!isTabVisibleRef.current || !order) return;
-
-    // Kiểm tra xem có cần tiếp tục poll không
-    // Nếu order đã completed/cancelled → tăng interval lên 30s
-    // Nếu order đang active → giữ interval 10s
-    const isOrderActive = order.status !== 'COMPLETED' && 
-                          order.status !== 'CANCELLED' && 
-                          order.status !== 'RETURNED';
-    const interval = isOrderActive ? 10000 : 30000;
-
-    pollingIntervalRef.current = setInterval(() => {
-      if (isTabVisibleRef.current) {
-        loadCancelRequestsSilent();
-      }
-    }, interval);
-  }, [order, loadCancelRequestsSilent]);
-
   // Initial load với loading state
   useEffect(() => {
     if (!order) return;
@@ -274,22 +201,7 @@ const OrderDetailPage: React.FC = () => {
     };
 
     loadCancelRequestsWithLoading();
-    
-    // Start polling sau khi load xong
-    startCancelRequestsPolling();
-
-    // Cleanup
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current);
-        pollingTimeoutRef.current = null;
-      }
-    };
-  }, [order, startCancelRequestsPolling]);
+  }, [order]);
 
   const resolveOrderItemImage = (item: {
     image?: string | null;

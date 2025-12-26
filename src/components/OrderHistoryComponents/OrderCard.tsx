@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { startTransition } from 'react';
 import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
@@ -330,79 +330,6 @@ const OrderCardComponent: React.FC<Props> = ({ order, ghnOrderData = {}, onOrder
   }, [storeOrders]); // Loại bỏ productCache khỏi dependencies để tránh infinite loop
 
   const cancelRequestsRef = useRef<any[]>([]);
-  const isTabVisibleRef = useRef(true);
-  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Tab visibility detection - chỉ poll khi tab active
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      isTabVisibleRef.current = !document.hidden;
-      
-      if (!document.hidden) {
-        // Tab active lại → fetch ngay
-        loadCancelRequestsSilent();
-        startCancelRequestsPolling();
-      } else {
-        // Tab inactive → pause polling
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-          pollingIntervalRef.current = null;
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  // Load cancel requests (silent - không set loading state)
-  const loadCancelRequestsSilent = useCallback(async () => {
-    if (!isTabVisibleRef.current) return;
-
-    try {
-      const requests = await OrderHistoryService.getCancelRequests(order.id);
-      
-      // So sánh với data cũ để detect changes
-      const hasChanged = JSON.stringify(requests) !== JSON.stringify(cancelRequestsRef.current);
-      
-      if (hasChanged) {
-        // Sử dụng startTransition để không block UI
-        startTransition(() => {
-          setCancelRequests(requests);
-          cancelRequestsRef.current = requests;
-        });
-      }
-    } catch (error) {
-      // Silently fail - không update state để tránh mất data hiện tại
-      console.error('Failed to load cancel requests:', error);
-    }
-  }, [order.id]);
-
-  // Smart polling cho cancel requests
-  const startCancelRequestsPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
-    if (!isTabVisibleRef.current) return;
-
-    // Kiểm tra xem có cần tiếp tục poll không
-    // Nếu order đã completed/cancelled → tăng interval lên 30s
-    // Nếu order đang active → giữ interval 10s
-    const isOrderActive = order.status !== 'COMPLETED' && 
-                          order.status !== 'CANCELLED' && 
-                          order.status !== 'RETURNED';
-    const interval = isOrderActive ? 10000 : 30000;
-
-    pollingIntervalRef.current = setInterval(() => {
-      if (isTabVisibleRef.current) {
-        loadCancelRequestsSilent();
-      }
-    }, interval);
-  }, [order.status, loadCancelRequestsSilent]);
 
   // Initial load với loading state
   useEffect(() => {
@@ -426,22 +353,7 @@ const OrderCardComponent: React.FC<Props> = ({ order, ghnOrderData = {}, onOrder
     };
 
     loadCancelRequestsWithLoading();
-    
-    // Start polling sau khi load xong
-    startCancelRequestsPolling();
-
-    // Cleanup
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current);
-        pollingTimeoutRef.current = null;
-      }
-    };
-  }, [order.id, startCancelRequestsPolling]);
+  }, [order.id]);
 
   // Load leadtime cho mỗi storeOrder khi có đủ thông tin
   useEffect(() => {
@@ -1747,14 +1659,30 @@ const OrderCardComponent: React.FC<Props> = ({ order, ghnOrderData = {}, onOrder
   );
 };
 
-// Memoize component để tránh re-render không cần thiết
+// 🧩 Memoize component để tránh re-render không cần thiết
+// Chỉ so sánh các field quan trọng thay vì JSON.stringify (nhanh hơn)
 const OrderCard = React.memo(OrderCardComponent, (prevProps, nextProps) => {
-  // Custom comparison để tránh re-render không cần thiết
-  // Chỉ re-render khi order thay đổi hoặc ghnOrderData thay đổi
+  // Chỉ re-render khi có thay đổi thực sự
   if (prevProps.order.id !== nextProps.order.id) return false;
   if (prevProps.order.status !== nextProps.order.status) return false;
-  if (JSON.stringify(prevProps.order) !== JSON.stringify(nextProps.order)) return false;
-  if (JSON.stringify(prevProps.ghnOrderData) !== JSON.stringify(nextProps.ghnOrderData)) return false;
+  if (prevProps.order.grandTotal !== nextProps.order.grandTotal) return false;
+  
+  // So sánh ghnOrderData chỉ cho storeOrders của order này
+  const prevGhnData = prevProps.ghnOrderData || {};
+  const nextGhnData = nextProps.ghnOrderData || {};
+  
+  if (prevProps.order.storeOrders) {
+    for (const storeOrder of prevProps.order.storeOrders) {
+      if (storeOrder.id) {
+        const prevGhn = prevGhnData[storeOrder.id];
+        const nextGhn = nextGhnData[storeOrder.id];
+        if (JSON.stringify(prevGhn) !== JSON.stringify(nextGhn)) {
+          return false;
+        }
+      }
+    }
+  }
+  
   return true; // Skip re-render nếu không có thay đổi
 });
 
