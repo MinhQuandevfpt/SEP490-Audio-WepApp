@@ -72,6 +72,11 @@ const ERROR_TRANSLATIONS: ErrorTranslationMap = {
   'invalid store code': 'Mã cửa hàng không hợp lệ',
   'Store is inactive': 'Cửa hàng chưa được kích hoạt',
   'store is inactive': 'Cửa hàng chưa được kích hoạt',
+  
+  // Order-specific errors
+  'StoreOrder is not in AWAITING_SHIPMENT': 'Đơn hàng không ở trạng thái "Chờ lấy hàng"',
+  'storeorder is not in awaiting_shipment': 'Đơn hàng không ở trạng thái "Chờ lấy hàng"',
+  'StoreOrder is not in awaiting_shipment': 'Đơn hàng không ở trạng thái "Chờ lấy hàng"',
 };
 
 /**

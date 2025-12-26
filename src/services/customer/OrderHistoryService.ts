@@ -182,6 +182,7 @@ export class OrderHistoryService {
    * Request cancellation for a customer order while status is AWAITING_SHIPMENT
    * POST /api/v1/customers/{customerId}/orders/{customerOrderId}/cancel-request?reason=...&note=...
    * Creates a cancellation request for shop approval
+   * Note: API may return HTTP 200 but with status: 400 in response body
    */
   static async requestCancel(orderId: string, reason: string, note?: string): Promise<void> {
     try {
@@ -194,7 +195,19 @@ export class OrderHistoryService {
 
       const endpoint = `/api/v1/customers/${customerId}/orders/${orderId}/cancel-request?${query.toString()}`;
 
-      await HttpInterceptor.post<void>(endpoint, undefined, { userType: 'customer' });
+      const response = await HttpInterceptor.post<{
+        status: number;
+        message: string;
+        data: any;
+      }>(endpoint, undefined, { userType: 'customer' });
+
+      // Check if response body has status: 400 (even though HTTP status is 200)
+      if (response && typeof response === 'object' && response.status === 400) {
+        const error = new Error(response.message || 'Không thể gửi yêu cầu hủy đơn hàng') as any;
+        error.status = 400;
+        error.data = response;
+        throw error;
+      }
     } catch (error: any) {
       // Re-throw with message so UI can show server response
       throw new Error(error?.message || 'Không thể gửi yêu cầu hủy đơn hàng');
@@ -278,6 +291,35 @@ export class OrderHistoryService {
     } catch (error: any) {
       console.error('Failed to submit complaint:', error);
       throw new Error(error?.message || 'Không thể gửi khiếu nại');
+    }
+  }
+
+  /**
+   * Get cancellation requests for a customer order
+   * GET /api/v1/customers/{customerId}/orders/{orderId}/cancel-requests
+   */
+  static async getCancelRequests(orderId: string): Promise<any[]> {
+    try {
+      const customerId = this.getCustomerId();
+      const endpoint = `/api/v1/customers/${customerId}/orders/${orderId}/cancel-requests`;
+      
+      const response = await HttpInterceptor.get<{
+        status: number;
+        message: string;
+        data: any[];
+      }>(
+        endpoint,
+        { userType: 'customer' }
+      );
+
+      return response.data || [];
+    } catch (error: any) {
+      console.error('❌ Error fetching cancel requests:', error);
+      // Return empty array if 404 (no cancel requests found)
+      if (error?.status === 404) {
+        return [];
+      }
+      throw new Error(error?.message || 'Không thể tải danh sách yêu cầu hủy đơn hàng');
     }
   }
 

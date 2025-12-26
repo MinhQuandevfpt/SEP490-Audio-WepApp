@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { startTransition } from 'react';
 import type { CustomerOrder, ReviewMediaPayload, OrderItem } from '../../types/api';
 import { getStatusLabel, getStatusBadgeStyle, formatCurrency, formatDate, canCancelOrder } from '../../utils/orderStatus';
-import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X, ChevronRight } from 'lucide-react';
-import { Card, Button, message, Select, Input } from 'antd';
+import { Package, Calendar, MapPin, Phone, Truck, Receipt, Copy, Check, ExternalLink, ShoppingBag, Star, Plus, Image as ImageIcon, Video, X, ChevronRight, AlertCircle, Clock } from 'lucide-react';
+import { Card, Button, message, Select, Input, Tag } from 'antd';
 import { OrderHistoryService } from '../../services/customer/OrderHistoryService';
 import { ReviewService } from '../../services/customer/ReviewService';
 import { showCenterError, showCenterSuccess } from '../../utils/notification';
@@ -49,6 +50,30 @@ const formatVariantLabel = (item: { variantOptionName?: string | null; variantOp
   return `${item.variantOptionName}: ${item.variantOptionValue}`;
 };
 
+// Helper function to translate cancel reason to Vietnamese
+const translateCancelReason = (reason: string): string => {
+  const reasonMap: Record<string, string> = {
+    'FOUND_BETTER_PRICE': 'Tìm thấy giá tốt hơn',
+    'CHANGE_OF_MIND': 'Đổi ý',
+    'WRONG_ITEM': 'Sai sản phẩm',
+    'DELIVERY_ISSUE': 'Vấn đề giao hàng',
+    'WRONG_INFO_OR_ADDRESS': 'Sai thông tin/địa chỉ',
+    'ORDERED_BY_ACCIDENT': 'Đặt nhầm',
+    'OTHER': 'Khác',
+  };
+  return reasonMap[reason] || reason;
+};
+
+// Helper function to translate cancel request status to Vietnamese
+const translateCancelRequestStatus = (status: string): { label: string; color: string } => {
+  const statusMap: Record<string, { label: string; color: string }> = {
+    'REQUESTED': { label: 'Đang chờ xử lý', color: 'orange' },
+    'APPROVED': { label: 'Đã chấp nhận', color: 'green' },
+    'REJECTED': { label: 'Đã từ chối', color: 'red' },
+  };
+  return statusMap[status] || { label: status, color: 'default' };
+};
+
 const isAlreadyReviewedError = (error: any): boolean => {
   const code = error?.data?.code || error?.code;
   if (code && typeof code === 'string' && code.toUpperCase().includes('REVIEW')) {
@@ -64,7 +89,7 @@ const isAlreadyReviewedError = (error: any): boolean => {
   return typeof message === 'string' && message.toLowerCase().includes('đã review');
 };
 
-const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled }) => {
+const OrderCardComponent: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled }) => {
   const navigate = useNavigate();
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
@@ -88,6 +113,10 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
   // Store leadtime data: Map<storeOrderId, GhnLeadtimeResponseData>
   const [storeLeadtimes, setStoreLeadtimes] = useState<Record<string, GhnLeadtimeResponseData>>({});
   const [storeLeadtimesLoading, setStoreLeadtimesLoading] = useState<Set<string>>(new Set());
+  
+  // Cancel requests data
+  const [cancelRequests, setCancelRequests] = useState<any[]>([]);
+  const [loadingCancelRequests, setLoadingCancelRequests] = useState(false);
   
   // Product cache để lấy store address và weight
   const [productCache, setProductCache] = useState<Map<string, Product>>(() => new Map());
@@ -207,7 +236,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     ProductReviewService.getProductReviewStatus(productId, order.id)
       .then((status) => {
         if (status.hasReviewed) {
-          setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
+          startTransition(() => {
+            setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
+          });
           message.info(status.message || 'Sản phẩm trong đơn hàng này đã được đánh giá.');
         } else {
           setSelectedReviewItem(item);
@@ -250,7 +281,7 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     return totalWeightGr <= 7500 ? 2 : 5;
   };
 
-  // Load product details để lấy store address và weight
+  // Load product details để lấy store address và weight (tuần tự để tránh lag UI)
   useEffect(() => {
     const loadProductDetails = async () => {
       const productIds = Array.from(
@@ -265,34 +296,152 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
 
       if (productIds.length === 0) return;
 
-      const productDetails = await Promise.all(
-        productIds.map(async (productId) => {
-          try {
-            const res = await ProductListService.getProductById(productId);
-            return res.data;
-          } catch (error) {
-            console.error(`Failed to fetch product ${productId}:`, error);
-            return null;
-          }
-        })
-      );
-
+      // Load tuần tự với delay giữa mỗi call để tránh lag UI
       const next = new Map(productCache);
-      productDetails.forEach((product) => {
-        if (product) {
-          next.set(product.productId, product);
+      for (let i = 0; i < productIds.length; i++) {
+        const productId = productIds[i];
+        try {
+          const res = await ProductListService.getProductById(productId);
+          if (res.data) {
+            next.set(res.data.productId, res.data);
+          }
+        } catch (error) {
+          console.error(`Failed to fetch product ${productId}:`, error);
         }
-      });
 
-      if (productDetails.some(Boolean)) {
-        setProductCache(next);
+        // Delay 300ms giữa mỗi API call để tránh lag UI (tăng từ 200ms)
+        if (i < productIds.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+
+      // Chỉ update state nếu có product mới - dùng startTransition để không block UI
+      if (next.size > productCache.size) {
+        startTransition(() => {
+          setProductCache(next);
+        });
       }
     };
 
     if (storeOrders.length > 0) {
       void loadProductDetails();
     }
-  }, [storeOrders, productCache]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeOrders]); // Loại bỏ productCache khỏi dependencies để tránh infinite loop
+
+  const cancelRequestsRef = useRef<any[]>([]);
+  const isTabVisibleRef = useRef(true);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Tab visibility detection - chỉ poll khi tab active
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisibleRef.current = !document.hidden;
+      
+      if (!document.hidden) {
+        // Tab active lại → fetch ngay
+        loadCancelRequestsSilent();
+        startCancelRequestsPolling();
+      } else {
+        // Tab inactive → pause polling
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Load cancel requests (silent - không set loading state)
+  const loadCancelRequestsSilent = useCallback(async () => {
+    if (!isTabVisibleRef.current) return;
+
+    try {
+      const requests = await OrderHistoryService.getCancelRequests(order.id);
+      
+      // So sánh với data cũ để detect changes
+      const hasChanged = JSON.stringify(requests) !== JSON.stringify(cancelRequestsRef.current);
+      
+      if (hasChanged) {
+        // Sử dụng startTransition để không block UI
+        startTransition(() => {
+          setCancelRequests(requests);
+          cancelRequestsRef.current = requests;
+        });
+      }
+    } catch (error) {
+      // Silently fail - không update state để tránh mất data hiện tại
+      console.error('Failed to load cancel requests:', error);
+    }
+  }, [order.id]);
+
+  // Smart polling cho cancel requests
+  const startCancelRequestsPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    if (!isTabVisibleRef.current) return;
+
+    // Kiểm tra xem có cần tiếp tục poll không
+    // Nếu order đã completed/cancelled → tăng interval lên 30s
+    // Nếu order đang active → giữ interval 10s
+    const isOrderActive = order.status !== 'COMPLETED' && 
+                          order.status !== 'CANCELLED' && 
+                          order.status !== 'RETURNED';
+    const interval = isOrderActive ? 10000 : 30000;
+
+    pollingIntervalRef.current = setInterval(() => {
+      if (isTabVisibleRef.current) {
+        loadCancelRequestsSilent();
+      }
+    }, interval);
+  }, [order.status, loadCancelRequestsSilent]);
+
+  // Initial load với loading state
+  useEffect(() => {
+    const loadCancelRequestsWithLoading = async () => {
+      try {
+        setLoadingCancelRequests(true);
+        const requests = await OrderHistoryService.getCancelRequests(order.id);
+        startTransition(() => {
+          setCancelRequests(requests);
+          cancelRequestsRef.current = requests;
+        });
+      } catch (error) {
+        console.error('Failed to load cancel requests:', error);
+        startTransition(() => {
+          setCancelRequests([]);
+          cancelRequestsRef.current = [];
+        });
+      } finally {
+        setLoadingCancelRequests(false);
+      }
+    };
+
+    loadCancelRequestsWithLoading();
+    
+    // Start polling sau khi load xong
+    startCancelRequestsPolling();
+
+    // Cleanup
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    };
+  }, [order.id, startCancelRequestsPolling]);
 
   // Load leadtime cho mỗi storeOrder khi có đủ thông tin
   useEffect(() => {
@@ -306,8 +455,20 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     const toDistrictId = customerDistrict.DistrictID;
     const toWardCode = customerWard.WardCode;
 
-    // Gọi API leadtime cho mỗi storeOrder
+    // Chuẩn bị danh sách các storeOrder cần load leadtime
+    const leadtimeTasks: Array<{
+      storeOrderId: string;
+      fromDistrictId: number;
+      storeWardCode: string;
+      serviceId: number;
+    }> = [];
+
     storeOrders.forEach((storeOrder) => {
+      // Kiểm tra xem đã load chưa hoặc đang load
+      if (storeLeadtimes[storeOrder.id] || storeLeadtimesLoading.has(storeOrder.id)) {
+        return;
+      }
+
       // Lấy thông tin store address từ product đầu tiên trong storeOrder
       const firstProductItem = storeOrder.items?.find((item) => item.type === 'PRODUCT');
       if (!firstProductItem) return;
@@ -341,42 +502,64 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       // Map serviceTypeId to service_id: 2 -> 53322, 5 -> 100039
       const serviceId = serviceTypeId === 2 ? 53322 : 100039;
 
-      // Kiểm tra xem đã load chưa hoặc đang load
-      if (storeLeadtimes[storeOrder.id] || storeLeadtimesLoading.has(storeOrder.id)) {
-        return;
-      }
-
-      // Set loading state
-      setStoreLeadtimesLoading((prev) => new Set(prev).add(storeOrder.id));
-
-      // Gọi API leadtime
-      ShippingService.getGhnLeadtime({
-        from_district_id: fromDistrictId,
-        from_ward_code: storeWardCode,
-        to_district_id: toDistrictId,
-        to_ward_code: toWardCode,
-        service_id: serviceId,
-      })
-        .then((response) => {
-          if (response.code === 200 && response.data) {
-            setStoreLeadtimes((prev) => ({
-              ...prev,
-              [storeOrder.id]: response.data,
-            }));
-          }
-        })
-        .catch((error) => {
-          console.error(`[OrderCard] Failed to get leadtime for storeOrder ${storeOrder.id}:`, error);
-        })
-        .finally(() => {
-          setStoreLeadtimesLoading((prev) => {
-            const next = new Set(prev);
-            next.delete(storeOrder.id);
-            return next;
-          });
-        });
+      leadtimeTasks.push({
+        storeOrderId: storeOrder.id,
+        fromDistrictId,
+        storeWardCode,
+        serviceId,
+      });
     });
-  }, [storeOrders, productCache, customerDistrict, customerWard, storeLeadtimes, storeLeadtimesLoading]);
+
+    // Gọi API leadtime tuần tự với delay giữa mỗi call để tránh lag UI
+    if (leadtimeTasks.length > 0) {
+      (async () => {
+        for (let i = 0; i < leadtimeTasks.length; i++) {
+          const task = leadtimeTasks[i];
+          
+          // Set loading state - dùng startTransition để không block UI
+          startTransition(() => {
+            setStoreLeadtimesLoading((prev) => new Set(prev).add(task.storeOrderId));
+          });
+
+          try {
+            const response = await ShippingService.getGhnLeadtime({
+              from_district_id: task.fromDistrictId,
+              from_ward_code: task.storeWardCode,
+              to_district_id: toDistrictId,
+              to_ward_code: toWardCode,
+              service_id: task.serviceId,
+            });
+
+            if (response.code === 200 && response.data) {
+              // Dùng startTransition để không block UI khi update leadtime
+              startTransition(() => {
+                setStoreLeadtimes((prev) => ({
+                  ...prev,
+                  [task.storeOrderId]: response.data,
+                }));
+              });
+            }
+          } catch (error) {
+            console.error(`[OrderCard] Failed to get leadtime for storeOrder ${task.storeOrderId}:`, error);
+          } finally {
+            // Dùng startTransition cho loading state updates
+            startTransition(() => {
+              setStoreLeadtimesLoading((prev) => {
+                const next = new Set(prev);
+                next.delete(task.storeOrderId);
+                return next;
+              });
+            });
+
+            // Delay 500ms giữa mỗi API call để tránh lag UI (tăng từ 300ms)
+            if (i < leadtimeTasks.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+        }
+      })();
+    }
+  }, [storeOrders, productCache, customerDistrict, customerWard]); // Loại bỏ storeLeadtimes và storeLeadtimesLoading khỏi dependencies để tránh re-run không cần thiết
 
   // Pre-load review status for all items in this order when card is mounted / reloaded
   useEffect(() => {
@@ -394,18 +577,26 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
 
     const loadStatuses = async () => {
       try {
-        await Promise.all(
-          uncheckedProductIds.map(async (productId) => {
-            try {
-              const status = await ProductReviewService.getProductReviewStatus(productId, order.id);
-              if (status.hasReviewed) {
+        // Load tuần tự với delay giữa mỗi call để tránh lag UI
+        for (let i = 0; i < uncheckedProductIds.length; i++) {
+          const productId = uncheckedProductIds[i];
+          try {
+            const status = await ProductReviewService.getProductReviewStatus(productId, order.id);
+            if (status.hasReviewed) {
+              // Dùng startTransition để không block UI khi update review status
+              startTransition(() => {
                 setReviewedItemIds((prev) => Array.from(new Set([...prev, productId])));
-              }
-            } catch (error) {
-              console.error('Failed to preload review status for product', productId, error);
+              });
             }
-          }),
-        );
+          } catch (error) {
+            console.error('Failed to preload review status for product', productId, error);
+          }
+
+          // Delay 300ms giữa mỗi API call để tránh lag UI (tăng từ 200ms)
+          if (i < uncheckedProductIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
       } catch (e) {
         console.error('Error preloading review statuses:', e);
       }
@@ -545,18 +736,54 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       if (order.status === 'AWAITING_SHIPMENT') {
         await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
         message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng.');
+        // Reload cancel requests after sending request
+        try {
+          const requests = await OrderHistoryService.getCancelRequests(order.id);
+          startTransition(() => {
+            setCancelRequests(requests);
+            cancelRequestsRef.current = requests;
+          });
+        } catch (error) {
+          console.error('Failed to reload cancel requests:', error);
+        }
+        setShowCancelModal(false);
+        setCancelReason('CHANGE_OF_MIND');
+        setCancelNote('');
+        if (onOrderCancelled) {
+          onOrderCancelled();
+        }
       } else {
         await OrderHistoryService.cancel(order.id, cancelReason, cancelNote);
         message.success('Hủy đơn hàng thành công');
-      }
-      setShowCancelModal(false);
-      setCancelReason('CHANGE_OF_MIND');
-      setCancelNote('');
-      if (onOrderCancelled) {
-        onOrderCancelled();
+        setShowCancelModal(false);
+        setCancelReason('CHANGE_OF_MIND');
+        setCancelNote('');
+        if (onOrderCancelled) {
+          onOrderCancelled();
+        }
       }
     } catch (err: any) {
-      message.error(getErrorMessage(err, 'Hủy đơn hàng thất bại'));
+      const errorMessage = getErrorMessage(err, 'Hủy đơn hàng thất bại');
+      // Check if error is about duplicate request (status 400 in response body or HTTP status)
+      if (err?.status === 400 || err?.data?.status === 400) {
+        // Show warning instead of error for duplicate requests
+        message.warning(errorMessage, 5);
+        // Reload cancel requests to show existing request
+        try {
+          const requests = await OrderHistoryService.getCancelRequests(order.id);
+          startTransition(() => {
+            setCancelRequests(requests);
+            cancelRequestsRef.current = requests;
+          });
+        } catch (error) {
+          console.error('Failed to reload cancel requests:', error);
+        }
+        // Don't close modal on duplicate request so user can see the message
+        setCancelReason('CHANGE_OF_MIND');
+        setCancelNote('');
+      } else {
+        message.error(errorMessage);
+      }
     } finally {
       setIsCancelling(false);
     }
@@ -584,6 +811,13 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       setIsCancellingShipping(true);
       await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
       message.success('Yêu cầu hủy giao hàng đã được gửi đến cửa hàng.');
+      // Reload cancel requests after sending request
+      try {
+        const requests = await OrderHistoryService.getCancelRequests(order.id);
+        setCancelRequests(requests);
+      } catch (error) {
+        console.error('Failed to reload cancel requests:', error);
+      }
       setShowCancelShippingModal(false);
       setCancelReason('CHANGE_OF_MIND');
       setCancelNote('');
@@ -591,7 +825,27 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
         onOrderCancelled();
       }
     } catch (err: any) {
-      message.error(getErrorMessage(err, 'Không thể gửi yêu cầu hủy giao hàng'));
+      const errorMessage = getErrorMessage(err, 'Không thể gửi yêu cầu hủy giao hàng');
+      // Check if error is about duplicate request (status 400 in response body or HTTP status)
+      if (err?.status === 400 || err?.data?.status === 400) {
+        // Show warning instead of error for duplicate requests
+        message.warning(errorMessage, 5);
+        // Reload cancel requests to show existing request
+        try {
+          const requests = await OrderHistoryService.getCancelRequests(order.id);
+          startTransition(() => {
+            setCancelRequests(requests);
+            cancelRequestsRef.current = requests;
+          });
+        } catch (error) {
+          console.error('Failed to reload cancel requests:', error);
+        }
+        // Don't close modal on duplicate request so user can see the message
+        setCancelReason('CHANGE_OF_MIND');
+        setCancelNote('');
+      } else {
+        message.error(errorMessage);
+      }
     } finally {
       setIsCancellingShipping(false);
     }
@@ -641,7 +895,9 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       });
       showCenterSuccess('Đánh giá sản phẩm thành công');
       if (selectedReviewItem.productRefId) {
-        setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.productRefId])));
+        startTransition(() => {
+          setReviewedItemIds((prev) => Array.from(new Set([...prev, selectedReviewItem.productRefId])));
+        });
       }
       resetReviewForm();
     } catch (err: any) {
@@ -649,9 +905,11 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
       showCenterError(errMsg, 'Gửi đánh giá thất bại');
 
       if (selectedReviewItem?.productRefId && isAlreadyReviewedError(err)) {
-        setReviewedItemIds((prev) =>
-          Array.from(new Set([...prev, selectedReviewItem.productRefId])),
-        );
+        startTransition(() => {
+          setReviewedItemIds((prev) =>
+            Array.from(new Set([...prev, selectedReviewItem.productRefId])),
+          );
+        });
         resetReviewForm();
       }
     } finally {
@@ -859,6 +1117,81 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
               ))}
             </div>
           </div>
+
+          {/* Cancel Requests Section - Moved to left column below products */}
+          {cancelRequests.length > 0 && (
+            <div className="rounded-2xl border border-red-100 bg-red-50/30 p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500" />
+                <h4 className="text-sm font-semibold text-gray-900">Yêu cầu hủy đơn hàng</h4>
+                <Tag color="red" className="ml-2">
+                  {cancelRequests.length} yêu cầu
+                </Tag>
+              </div>
+              {loadingCancelRequests ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-red-500 mr-2" />
+                  <span className="text-sm text-gray-600">Đang tải...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {cancelRequests.map((request: any, index: number) => {
+                    const statusInfo = translateCancelRequestStatus(request.status);
+                    return (
+                      <div
+                        key={request.id}
+                        className="rounded-lg border border-red-200 bg-white p-3 hover:shadow-md transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                            <span className="text-xs font-semibold text-gray-700">
+                              Yêu cầu #{index + 1}
+                            </span>
+                            <Tag color={statusInfo.color} className="text-xs">
+                              {statusInfo.label}
+                            </Tag>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Lý do hủy:</span>
+                            <span className="ml-1 font-medium text-gray-900">
+                              {translateCancelReason(request.reason)}
+                            </span>
+                          </div>
+                          {request.note && (
+                            <div>
+                              <span className="text-gray-500">Ghi chú:</span>
+                              <span className="ml-1 text-gray-700 break-words">
+                                {request.note}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1 text-gray-500">
+                            <Clock className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">Yêu cầu lúc:</span>
+                            <span className="font-medium text-gray-700 whitespace-nowrap">
+                              {new Date(request.requestedAt).toLocaleString('vi-VN')}
+                            </span>
+                          </div>
+                          {request.processedAt && (
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <span>Xử lý lúc:</span>
+                              <span className="font-medium text-gray-700 whitespace-nowrap">
+                                {new Date(request.processedAt).toLocaleString('vi-VN')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {isDeliverySuccess && reviewableItems.length > 0 && hasPendingReviewItems && (
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -1413,5 +1746,16 @@ const OrderCard: React.FC<Props> = ({ order, ghnOrderData = {}, onOrderCancelled
     </Card>
   );
 };
+
+// Memoize component để tránh re-render không cần thiết
+const OrderCard = React.memo(OrderCardComponent, (prevProps, nextProps) => {
+  // Custom comparison để tránh re-render không cần thiết
+  // Chỉ re-render khi order thay đổi hoặc ghnOrderData thay đổi
+  if (prevProps.order.id !== nextProps.order.id) return false;
+  if (prevProps.order.status !== nextProps.order.status) return false;
+  if (JSON.stringify(prevProps.order) !== JSON.stringify(nextProps.order)) return false;
+  if (JSON.stringify(prevProps.ghnOrderData) !== JSON.stringify(nextProps.ghnOrderData)) return false;
+  return true; // Skip re-render nếu không có thay đổi
+});
 
 export default OrderCard;

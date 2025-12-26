@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import { startTransition } from 'react';
 import type { StoreOrder, StoreOrderStatus } from '../types/seller';
 import { StoreOrderService } from '../services/seller/OrderService';
 
@@ -15,11 +16,33 @@ export const useStoreOrders = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<StoreOrder | null>(null);
+  const ordersRef = useRef<StoreOrder[]>([]);
+  const isTabVisibleRef = useRef(true);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadRef = useRef<((silent?: boolean) => Promise<void>) | null>(null);
+  const startPollingRef = useRef<(() => void) | null>(null);
 
-  const load = useCallback(async () => {
+  // Debounce helper để tránh giật UI khi update state
+  const debouncedSetOrders = useCallback((newOrders: StoreOrder[]) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      startTransition(() => {
+        setOrders(newOrders);
+        ordersRef.current = newOrders;
+      });
+    }, 100);
+  }, []);
+
+  const load = useCallback(async (silent: boolean = false) => {
     try {
-      setIsLoading(true);
-      setError(null);
+      if (!silent) {
+        setIsLoading(true);
+        setError(null);
+      }
       
       // Backend uses 0-based indexing
       const backendPage = page - 1;
@@ -35,22 +58,127 @@ export const useStoreOrders = () => {
         size: pageSize,
       });
       
-      setOrders(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
+      // Sử dụng startTransition để không block UI
+      ordersRef.current = res.data;
+      startTransition(() => {
+        debouncedSetOrders(res.data);
+        setTotal(res.total);
+        setTotalPages(res.totalPages);
+      });
+      
+      // Restart polling với interval mới dựa trên order status
+      if (silent && startPollingRef.current) {
+        startPollingRef.current();
+      }
     } catch (e: any) {
-      setError(e?.message || 'Không thể tải danh sách đơn hàng');
-      setOrders([]);
-      setTotal(0);
-      setTotalPages(0);
+      if (!silent) {
+        setError(e?.message || 'Không thể tải danh sách đơn hàng');
+        setOrders([]);
+        setTotal(0);
+        setTotalPages(0);
+      }
+      // In silent mode, don't update error state to avoid UI flicker
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
-  }, [status, search, fromDate, toDate, page, pageSize]);
+  }, [status, search, fromDate, toDate, page, pageSize, debouncedSetOrders]);
+
+  // Update load ref
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
+
+  // Smart polling function
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    if (!isTabVisibleRef.current) {
+      return;
+    }
+
+    // Kiểm tra xem có order nào đang active không (chưa completed/cancelled)
+    const hasActiveOrders = ordersRef.current.some(
+      order => 
+        order.status !== 'COMPLETED' && 
+        order.status !== 'CANCELLED' &&
+        order.status !== 'RETURNED' &&
+        order.status !== 'DELIVERY_SUCCESS'
+    );
+
+    // Nếu không có order active → tăng interval lên 30s
+    // Nếu có order active → giữ interval 10s
+    const interval = hasActiveOrders ? 10000 : 30000;
+
+    pollingIntervalRef.current = setInterval(() => {
+      if (!isTabVisibleRef.current || !loadRef.current) {
+        return;
+      }
+      loadRef.current(true); // Silent refresh
+    }, interval);
+  }, []);
+
+  // Update startPolling ref
+  useEffect(() => {
+    startPollingRef.current = startPolling;
+  }, [startPolling]);
+
+  // Tab visibility detection - chỉ poll khi tab active
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisibleRef.current = !document.hidden;
+      
+      if (!document.hidden) {
+        // Tab active lại → fetch ngay và restart polling
+        if (loadRef.current) {
+          loadRef.current(true);
+        }
+        if (startPollingRef.current) {
+          startPollingRef.current();
+        }
+      } else {
+        // Tab inactive → pause polling
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => { 
-    load(); 
+    load(false); // Initial load with loading state
   }, [load]);
+
+  // Start polling sau khi load xong
+  useEffect(() => {
+    if (!isLoading && orders.length > 0) {
+      ordersRef.current = orders;
+      if (startPollingRef.current) {
+        startPollingRef.current();
+      }
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [isLoading, orders]);
 
   // Reset to page 1 when pageSize changes
   useEffect(() => {

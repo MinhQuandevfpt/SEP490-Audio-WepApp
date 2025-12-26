@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { startTransition } from 'react';
 import { Table, Tag, Typography, Descriptions, List, Divider, Empty, Button, Modal, Input, Alert } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X, AlertTriangle, Wallet, TrendingUp } from 'lucide-react';
+import { Package, PackageCheck, Truck, Trash2, Printer, Calendar, DollarSign, XCircle, AlertCircle, Clock, Check, X, AlertTriangle, Wallet, TrendingUp, ExternalLink } from 'lucide-react';
 import { StoreOrderFilter, GhnTransferModal, OrderStatistics } from '../../../components/StoreOwnerOrderManagementComponents';
 import useStoreOrders from '../../../hooks/useStoreOrders';
 import type { StoreOrder } from '../../../types/seller';
@@ -11,6 +12,7 @@ import { GhnService } from '../../../services/seller/GhnService';
 import { ProductListService } from '../../../services/customer/ProductListService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { formatApiError } from '../../../utils/errorTranslation';
 
 const { Text } = Typography;
 
@@ -301,6 +303,128 @@ const OrderManageForStoreOwner: React.FC = () => {
     return () => clearInterval(interval);
   }, [orders]);
 
+  const cancelRequestsDataRef = useRef<Record<string, any[]>>({});
+  const isTabVisibleRef = useRef(true);
+  const cancelRequestsPollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelRequestsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Tab visibility detection cho cancel requests polling
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisibleRef.current = !document.hidden;
+      
+      if (!document.hidden) {
+        // Tab active lại → restart polling
+        startCancelRequestsPolling();
+      } else {
+        // Tab inactive → pause polling
+        if (cancelRequestsPollingIntervalRef.current) {
+          clearInterval(cancelRequestsPollingIntervalRef.current);
+          cancelRequestsPollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Load cancel requests tuần tự cho AWAITING_SHIPMENT orders
+  const loadCancelRequestsSequential = useCallback(async (orderIds: string[], forceRefresh: boolean = false) => {
+    if (!isTabVisibleRef.current || orderIds.length === 0) return;
+
+    // Load tuần tự với delay giữa mỗi call để tránh lag UI
+    for (let i = 0; i < orderIds.length; i++) {
+      const orderId = orderIds[i];
+      
+      // Skip nếu đang load (trừ khi force refresh)
+      if (!forceRefresh && loadingCancelRequests[orderId]) {
+        continue;
+      }
+
+      // Nếu không force refresh và đã có data, vẫn load để check updates nhưng không set loading state
+      const shouldSetLoading = !forceRefresh && !cancelRequestsData[orderId];
+
+      try {
+        if (shouldSetLoading) {
+          setLoadingCancelRequests(prev => ({ ...prev, [orderId]: true }));
+        }
+        
+        const cancelRequests = await StoreOrderService.getCancelRequests(orderId);
+        
+        // So sánh với data cũ để detect changes
+        const oldData = cancelRequestsDataRef.current[orderId] || [];
+        const hasChanged = JSON.stringify(cancelRequests) !== JSON.stringify(oldData);
+        
+        // Luôn update data khi polling (force refresh) hoặc khi có thay đổi hoặc chưa có data
+        if (forceRefresh || hasChanged || !oldData || oldData.length === 0) {
+          startTransition(() => {
+            setCancelRequestsData(prev => ({ ...prev, [orderId]: cancelRequests }));
+            cancelRequestsDataRef.current[orderId] = cancelRequests;
+          });
+        }
+      } catch (error: any) {
+        console.error(`Error loading cancel requests for ${orderId}:`, error);
+        // Chỉ set empty array nếu chưa có data
+        if (!cancelRequestsDataRef.current[orderId]) {
+          startTransition(() => {
+            setCancelRequestsData(prev => ({ ...prev, [orderId]: [] }));
+            cancelRequestsDataRef.current[orderId] = [];
+          });
+        }
+      } finally {
+        if (shouldSetLoading) {
+          setLoadingCancelRequests(prev => ({ ...prev, [orderId]: false }));
+        }
+      }
+
+      // Delay 200ms giữa mỗi API call (trừ call cuối cùng)
+      if (i < orderIds.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+  }, [loadingCancelRequests]);
+
+  // Smart polling cho cancel requests
+  const startCancelRequestsPolling = useCallback(() => {
+    if (cancelRequestsPollingIntervalRef.current) {
+      clearInterval(cancelRequestsPollingIntervalRef.current);
+      cancelRequestsPollingIntervalRef.current = null;
+    }
+
+    if (!isTabVisibleRef.current || !orders || orders.length === 0) {
+      return;
+    }
+
+    // Poll cho:
+    // 1. AWAITING_SHIPMENT orders (để check button disabled)
+    // 2. Expanded orders (để update UI khi user đang xem)
+    const awaitingShipmentOrderIds = orders
+      .filter(order => order.status === 'AWAITING_SHIPMENT')
+      .map(order => order.id);
+    
+    const expandedOrderIds = expandedRowKeys
+      .filter(key => typeof key === 'string')
+      .map(key => key as string)
+      .filter(orderId => orders.some(o => o.id === orderId));
+
+    // Kết hợp và loại bỏ duplicate
+    const allOrderIdsToPoll = Array.from(new Set([...awaitingShipmentOrderIds, ...expandedOrderIds]));
+
+    if (allOrderIdsToPoll.length === 0) {
+      return;
+    }
+
+    // Interval 10s cho cancel requests - force refresh để luôn check updates
+    cancelRequestsPollingIntervalRef.current = setInterval(() => {
+      if (isTabVisibleRef.current) {
+        loadCancelRequestsSequential(allOrderIdsToPoll, true); // Force refresh khi polling
+      }
+    }, 10000);
+  }, [orders, expandedRowKeys, loadCancelRequestsSequential]);
+
   // Load cancel requests for AWAITING_SHIPMENT orders to check if button should be disabled
   useEffect(() => {
     if (!orders || orders.length === 0 || isLoading) {
@@ -312,24 +436,37 @@ const OrderManageForStoreOwner: React.FC = () => {
     );
 
     if (awaitingShipmentOrders.length === 0) {
+      // Start polling nếu có orders nhưng đã load hết
+      startCancelRequestsPolling();
       return;
     }
 
-    // Load cancel requests for all AWAITING_SHIPMENT orders
-    awaitingShipmentOrders.forEach(async (order) => {
-      try {
-        setLoadingCancelRequests(prev => ({ ...prev, [order.id]: true }));
-        const cancelRequests = await StoreOrderService.getCancelRequests(order.id);
-        setCancelRequestsData(prev => ({ ...prev, [order.id]: cancelRequests }));
-      } catch (error: any) {
-        console.error(`Error loading cancel requests for ${order.id}:`, error);
-        // Set empty array on error to avoid retrying
-        setCancelRequestsData(prev => ({ ...prev, [order.id]: [] }));
-      } finally {
-        setLoadingCancelRequests(prev => ({ ...prev, [order.id]: false }));
-      }
+    // Load tuần tự (không force refresh lần đầu)
+    const orderIds = awaitingShipmentOrders.map(o => o.id);
+    loadCancelRequestsSequential(orderIds, false).then(() => {
+      // Start polling sau khi load xong
+      startCancelRequestsPolling();
     });
-  }, [orders, isLoading]);
+
+    // Cleanup
+    return () => {
+      if (cancelRequestsPollingIntervalRef.current) {
+        clearInterval(cancelRequestsPollingIntervalRef.current);
+        cancelRequestsPollingIntervalRef.current = null;
+      }
+      if (cancelRequestsTimeoutRef.current) {
+        clearTimeout(cancelRequestsTimeoutRef.current);
+        cancelRequestsTimeoutRef.current = null;
+      }
+    };
+  }, [orders, isLoading, loadCancelRequestsSequential, startCancelRequestsPolling]);
+
+  // Restart polling khi expanded rows thay đổi
+  useEffect(() => {
+    if (!isLoading && orders.length > 0) {
+      startCancelRequestsPolling();
+    }
+  }, [expandedRowKeys, isLoading, orders, startCancelRequestsPolling]);
 
   const handlePrepareOrder = async (orderId: string) => {
     try {
@@ -803,7 +940,9 @@ const OrderManageForStoreOwner: React.FC = () => {
                   setLoadingGhnOrders(prev => ({ ...prev, [record.id]: true }));
                   const ghnOrder = await GhnService.getGhnOrderByStoreOrderId(record.id);
                   if (ghnOrder && ghnOrder.data) {
-                    setGhnOrderData(prev => ({ ...prev, [record.id]: ghnOrder.data }));
+                    startTransition(() => {
+                      setGhnOrderData(prev => ({ ...prev, [record.id]: ghnOrder.data }));
+                    });
                   }
                 } catch (error: any) {
                   console.error(`Error loading GHN order for ${record.id}:`, error);
@@ -817,7 +956,10 @@ const OrderManageForStoreOwner: React.FC = () => {
                 try {
                   setLoadingCancelRequests(prev => ({ ...prev, [record.id]: true }));
                   const cancelRequests = await StoreOrderService.getCancelRequests(record.id);
-                  setCancelRequestsData(prev => ({ ...prev, [record.id]: cancelRequests }));
+                  startTransition(() => {
+                    setCancelRequestsData(prev => ({ ...prev, [record.id]: cancelRequests }));
+                    cancelRequestsDataRef.current[record.id] = cancelRequests;
+                  });
                 } catch (error: any) {
                   console.error(`Error loading cancel requests for ${record.id}:`, error);
                 } finally {
@@ -825,23 +967,38 @@ const OrderManageForStoreOwner: React.FC = () => {
                 }
               }
 
-              // Load product images when row is expanded
+              // Load product images when row is expanded (tuần tự để tránh lag UI)
               if (expanded && record.items) {
-                record.items.forEach(async (item: any) => {
-                  if (item.refId && !productImages[item.refId] && !loadingProductImages[item.refId]) {
-                    try {
-                      setLoadingProductImages(prev => ({ ...prev, [item.refId]: true }));
-                      const productData = await ProductListService.getProductById(item.refId);
-                      if (productData.data?.images && productData.data.images.length > 0) {
-                        setProductImages(prev => ({ ...prev, [item.refId]: productData.data.images || [] }));
+                const productIds = record.items
+                  .map((item: any) => item.refId)
+                  .filter((id: string | undefined): id is string => !!id && !productImages[id] && !loadingProductImages[id]);
+
+                if (productIds.length > 0) {
+                  // Load tuần tự với delay giữa mỗi call
+                  (async () => {
+                    for (let i = 0; i < productIds.length; i++) {
+                      const productId = productIds[i];
+                      try {
+                        setLoadingProductImages(prev => ({ ...prev, [productId]: true }));
+                        const productData = await ProductListService.getProductById(productId);
+                        if (productData.data?.images && productData.data.images.length > 0) {
+                          startTransition(() => {
+                            setProductImages(prev => ({ ...prev, [productId]: productData.data.images || [] }));
+                          });
+                        }
+                      } catch (error: any) {
+                        console.error(`Error loading product images for ${productId}:`, error);
+                      } finally {
+                        setLoadingProductImages(prev => ({ ...prev, [productId]: false }));
                       }
-                    } catch (error: any) {
-                      console.error(`Error loading product images for ${item.refId}:`, error);
-                    } finally {
-                      setLoadingProductImages(prev => ({ ...prev, [item.refId]: false }));
+
+                      // Delay 200ms giữa mỗi API call (trừ call cuối cùng)
+                      if (i < productIds.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                      }
                     }
-                  }
-                });
+                  })();
+                }
               }
             },
             expandedRowRender: (record) => {
@@ -1198,47 +1355,68 @@ const OrderManageForStoreOwner: React.FC = () => {
                         <span className="text-sm text-gray-600">Đang tải thông tin vận chuyển...</span>
                       </div>
                     ) : ghnOrderData[record.id] ? (
-                      <Descriptions size="small" column={1} bordered>
-                        <Descriptions.Item label={
-                          <div className="flex items-center gap-1">
-                            <Package className="w-3 h-3" />
-                            <span>Mã đơn GHN</span>
-                          </div>
-                        }>
-                          <Text code className="font-semibold">{ghnOrderData[record.id].orderGhn}</Text>
-                        </Descriptions.Item>
-                        <Descriptions.Item label={
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="w-3 h-3" />
-                            <span>Tổng phí</span>
-                          </div>
-                        }>
-                          <span className="font-semibold text-orange-600">
-                            {formatCurrency(ghnOrderData[record.id].totalFee)}
-                          </span>
-                        </Descriptions.Item>
-                        <Descriptions.Item label={
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            <span>Thời gian giao dự kiến</span>
-                          </div>
-                        }>
-                          {new Date(ghnOrderData[record.id].expectedDeliveryTime).toLocaleString('vi-VN')}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Trạng thái">
-                          {(() => {
-                            const statusInfo = getGhnStatusInfo(ghnOrderData[record.id].status);
-                            return (
-                              <Tag color={statusInfo.color}>
-                                {statusInfo.label}
-                              </Tag>
-                            );
-                          })()}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Ngày tạo">
-                          {new Date(ghnOrderData[record.id].createdAt).toLocaleString('vi-VN')}
-                        </Descriptions.Item>
-                      </Descriptions>
+                      <>
+                        <Descriptions size="small" column={1} bordered>
+                          <Descriptions.Item label={
+                            <div className="flex items-center gap-1">
+                              <Package className="w-3 h-3" />
+                              <span>Mã đơn GHN</span>
+                            </div>
+                          }>
+                            <Text code className="font-semibold">{ghnOrderData[record.id].orderGhn}</Text>
+                          </Descriptions.Item>
+                          <Descriptions.Item label={
+                            <div className="flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" />
+                              <span>Tổng phí</span>
+                            </div>
+                          }>
+                            <span className="font-semibold text-orange-600">
+                              {formatCurrency(ghnOrderData[record.id].totalFee)}
+                            </span>
+                          </Descriptions.Item>
+                          <Descriptions.Item label={
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span>Thời gian giao dự kiến</span>
+                            </div>
+                          }>
+                            {new Date(ghnOrderData[record.id].expectedDeliveryTime).toLocaleString('vi-VN')}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="Trạng thái">
+                            {(() => {
+                              const statusInfo = getGhnStatusInfo(ghnOrderData[record.id].status);
+                              return (
+                                <Tag color={statusInfo.color}>
+                                  {statusInfo.label}
+                                </Tag>
+                              );
+                            })()}
+                          </Descriptions.Item>
+                          <Descriptions.Item label="Ngày tạo">
+                            {new Date(ghnOrderData[record.id].createdAt).toLocaleString('vi-VN')}
+                          </Descriptions.Item>
+                        </Descriptions>
+                        {/* Button theo dõi GHN */}
+                        <div className="mt-3 flex items-center justify-end">
+                          <Button
+                            type="primary"
+                            icon={<ExternalLink className="w-4 h-4" />}
+                            onClick={() => {
+                              const ghnCode = ghnOrderData[record.id].orderGhn;
+                              if (ghnCode) {
+                                window.open(`https://donhang.ghn.vn/?order_code=${ghnCode}`, '_blank', 'noopener,noreferrer');
+                              }
+                            }}
+                            style={{
+                              backgroundColor: '#2D9CDB',
+                              borderColor: '#2D9CDB',
+                            }}
+                          >
+                            Theo dõi vận đơn
+                          </Button>
+                        </div>
+                      </>
                     ) : (
                       <div className="text-center py-4 text-sm text-gray-500">
                         Chưa có thông tin vận chuyển GHN cho đơn hàng này
@@ -1368,13 +1546,18 @@ const OrderManageForStoreOwner: React.FC = () => {
                                       
                                       // Refresh cancel requests
                                       const updatedRequests = await StoreOrderService.getCancelRequests(record.id);
-                                      setCancelRequestsData(prev => ({ ...prev, [record.id]: updatedRequests }));
+                                      startTransition(() => {
+                                        setCancelRequestsData(prev => ({ ...prev, [record.id]: updatedRequests }));
+                                        cancelRequestsDataRef.current[record.id] = updatedRequests;
+                                      });
                                       
                                       // Refresh order list
                                       refresh();
                                     } catch (error: any) {
                                       console.error('❌ Error approving cancel request:', error);
-                                      showCenterError(error?.message || 'Không thể chấp nhận yêu cầu hủy đơn hàng', 'Lỗi');
+                                      // Translate error message to Vietnamese
+                                      const errorMessage = formatApiError(error);
+                                      showCenterError(errorMessage, 'Lỗi');
                                     } finally {
                                       setProcessingCancelRequest(prev => ({ ...prev, [key]: false }));
                                     }
@@ -1629,7 +1812,10 @@ const OrderManageForStoreOwner: React.FC = () => {
                   
                   // Refresh cancel requests
                   const updatedRequests = await StoreOrderService.getCancelRequests(showRejectModal.orderId);
-                  setCancelRequestsData(prev => ({ ...prev, [showRejectModal.orderId]: updatedRequests }));
+                  startTransition(() => {
+                    setCancelRequestsData(prev => ({ ...prev, [showRejectModal.orderId]: updatedRequests }));
+                    cancelRequestsDataRef.current[showRejectModal.orderId] = updatedRequests;
+                  });
                   
                   // Refresh order list
                   refresh();

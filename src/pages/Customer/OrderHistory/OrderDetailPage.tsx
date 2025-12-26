@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { startTransition } from 'react';
 import {
   Card,
   Spin,
@@ -28,6 +29,11 @@ import {
   ArrowLeft,
   ShoppingBag,
   Truck,
+  Copy,
+  Check,
+  ExternalLink,
+  AlertCircle,
+  Clock,
 } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
@@ -46,6 +52,30 @@ const { TextArea } = Input;
 
 const { Title, Text } = Typography;
 
+// Helper function to translate cancel reason to Vietnamese
+const translateCancelReason = (reason: string): string => {
+  const reasonMap: Record<string, string> = {
+    'FOUND_BETTER_PRICE': 'Tìm thấy giá tốt hơn',
+    'CHANGE_OF_MIND': 'Đổi ý',
+    'WRONG_ITEM': 'Sai sản phẩm',
+    'DELIVERY_ISSUE': 'Vấn đề giao hàng',
+    'WRONG_INFO_OR_ADDRESS': 'Sai thông tin/địa chỉ',
+    'ORDERED_BY_ACCIDENT': 'Đặt nhầm',
+    'OTHER': 'Khác',
+  };
+  return reasonMap[reason] || reason;
+};
+
+// Helper function to translate cancel request status to Vietnamese
+const translateCancelRequestStatus = (status: string): { label: string; color: string } => {
+  const statusMap: Record<string, { label: string; color: string }> = {
+    'REQUESTED': { label: 'Đang chờ xử lý', color: 'orange' },
+    'APPROVED': { label: 'Đã chấp nhận', color: 'green' },
+    'REJECTED': { label: 'Đã từ chối', color: 'red' },
+  };
+  return statusMap[status] || { label: status, color: 'default' };
+};
+
 const OrderDetailPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -58,6 +88,21 @@ const OrderDetailPage: React.FC = () => {
   const [cancelNote, setCancelNote] = useState<string>('');
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [isConfirmingReceived, setIsConfirmingReceived] = useState(false);
+  const [showCancelShippingModal, setShowCancelShippingModal] = useState(false);
+  const [isCancellingShipping, setIsCancellingShipping] = useState(false);
+  const [copiedGhnCode, setCopiedGhnCode] = useState<string | null>(null);
+  
+  // Cancel requests data
+  const [cancelRequests, setCancelRequests] = useState<any[]>([]);
+  const [loadingCancelRequests, setLoadingCancelRequests] = useState(false);
+  
+  // GHN order data
+  const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
+  
+  const cancelRequestsRef = useRef<any[]>([]);
+  const isTabVisibleRef = useRef(true);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const loadOrderDetail = async () => {
@@ -86,6 +131,165 @@ const OrderDetailPage: React.FC = () => {
 
     loadOrderDetail();
   }, [orderId]);
+
+  // Load GHN order data for each storeOrder
+  useEffect(() => {
+    if (!order) return;
+    const storeOrders = Array.isArray(order.storeOrders) ? order.storeOrders : [];
+    if (storeOrders.length === 0) return;
+
+    const loadGhnData = async () => {
+      const ghnDataTasks: Array<{ storeOrderId: string }> = [];
+      storeOrders.forEach((storeOrder) => {
+        if (!storeOrder.id || storeOrder.id.includes('-store-')) {
+          return;
+        }
+        if (!ghnOrderData[storeOrder.id]) {
+          ghnDataTasks.push({ storeOrderId: storeOrder.id });
+        }
+      });
+
+      if (ghnDataTasks.length > 0) {
+        const ghnUpdates: Record<string, any> = {};
+        for (const task of ghnDataTasks) {
+          try {
+            const ghnOrder = await OrderHistoryService.getGhnOrderByStoreOrderId(task.storeOrderId);
+            if (ghnOrder && ghnOrder.data) {
+              ghnUpdates[task.storeOrderId] = ghnOrder.data;
+            }
+          } catch (error) {
+            console.error(`Failed to load GHN order for ${task.storeOrderId}:`, error);
+          }
+          // Delay 400ms giữa mỗi API call
+          if (ghnDataTasks.indexOf(task) < ghnDataTasks.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 400));
+          }
+        }
+        
+        if (Object.keys(ghnUpdates).length > 0) {
+          startTransition(() => {
+            setGhnOrderData((prev) => ({
+              ...prev,
+              ...ghnUpdates,
+            }));
+          });
+        }
+      }
+    };
+
+    void loadGhnData();
+  }, [order, ghnOrderData]);
+
+  // Tab visibility detection - chỉ poll khi tab active
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisibleRef.current = !document.hidden;
+      
+      if (!document.hidden) {
+        // Tab active lại → fetch ngay
+        loadCancelRequestsSilent();
+        startCancelRequestsPolling();
+      } else {
+        // Tab inactive → pause polling
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Load cancel requests (silent - không set loading state)
+  const loadCancelRequestsSilent = useCallback(async () => {
+    if (!isTabVisibleRef.current || !order) return;
+
+    try {
+      const requests = await OrderHistoryService.getCancelRequests(order.id);
+      
+      // So sánh với data cũ để detect changes
+      const hasChanged = JSON.stringify(requests) !== JSON.stringify(cancelRequestsRef.current);
+      
+      if (hasChanged) {
+        // Sử dụng startTransition để không block UI
+        startTransition(() => {
+          setCancelRequests(requests);
+          cancelRequestsRef.current = requests;
+        });
+      }
+    } catch (error) {
+      // Silently fail - không update state để tránh mất data hiện tại
+      console.error('Failed to load cancel requests:', error);
+    }
+  }, [order]);
+
+  // Smart polling cho cancel requests
+  const startCancelRequestsPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    if (!isTabVisibleRef.current || !order) return;
+
+    // Kiểm tra xem có cần tiếp tục poll không
+    // Nếu order đã completed/cancelled → tăng interval lên 30s
+    // Nếu order đang active → giữ interval 10s
+    const isOrderActive = order.status !== 'COMPLETED' && 
+                          order.status !== 'CANCELLED' && 
+                          order.status !== 'RETURNED';
+    const interval = isOrderActive ? 10000 : 30000;
+
+    pollingIntervalRef.current = setInterval(() => {
+      if (isTabVisibleRef.current) {
+        loadCancelRequestsSilent();
+      }
+    }, interval);
+  }, [order, loadCancelRequestsSilent]);
+
+  // Initial load với loading state
+  useEffect(() => {
+    if (!order) return;
+
+    const loadCancelRequestsWithLoading = async () => {
+      try {
+        setLoadingCancelRequests(true);
+        const requests = await OrderHistoryService.getCancelRequests(order.id);
+        startTransition(() => {
+          setCancelRequests(requests);
+          cancelRequestsRef.current = requests;
+        });
+      } catch (error) {
+        console.error('Failed to load cancel requests:', error);
+        startTransition(() => {
+          setCancelRequests([]);
+          cancelRequestsRef.current = [];
+        });
+      } finally {
+        setLoadingCancelRequests(false);
+      }
+    };
+
+    loadCancelRequestsWithLoading();
+    
+    // Start polling sau khi load xong
+    startCancelRequestsPolling();
+
+    // Cleanup
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    };
+  }, [order, startCancelRequestsPolling]);
 
   const resolveOrderItemImage = (item: {
     image?: string | null;
@@ -122,6 +326,16 @@ const OrderDetailPage: React.FC = () => {
       if (order.status === 'AWAITING_SHIPMENT') {
         await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
         message.success('Yêu cầu hủy đơn hàng đã được gửi đến cửa hàng.');
+        // Reload cancel requests after sending request
+        try {
+          const requests = await OrderHistoryService.getCancelRequests(order.id);
+          startTransition(() => {
+            setCancelRequests(requests);
+            cancelRequestsRef.current = requests;
+          });
+        } catch (error) {
+          console.error('Failed to reload cancel requests:', error);
+        }
       } else {
         await OrderHistoryService.cancel(order.id, cancelReason, cancelNote);
         message.success('Hủy đơn hàng thành công');
@@ -135,9 +349,80 @@ const OrderDetailPage: React.FC = () => {
         setOrder(orderData);
       }
     } catch (err: any) {
-      message.error(getErrorMessage(err, 'Hủy đơn hàng thất bại'));
+      const errorMessage = getErrorMessage(err, 'Hủy đơn hàng thất bại');
+      // Check if error is about duplicate request (status 400 in response body or HTTP status)
+      if (err?.status === 400 || err?.data?.status === 400) {
+        // Show warning instead of error for duplicate requests
+        message.warning(errorMessage, 5);
+        // Reload cancel requests to show existing request
+        try {
+          const requests = await OrderHistoryService.getCancelRequests(order.id);
+          startTransition(() => {
+            setCancelRequests(requests);
+            cancelRequestsRef.current = requests;
+          });
+        } catch (error) {
+          console.error('Failed to reload cancel requests:', error);
+        }
+        // Don't close modal on duplicate request so user can see the message
+        setCancelReason('CHANGE_OF_MIND');
+        setCancelNote('');
+      } else {
+        message.error(errorMessage);
+      }
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleCancelShipping = async () => {
+    if (!order) return;
+    try {
+      setIsCancellingShipping(true);
+      await OrderHistoryService.requestCancel(order.id, cancelReason, cancelNote);
+      message.success('Yêu cầu hủy giao hàng đã được gửi đến cửa hàng.');
+      // Reload cancel requests after sending request
+      try {
+        const requests = await OrderHistoryService.getCancelRequests(order.id);
+        startTransition(() => {
+          setCancelRequests(requests);
+          cancelRequestsRef.current = requests;
+        });
+      } catch (error) {
+        console.error('Failed to reload cancel requests:', error);
+      }
+      setShowCancelShippingModal(false);
+      setCancelReason('CHANGE_OF_MIND');
+      setCancelNote('');
+      // Reload order data
+      const orderData = await OrderHistoryService.getById(order.id);
+      if (orderData) {
+        setOrder(orderData);
+      }
+    } catch (err: any) {
+      const errorMessage = getErrorMessage(err, 'Không thể gửi yêu cầu hủy giao hàng');
+      // Check if error is about duplicate request (status 400 in response body or HTTP status)
+      if (err?.status === 400 || err?.data?.status === 400) {
+        // Show warning instead of error for duplicate requests
+        message.warning(errorMessage, 5);
+        // Reload cancel requests to show existing request
+        try {
+          const requests = await OrderHistoryService.getCancelRequests(order.id);
+          startTransition(() => {
+            setCancelRequests(requests);
+            cancelRequestsRef.current = requests;
+          });
+        } catch (error) {
+          console.error('Failed to reload cancel requests:', error);
+        }
+        // Don't close modal on duplicate request so user can see the message
+        setCancelReason('CHANGE_OF_MIND');
+        setCancelNote('');
+      } else {
+        message.error(errorMessage);
+      }
+    } finally {
+      setIsCancellingShipping(false);
     }
   };
 
@@ -212,6 +497,13 @@ const OrderDetailPage: React.FC = () => {
   const statusStyle = getStatusBadgeStyle(order.status);
   const storeOrders = Array.isArray(order.storeOrders) ? order.storeOrders : [];
   const rootItems = Array.isArray((order as any).items) ? (order as any).items : [];
+  const isAwaitingShipment = order.status === 'AWAITING_SHIPMENT';
+  
+  // Kiểm tra xem có GHN code không
+  const hasGhnCode = storeOrders.some(storeOrder => ghnOrderData[storeOrder.id]?.orderGhn);
+  
+  // Kiểm tra điều kiện hiển thị button "Yêu cầu hủy giao hàng"
+  const canCancelShipping = isAwaitingShipment && hasGhnCode;
 
   return (
     <Layout>
@@ -492,10 +784,124 @@ const OrderDetailPage: React.FC = () => {
                             </div>
                           </div>
                         )}
+
+                        {/* GHN Shipping Information */}
+                        {ghnOrderData[storeOrder.id]?.orderGhn && (
+                          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                            <Truck className="w-4 h-4 text-blue-500" />
+                            <span className="font-semibold">
+                              GHN: {ghnOrderData[storeOrder.id].orderGhn}
+                            </span>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(ghnOrderData[storeOrder.id].orderGhn);
+                                  setCopiedGhnCode(storeOrder.id);
+                                  setTimeout(() => setCopiedGhnCode(null), 2000);
+                                  message.success('Đã sao chép mã vận đơn');
+                                } catch {
+                                  message.error('Không thể sao chép');
+                                }
+                              }}
+                              className="rounded-full p-1 text-blue-500 hover:bg-blue-100"
+                            >
+                              {copiedGhnCode === storeOrder.id ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <a
+                              href={`https://donhang.ghn.vn/?order_code=${ghnOrderData[storeOrder.id].orderGhn}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-auto inline-flex items-center gap-1 font-semibold text-blue-600"
+                            >
+                              Theo dõi
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
                       </Card>
                     );
                   })}
                 </div>
+              </Card>
+            )}
+
+            {/* Cancel Requests Section */}
+            {cancelRequests.length > 0 && (
+              <Card
+                title={
+                  <Space>
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    <span>Yêu cầu hủy đơn hàng</span>
+                    <Tag color="red">
+                      {cancelRequests.length} yêu cầu
+                    </Tag>
+                  </Space>
+                }
+                className="border-gray-200 shadow-sm"
+                style={{ borderRadius: 12 }}
+              >
+                {loadingCancelRequests ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Spin size="small" />
+                    <span className="ml-2 text-sm text-gray-600">Đang tải...</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {cancelRequests.map((request: any, index: number) => {
+                      const statusInfo = translateCancelRequestStatus(request.status);
+                      return (
+                        <div
+                          key={request.id}
+                          className="rounded-lg border border-red-200 bg-white p-3 hover:shadow-md transition-all"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <AlertCircle className="w-3.5 h-3.5 text-red-600 flex-shrink-0" />
+                              <span className="text-xs font-semibold text-gray-700">
+                                Yêu cầu #{index + 1}
+                              </span>
+                              <Tag color={statusInfo.color} className="text-xs">
+                                {statusInfo.label}
+                              </Tag>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 text-xs">
+                            <div>
+                              <span className="text-gray-500">Lý do hủy:</span>
+                              <span className="ml-1 font-medium text-gray-900">
+                                {translateCancelReason(request.reason)}
+                              </span>
+                            </div>
+                            {request.note && (
+                              <div>
+                                <span className="text-gray-500">Ghi chú:</span>
+                                <span className="ml-1 text-gray-700 break-words">
+                                  {request.note}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <Clock className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">Yêu cầu lúc:</span>
+                              <span className="font-medium text-gray-700 whitespace-nowrap">
+                                {new Date(request.requestedAt).toLocaleString('vi-VN')}
+                              </span>
+                            </div>
+                            {request.processedAt && (
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <span>Xử lý lúc:</span>
+                                <span className="font-medium text-gray-700 whitespace-nowrap">
+                                  {new Date(request.processedAt).toLocaleString('vi-VN')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </Card>
             )}
 
@@ -640,12 +1046,28 @@ const OrderDetailPage: React.FC = () => {
                     </Button>
                   </>
                 )}
-                {canCancelOrder(order.status) && (
+                {canCancelShipping && (
                   <Button 
                     danger 
                     className="h-10 w-full" 
                     style={{ borderRadius: '10px' }} 
-                    onClick={() => setShowCancelModal(true)}
+                    onClick={() => {
+                      message.warning('Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.', 5);
+                      setShowCancelShippingModal(true);
+                    }}
+                  >
+                    Yêu cầu hủy giao hàng
+                  </Button>
+                )}
+                {canCancelOrder(order.status) && !canCancelShipping && (
+                  <Button 
+                    danger 
+                    className="h-10 w-full" 
+                    style={{ borderRadius: '10px' }} 
+                    onClick={() => {
+                      message.warning('Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.', 5);
+                      setShowCancelModal(true);
+                    }}
                   >
                     {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
                   </Button>
@@ -684,7 +1106,18 @@ const OrderDetailPage: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900">
               {order.status === 'AWAITING_SHIPMENT' ? 'Yêu cầu hủy đơn hàng' : 'Hủy đơn hàng'}
             </h3>
-            <p className="mt-3 text-sm text-gray-600">
+            
+            {/* Cảnh báo về điểm uy tín */}
+            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+              <p className="text-sm font-medium text-orange-800">
+                ⚠️ Cảnh báo về điểm uy tín
+              </p>
+              <p className="mt-2 text-sm text-orange-700">
+                Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.
+              </p>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-600">
               Bạn có chắc chắn muốn {order.status === 'AWAITING_SHIPMENT' ? 'gửi yêu cầu hủy' : 'hủy'} đơn hàng này không?
             </p>
 
@@ -734,6 +1167,85 @@ const OrderDetailPage: React.FC = () => {
               </Button>
               <Button danger className="flex-1" loading={isCancelling} onClick={handleCancelOrder}>
                 {order.status === 'AWAITING_SHIPMENT' ? 'Gửi yêu cầu hủy' : 'Xác nhận hủy'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Shipping Modal with Reputation Warning */}
+      {showCancelShippingModal && order && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !isCancellingShipping && setShowCancelShippingModal(false)}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Yêu cầu hủy giao hàng
+            </h3>
+            <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+              <p className="text-sm font-medium text-orange-800">
+                ⚠️ Cảnh báo về điểm uy tín
+              </p>
+              <p className="mt-2 text-sm text-orange-700">
+                Việc huỷ đơn sẽ ảnh hưởng đến điểm uy tín của bạn. Điểm uy tín về 0 sẽ khoá thao tác mua hàng 30 ngày.
+              </p>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              Bạn có chắc chắn muốn gửi yêu cầu hủy giao hàng này không?
+            </p>
+
+            {/* Lý do hủy */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Lý do hủy</p>
+              <Select
+                value={cancelReason}
+                onChange={setCancelReason}
+                className="w-full"
+                size="large"
+                style={{ borderRadius: 8 }}
+              >
+                <Option value="CHANGE_OF_MIND">Đổi ý</Option>
+                <Option value="FOUND_BETTER_PRICE">Tìm giá tốt hơn</Option>
+                <Option value="WRONG_INFO_OR_ADDRESS">Sai thông tin/địa chỉ</Option>
+                <Option value="ORDERED_BY_ACCIDENT">Đặt nhầm</Option>
+                <Option value="OTHER">Khác</Option>
+              </Select>
+            </div>
+
+            {/* Ghi chú */}
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Ghi chú</p>
+              <TextArea
+                rows={3}
+                value={cancelNote}
+                onChange={(e) => setCancelNote(e.target.value)}
+                placeholder="VD: Đặt nhầm phiên bản, muốn đổi sang sản phẩm khác..."
+                style={{ borderRadius: 8 }}
+              />
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (!isCancellingShipping) {
+                    setShowCancelShippingModal(false);
+                    setCancelReason('CHANGE_OF_MIND');
+                    setCancelNote('');
+                  }
+                }}
+                disabled={isCancellingShipping}
+              >
+                Hủy
+              </Button>
+              <Button 
+                danger 
+                className="flex-1" 
+                loading={isCancellingShipping} 
+                onClick={handleCancelShipping}
+              >
+                Xác nhận gửi yêu cầu
               </Button>
             </div>
           </div>
