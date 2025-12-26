@@ -17,11 +17,12 @@ interface PresentationalUserInfoCardProps {
   avatar?: string; // URL của hình ảnh đại diện
   membershipPoints?: number; // Điểm thành viên
   membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'; // Cấp bậc thành viên
+  legalPoint?: number; // Điểm uy tín
   onUpdate?: (nextUser: { fullName: string; email: string; phone: string; gender: 'male' | 'female' | 'other'; dateOfBirth: string; avatar?: string; membershipPoints?: number; membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond'; }) => void;
 }
 
 // Presentational component
-export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', onUpdate }) => {
+export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProps> = ({ fullName, email, phone, gender = 'other', dateOfBirth, avatar, membershipPoints = 0, membershipLevel = 'bronze', legalPoint = 0, onUpdate }) => {
   const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     const first = parts[0]?.charAt(0) ?? '';
@@ -205,14 +206,16 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
             )}
           </div>
           
-          {/* Upload Button Overlay */}
-          <button
-            onClick={() => setShowAvatarUpload(true)}
-            className="absolute inset-0 w-16 h-16 rounded-full bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            title="Thay đổi ảnh đại diện"
-          >
-            <Camera className="w-5 h-5 text-white" />
-          </button>
+          {/* Upload Button Overlay - chỉ hiện khi đang edit */}
+          {isEditing && (
+            <button
+              onClick={() => setShowAvatarUpload(true)}
+              className="absolute inset-0 w-16 h-16 rounded-full bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              title="Thay đổi ảnh đại diện"
+            >
+              <Camera className="w-5 h-5 text-white" />
+            </button>
+          )}
         </div>
         
         <div className="flex-1">
@@ -280,7 +283,33 @@ export const PresentationalUserInfoCard: React.FC<PresentationalUserInfoCardProp
           )}
         </div>
 
-        {/* Loyalty fields removed from UI */}
+        {/* Row 4: Legal Point (Điểm uy tín) */}
+        <div>
+          <span className="text-sm text-gray-500">Điểm uy tín</span>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="font-medium text-gray-900">{legalPoint}</p>
+            {legalPoint === 0 && (
+              <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                Tài khoản bị khóa mua hàng 30 ngày
+              </span>
+            )}
+            {legalPoint > 0 && legalPoint < 3 && (
+              <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-1 rounded">
+                Điểm uy tín thấp
+              </span>
+            )}
+            {legalPoint >= 3 && legalPoint < 6 && (
+              <span className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-1 rounded">
+                Cảnh báo
+              </span>
+            )}
+          </div>
+          {legalPoint < 6 && (
+            <p className="text-xs text-gray-400 mt-1">
+              Điểm uy tín ảnh hưởng đến khả năng mua hàng của bạn. Hủy đơn hàng sẽ làm giảm điểm uy tín.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Loyalty progress removed */}
@@ -413,6 +442,7 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }
     avatar?: string;
     membershipPoints?: number;
     membershipLevel?: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond';
+    legalPoint?: number;
   } | null>(null);
   const [baseUser, setBaseUser] = useState<ProfileData['user'] | null>(null);
   const [hasCustomerId, setHasCustomerId] = useState<boolean>(false);
@@ -440,6 +470,7 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }
         avatar: preloadedData.avatarURL ?? undefined,
         membershipPoints: preloadedData.loyaltyPoints ?? 0,
         membershipLevel: mappedLevel || 'bronze',
+        legalPoint: preloadedData.legalPoint ?? 0,
       });
       setHasCustomerId(true);
       setCustomerIdState(customerId || null);
@@ -480,6 +511,7 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }
           avatar: p.avatarURL ?? undefined,
           membershipPoints: p.loyaltyPoints ?? 0,
           membershipLevel: mappedLevel || 'bronze',
+          legalPoint: p.legalPoint ?? 0,
         });
       })
       .finally(() => setLoading(false));
@@ -572,6 +604,7 @@ const UserInfoCard: React.FC<UserInfoCardProps> = ({ preloadedData, customerId }
     avatar: hasCustomerId ? apiProfile?.avatar : (apiProfile?.avatar ?? baseUser.avatar),
     membershipPoints: apiProfile?.membershipPoints ?? baseUser.membershipPoints,
     membershipLevel: apiProfile?.membershipLevel ?? baseUser.membershipLevel,
+    legalPoint: apiProfile?.legalPoint ?? 0,
   } as PresentationalUserInfoCardProps;
 
   return (

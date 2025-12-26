@@ -94,6 +94,7 @@ export interface CustomerProfileResponse {
   unpaidOrderCount: number;
   lastOrderDate: string | null;
   preferredCategory: string | null;
+  legalPoint: number; // Điểm uy tín
 }
 
 // Customer Profile Request
