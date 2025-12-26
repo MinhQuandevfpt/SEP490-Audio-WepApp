@@ -672,6 +672,17 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
               </div>
             </div>
 
+            {/* Order Code */}
+            {record.orderCode && (
+              <div className="space-y-1">
+                <Text type="secondary" className="text-xs font-medium">Mã đơn hàng</Text>
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-gray-500" />
+                  <Text className="font-mono text-sm font-semibold text-gray-900">{record.orderCode}</Text>
+                </div>
+              </div>
+            )}
+
             {/* Reason Type & Detail */}
             <div className="space-y-1">
               <Text type="secondary" className="text-xs font-medium">Lý do hoàn trả</Text>
@@ -849,7 +860,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                     </Button>
                   </div>
                 )}
-                {record.trackingStatus && (
+                {record.trackingStatus && record.trackingStatus !== 'CREATED_WAITING_SYNC' && (
                   <div>
                     <Text type="secondary" className="text-xs">Trạng thái:</Text>
                     <Text strong className="ml-1">

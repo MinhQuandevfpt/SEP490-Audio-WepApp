@@ -28,6 +28,7 @@ const getTransactionTypeLabel = (type: string): string => {
     'ADJUSTMENT': 'Điều chỉnh',
     'PAYMENT': 'Thanh toán',
     'TRANSFER': 'Chuyển khoản',
+    'RETURN_REFUND_CUSTOMER_CREDIT': 'Hoàn tiền yêu cầu trả hàng',
   };
   return typeMap[type] || type;
 };

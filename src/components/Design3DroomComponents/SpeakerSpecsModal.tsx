@@ -42,7 +42,13 @@ const SpeakerSpecsModal: React.FC<SpeakerSpecsModalProps> = ({
         try {
           const response = await CustomerCategoryService.getCategoryTree();
           if (response.data) {
-            setCategories(response.data);
+            // Chỉ lấy category có name là "Loa"
+            const speakerCategory = response.data.find(cat => cat.name === 'Loa');
+            if (speakerCategory) {
+              setCategories([speakerCategory]);
+            } else {
+              setCategories([]);
+            }
           }
         } catch (error) {
           console.error('Error fetching categories:', error);

@@ -431,7 +431,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
                       </div>
                     </div>
                   )}
-                  {record.trackingStatus && (
+                  {record.trackingStatus && record.trackingStatus !== 'CREATED_WAITING_SYNC' && (
                     <div className="flex items-start gap-2 min-w-0">
                       <Truck className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
@@ -775,13 +775,13 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
               <Space direction="vertical" size="middle" className="w-full">
                 <Radio value={true} className="w-full">
                   <div className="ml-2">
-                    <span className="font-medium text-green-700">Có</span>
+                    <span className="font-medium text-green-700">Có hoàn tiền cho khách hàng</span>
                   
                   </div>
                 </Radio>
                 <Radio value={false} className="w-full">
                   <div className="ml-2">
-                    <span className="font-medium text-red-700">Không</span>
+                    <span className="font-medium text-red-700">Không hoàn tiền cho khách hàng</span>
                   
                   </div>
                 </Radio>

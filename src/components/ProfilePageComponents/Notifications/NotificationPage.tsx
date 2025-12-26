@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Empty, Spin, Pagination, Button, Typography, Tag } from 'antd';
+import { Card, Empty, Spin, Pagination, Button, Typography } from 'antd';
 import { BellOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { NotificationService, type Notification } from '../../../services/customer/NotificationService';
 import { showCenterSuccess, showCenterError } from '../../../utils/notification';
@@ -192,23 +192,6 @@ const NotificationPage: React.FC = () => {
     loadNotifications(page - 1);
   };
 
-  // Get notification type label
-  const getNotificationTypeLabel = (type: string) => {
-    const typeMap: Record<string, string> = {
-      'NEW_ORDER': 'Đơn hàng mới',
-      'ORDER_CANCELLED': 'Đơn hàng hủy',
-      'ORDER_SHIPPED': 'Đơn hàng đang giao',
-      'ORDER_DELIVERED': 'Đơn hàng đã giao',
-      'ORDER_COMPLETED': 'Đơn hàng hoàn tất',
-      'PAYMENT_SUCCESS': 'Thanh toán thành công',
-      'PAYMENT_FAILED': 'Thanh toán thất bại',
-      'VOUCHER': 'Mã giảm giá',
-      'PROMOTION': 'Khuyến mãi',
-      'SYSTEM': 'Hệ thống',
-    };
-    return typeMap[type] || type;
-  };
-
   return (
     <Card
       title={
@@ -315,11 +298,6 @@ const NotificationPage: React.FC = () => {
                     <Text className="text-sm text-gray-600 block mb-2">
                       {notification.message}
                     </Text>
-                    {notification.type && (
-                      <Tag color="default" className="mt-1">
-                        {getNotificationTypeLabel(notification.type)}
-                      </Tag>
-                    )}
                   </div>
                 </div>
               </Card>
