@@ -408,9 +408,14 @@ const SellerPayoutDashboardv2: React.FC<SellerPayoutDashboardv2Props> = ({
       {/* Breakdown List */}
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Danh sách chi tiết
-          </h3>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Danh sách chi tiết
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Các khoản chi trả sẽ tự động kết toán và chi trả vào ngày 1 hàng tháng
+            </p>
+          </div>
           <button
             onClick={() => setShowPayoutModal(true)}
             disabled={isProcessing || (summary?.eligibleNotPayoutCount || 0) === 0}

@@ -279,13 +279,6 @@ const NotificationDropdown: React.FC = () => {
                         <p className="mt-1 text-sm text-gray-600 line-clamp-2">
                           {notification.message}
                         </p>
-                        {notification.type && (
-                          <span className="mt-2 inline-block text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
-                            {notification.type === 'NEW_ORDER' ? 'Đơn hàng mới' :
-                             notification.type === 'ORDER_CANCELLED' ? 'Đơn hàng hủy' :
-                             notification.type}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </button>
