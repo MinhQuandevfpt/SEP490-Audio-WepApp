@@ -214,6 +214,16 @@ export class StoreOrderService {
   /**
    * Approve cancellation request
    * POST /api/v1/stores/{storeId}/orders/{storeOrderId}/cancel/approve
+   * 
+   * Response format:
+   * - Success (200): { status: 200, message: string, data: null }
+   * - Error (400): { status: 400, message: string, data: null }
+   * 
+   * Note: HttpInterceptor will throw error for non-2xx status codes.
+   * The error will have:
+   * - error.message: message from API response
+   * - error.status: HTTP status code (e.g., 400)
+   * - error.data: full response body { status, message, data }
    */
   static async approveCancelRequest(storeOrderId: string): Promise<void> {
     try {
@@ -230,10 +240,15 @@ export class StoreOrderService {
         { userType: 'seller' }
       );
 
-      console.log('✅ Cancel request approved:', response.message);
+      // If we get here, the request was successful (status 200)
+      console.log('✅ Cancel request approved:', response?.message || 'Yêu cầu hủy đơn hàng đã được chấp nhận');
     } catch (error: any) {
       console.error('❌ Error approving cancel request:', error);
-      throw new Error(error?.message || 'Không thể chấp nhận yêu cầu hủy đơn hàng');
+      
+      // HttpInterceptor throws error for non-2xx responses
+      // The error already contains status and message from API
+      // We just need to re-throw it so the caller can handle translation
+      throw error;
     }
   }
 
