@@ -259,6 +259,7 @@ const PlatformTransactionList: React.FC = () => {
 
   const renderTransactionItem = (transaction: PlatformTransaction) => {
     const isExpanded = expandedIds.has(transaction.id);
+    const isDebtPayment = transaction.type === 'DEBT_PAYMENT';
 
     return (
       <Card
@@ -273,10 +274,12 @@ const PlatformTransactionList: React.FC = () => {
           <Col xs={24} sm={24} md={5} lg={4}>
             <Space direction="vertical" size="small">
               <Space>
-                {transaction.direction === 'IN' ? (
-                  <ArrowDownOutlined style={{ fontSize: 20, color: '#52c41a' }} />
-                ) : (
-                  <ArrowUpOutlined style={{ fontSize: 20, color: '#ff4d4f' }} />
+                {!isDebtPayment && (
+                  transaction.direction === 'IN' ? (
+                    <ArrowDownOutlined style={{ fontSize: 20, color: '#52c41a' }} />
+                  ) : (
+                    <ArrowUpOutlined style={{ fontSize: 20, color: '#ff4d4f' }} />
+                  )
                 )}
                 <Tag color={getTypeColor(transaction.type)}>
                   {getTypeLabel(transaction.type)}
@@ -296,10 +299,10 @@ const PlatformTransactionList: React.FC = () => {
                 strong
                 style={{
                   fontSize: 16,
-                  color: transaction.direction === 'IN' ? '#52c41a' : '#ff4d4f'
+                  color: isDebtPayment ? '#8c8c8c' : (transaction.direction === 'IN' ? '#52c41a' : '#ff4d4f')
                 }}
               >
-                {transaction.direction === 'IN' ? '+' : '-'}
+                {!isDebtPayment && (transaction.direction === 'IN' ? '+' : '-')}
                 {formatCurrency(transaction.amount)}
               </Text>
             </Space>
@@ -363,10 +366,10 @@ const PlatformTransactionList: React.FC = () => {
                       value={transaction.amount}
                       precision={0}
                       valueStyle={{
-                        color: transaction.direction === 'IN' ? '#3f8600' : '#cf1322',
+                        color: isDebtPayment ? '#8c8c8c' : (transaction.direction === 'IN' ? '#3f8600' : '#cf1322'),
                         fontSize: 20
                       }}
-                      prefix={transaction.direction === 'IN' ? '+' : '-'}
+                      prefix={!isDebtPayment ? (transaction.direction === 'IN' ? '+' : '-') : ''}
                       suffix="đ"
                     />
                   </Card>
@@ -402,14 +405,16 @@ const PlatformTransactionList: React.FC = () => {
                       {getStatusLabel(transaction.status)}
                     </Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Hướng giao dịch">
-                    <Tag
-                      icon={transaction.direction === 'IN' ? <ArrowDownOutlined /> : <ArrowUpOutlined />}
-                      color={transaction.direction === 'IN' ? 'success' : 'error'}
-                    >
-                      {transaction.direction === 'IN' ? 'Tiền vào' : 'Tiền ra'}
-                    </Tag>
-                  </Descriptions.Item>
+                  {!isDebtPayment && (
+                    <Descriptions.Item label="Hướng giao dịch">
+                      <Tag
+                        icon={transaction.direction === 'IN' ? <ArrowDownOutlined /> : <ArrowUpOutlined />}
+                        color={transaction.direction === 'IN' ? 'success' : 'error'}
+                      >
+                        {transaction.direction === 'IN' ? 'Tiền vào' : 'Tiền ra'}
+                      </Tag>
+                    </Descriptions.Item>
+                  )}
                   <Descriptions.Item label="Kênh thanh toán">
                     {getChannelLabel(transaction.channel)}
                   </Descriptions.Item>
