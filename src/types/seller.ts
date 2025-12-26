@@ -119,6 +119,7 @@ export interface StoreDetail {
   rating: number | null;
   status: StoreStatus;
   accountId: string;
+  legalPoint: number;
   storeAddresses: Array<{
     addressId: string;
     defaultAddress: boolean;

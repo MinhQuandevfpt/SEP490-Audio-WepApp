@@ -1,12 +1,16 @@
 import React from 'react';
 import { Breadcrumb, Space, Typography } from 'antd';
 import { Home, Package } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import useStoreReturns from '../../../hooks/useStoreReturns';
 import { StoreReturnList } from '../../../components/StoreOwnerOrderManagementComponents';
 
 const { Title, Text } = Typography;
 
 const StoreReturnsPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const returnId = searchParams.get('returnId');
+  
   const {
     returns,
     page,
@@ -53,6 +57,7 @@ const StoreReturnsPage: React.FC = () => {
         error={error}
         onPageChange={onPaginationChange}
         onReload={reload}
+        highlightReturnId={returnId}
       />
 
       {totalPages === 0 && !isLoading && (

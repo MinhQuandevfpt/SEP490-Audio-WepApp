@@ -28,7 +28,29 @@ import {
 import { SellerAuthService } from '../../services/seller/AuthSeller';
 import { StoreService } from '../../services/seller/StoreService';
 import { NotificationService, type StoreNotification } from '../../services/seller/NotificationService';
+import { playNotificationSound, hasPlayedNotificationSound, markNotificationSoundPlayed } from '../../utils/notificationSound';
 import type { StoreInfo, RiskWarningResponse } from '../../types/seller';
+
+// CSS for marquee animation
+const marqueeStyle = `
+  @keyframes marquee {
+    0% {
+      transform: translateX(100%);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
+  }
+  .marquee-container {
+    overflow: hidden;
+    position: relative;
+  }
+  .marquee-text {
+    display: inline-block;
+    animation: marquee 10s linear infinite;
+    will-change: transform;
+  }
+`;
 
 const SellerDashboardLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -114,6 +136,15 @@ const SellerDashboardLayout: React.FC = () => {
     try {
       const count = await NotificationService.getUnreadCount();
       setNotificationCount(count);
+      
+      // Phát âm thanh thông báo nếu có thông báo chưa đọc và chưa phát sau login
+      if (count > 0 && !hasPlayedNotificationSound()) {
+        // Delay nhỏ để đảm bảo user đã vào trang
+        setTimeout(() => {
+          playNotificationSound();
+          markNotificationSoundPlayed();
+        }, 500);
+      }
     } catch (error) {
       console.error('Error loading notification count:', error);
       // Set to 0 on error instead of showing incorrect count
@@ -324,6 +355,42 @@ const SellerDashboardLayout: React.FC = () => {
     }
   };
 
+  // Get risk warning marquee message and color
+  const getRiskWarningMarquee = (level: string) => {
+    switch (level) {
+      case 'NONE':
+        return {
+          message: 'Mức rủi ro an toàn, cửa hàng kinh doanh bình thường',
+          textColor: 'text-gray-700',
+        };
+      case 'NOTICE_20':
+        return {
+          message: 'Mức rủi ro an toàn, cửa hàng kinh doanh bình thường',
+          textColor: 'text-gray-700',
+        };
+      case 'WARNING_50':
+        return {
+          message: 'Mức rủi ro cảnh báo, hãy chú ý các khoản nợ của cửa hàng',
+          textColor: 'text-gray-700',
+        };
+      case 'DANGER_80':
+        return {
+          message: 'Mức rủi ro nguy hiểm, hãy nhanh chóng nạp thêm tiền và thanh toán các khoản phí nợ',
+          textColor: 'text-orange-600',
+        };
+      case 'BLOCK_100':
+        return {
+          message: 'Hãy nạp thêm tiền để mở đầy đủ tính năng kinh doanh trên nền tảng',
+          textColor: 'text-red-600',
+        };
+      default:
+        return {
+          message: 'Mức rủi ro an toàn, cửa hàng kinh doanh bình thường',
+          textColor: 'text-gray-700',
+        };
+    }
+  };
+
   const handleLogout = () => {
     SellerAuthService.logout();
     StoreService.clearStoreCache();
@@ -430,13 +497,18 @@ const SellerDashboardLayout: React.FC = () => {
     setExpandedItems(prev => prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]);
   };
 
+  const marqueeInfo = riskWarning ? getRiskWarningMarquee(riskWarning.warningLevel) : null;
+
   return (
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+      {/* Inject marquee animation styles */}
+      <style>{marqueeStyle}</style>
+
       {/* Top Header */}
       <header className="bg-gradient-to-r from-white via-orange-50 to-white border-b border-orange-100 fixed top-0 left-0 right-0 z-50 shadow-sm">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Left: Logo & Menu Toggle */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 flex-shrink-0">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors lg:hidden"
@@ -455,8 +527,21 @@ const SellerDashboardLayout: React.FC = () => {
             </Link>
           </div>
 
+          {/* Center: Risk Warning Marquee */}
+          {marqueeInfo && (
+            <div className="flex-1 mx-4 marquee-container h-8 hidden md:block">
+              <div className="relative h-full flex items-center">
+                <div 
+                  className={`marquee-text whitespace-nowrap font-medium text-sm ${marqueeInfo.textColor}`}
+                >
+                  {marqueeInfo.message}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Right: Risk Warning, Notifications & Profile */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 flex-shrink-0">
             {/* Risk Warning Badge */}
             {riskWarning && (
               <Link

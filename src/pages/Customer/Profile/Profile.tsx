@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Layout from '../../../components/Layout';
 import { UserInfoCard } from '../../../components/ProfilePageComponents/UserInfoCard';
 import { OrderHistory } from '../../../components/ProfilePageComponents/OrderHistory';
@@ -10,11 +10,14 @@ import ReturnHistoryCard from '../../../components/ProfilePageComponents/ReturnH
 import { ReviewProductPage } from '../ReviewFolder';
 import { WalletPage } from '../../../components/CustomerWalletComponents';
 import { NotificationPage } from '../../../components/ProfilePageComponents/Notifications';
-import { loadProfileData, updatePassword, /* addBankCard, updateBankCard, deleteBankCard, setDefaultBankCard, */ type ProfileData } from '../../../data/profiledata'; // Bank card functions commented out - Bank card feature disabled
+import { updatePassword } from '../../../data/profiledata';
 import { User, Package, MapPinned, Lock, /* CreditCard, */ Shield, Star, Wallet, Bell } from 'lucide-react'; // CreditCard commented out - Bank card feature disabled
 import { profileCache } from '../../../services/cache/ProfileCache';
 import useCustomerReturns from '../../../hooks/useCustomerReturns';
 import { useNavigate } from 'react-router-dom';
+import ProfileCustomerService from '../../../services/customer/Profilecustomer';
+import type { CustomerProfileResponse } from '../../../types/api';
+import { getCustomerId } from '../../../utils/authHelper';
 
 type ProfileTab =
   | 'info'
@@ -34,8 +37,9 @@ interface ProfileProps {
 
 const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
   const navigate = useNavigate();
-  const [data, setData] = useState<ProfileData | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [profileData, setProfileData] = useState<CustomerProfileResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [preloadedData, setPreloadedData] = useState<{
     userProfile?: any;
     addresses?: any[];
@@ -63,27 +67,39 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
     return sorted.slice(0, 1); // Chỉ lấy 1 item đầu tiên
   }, [returns]);
 
+  // Fetch customer profile from API
   useEffect(() => {
-    setData(loadProfileData());
-    
-    // Get customer ID for preloading - support both 'customerId' and 'customer_id'
-    const cid = localStorage.getItem('customerId') || localStorage.getItem('customer_id');
-    if (cid) {
-      setCustomerId(cid);
-      preloadData(cid);
-    } else {
-      console.error('Customer ID not found. Please login again.');
-    }
-  }, []);
+    const loadProfile = async () => {
+      try {
+        setLoading(true);
+        const cid = getCustomerId();
+        if (!cid) {
+          console.error('Customer ID not found. Please login again.');
+          setLoading(false);
+          return;
+        }
 
-  // Preload all data when component mounts using cache
-  const preloadData = useCallback(async (cid: string) => {
-    try {
-      const data = await profileCache.preloadUserData(cid);
-      setPreloadedData(data);
-    } catch (error) {
-      console.error('Preload error:', error);
-    }
+        setCustomerId(cid);
+        
+        // Fetch profile from API
+        const profile = await ProfileCustomerService.getByCustomerId(cid);
+        setProfileData(profile);
+        
+        // Preload addresses and provinces using cache
+        try {
+          const preloaded = await profileCache.preloadUserData(cid);
+          setPreloadedData(preloaded);
+        } catch (error) {
+          console.error('Preload error:', error);
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
   }, []);
 
   // TODO: This function is not used yet, will be needed for profile updates
@@ -98,8 +114,12 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
   // Password management function
   const handleUpdatePassword = (newPassword: string) => {
     updatePassword(newPassword);
-    // Reload data to reflect changes
-    setData(loadProfileData());
+    // Reload profile from API after password update
+    if (customerId) {
+      ProfileCustomerService.getByCustomerId(customerId)
+        .then(setProfileData)
+        .catch(console.error);
+    }
   };
 
   // Bank card management functions - Commented out - Bank card feature disabled
@@ -149,7 +169,14 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Tài khoản của tôi</h1>
-        {data && (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-gray-600">Đang tải thông tin...</p>
+            </div>
+          </div>
+        ) : profileData ? (
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
             {/* Left navigation */}
             <aside className="lg:col-span-1">
@@ -176,7 +203,7 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
               {/* Render all components but hide inactive ones */}
               <div className={active === 'info' ? 'block' : 'hidden'}>
                 <UserInfoCard 
-                  preloadedData={preloadedData.userProfile}
+                  preloadedData={profileData}
                   customerId={customerId}
                 />
               </div>
@@ -247,6 +274,10 @@ const Profile: React.FC<ProfileProps> = ({ initialTab = 'info' }) => {
                 <NotificationPage />
               </div>
             </section>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-gray-600">Không thể tải thông tin tài khoản. Vui lòng thử lại sau.</p>
           </div>
         )}
       </div>

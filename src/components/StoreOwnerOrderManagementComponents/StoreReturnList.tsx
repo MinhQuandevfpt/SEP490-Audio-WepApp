@@ -21,6 +21,7 @@ export interface StoreReturnListProps {
   error?: string | null;
   onPageChange: (page: number, pageSize?: number) => void;
   onReload?: () => void;
+  highlightReturnId?: string | null;
 }
 
 const statusColorMap: Record<string, string> = {
@@ -31,6 +32,7 @@ const statusColorMap: Record<string, string> = {
   CANCELED: 'gray',
   AUTO_REFUNDED: 'gray',
   SHIPPING: 'blue',
+  DELIVERED: 'orange',
   RECEIVED: 'cyan',
   DISPUTE: 'orange',
   DISPUTE_ESCALATED: 'purple',
@@ -53,6 +55,7 @@ const statusLabelMap: Record<string, string> = {
   CANCELED: 'Đã huỷ (khách hủy yêu cầu)',
   AUTO_REFUNDED: 'AUTO REFUND – Shop không xử lý sau khi nhận hàng',
   SHIPPING: 'GHN đang vận chuyển',
+  DELIVERED: 'Đã giao tới shop – Chờ xác nhận',
   RECEIVED: 'Shop xác nhận đã nhận đúng hàng',
   DISPUTE: 'Đang khiếu nại',
   DISPUTE_ESCALATED: 'Khiếu nại đã được đưa lên sàn xử lý',
@@ -119,7 +122,9 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   error,
   onPageChange,
   onReload,
+  highlightReturnId,
 }) => {
+  const highlightedCardRef = useRef<HTMLDivElement | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [pickShiftModalOpen, setPickShiftModalOpen] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<ReturnRequestResponse | null>(null);
@@ -142,6 +147,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   });
   const [rejectReason, setRejectReason] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [showRefundWithoutReturn, setShowRefundWithoutReturn] = useState<{ visible: boolean; record: ReturnRequestResponse | null }>({
     visible: false,
     record: null,
@@ -246,6 +252,39 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     } finally {
       setApprovingId(null);
     }
+  };
+
+  const handleConfirmReceived = async (record: ReturnRequestResponse) => {
+    try {
+      setConfirmingId(record.id);
+      await StoreReturnService.shopConfirmReceived(record.id);
+      message.success('Đã xác nhận nhận hàng trả về');
+      onReload?.();
+    } catch (e: any) {
+      message.error(e?.message || 'Không thể xác nhận đã nhận hàng');
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const handleOpenConfirmReceivedModal = (record: ReturnRequestResponse) => {
+    Modal.confirm({
+      title: 'Xác nhận đã nhận hàng trả về',
+      content: (
+        <div className="space-y-2">
+          <p>Bạn có chắc chắn đã nhận được hàng trả về từ khách hàng?</p>
+          <p className="text-sm text-gray-600">
+            <strong>Lưu ý:</strong> Sau khi xác nhận, hệ thống sẽ tiến hành hoàn tiền cho khách hàng.
+          </p>
+        </div>
+      ),
+      okText: 'Xác nhận',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: false },
+      onOk: async () => {
+        await handleConfirmReceived(record);
+      },
+    });
   };
 
   const handleOpenRejectModal = (record: ReturnRequestResponse) => {
@@ -532,7 +571,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
   };
 
   // Render return request card
-  const renderReturnCard = (record: ReturnRequestResponse) => {
+  const renderReturnCard = (record: ReturnRequestResponse, isHighlighted: boolean = false) => {
     const productImage = getProductImage(record);
     const variantLabel = getVariantLabel(record);
     const isAutoApproved = record.status === 'APPROVED' && record.autoApproved;
@@ -574,8 +613,15 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     return (
       <Card
         key={record.id}
-        className="mb-4 hover:shadow-lg transition-shadow"
-        style={{ borderRadius: 12 }}
+        className={`mb-4 hover:shadow-lg transition-shadow ${isHighlighted ? 'ring-4 ring-orange-400 ring-opacity-50' : ''}`}
+        style={{ 
+          borderRadius: 12,
+          ...(isHighlighted ? { 
+            borderColor: '#fb923c',
+            borderWidth: 2,
+            backgroundColor: '#fff7ed',
+          } : {})
+        }}
       >
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Left: Product Image & Basic Info */}
@@ -789,11 +835,6 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                       <Text type="secondary" className="text-xs">Mã GHN:</Text>
                       <Text strong className="ml-1">{record.ghnOrderCode}</Text>
                     </div>
-                    {isWaitingForSync && (
-                      <Text type="secondary" className="text-xs text-orange-600 block hidden">
-                        ⏳ Đang chờ đồng bộ từ GHN...
-                      </Text>
-                    )}
                     <Button
                       type="link"
                       size="small"
@@ -926,16 +967,9 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
 
               {!record.finalDecision && isShippingDelivered && (
                 <>
-                  {isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2 hidden">
-                      Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
-                    </Text>
-                  )}
-                  {!isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2">
-                      Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý.
-                    </Text>
-                  )}
+                  <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                    Hàng trả đã giao tới shop. Bạn có 48 giờ để xử lý.
+                  </Text>
                   <Space direction="vertical" size={6} className="w-full">
                     <Button
                       type="primary"
@@ -986,12 +1020,7 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                       Yêu cầu đã được hệ thống auto-approve, không thể chấp nhận/từ chối.
                     </Text>
                   )}
-                  {isWaitingForSync && (
-                    <Text type="secondary" className="text-xs text-orange-600 block mb-2 hidden">
-                      Đang chờ đồng bộ từ GHN. Vui lòng đợi trong giây lát...
-                    </Text>
-                  )}
-                  {hasGhnOrderCode && !isWaitingForSync && (
+                  {hasGhnOrderCode && (
                     <Text type="secondary" className="text-xs text-green-600 block mb-2">
                       Đã tạo đơn GHN: {record.ghnOrderCode}
                     </Text>
@@ -1057,6 +1086,39 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
                 </Text>
               )}
 
+              {/* DELIVERED Status - Show confirm received and dispute buttons */}
+              {!record.finalDecision && record.status === 'DELIVERED' && (
+                <>
+                  <Text type="secondary" className="text-xs text-orange-600 block mb-2">
+                    Hàng trả đã được giao tới shop. Vui lòng xác nhận đã nhận hàng hoặc khiếu nại nếu có vấn đề.
+                  </Text>
+                  <Space direction="vertical" size={6} className="w-full">
+                    <Button
+                      type="primary"
+                      size="small"
+                      onClick={() => handleOpenConfirmReceivedModal(record)}
+                      loading={confirmingId === record.id}
+                      disabled={confirmingId === record.id || disputingId === record.id}
+                      className="w-full"
+                    >
+                      Xác nhận đã nhận hàng
+                    </Button>
+                    {!record.adminForcedContinue && (
+                      <Button
+                        type="default"
+                        size="small"
+                        icon={<AlertTriangle className="w-3 h-3" />}
+                        onClick={() => handleOpenDisputeModal(record)}
+                        disabled={confirmingId === record.id || disputingId === record.id}
+                        className="w-full"
+                      >
+                        Khiếu nại lên admin
+                      </Button>
+                    )}
+                  </Space>
+                </>
+              )}
+
               {!record.finalDecision && record.status === 'DISPUTE' && (
                 <Text type="secondary" className="text-xs block">
                   Đang khiếu nại. Khiếu nại đã được gửi lên admin và đang chờ xử lý.
@@ -1106,6 +1168,19 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
     if (!data || data.length === 0) return [];
     return bubbleSortByDate(data);
   }, [data]);
+
+  // Scroll to highlighted return request when highlightReturnId changes
+  useEffect(() => {
+    if (highlightReturnId && highlightedCardRef.current && !isLoading) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        highlightedCardRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 300);
+    }
+  }, [highlightReturnId, isLoading, sortedData]);
 
   return (
     <Card
@@ -1158,17 +1233,24 @@ const StoreReturnList: React.FC<StoreReturnListProps> = ({
       ) : (
         <>
           <div className="space-y-4">
-            {sortedData.map((record, index) => (
-              <div key={record.id} className="relative">
-                {/* STT Badge */}
-                <div className="absolute -left-2 -top-2 z-10">
-                  <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg">
-                    {(page - 1) * pageSize + index + 1}
+            {sortedData.map((record, index) => {
+              const isHighlighted = highlightReturnId === record.id;
+              return (
+                <div 
+                  key={record.id} 
+                  className="relative"
+                  ref={isHighlighted ? highlightedCardRef : null}
+                >
+                  {/* STT Badge */}
+                  <div className="absolute -left-2 -top-2 z-10">
+                    <div className={`w-8 h-8 ${isHighlighted ? 'bg-orange-600' : 'bg-orange-500'} text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg`}>
+                      {(page - 1) * pageSize + index + 1}
+                    </div>
                   </div>
+                  {renderReturnCard(record, isHighlighted)}
                 </div>
-                {renderReturnCard(record)}
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="mt-6 flex justify-end">
             <Pagination

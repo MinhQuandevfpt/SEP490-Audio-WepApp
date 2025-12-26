@@ -259,6 +259,7 @@ const PlatformTransactionList: React.FC = () => {
 
   const renderTransactionItem = (transaction: PlatformTransaction) => {
     const isExpanded = expandedIds.has(transaction.id);
+    const isDebtPayment = transaction.type === 'DEBT_PAYMENT';
 
     return (
       <Card
@@ -273,10 +274,12 @@ const PlatformTransactionList: React.FC = () => {
           <Col xs={24} sm={24} md={5} lg={4}>
             <Space direction="vertical" size="small">
               <Space>
-                {transaction.direction === 'IN' ? (
-                  <ArrowDownOutlined style={{ fontSize: 20, color: '#52c41a' }} />
-                ) : (
-                  <ArrowUpOutlined style={{ fontSize: 20, color: '#ff4d4f' }} />
+                {!isDebtPayment && (
+                  transaction.direction === 'IN' ? (
+                    <ArrowDownOutlined style={{ fontSize: 20, color: '#52c41a' }} />
+                  ) : (
+                    <ArrowUpOutlined style={{ fontSize: 20, color: '#ff4d4f' }} />
+                  )
                 )}
                 <Tag color={getTypeColor(transaction.type)}>
                   {getTypeLabel(transaction.type)}
@@ -296,10 +299,10 @@ const PlatformTransactionList: React.FC = () => {
                 strong
                 style={{
                   fontSize: 16,
-                  color: transaction.direction === 'IN' ? '#52c41a' : '#ff4d4f'
+                  color: isDebtPayment ? '#8c8c8c' : (transaction.direction === 'IN' ? '#52c41a' : '#ff4d4f')
                 }}
               >
-                {transaction.direction === 'IN' ? '+' : '-'}
+                {!isDebtPayment && (transaction.direction === 'IN' ? '+' : '-')}
                 {formatCurrency(transaction.amount)}
               </Text>
             </Space>
@@ -363,10 +366,10 @@ const PlatformTransactionList: React.FC = () => {
                       value={transaction.amount}
                       precision={0}
                       valueStyle={{
-                        color: transaction.direction === 'IN' ? '#3f8600' : '#cf1322',
+                        color: isDebtPayment ? '#8c8c8c' : (transaction.direction === 'IN' ? '#3f8600' : '#cf1322'),
                         fontSize: 20
                       }}
-                      prefix={transaction.direction === 'IN' ? '+' : '-'}
+                      prefix={!isDebtPayment ? (transaction.direction === 'IN' ? '+' : '-') : ''}
                       suffix="đ"
                     />
                   </Card>
@@ -402,21 +405,18 @@ const PlatformTransactionList: React.FC = () => {
                       {getStatusLabel(transaction.status)}
                     </Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Hướng giao dịch">
-                    <Tag
-                      icon={transaction.direction === 'IN' ? <ArrowDownOutlined /> : <ArrowUpOutlined />}
-                      color={transaction.direction === 'IN' ? 'success' : 'error'}
-                    >
-                      {transaction.direction === 'IN' ? 'Tiền vào' : 'Tiền ra'}
-                    </Tag>
-                  </Descriptions.Item>
+                  {!isDebtPayment && (
+                    <Descriptions.Item label="Hướng giao dịch">
+                      <Tag
+                        icon={transaction.direction === 'IN' ? <ArrowDownOutlined /> : <ArrowUpOutlined />}
+                        color={transaction.direction === 'IN' ? 'success' : 'error'}
+                      >
+                        {transaction.direction === 'IN' ? 'Tiền vào' : 'Tiền ra'}
+                      </Tag>
+                    </Descriptions.Item>
+                  )}
                   <Descriptions.Item label="Kênh thanh toán">
                     {getChannelLabel(transaction.channel)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Loại ví">
-                    <Tag color={transaction.bucket === 'CASH' ? 'green' : 'gold'}>
-                      {transaction.bucket === 'CASH' ? 'Tiền mặt' : 'Đang chờ'}
-                    </Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="Mô tả" span={2}>
                     {formatDescription(transaction.description || 'Không có mô tả')}
@@ -567,24 +567,81 @@ const PlatformTransactionList: React.FC = () => {
               </Card>
 
               {/* Metadata */}
-              {transaction.metadataJson && (
-                <Card title="Dữ liệu bổ sung" size="small">
-                  <pre
-                    style={{
-                      background: '#001529',
-                      color: '#52c41a',
-                      padding: '12px',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      overflow: 'auto',
-                      maxHeight: '300px',
-                      margin: 0
-                    }}
-                  >
-                    {JSON.stringify(JSON.parse(transaction.metadataJson), null, 2)}
-                  </pre>
-                </Card>
-              )}
+              {transaction.metadataJson && (() => {
+                try {
+                  const metadata = JSON.parse(transaction.metadataJson);
+                  // Kiểm tra nếu là giao dịch rút tiền cho cửa hàng
+                  const isWithdrawTransaction = 
+                    transaction.type === 'PAYOUT_STORE' || 
+                    transaction.description?.includes('Chi rút tiền cho cửa hàng') ||
+                    transaction.description?.includes('Store withdraw');
+                  
+                  if (isWithdrawTransaction && (metadata.bankName || metadata.bankAccountNo || metadata.note)) {
+                    // Hiển thị dưới dạng Descriptions cho giao dịch rút tiền
+                    return (
+                      <Card title="Thông tin rút tiền" size="small">
+                        <Descriptions column={1} bordered size="small">
+                          {metadata.bankName && (
+                            <Descriptions.Item label="Ngân hàng">
+                              {metadata.bankName}
+                            </Descriptions.Item>
+                          )}
+                          {metadata.bankAccountNo && (
+                            <Descriptions.Item label="Số tài khoản">
+                              {metadata.bankAccountNo}
+                            </Descriptions.Item>
+                          )}
+                          {metadata.note && (
+                            <Descriptions.Item label="Ghi chú">
+                              {metadata.note}
+                            </Descriptions.Item>
+                          )}
+                        </Descriptions>
+                      </Card>
+                    );
+                  } else {
+                    // Hiển thị JSON raw cho các loại giao dịch khác
+                    return (
+                      <Card title="Dữ liệu bổ sung" size="small">
+                        <pre
+                          style={{
+                            background: '#001529',
+                            color: '#52c41a',
+                            padding: '12px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            overflow: 'auto',
+                            maxHeight: '300px',
+                            margin: 0
+                          }}
+                        >
+                          {JSON.stringify(metadata, null, 2)}
+                        </pre>
+                      </Card>
+                    );
+                  }
+                } catch (error) {
+                  // Nếu parse JSON lỗi, hiển thị raw
+                  return (
+                    <Card title="Dữ liệu bổ sung" size="small">
+                      <pre
+                        style={{
+                          background: '#001529',
+                          color: '#52c41a',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          overflow: 'auto',
+                          maxHeight: '300px',
+                          margin: 0
+                        }}
+                      >
+                        {transaction.metadataJson}
+                      </pre>
+                    </Card>
+                  );
+                }
+              })()}
             </Space>
           </>
         )}

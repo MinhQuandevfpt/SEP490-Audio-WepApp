@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { startTransition } from 'react';
 import { 
   Card, 
   Select, 
@@ -11,13 +12,13 @@ import {
   Breadcrumb,
   Row,
   Col,
-  Statistic,
-  Divider
+  Statistic
 } from 'antd';
 import { Home, ShoppingBag, DollarSign, FileText } from 'lucide-react';
 import Layout from '../../../components/Layout';
 import { OrderCard, OrderDetailModal, OrderStatusTabs } from '../../../components/OrderHistoryComponents';
-import useOrderHistory from '../../../hooks/useOrderHistory';
+import { OrderHistoryService } from '../../../services/customer/OrderHistoryService';
+import type { CustomerOrder, OrderStatus } from '../../../types/api';
 import { formatCurrency } from '../../../utils/orderStatus';
 
 const { Option } = Select;
@@ -26,26 +27,267 @@ const { Title, Text } = Typography;
 const OrderHistoryPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const {
-    status,
-    setStatus,
-    search,
-    setSearch,
-    page,
-    setPage,
-    pageSize,
-    setPageSize,
-    totalPages,
-    orders,
-    isLoading,
-    error,
-    selectedOrder,
-    setSelectedOrder,
-    viewDetail,
-    reload,
-    total,
-    ghnOrderData,
-  } = useOrderHistory();
+  
+  // State
+  const [status, setStatus] = useState<OrderStatus | 'ALL'>('ALL');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+  const [ghnOrderData, setGhnOrderData] = useState<Record<string, any>>({});
+  
+  // Refs
+  const ghnOrderDataRef = useRef<Record<string, any>>({});
+  const ordersRef = useRef<CustomerOrder[]>([]);
+  const isTabVisibleRef = useRef(true);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs để lưu giá trị filter hiện tại - tránh race condition
+  const statusRef = useRef<OrderStatus | 'ALL'>('ALL');
+  const searchRef = useRef<string>('');
+  const pageRef = useRef<number>(1);
+  const pageSizeRef = useRef<number>(5);
+  
+  // Debounce helper chỉ dùng cho polling (background updates)
+  const debouncedSetOrders = useCallback((newOrders: CustomerOrder[]) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    timeoutRef.current = setTimeout(() => {
+      startTransition(() => {
+        setOrders(newOrders);
+        ordersRef.current = newOrders;
+      });
+    }, 300);
+  }, []);
+
+  // Load orders function - immediate update cho user actions, debounced cho polling
+  const load = useCallback(async (silent: boolean = false, overrideParams?: { status?: OrderStatus | 'ALL'; search?: string; page?: number; pageSize?: number }) => {
+    try {
+      if (!silent) {
+        setIsLoading(true);
+        setError(null);
+        // Optimistic update: clear orders ngay để UI responsive
+        setOrders([]);
+      }
+      
+      // Sử dụng overrideParams nếu có, nếu không dùng từ ref (luôn có giá trị mới nhất)
+      const currentStatus = overrideParams?.status ?? statusRef.current;
+      const currentSearch = overrideParams?.search ?? searchRef.current;
+      const currentPage = overrideParams?.page ?? pageRef.current;
+      const currentPageSize = overrideParams?.pageSize ?? pageSizeRef.current;
+      
+      // Backend uses 0-based indexing
+      const backendPage = currentPage - 1;
+      
+      // Call service trực tiếp - không qua debounce
+      const res = await OrderHistoryService.list({
+        status: currentStatus === 'ALL' ? undefined : currentStatus,
+        search: currentSearch || undefined,
+        page: backendPage,
+        size: currentPageSize,
+      });
+      
+      // Update ngay lập tức cho user actions, debounced cho polling
+      ordersRef.current = res.data;
+      if (silent) {
+        // Polling: dùng debounce để batch updates
+        startTransition(() => {
+          debouncedSetOrders(res.data);
+          setTotal(prev => prev !== res.total ? res.total : prev);
+          setTotalPages(prev => prev !== res.totalPages ? res.totalPages : prev);
+        });
+      } else {
+        // User action: update ngay lập tức không debounce
+        startTransition(() => {
+          setOrders(res.data);
+          ordersRef.current = res.data;
+          setTotal(res.total);
+          setTotalPages(res.totalPages);
+        });
+      }
+      
+      // Không sử dụng polling cho filter - chỉ load một lần khi user action
+      // Dừng polling khi có user action (filter change)
+      if (!silent && pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
+      // Load GHN order data for each storeOrder tuần tự để tránh lag UI
+      const ghnDataTasks: Array<{ storeOrderId: string }> = [];
+      res.data.forEach((order) => {
+        if (!Array.isArray(order.storeOrders)) {
+          return;
+        }
+        order.storeOrders.forEach((storeOrder) => {
+          if (!storeOrder.id || storeOrder.id.includes('-store-')) {
+            return;
+          }
+          if (silent || !ghnOrderDataRef.current[storeOrder.id]) {
+            ghnDataTasks.push({ storeOrderId: storeOrder.id });
+          }
+        });
+      });
+
+      // Load GHN data tuần tự với delay giữa mỗi call và batch updates
+      if (ghnDataTasks.length > 0) {
+        (async () => {
+          const ghnUpdates: Record<string, any> = {};
+          let updateCount = 0;
+          const BATCH_SIZE = 3;
+          
+          for (const task of ghnDataTasks) {
+            try {
+              const ghnOrder = await OrderHistoryService.getGhnOrderByStoreOrderId(task.storeOrderId);
+              if (ghnOrder && ghnOrder.data) {
+                ghnUpdates[task.storeOrderId] = ghnOrder.data;
+                updateCount++;
+                
+                if (updateCount >= BATCH_SIZE || ghnDataTasks.indexOf(task) === ghnDataTasks.length - 1) {
+                  const updatesToApply = { ...ghnUpdates };
+                  Object.assign(ghnOrderDataRef.current, updatesToApply);
+                  startTransition(() => {
+                    setGhnOrderData((prev) => ({
+                      ...prev,
+                      ...updatesToApply,
+                    }));
+                  });
+                  Object.keys(ghnUpdates).forEach(key => delete ghnUpdates[key]);
+                  updateCount = 0;
+                }
+              }
+              if (ghnDataTasks.indexOf(task) < ghnDataTasks.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+              }
+            } catch (err: any) {
+              if (err?.status !== 404 && err?.status !== 500) {
+                console.error(`Unexpected error loading GHN order for ${task.storeOrderId}:`, err);
+              }
+              if (ghnDataTasks.indexOf(task) < ghnDataTasks.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 400));
+              }
+            }
+          }
+        })().catch(() => {
+          // Silently fail
+        });
+      }
+    } catch (e: any) {
+      if (!silent) {
+        setError(e?.message || 'Không thể tải danh sách đơn hàng');
+        setOrders([]);
+        setTotal(0);
+        setTotalPages(0);
+      }
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
+    }
+  }, [debouncedSetOrders]); // Chỉ giữ debouncedSetOrders, các filter dùng ref
+
+
+  // Tab visibility detection - chỉ load khi tab active, không polling
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      isTabVisibleRef.current = !document.hidden;
+      
+      if (!document.hidden) {
+        // Chỉ load một lần khi tab active, không start polling
+        load(true);
+      } else {
+        // Tab inactive → dừng polling nếu có
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [load]);
+
+  // Sync refs với state ban đầu khi mount
+  useEffect(() => {
+    statusRef.current = status;
+    searchRef.current = search;
+    pageRef.current = page;
+    pageSizeRef.current = pageSize;
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Initial load khi mount - không start polling
+  useEffect(() => {
+    const initialLoad = async () => {
+      await load(false);
+      // Không start polling - chỉ load một lần
+    };
+    
+    initialLoad();
+
+    return () => {
+      // Cleanup: dừng polling và clear timeouts
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = null;
+      }
+    };
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  // Update ordersRef khi orders thay đổi
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
+
+  // Update filter refs khi state thay đổi - đảm bảo ref luôn có giá trị mới nhất
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    searchRef.current = search;
+  }, [search]);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
+    pageSizeRef.current = pageSize;
+  }, [pageSize]);
+
+  // Reset to page 1 when pageSize changes
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
+
+  // View detail function
+  const viewDetail = async (orderId: string) => {
+    try {
+      const detail = await OrderHistoryService.getById(orderId);
+      setSelectedOrder(detail);
+    } catch (error: any) {
+      console.error('Error loading order detail:', error);
+    }
+  };
 
 
   // Auto-open order detail modal if orderId is passed via navigation state
@@ -75,6 +317,47 @@ const OrderHistoryPage: React.FC = () => {
 
   return (
     <Layout>
+      <style>{`
+        .custom-pagination-simple .ant-pagination-item {
+          border-radius: 6px;
+          border-color: #e5e7eb;
+          min-width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .custom-pagination-simple .ant-pagination-item:hover {
+          border-color: #FF6A00;
+        }
+        .custom-pagination-simple .ant-pagination-item-active {
+          background: #FF6A00;
+          border-color: #FF6A00;
+        }
+        .custom-pagination-simple .ant-pagination-item-active a {
+          color: white;
+        }
+        .custom-pagination-simple .ant-pagination-prev,
+        .custom-pagination-simple .ant-pagination-next {
+          border-radius: 6px;
+          border-color: #e5e7eb;
+          min-width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .custom-pagination-simple .ant-pagination-prev:hover,
+        .custom-pagination-simple .ant-pagination-next:hover {
+          border-color: #FF6A00;
+          color: #FF6A00;
+        }
+        .custom-pagination-simple .ant-pagination-jump-prev,
+        .custom-pagination-simple .ant-pagination-jump-next {
+          border-radius: 6px;
+        }
+      `}</style>
       <div className="bg-gray-50 min-h-screen">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Breadcrumb
@@ -158,9 +441,35 @@ const OrderHistoryPage: React.FC = () => {
             {/* Status Tabs Section - Horizontal Tabs Style */}
             <OrderStatusTabs
               value={status}
-              onChange={setStatus}
+              onChange={async (newStatus) => {
+                // Update ref ngay lập tức để tránh race condition
+                statusRef.current = newStatus;
+                pageRef.current = 1;
+                // Update state để UI responsive
+                setStatus(newStatus);
+                setPage(1);
+                // Call service trực tiếp với giá trị mới
+                await load(false, { status: newStatus, page: 1, pageSize: pageSizeRef.current });
+              }}
               search={search}
-              onSearchChange={setSearch}
+              onSearchChange={(newSearch) => {
+                // Update ref ngay lập tức
+                searchRef.current = newSearch;
+                pageRef.current = 1;
+                // Update state để UI responsive
+                setSearch(newSearch);
+                setPage(1);
+                
+                // Debounce search để tránh spam API khi user đang gõ
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                }
+                
+                searchTimeoutRef.current = setTimeout(async () => {
+                  // Call service sau khi user ngừng gõ 500ms với giá trị mới nhất từ ref
+                  await load(false, { search: searchRef.current, page: pageRef.current, pageSize: pageSizeRef.current });
+                }, 500);
+              }}
             />
 
             {/* Orders List */}
@@ -218,88 +527,82 @@ const OrderHistoryPage: React.FC = () => {
                     key={order.id}
                     order={order}
                     ghnOrderData={ghnOrderData}
-                    onOrderCancelled={reload}
+                    onOrderCancelled={() => load()}
                   />
                 ))}
               </div>
             )}
 
-            {/* Pagination & Page Size Selector */}
+            {/* Pagination - Tối giản và đẹp hơn */}
             {orders.length > 0 && (
-              <Card 
-                className="border-gray-200 shadow-sm"
-                style={{
-                  borderRadius: 12,
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                }}
-                styles={{ 
-                  body: { padding: '20px 24px' }
-                }}
-              >
-                <Row gutter={[24, 16]} align="middle" justify="space-between">
-                  {/* Page Size Selector */}
-                  <Col xs={24} sm={12} md={8}>
-                    <Space size="middle" className="w-full sm:w-auto">
-                      <div className="flex items-center gap-2">
-                        <Text className="text-sm font-medium text-gray-700">Hiển thị:</Text>
-                        <Select
-                          value={pageSize}
-                          onChange={setPageSize}
-                          style={{ 
-                            width: 150, 
-                            borderRadius: '8px',
-                            minWidth: '150px'
-                          }}
-                          size="large"
-                        >
-                          <Option value={5}>5 đơn hàng</Option>
-                          <Option value={10}>10 đơn hàng</Option>
-                          <Option value={15}>15 đơn hàng</Option>
-                          <Option value={20}>20 đơn hàng</Option>
-                        </Select>
-                        <Text className="text-sm text-gray-500 hidden sm:inline">/ trang</Text>
-                      </div>
-                    </Space>
-                  </Col>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-lg border border-gray-200 px-4 py-3">
+                {/* Page Size Selector - Compact */}
+                <div className="flex items-center gap-2">
+                  <Text className="text-sm text-gray-600">Hiển thị</Text>
+                  <Select
+                    value={pageSize}
+                    onChange={async (newPageSize) => {
+                      // Update ref ngay lập tức
+                      pageSizeRef.current = newPageSize;
+                      pageRef.current = 1;
+                      // Update state
+                      setPageSize(newPageSize);
+                      setPage(1);
+                      // Call service với giá trị mới
+                      await load(false, { pageSize: newPageSize, page: 1, status: statusRef.current, search: searchRef.current });
+                    }}
+                    style={{ 
+                      width: 80, 
+                      borderRadius: '6px',
+                    }}
+                    size="middle"
+                    bordered={false}
+                    className="[&_.ant-select-selector]:border-gray-200 [&_.ant-select-selector]:rounded-md"
+                  >
+                    <Option value={5}>5</Option>
+                    <Option value={10}>10</Option>
+                    <Option value={15}>15</Option>
+                    <Option value={20}>20</Option>
+                  </Select>
+                  <Text className="text-sm text-gray-500">/ trang</Text>
+                </div>
+
+                {/* Pagination Info & Controls */}
+                <div className="flex items-center gap-4 flex-wrap justify-center">
+                  {/* Compact Info */}
+                  <Text className="text-sm text-gray-600 whitespace-nowrap">
+                    <span className="font-medium text-gray-900">{page}</span>
+                    <span className="mx-1">/</span>
+                    <span className="font-medium text-gray-900">{totalPages}</span>
+                    <span className="mx-2 text-gray-300">•</span>
+                    <span className="text-gray-500">Tổng:</span>
+                    <span className="ml-1 font-semibold text-[#FF6A00]">{total || 0}</span>
+                  </Text>
 
                   {/* Pagination */}
-                  <Col xs={24} sm={12} md={16}>
-                    <div className="flex flex-col sm:flex-row items-center justify-end gap-4">
-                      {/* Total Info */}
-                      <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        <Text className="text-sm text-gray-600">
-                          Trang <strong className="text-gray-900">{page}</strong> / <strong className="text-gray-900">{totalPages}</strong>
-                        </Text>
-                        <Divider type="vertical" style={{ height: '16px', margin: '0 8px' }} />
-                        <Text className="text-sm text-gray-600">
-                          Tổng: <strong className="text-orange-600">{total || 0}</strong> đơn hàng
-                        </Text>
-                      </div>
-
-                      {/* Pagination Component */}
-                      {totalPages > 1 && (
-                        <Pagination
-                          current={page}
-                          total={totalPages * pageSize}
-                          pageSize={pageSize}
-                          onChange={(newPage) => setPage(newPage)}
-                          showSizeChanger={false}
-                          showQuickJumper={totalPages > 5}
-                          showTotal={(total, range) => (
-                            <span className="text-sm text-gray-600 hidden lg:inline">
-                              Hiển thị <strong className="text-gray-900">{range[0]}-{range[1]}</strong> của <strong className="text-gray-900">{total}</strong> đơn hàng
-                            </span>
-                          )}
-                          style={{ 
-                            textAlign: 'right',
-                          }}
-                          className="custom-pagination"
-                        />
-                      )}
-                    </div>
-                  </Col>
-                </Row>
-              </Card>
+                  {totalPages > 1 && (
+                    <Pagination
+                      current={page}
+                      total={totalPages}
+                      pageSize={1}
+                      onChange={async (newPage) => {
+                        // Update ref ngay lập tức
+                        pageRef.current = newPage;
+                        // Update state
+                        setPage(newPage);
+                        // Call service với giá trị mới
+                        await load(false, { page: newPage, status: statusRef.current, search: searchRef.current, pageSize: pageSizeRef.current });
+                      }}
+                      showSizeChanger={false}
+                      showQuickJumper={totalPages > 10}
+                      showLessItems
+                      size="small"
+                      style={{ margin: 0 }}
+                      className="custom-pagination-simple"
+                    />
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -309,7 +612,7 @@ const OrderHistoryPage: React.FC = () => {
         order={selectedOrder} 
         onClose={() => setSelectedOrder(null)} 
         ghnOrderData={ghnOrderData}
-        onOrderCancelled={reload}
+        onOrderCancelled={() => load()}
       />
     </Layout>
   );

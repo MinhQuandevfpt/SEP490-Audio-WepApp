@@ -465,12 +465,40 @@ const StoreProfile: React.FC = () => {
                   </div>
 
                   {/* Email */}
-                  <div className="pb-4">
+                  <div className="border-b pb-4">
                     <div className="text-sm text-gray-500 mb-1">Email</div>
                     <div className="text-base flex items-center gap-2">
                       <MailOutlined className="text-red-500" />
                       {storeData.email}
                     </div>
+                  </div>
+
+                  {/* Legal Point (Điểm uy tín) */}
+                  <div className="pb-4">
+                    <div className="text-sm text-gray-500 mb-1">Điểm uy tín</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-semibold text-gray-900">{storeData.legalPoint ?? 0}</span>
+                      {storeData.legalPoint === 0 && (
+                        <Tag color="red" className="text-xs">
+                          Tài khoản bị khóa mua hàng 30 ngày
+                        </Tag>
+                      )}
+                      {storeData.legalPoint !== undefined && storeData.legalPoint > 0 && storeData.legalPoint < 3 && (
+                        <Tag color="red" className="text-xs">
+                          Điểm uy tín thấp
+                        </Tag>
+                      )}
+                      {storeData.legalPoint !== undefined && storeData.legalPoint >= 3 && storeData.legalPoint < 6 && (
+                        <Tag color="orange" className="text-xs">
+                          Cảnh báo
+                        </Tag>
+                      )}
+                    </div>
+                    {storeData.legalPoint !== undefined && storeData.legalPoint < 6 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        Điểm uy tín ảnh hưởng đến hoạt động của cửa hàng. Hủy đơn hàng sẽ làm giảm điểm uy tín.
+                      </p>
+                    )}
                   </div>
                 </div>
               </Col>
