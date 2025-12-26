@@ -2876,11 +2876,11 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 }));
               }
 
-              // Nếu attribute có sẵn danh sách options -> hiển thị input với suggestions
+              // Nếu attribute có sẵn danh sách options -> hiển thị input với suggestions (flexible: chọn hoặc nhập)
               if (Array.isArray(attr.options) && attr.options.length > 0 && attr.dataType !== 'BOOLEAN') {
                 const attrKey = attr.attributeId;
                 const isShowingSuggestions = showSuggestions[attrKey] || false;
-                const query = searchQuery[attrKey] ?? (valueHasUnit ? numericValue : value);
+                const currentQuery = searchQuery[attrKey] ?? '';
                 
                 // Helper functions để parse và format giá trị thành mảng (cho phép chọn nhiều)
                 const parseValueToArray = (val: string): string[] => {
@@ -2897,11 +2897,11 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                 // Filter options based on search query
                 const filteredOptions = attr.options.filter(opt => {
                   const optLower = opt.toLowerCase();
-                  const queryLower = String(query).toLowerCase();
+                  const queryLower = String(currentQuery).toLowerCase();
                   return optLower.includes(queryLower);
                 });
                 
-                // Handler để toggle selection
+                // Handler để toggle selection từ suggestions
                 const toggleSuggestion = (opt: string) => {
                   const currentValues = parseValueToArray(value);
                   const isSelected = currentValues.includes(opt);
@@ -2921,13 +2921,66 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                     [attr.attributeName]: newValue,
                   }));
                   
-                  // Clear search query sau khi chọn để input hiển thị lại selected values
+                  // Không clear search query để user có thể tiếp tục nhập
+                };
+
+                // Handler để thêm giá trị từ input (Enter hoặc blur)
+                const addCustomValue = (inputValue: string) => {
+                  if (!inputValue || !inputValue.trim()) return;
+                  
+                  const trimmedValue = inputValue.trim();
+                  const currentValues = parseValueToArray(value);
+                  
+                  // Nếu giá trị đã tồn tại, không thêm lại
+                  if (currentValues.includes(trimmedValue)) {
+                    setSearchQuery((prev) => ({
+                      ...prev,
+                      [attrKey]: '',
+                    }));
+                    return;
+                  }
+                  
+                  // Thêm giá trị mới
+                  const newValues = [...currentValues, trimmedValue];
+                  const newValue = formatArrayToString(newValues);
+                  
+                  // Xử lý unit nếu có
+                  let finalValue = newValue;
+                  if (availableUnits.length > 0 && selectedUnit && selectedUnit !== '(-)') {
+                    // Tìm giá trị vừa thêm và thêm unit vào
+                    const lastValue = trimmedValue;
+                    // Kiểm tra xem giá trị có chứa unit chưa
+                    const hasUnit = availableUnits.some(unit => 
+                      lastValue.toLowerCase().endsWith(unit.toLowerCase())
+                    );
+                    if (!hasUnit) {
+                      const valueWithUnit = `${lastValue} ${selectedUnit}`.trim();
+                      const updatedValues = [...currentValues, valueWithUnit];
+                      finalValue = formatArrayToString(updatedValues);
+                    }
+                  }
+                  
+                  setExtraSpecs((prev) => ({
+                    ...prev,
+                    [attr.attributeName]: finalValue,
+                  }));
+                  
+                  // Clear search query sau khi thêm
                   setSearchQuery((prev) => ({
                     ...prev,
                     [attrKey]: '',
                   }));
-                  
-                  // Không đóng dropdown, chỉ update state
+                };
+
+                // Handler để xóa selected value
+                const removeSelectedValue = (valToRemove: string) => {
+                  const currentValues = parseValueToArray(value);
+                  const newValues = currentValues.filter(v => v !== valToRemove);
+                  const newValue = formatArrayToString(newValues);
+                  setExtraSpecs((prev) => ({
+                    ...prev,
+                    [attr.attributeName]: newValue,
+                  }));
                 };
 
                 return (
@@ -2937,42 +2990,65 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                     </label>
                     <div className="relative mt-1">
                       <div className="relative flex gap-2">
-                        {/* Number input */}
+                        {/* Input field - luôn cho phép nhập tự do */}
                         <div className="relative flex-1">
                           <input
                             type="text"
-                            value={isShowingSuggestions ? query : formatArrayToString(selectedValues)}
+                            value={currentQuery}
                             onChange={(e) => {
                               const newInput = e.target.value;
                               setSearchQuery((prev) => ({
                                 ...prev,
                                 [attrKey]: newInput,
                               }));
+                              // Hiển thị suggestions khi bắt đầu nhập
+                              if (newInput && !isShowingSuggestions) {
+                                setShowSuggestions((prev) => ({
+                                  ...prev,
+                                  [attrKey]: true,
+                                }));
+                              }
                             }}
                             onFocus={() => {
                               setShowSuggestions((prev) => ({
                                 ...prev,
                                 [attrKey]: true,
                               }));
-                              // Khi focus, hiển thị search query (nếu có) hoặc rỗng để tìm kiếm
-                              setSearchQuery((prev) => ({
-                                ...prev,
-                                [attrKey]: prev[attrKey] || '',
-                              }));
                             }}
                             onBlur={() => {
                               // Delay để cho phép click vào suggestion
                               setTimeout(() => {
+                                // Thêm giá trị từ input nếu có
+                                if (currentQuery && currentQuery.trim()) {
+                                  addCustomValue(currentQuery);
+                                }
                                 setShowSuggestions((prev) => ({
                                   ...prev,
                                   [attrKey]: false,
                                 }));
-                                // Clear search query khi blur để hiển thị lại selected values
+                              }, 200);
+                            }}
+                            onKeyDown={(e) => {
+                              // Enter để thêm giá trị
+                              if (e.key === 'Enter' && currentQuery && currentQuery.trim()) {
+                                e.preventDefault();
+                                addCustomValue(currentQuery);
+                                setShowSuggestions((prev) => ({
+                                  ...prev,
+                                  [attrKey]: false,
+                                }));
+                              }
+                              // Escape để đóng suggestions
+                              if (e.key === 'Escape') {
+                                setShowSuggestions((prev) => ({
+                                  ...prev,
+                                  [attrKey]: false,
+                                }));
                                 setSearchQuery((prev) => ({
                                   ...prev,
                                   [attrKey]: '',
                                 }));
-                              }, 200);
+                              }
                             }}
                             placeholder={availableUnits.length > 0 ? "Nhập số hoặc chọn từ gợi ý" : "Nhập hoặc chọn từ gợi ý"}
                             className="w-full border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white px-3 py-2"
@@ -2989,21 +3065,19 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                                 ...prev,
                                 [attr.attributeName]: newUnit,
                               }));
-                              // Update value with new unit nếu có giá trị numeric
-                              const currentQuery = searchQuery[attrKey] || '';
-                              if (currentQuery && !valueHasUnit) {
-                                // Nếu chọn "(-)", không thêm đơn vị
-                                const newValue = newUnit === '(-)' 
-                                  ? currentQuery 
-                                  : `${currentQuery} ${newUnit}`.trim();
-                                const currentValues = parseValueToArray(value);
-                                const updatedValues = currentValues.length > 0 
-                                  ? [...currentValues.slice(0, -1), newValue]
-                                  : [newValue];
-                                setExtraSpecs((prev) => ({
-                                  ...prev,
-                                  [attr.attributeName]: formatArrayToString(updatedValues),
-                                }));
+                              // Nếu đang có giá trị trong input, thêm unit vào
+                              if (currentQuery && currentQuery.trim() && newUnit !== '(-)') {
+                                // Chỉ update nếu giá trị chưa có unit
+                                const hasUnit = availableUnits.some(unit => 
+                                  currentQuery.toLowerCase().endsWith(unit.toLowerCase())
+                                );
+                                if (!hasUnit) {
+                                  const valueWithUnit = `${currentQuery.trim()} ${newUnit}`.trim();
+                                  setSearchQuery((prev) => ({
+                                    ...prev,
+                                    [attrKey]: valueWithUnit,
+                                  }));
+                                }
                               }
                             }}
                             className="border border-gray-300 rounded-lg shadow-sm focus:border-orange-600 focus:ring-1 focus:ring-orange-500 focus:outline-none transition-colors bg-white px-3 py-2 text-sm min-w-[80px]"
@@ -3017,6 +3091,28 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                           </select>
                         )}
                       </div>
+                      
+                      {/* Selected values display (tags/chips) */}
+                      {selectedValues.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {selectedValues.map((val, idx) => (
+                            <span
+                              key={`${attr.attributeId}-selected-${idx}`}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-md text-sm"
+                            >
+                              {val}
+                              <button
+                                type="button"
+                                onClick={() => removeSelectedValue(val)}
+                                className="text-orange-700 hover:text-orange-900 focus:outline-none"
+                                title="Xóa"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       
                       {/* Suggestions dropdown */}
                       {isShowingSuggestions && filteredOptions.length > 0 && (
@@ -3054,9 +3150,9 @@ const Suminputsection: React.FC<SuminputsectionProps> = ({ mode = 'create', prod
                         </div>
                       )}
                     </div>
-                    {isShowingSuggestions && filteredOptions.length === 0 && query && (
+                    {isShowingSuggestions && filteredOptions.length === 0 && currentQuery && (
                       <p className="mt-1 text-xs text-gray-500 px-1">
-                        Không tìm thấy gợi ý phù hợp. {availableUnits.length > 0 ? `Bạn có thể nhập số và chọn đơn vị (${availableUnits.join(', ')})` : 'Bạn có thể nhập giá trị tùy ý.'}
+                        Không tìm thấy gợi ý phù hợp. {availableUnits.length > 0 ? `Nhấn Enter để thêm giá trị "${currentQuery}"${selectedUnit && selectedUnit !== '(-)' ? ` ${selectedUnit}` : ''}` : `Nhấn Enter để thêm giá trị "${currentQuery}"`}
                       </p>
                     )}
                   </div>
