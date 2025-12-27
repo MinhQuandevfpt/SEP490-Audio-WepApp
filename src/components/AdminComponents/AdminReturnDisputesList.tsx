@@ -205,7 +205,7 @@ const AdminReturnDisputesList: React.FC<AdminReturnDisputesListProps> = ({
         style={{ borderRadius: 12 }}
       >
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Left: Product Image */}
+          
           <div className="flex-shrink-0">
             <div className="w-32 h-32 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
               {productImage ? (
