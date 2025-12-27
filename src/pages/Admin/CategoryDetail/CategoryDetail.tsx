@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { CategoryService } from '../../../services/admin/CategoryService';
 import type { CategoryDetailData } from '../../../types/api';
 import { CategoriesEditModal } from '../../../components/AdminComponents/CategoryComponent';
 import { showCenterError, showCenterSuccess } from '../../../utils/notification';
-import { Tag, Spin, Modal } from 'antd';
-import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { Tag, Spin } from 'antd';
 
 const CategoryDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [item, setItem] = useState<CategoryDetailData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,31 +40,6 @@ const CategoryDetail: React.FC = () => {
         </div>
         <div className="mt-4 flex md:mt-0 md:ml-4 gap-3">
           <button onClick={() => setOpenEdit(true)} className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">Chỉnh sửa</button>
-          <button
-            onClick={() => {
-              if (!id) return;
-              Modal.confirm({
-                title: 'Xác nhận xóa danh mục',
-                icon: <ExclamationCircleOutlined />,
-                content: `Bạn có chắc chắn muốn xóa danh mục "${item?.name || ''}"? Hành động này không thể hoàn tác.`,
-                okText: 'Xóa',
-                okType: 'danger',
-                cancelText: 'Hủy',
-                onOk: async () => {
-                  try {
-                    const res = await CategoryService.deleteCategory(id);
-                    showCenterSuccess(res?.message || 'Xóa danh mục thành công');
-                    navigate('/admin/categories');
-                  } catch (err: any) {
-                    showCenterError(err?.message || 'Xóa danh mục thất bại', 'Thất bại');
-                  }
-                }
-              });
-            }}
-            className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
-          >
-            Xóa
-          </button>
           <Link to="/admin/categories" className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700">Quay lại</Link>
         </div>
       </div>

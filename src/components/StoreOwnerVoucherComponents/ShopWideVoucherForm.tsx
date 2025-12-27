@@ -103,8 +103,13 @@ const ShopWideVoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
       errors.push('Giá trị giảm phải lớn hơn 0 khi chọn loại giảm tiền cố định');
     }
 
-    if (form.type === 'PERCENT' && (!form.discountPercent || form.discountPercent <= 0 || form.discountPercent > 100)) {
-      errors.push('Phần trăm giảm phải từ 1% đến 100% khi chọn loại giảm theo phần trăm');
+    // Validate: Giá trị giảm không được lớn hơn hoặc bằng giá tối thiểu
+    if (form.type === 'FIXED' && form.discountValue && form.minOrderValue && form.discountValue >= form.minOrderValue) {
+      errors.push('Giá trị giảm phải nhỏ hơn giá tối thiểu của đơn hàng');
+    }
+
+    if (form.type === 'PERCENT' && (!form.discountPercent || form.discountPercent <= 0 || form.discountPercent > 50)) {
+      errors.push('Phần trăm giảm phải từ 1% đến 50% khi chọn loại giảm theo phần trăm');
     }
 
     if (!form.startTime) {
@@ -273,9 +278,20 @@ const ShopWideVoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                   const numeric = parseFormattedNumber(formatted);
                   setForm({ ...form, discountValue: numeric ?? 0, discountPercent: null });
                 }} 
+                onBlur={() => {
+                  // Validate: Giá trị giảm phải < giá tối thiểu
+                  if (form.discountValue && form.minOrderValue && form.discountValue >= form.minOrderValue) {
+                    // Tự động điều chỉnh về giá trị nhỏ hơn minOrderValue
+                    const adjustedValue = form.minOrderValue > 0 ? form.minOrderValue - 1 : 0;
+                    setForm(prev => ({ ...prev, discountValue: adjustedValue }));
+                  }
+                }}
                 placeholder="VD: 10.000" 
                 required
               />
+              {form.minOrderValue && form.discountValue && form.discountValue >= form.minOrderValue && (
+                <p className="mt-1 text-xs text-red-600">Giá trị giảm phải nhỏ hơn giá tối thiểu ({formatNumber(form.minOrderValue)} đ)</p>
+              )}
             </div>
           ) : (
             <>
@@ -287,12 +303,18 @@ const ShopWideVoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                 <input 
                   type="number" 
                   min={1} 
-                  max={100} 
+                  max={50} 
                   className="mt-1 w-full px-3 py-2 border rounded-lg" 
                   value={form.discountPercent ?? 0} 
-                  onChange={e => setForm({ ...form, discountPercent: Number(e.target.value), discountValue: null })} 
+                  onChange={e => {
+                    const value = Number(e.target.value);
+                    // Giới hạn tối đa 50%
+                    const clampedValue = value > 50 ? 50 : (value < 0 ? 0 : value);
+                    setForm({ ...form, discountPercent: clampedValue, discountValue: null });
+                  }} 
                   required
                 />
+                <p className="mt-1 text-xs text-gray-500">Tối đa 50%</p>
               </div>
               <div>
                 <label className="flex items-center text-sm font-medium text-gray-700">
