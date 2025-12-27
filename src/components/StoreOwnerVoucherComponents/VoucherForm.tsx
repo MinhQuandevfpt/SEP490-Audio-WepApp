@@ -178,6 +178,16 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
   const validateForm = (): boolean => {
     const errors: string[] = [];
 
+    // Validate: Phần trăm giảm không được vượt quá 50%
+    if (form.type === 'PERCENT' && form.discountPercent && form.discountPercent > 50) {
+      errors.push('Phần trăm giảm phải từ 1% đến 50% khi chọn loại giảm theo phần trăm');
+    }
+
+    // Validate: Giá trị giảm không được lớn hơn hoặc bằng giá tối thiểu
+    if (form.type === 'FIXED' && form.discountValue && form.minOrderValue && form.discountValue >= form.minOrderValue) {
+      errors.push('Giá trị giảm phải nhỏ hơn giá tối thiểu của đơn hàng');
+    }
+
     // Validate: Giới hạn sản phẩm áp dụng không được vượt quá số lượng tồn kho
     form.products.forEach((product) => {
       if (product.productId) {
@@ -191,21 +201,56 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               `Sản phẩm "${selectedProduct.name}": Giới hạn sản phẩm áp dụng (${promotionStockLimit}) không được vượt quá số lượng tồn kho (${stockQuantity})`
             );
           }
+
+          // Validate: Giới hạn mua/user không được lớn hơn lượt dùng mỗi user
+          const purchaseLimitPerCustomer = product.purchaseLimitPerCustomer ?? 0;
+          const usagePerUser = form.usagePerUser ?? 0;
+          
+          if (purchaseLimitPerCustomer > 0 && usagePerUser > 0 && purchaseLimitPerCustomer > usagePerUser) {
+            errors.push(
+              `Sản phẩm "${selectedProduct.name}": Giới hạn mua/user (${purchaseLimitPerCustomer}) không được lớn hơn lượt dùng mỗi user (${usagePerUser})`
+            );
+          }
+
+          // Validate: Giới hạn sản phẩm áp dụng không được thấp hơn giới hạn mua/user
+          if (promotionStockLimit > 0 && purchaseLimitPerCustomer > 0 && promotionStockLimit < purchaseLimitPerCustomer) {
+            errors.push(
+              `Sản phẩm "${selectedProduct.name}": Giới hạn sản phẩm áp dụng (${promotionStockLimit}) không được thấp hơn giới hạn mua/user (${purchaseLimitPerCustomer})`
+            );
+          }
         }
       }
     });
 
-    // Validate: Tổng giới hạn sản phẩm áp dụng không được lớn hơn tổng số phát hành
+    // Validate: Tổng giới hạn sản phẩm áp dụng phải bằng hoặc nhỏ hơn tổng số phát hành
     const totalPromotionStockLimit = form.products.reduce((sum, product) => {
       return sum + (product.promotionStockLimit ?? 0);
     }, 0);
     
     const totalVoucherIssued = form.totalVoucherIssued ?? 0;
     
-    if (totalPromotionStockLimit > totalVoucherIssued && totalVoucherIssued > 0) {
+    if (totalVoucherIssued > 0 && totalPromotionStockLimit > totalVoucherIssued) {
       errors.push(
-        `Tổng giới hạn sản phẩm áp dụng (${totalPromotionStockLimit}) không được lớn hơn tổng số phát hành (${totalVoucherIssued})`
+        `Tổng giới hạn sản phẩm áp dụng (${totalPromotionStockLimit}) phải bằng hoặc nhỏ hơn tổng số phát hành (${totalVoucherIssued})`
       );
+    }
+
+    // Validate: Tổng số phát hành không được thấp hơn lượt dùng mỗi user
+    const usagePerUser = form.usagePerUser ?? 0;
+    
+    if (totalVoucherIssued > 0 && usagePerUser > 0 && totalVoucherIssued < usagePerUser) {
+      errors.push(
+        `Tổng số phát hành (${totalVoucherIssued}) không được thấp hơn lượt dùng mỗi user (${usagePerUser})`
+      );
+    }
+
+    // Validate: Thời gian kết thúc phải lớn hơn thời gian bắt đầu
+    if (form.startTime && form.endTime) {
+      const start = new Date(form.startTime);
+      const end = new Date(form.endTime);
+      if (end <= start) {
+        errors.push('Thời gian kết thúc phải lớn hơn thời gian bắt đầu');
+      }
     }
 
     setValidationErrors(errors);
@@ -312,8 +357,19 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                   const numeric = parseFormattedNumber(formatted);
                   setForm({ ...form, discountValue: numeric ?? 0, discountPercent: null });
                 }} 
+                onBlur={() => {
+                  // Validate: Giá trị giảm phải < giá tối thiểu
+                  if (form.discountValue && form.minOrderValue && form.discountValue >= form.minOrderValue) {
+                    // Tự động điều chỉnh về giá trị nhỏ hơn minOrderValue
+                    const adjustedValue = form.minOrderValue > 0 ? form.minOrderValue - 1 : 0;
+                    setForm(prev => ({ ...prev, discountValue: adjustedValue }));
+                  }
+                }}
                 placeholder="VD: 10.000" 
               />
+              {form.minOrderValue && form.discountValue && form.discountValue >= form.minOrderValue && (
+                <p className="mt-1 text-xs text-red-600">Giá trị giảm phải nhỏ hơn giá tối thiểu ({formatNumber(form.minOrderValue)} đ)</p>
+              )}
             </div>
           ) : (
             <div>
@@ -321,7 +377,20 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                 Giảm (%)
                 <InfoTooltip fieldKey="discountPercent" />
               </label>
-              <input type="number" min={0} max={100} className="mt-1 w-full px-3 py-2 border rounded-lg" value={form.discountPercent ?? 0} onChange={e => setForm({ ...form, discountPercent: Number(e.target.value), discountValue: null })} />
+              <input 
+                type="number" 
+                min={0} 
+                max={50} 
+                className="mt-1 w-full px-3 py-2 border rounded-lg" 
+                value={form.discountPercent ?? 0} 
+                onChange={e => {
+                  const value = Number(e.target.value);
+                  // Giới hạn tối đa 50%
+                  const clampedValue = value > 50 ? 50 : (value < 0 ? 0 : value);
+                  setForm({ ...form, discountPercent: clampedValue, discountValue: null });
+                }} 
+              />
+              <p className="mt-1 text-xs text-gray-500">Tối đa 50%</p>
             </div>
           )}
           <div>
@@ -377,6 +446,38 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
               }} 
               placeholder="VD: 100" 
             />
+            {(() => {
+              const totalPromotionStockLimit = form.products.reduce((sum, product) => {
+                return sum + (product.promotionStockLimit ?? 0);
+              }, 0);
+              const totalVoucherIssued = form.totalVoucherIssued ?? 0;
+              const usagePerUser = form.usagePerUser ?? 0;
+              
+              const errors: string[] = [];
+              if (totalVoucherIssued > 0 && totalPromotionStockLimit > totalVoucherIssued) {
+                errors.push(
+                  `Tổng giới hạn sản phẩm áp dụng (${formatNumber(totalPromotionStockLimit)}) vượt quá tổng số phát hành (${formatNumber(totalVoucherIssued)})`
+                );
+              }
+              if (totalVoucherIssued > 0 && usagePerUser > 0 && totalVoucherIssued < usagePerUser) {
+                errors.push(
+                  `Tổng số phát hành (${formatNumber(totalVoucherIssued)}) không được thấp hơn lượt dùng mỗi user (${formatNumber(usagePerUser)})`
+                );
+              }
+              
+              if (errors.length > 0) {
+                return (
+                  <div className="mt-1 space-y-1">
+                    {errors.map((error, idx) => (
+                      <p key={idx} className="text-xs text-red-600">
+                        {error}
+                      </p>
+                    ))}
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
           {/* Removed: Tổng số lượt dùng (totalUsageLimit). Always send null per new API. */}
           <div>
@@ -400,11 +501,63 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">Thời gian bắt đầu</label>
-            <input type="datetime-local" className="mt-1 w-full px-3 py-2 border rounded-lg" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} required />
+            <input 
+              type="datetime-local" 
+              className="mt-1 w-full px-3 py-2 border rounded-lg" 
+              value={form.startTime} 
+              onChange={e => setForm({ ...form, startTime: e.target.value })} 
+              onBlur={() => {
+                // Validate: Thời gian kết thúc phải > thời gian bắt đầu
+                if (form.startTime && form.endTime) {
+                  const start = new Date(form.startTime);
+                  const end = new Date(form.endTime);
+                  if (end <= start) {
+                    // Tự động điều chỉnh thời gian kết thúc = thời gian bắt đầu + 1 giờ
+                    const adjustedEnd = new Date(start);
+                    adjustedEnd.setHours(adjustedEnd.getHours() + 1);
+                    const adjustedEndString = adjustedEnd.toISOString().slice(0, 16);
+                    setForm(prev => ({ ...prev, endTime: adjustedEndString }));
+                  }
+                }
+              }}
+              required 
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Thời gian kết thúc</label>
-            <input type="datetime-local" className="mt-1 w-full px-3 py-2 border rounded-lg" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} required />
+            <input 
+              type="datetime-local" 
+              className="mt-1 w-full px-3 py-2 border rounded-lg" 
+              value={form.endTime} 
+              onChange={e => setForm({ ...form, endTime: e.target.value })} 
+              onBlur={() => {
+                // Validate: Thời gian kết thúc phải > thời gian bắt đầu
+                if (form.startTime && form.endTime) {
+                  const start = new Date(form.startTime);
+                  const end = new Date(form.endTime);
+                  if (end <= start) {
+                    // Tự động điều chỉnh thời gian kết thúc = thời gian bắt đầu + 1 giờ
+                    const adjustedEnd = new Date(start);
+                    adjustedEnd.setHours(adjustedEnd.getHours() + 1);
+                    const adjustedEndString = adjustedEnd.toISOString().slice(0, 16);
+                    setForm(prev => ({ ...prev, endTime: adjustedEndString }));
+                  }
+                }
+              }}
+              required 
+            />
+            {form.startTime && form.endTime && (() => {
+              const start = new Date(form.startTime);
+              const end = new Date(form.endTime);
+              if (end <= start) {
+                return (
+                  <p className="mt-1 text-xs text-red-600">
+                    Thời gian kết thúc phải lớn hơn thời gian bắt đầu
+                  </p>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       </div>
@@ -476,24 +629,40 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                   {(() => {
                     const selected = products.find(pr => pr.productId === p.productId);
                     const maxStock = selected?.stockQuantity ?? undefined;
+                    const promotionStockLimit = p.promotionStockLimit ?? 0;
+                    const purchaseLimitPerCustomer = p.purchaseLimitPerCustomer ?? 0;
                     return (
-                      <input
-                        type="text"
-                        className="mt-1 w-full px-3 py-2 border rounded-lg"
-                        value={p.promotionStockLimit && p.promotionStockLimit > 0 ? formatNumber(p.promotionStockLimit) : ''}
-                        onChange={e => {
-                          const formatted = formatNumber(e.target.value);
-                          const numeric = parseFormattedNumber(formatted);
-                          if (numeric === null) {
-                            updateProduct(idx, 'promotionStockLimit', null);
-                            return;
-                          }
-                          const upper = typeof maxStock === 'number' ? maxStock : Number.MAX_SAFE_INTEGER;
-                          const clamped = Math.min(Math.max(0, numeric), upper);
-                          updateProduct(idx, 'promotionStockLimit', clamped);
-                        }}
-                        placeholder="VD: 10"
-                      />
+                      <div>
+                        <input
+                          type="text"
+                          className="mt-1 w-full px-3 py-2 border rounded-lg"
+                          value={promotionStockLimit > 0 ? formatNumber(promotionStockLimit) : ''}
+                          onChange={e => {
+                            const formatted = formatNumber(e.target.value);
+                            const numeric = parseFormattedNumber(formatted);
+                            if (numeric === null) {
+                              updateProduct(idx, 'promotionStockLimit', null);
+                              return;
+                            }
+                            const upper = typeof maxStock === 'number' ? maxStock : Number.MAX_SAFE_INTEGER;
+                            const clamped = Math.min(Math.max(0, numeric), upper);
+                            updateProduct(idx, 'promotionStockLimit', clamped);
+                          }}
+                          onBlur={() => {
+                            // Validate: Giới hạn sản phẩm áp dụng phải >= giới hạn mua/user
+                            if (promotionStockLimit > 0 && purchaseLimitPerCustomer > 0 && promotionStockLimit < purchaseLimitPerCustomer) {
+                              // Tự động điều chỉnh về giá trị bằng purchaseLimitPerCustomer
+                              updateProduct(idx, 'promotionStockLimit', purchaseLimitPerCustomer);
+                            }
+                          }}
+                          placeholder="VD: 10"
+                        />
+                        {promotionStockLimit > 0 && purchaseLimitPerCustomer > 0 && promotionStockLimit < purchaseLimitPerCustomer && (
+                          <p className="mt-1 text-xs text-red-600">
+                            Giới hạn sản phẩm áp dụng không được thấp hơn giới hạn mua/user ({formatNumber(purchaseLimitPerCustomer)})
+                          </p>
+                        )}
+                      </div>
                     );
                   })()}
                 </div>
@@ -509,10 +678,29 @@ const VoucherForm: React.FC<Props> = ({ onSubmit, submitting }) => {
                     onChange={e => {
                       const formatted = formatNumber(e.target.value);
                       const numeric = parseFormattedNumber(formatted);
-                      updateProduct(idx, 'purchaseLimitPerCustomer', numeric);
+                      // Tự động giới hạn không được vượt quá lượt dùng mỗi user
+                      const usagePerUser = form.usagePerUser ?? 0;
+                      const clampedValue = usagePerUser > 0 && numeric && numeric > usagePerUser 
+                        ? usagePerUser 
+                        : numeric;
+                      updateProduct(idx, 'purchaseLimitPerCustomer', clampedValue);
                     }} 
+                    onBlur={() => {
+                      // Validate: Giới hạn mua/user phải <= lượt dùng mỗi user
+                      const purchaseLimitPerCustomer = p.purchaseLimitPerCustomer ?? 0;
+                      const usagePerUser = form.usagePerUser ?? 0;
+                      if (purchaseLimitPerCustomer > 0 && usagePerUser > 0 && purchaseLimitPerCustomer > usagePerUser) {
+                        // Tự động điều chỉnh về giá trị bằng usagePerUser
+                        updateProduct(idx, 'purchaseLimitPerCustomer', usagePerUser);
+                      }
+                    }}
                     placeholder="VD: 1" 
                   />
+                  {form.usagePerUser && p.purchaseLimitPerCustomer && p.purchaseLimitPerCustomer > form.usagePerUser && (
+                    <p className="mt-1 text-xs text-red-600">
+                      Giới hạn mua/user không được lớn hơn lượt dùng mỗi user ({formatNumber(form.usagePerUser)})
+                    </p>
+                  )}
                 </div>
                 <div className="md:col-span-6 text-right">
                   <button type="button" onClick={() => removeProduct(idx)} className="text-sm text-red-600 hover:underline">Xoá</button>
